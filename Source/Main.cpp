@@ -8,8 +8,8 @@
 
 
 /////// GLOBALS ///////////////////////////////////////////////////////////////////////////////////////////////////////
-const int WIDTH = 800;
-const int HEIGHT = 600;
+const int g_width = 800;
+const int g_height = 600;
 const std::vector<const char*> g_validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
 };
@@ -50,14 +50,14 @@ bool CheckValidationLayerSupport()
 	return true;
 }
 
-std::vector<const char*> GetRequiredExtensions()
+std::vector<const char*> GetRequiredExtensions(bool enableValidationLayers)
 {
 	uint32_t glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 	
 	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 	
-	if (g_enableValidationLayers)
+	if (enableValidationLayers)
 	{
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
@@ -96,9 +96,9 @@ public:
 	void Run()
 	{
 		InitWindow();
-		InitVulkan();
+		InitVulkan(g_enableValidationLayers);
 		MainLoop();
-		CleanUp();
+		CleanUp(g_enableValidationLayers);
 	}
 
 private:
@@ -111,11 +111,16 @@ private:
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // we'll handle resizing
-		_window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
 	}
 
 
-	void CreateInstance()
+	void InitVulkan(bool enableValidationLayers)
+	{
+		CreateInstance(enableValidationLayers);
+		if (enableValidationLayers) SetupDebugMessenger();
+	}
+	void CreateInstance(bool enableValidationLayers)
 	{
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -136,7 +141,7 @@ private:
 		
 		// Add validation layers?
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
-		if (g_enableValidationLayers)
+		if (enableValidationLayers)
 		{
 			if (!CheckValidationLayerSupport()) 
 			{
@@ -158,7 +163,7 @@ private:
 
 		
 		// Extensions
-		auto requiredExtensions = GetRequiredExtensions();
+		auto requiredExtensions = GetRequiredExtensions(enableValidationLayers);
 		createInfo.enabledExtensionCount = uint32_t(requiredExtensions.size());
 		createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
@@ -215,8 +220,16 @@ private:
 			throw std::runtime_error{"Failed to create Vulkan Instance"};
 		}
 	}
+	void SetupDebugMessenger()
+	{
+		VkDebugUtilsMessengerCreateInfoEXT createInfo;
+		PopulateDebugUtilsMessengerCreateInfoEXT(createInfo);
 
-
+		if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to setup debug messenger extension");
+		}
+	}
 	static void PopulateDebugUtilsMessengerCreateInfoEXT(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
 	{
 		createInfo = {};
@@ -232,49 +245,7 @@ private:
 		createInfo.pfnUserCallback = DebugCallback;
 		createInfo.pUserData = nullptr;
 	}
-
-	void SetupDebugMessenger()
-	{
-		if (!g_enableValidationLayers) return;
-
-		VkDebugUtilsMessengerCreateInfoEXT createInfo;
-		PopulateDebugUtilsMessengerCreateInfoEXT(createInfo);
-
-		if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to setup debug messenger extension");
-		}
-	}
-
-	void InitVulkan()
-	{
-		CreateInstance();
-		SetupDebugMessenger();
-	}
-
-	void MainLoop()
-	{
-		while (!glfwWindowShouldClose(_window))
-		{
-			glfwPollEvents();
-		}
-	}
-
-	void CleanUp()
-	{
-		if (g_enableValidationLayers)
-		{
-			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
-		}
-		
-		vkDestroyInstance(_instance, nullptr);
-		glfwDestroyWindow(_window);
-		glfwTerminate();
-	}
-
-	
-	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
-		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData)
@@ -285,6 +256,30 @@ private:
 		}
 		return VK_FALSE;
 	}
+
+	
+	void MainLoop()
+	{
+		while (!glfwWindowShouldClose(_window))
+		{
+			glfwPollEvents();
+		}
+	}
+
+	
+	void CleanUp(bool enableValidationLayers)
+	{
+		if (enableValidationLayers)
+		{
+			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
+		}
+		
+		vkDestroyInstance(_instance, nullptr);
+		glfwDestroyWindow(_window);
+		glfwTerminate();
+	}
+
+	
 };
 
 
