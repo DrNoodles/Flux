@@ -5,7 +5,7 @@
 
 #include <iostream>
 #include <vector>
-
+#include <optional>
 
 /////// GLOBALS ///////////////////////////////////////////////////////////////////////////////////////////////////////
 const int g_width = 800;
@@ -66,26 +66,59 @@ std::vector<const char*> GetRequiredExtensions(bool enableValidationLayers)
 }
 
 
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> GraphicsFamily = std::nullopt;
+
+	bool IsComplete() const
+	{
+		return GraphicsFamily.has_value();
+	}
+};
+QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
+{
+	QueueFamilyIndices indices;
+
+	uint32_t queueFamilyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+	std::vector<VkQueueFamilyProperties> queueFamilies{ queueFamilyCount };
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+	// This code is stupid (vulkan-tutorial.com... wtf).
+	// It takes the last found queue that has a graphics bit. Not sure why it doesn't break after the first find...
+	for (uint32_t i = 0; i < queueFamilyCount; ++i)
+	{
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			indices.GraphicsFamily = i;
+		}
+
+		if (indices.IsComplete())
+		{
+			break;
+		}
+	}
+	
+	return indices;
+}
+
+
+
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, 
 	const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
 	const VkAllocationCallbacks* pAllocator, 
 	VkDebugUtilsMessengerEXT* pDebugMessenger)
 {
-	const auto func = 
-		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+	const auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 	return func ? func(instance, pCreateInfo, pAllocator, pDebugMessenger) : VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-void DestroyDebugUtilsMessengerEXT(
-	VkInstance instance, 
+void DestroyDebugUtilsMessengerEXT(VkInstance instance, 
 	VkDebugUtilsMessengerEXT messenger, 
 	const VkAllocationCallbacks* pAllocator)
 {
-	const auto func =	
-		(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-	if (func != nullptr) {
-		func(instance, messenger, pAllocator);
-	}
+	const auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+	if (func) func(instance, messenger, pAllocator);
 }
 
 
@@ -105,6 +138,9 @@ private:
 	GLFWwindow* _window = nullptr;
 	VkInstance _instance = nullptr;
 	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
+	VkPhysicalDevice _physicalDevice = nullptr;
+	VkDevice _device = nullptr;
+	VkQueue _graphicsQueue = nullptr;
 	
 	void InitWindow()
 	{
@@ -115,13 +151,19 @@ private:
 	}
 
 
+
 	void InitVulkan(bool enableValidationLayers)
 	{
-		CreateInstance(enableValidationLayers);
-		if (enableValidationLayers) SetupDebugMessenger();
+		_instance = CreateInstance(enableValidationLayers);
+		if (enableValidationLayers) _debugMessenger = SetupDebugMessenger();
+		_physicalDevice = PickPhysicalDevice(_instance);
+		_device = CreateLogicalDevice(_physicalDevice, g_validationLayers, _graphicsQueue);
 	}
-	void CreateInstance(bool enableValidationLayers)
+	
+	[[nodiscard]] VkInstance CreateInstance(bool enableValidationLayers) const
 	{
+		VkInstance instance = nullptr;
+		
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Hello Triangle";
@@ -209,26 +251,33 @@ private:
 		}
 		else
 		{
-			std::cout << "All glfw vulkan extensions are supported";
+			std::cout << "All glfw vulkan extensions are supported\n";
 		}
 
 
 		// Create the instance!
 		
-		if (vkCreateInstance(&createInfo, nullptr, &_instance) != VK_SUCCESS)
+		if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
 		{
 			throw std::runtime_error{"Failed to create Vulkan Instance"};
 		}
+
+		return instance;
 	}
-	void SetupDebugMessenger()
+
+	[[nodiscard]] VkDebugUtilsMessengerEXT SetupDebugMessenger() const
 	{
+		VkDebugUtilsMessengerEXT debugMessenger = nullptr;
+		
 		VkDebugUtilsMessengerCreateInfoEXT createInfo;
 		PopulateDebugUtilsMessengerCreateInfoEXT(createInfo);
 
-		if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
+		if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to setup debug messenger extension");
 		}
+
+		return debugMessenger;
 	}
 	static void PopulateDebugUtilsMessengerCreateInfoEXT(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
 	{
@@ -257,6 +306,100 @@ private:
 		return VK_FALSE;
 	}
 
+	[[nodiscard]] static VkPhysicalDevice PickPhysicalDevice(VkInstance& instance)
+	{
+		VkPhysicalDevice physicalDevice = nullptr;
+		
+		// Query available devices
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+		if (deviceCount == 0)
+		{
+			throw std::runtime_error("Failed to find GPUs with Vulkan support.");
+		}
+		std::vector<VkPhysicalDevice> devices{deviceCount};
+		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+
+		// Helper function to determine device suitability
+		auto IsDeviceSuitable = [](VkPhysicalDevice device)
+		{
+			VkPhysicalDeviceProperties properties;
+			VkPhysicalDeviceFeatures features;
+			vkGetPhysicalDeviceProperties(device, &properties);
+			vkGetPhysicalDeviceFeatures(device, &features);
+
+			const QueueFamilyIndices indices = FindQueueFamilies(device);
+			
+			
+			// TODO Run this on surface book and write something that selects the more powerful gpu - when attached!
+			std::cout << "PhysicalDevice Name:" << properties.deviceName << " Type:" << properties.deviceType << std::endl;
+			
+			return indices.IsComplete();
+		};
+
+
+		
+		// Use the first suitable device
+		for (const auto& device : devices)
+		{
+			if (IsDeviceSuitable(device))
+			{
+				physicalDevice = device;
+				break;
+			}
+		}
+
+		if (physicalDevice == VK_NULL_HANDLE)
+		{
+			throw std::runtime_error("Failed to find a suitable GPU");
+		}
+
+		return physicalDevice;
+	}
+	
+	[[nodiscard]] static VkDevice CreateLogicalDevice(VkPhysicalDevice& physicalDevice,
+		const std::vector<const char*>& validationLayers, VkQueue& graphicsQueue)
+	{
+		QueueFamilyIndices indices = FindQueueFamilies(physicalDevice);
+
+		// Specify the queues to be created
+		VkDeviceQueueCreateInfo queueCreateInfo = {};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
+		queueCreateInfo.queueCount = 1;
+		float queuePriority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+
+
+		// Specify used device features
+		VkPhysicalDeviceFeatures deviceFeatures = {};
+
+
+		// Create the logical device
+		VkDeviceCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		
+		createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;
+		
+		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		createInfo.enabledLayerCount = (uint32_t)validationLayers.size();
+		createInfo.ppEnabledLayerNames = validationLayers.data();
+
+		
+		VkDevice device;
+		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device))
+		{
+			throw std::runtime_error("Failed to create logical device.");
+		}
+
+		vkGetDeviceQueue(device, indices.GraphicsFamily.value(), 0, &graphicsQueue);
+		
+		return device;
+	}
+
 	
 	void MainLoop()
 	{
@@ -273,7 +416,8 @@ private:
 		{
 			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
 		}
-		
+
+		vkDestroyDevice(_device, nullptr);
 		vkDestroyInstance(_instance, nullptr);
 		glfwDestroyWindow(_window);
 		glfwTerminate();
