@@ -12,7 +12,11 @@
 const int g_width = 800;
 const int g_height = 600;
 const std::vector<const char*> g_validationLayers = {
-	"VK_LAYER_KHRONOS_validation"
+	"VK_LAYER_KHRONOS_validation",
+};
+
+const std::vector<const char*> g_physicalDeviceExtensions = {
+	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
 #ifdef DEBUG
@@ -20,51 +24,6 @@ const std::vector<const char*> g_validationLayers = {
 #else
 	const bool g_enableValidationLayers = false;
 #endif
-
-
-bool CheckValidationLayerSupport()
-{
-	uint32_t layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-	std::vector<VkLayerProperties> availableLayers{ layerCount };
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-	for (const char* requestedLayer : g_validationLayers)
-	{
-		bool layerFound = false;
-
-		for (const auto& availableLayer : availableLayers)
-		{
-			if (strcmp(requestedLayer, availableLayer.layerName) == 0) 
-			{
-				layerFound = true;
-				break;
-			}
-		}
-
-		if (!layerFound)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-std::vector<const char*> GetRequiredExtensions(bool enableValidationLayers)
-{
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	
-	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-	
-	if (enableValidationLayers)
-	{
-		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-	}
-
-	return extensions;
-}
 
 
 struct QueueFamilyIndices
@@ -77,14 +36,14 @@ struct QueueFamilyIndices
 		return GraphicsFamily.has_value() && PresentFamily.has_value();
 	}
 };
-QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
+QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
 	QueueFamilyIndices indices;
 
 	uint32_t queueFamilyCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilies{ queueFamilyCount };
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
 
 	// This code is stupid (vulkan-tutorial.com... wtf).
 	// It takes the last found queue that has a graphics bit. Not sure why it doesn't break after the first find...
@@ -96,7 +55,7 @@ QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surfa
 		}
 
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentSupport);
 		if (presentSupport)
 		{
 			indices.PresentFamily = i;
@@ -129,6 +88,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 	const auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 	if (func) func(instance, messenger, pAllocator);
 }
+
 
 
 /////// CLASS HELLOTRIANGLEAPPLICATION ////////////////////////////////////////////////////////////////////////////////
@@ -275,8 +235,49 @@ private:
 
 		return instance;
 	}
+	static bool CheckValidationLayerSupport()
+	{
+		uint32_t layerCount;
+		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+		std::vector<VkLayerProperties> availableLayers{ layerCount };
+		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
+		for (const char* requestedLayer : g_validationLayers)
+		{
+			bool layerFound = false;
 
+			for (const auto& availableLayer : availableLayers)
+			{
+				if (strcmp(requestedLayer, availableLayer.layerName) == 0)
+				{
+					layerFound = true;
+					break;
+				}
+			}
+
+			if (!layerFound)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+	static std::vector<const char*> GetRequiredExtensions(bool enableValidationLayers)
+	{
+		uint32_t glfwExtensionCount = 0;
+		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+		if (enableValidationLayers)
+		{
+			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		}
+
+		return extensions;
+	}
+	
 	[[nodiscard]] static VkSurfaceKHR CreateSurface(VkInstance instance, GLFWwindow* window)
 	{
 		VkSurfaceKHR surface;
@@ -287,7 +288,6 @@ private:
 		return surface;
 	}
 
-	
 	[[nodiscard]] static VkDebugUtilsMessengerEXT SetupDebugMessenger(VkInstance instance)
 	{
 		VkDebugUtilsMessengerEXT debugMessenger = nullptr;
@@ -344,26 +344,7 @@ private:
 		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
 
-		// Helper function to determine device suitability
-		auto IsDeviceSuitable = [](VkPhysicalDevice device, VkSurfaceKHR surface)
-		{
-			VkPhysicalDeviceProperties properties;
-			VkPhysicalDeviceFeatures features;
-			vkGetPhysicalDeviceProperties(device, &properties);
-			vkGetPhysicalDeviceFeatures(device, &features);
-
-			const QueueFamilyIndices indices = FindQueueFamilies(device, surface);
-			
-			
-			// TODO Run this on surface book and write something that selects the more powerful gpu - when attached!
-			std::cout << "PhysicalDevice Name:" << properties.deviceName << " Type:" << properties.deviceType << std::endl;
-			
-			return indices.IsComplete();
-		};
-
-
-		
-		// Use the first suitable device
+		// Use the first suitable physical device
 		for (const auto& device : devices)
 		{
 			if (IsDeviceSuitable(device, surface))
@@ -373,14 +354,45 @@ private:
 			}
 		}
 
-		if (physicalDevice == VK_NULL_HANDLE)
+		if (physicalDevice == nullptr)
 		{
 			throw std::runtime_error("Failed to find a suitable GPU");
 		}
 
 		return physicalDevice;
 	}
-	
+	static bool IsDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+	{
+		VkPhysicalDeviceProperties properties;
+		VkPhysicalDeviceFeatures features;
+		vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+		vkGetPhysicalDeviceFeatures(physicalDevice, &features);
+
+		const QueueFamilyIndices indices = FindQueueFamilies(physicalDevice, surface);
+		const bool exetensionsSupported = CheckPhysicalDeviceExtensionSupport(physicalDevice);
+
+		// TODO Run this on surface book and write something that selects the more powerful gpu - when attached!
+		std::cout << "PhysicalDevice Name:" << properties.deviceName << " Type:" << properties.deviceType << std::endl;
+
+		return indices.IsComplete() && exetensionsSupported;
+	}
+	static bool CheckPhysicalDeviceExtensionSupport(VkPhysicalDevice physicalDevice)
+	{
+		uint32_t extensionCount;
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
+		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, availableExtensions.data());
+
+		std::set<std::string> requiredExtensions{ g_physicalDeviceExtensions.begin(), g_physicalDeviceExtensions.end() };
+
+		for (const auto& availableExt : availableExtensions)
+		{
+			requiredExtensions.erase(availableExt.extensionName);
+		}
+
+		return requiredExtensions.empty();
+	}
+
 	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(VkPhysicalDevice physicalDevice,
 		const std::vector<const char*>& validationLayers, VkSurfaceKHR surface)
 	{
