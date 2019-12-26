@@ -26,6 +26,13 @@ const std::vector<const char*> g_physicalDeviceExtensions = {
 #endif
 
 
+struct SwapChainSupportDetails
+{
+	VkSurfaceCapabilitiesKHR Capabilities{};
+	std::vector<VkSurfaceFormatKHR> Formats{};
+	std::vector<VkPresentModeKHR> PresentModes{};
+};
+
 struct QueueFamilyIndices
 {
 	std::optional<uint32_t> GraphicsFamily = std::nullopt;
@@ -69,7 +76,35 @@ QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceK
 	
 	return indices;
 }
+SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+{
+	SwapChainSupportDetails deets;
 
+	// Query Capabilities
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &deets.Capabilities);
+
+	
+	// Query formats
+	uint32_t formatCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+	if (formatCount != 0)
+	{
+		deets.Formats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, deets.Formats.data());
+	}
+
+
+	// Query present modes
+	uint32_t presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
+	if (presentModeCount != 0)
+	{
+		deets.PresentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, deets.PresentModes.data());
+	}
+
+	return deets;
+}
 
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, 
@@ -370,13 +405,20 @@ private:
 		vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 		vkGetPhysicalDeviceFeatures(physicalDevice, &features);
 
-		const QueueFamilyIndices indices = FindQueueFamilies(physicalDevice, surface);
-		const bool exetensionsSupported = CheckPhysicalDeviceExtensionSupport(physicalDevice);
-
 		// TODO Run this on surface book and write something that selects the more powerful gpu - when attached!
 		std::cout << "PhysicalDevice Name:" << properties.deviceName << " Type:" << properties.deviceType << std::endl;
+		
+		const QueueFamilyIndices indices = FindQueueFamilies(physicalDevice, surface);
+		const bool extensionsSupported = CheckPhysicalDeviceExtensionSupport(physicalDevice);
 
-		return indices.IsComplete() && exetensionsSupported;
+		bool swapChainAdequate = false;
+		if (extensionsSupported) // CodeSmell: logical coupling of swap chain presence and extensionsSupported
+		{
+			auto swapChainSupport = QuerySwapChainSupport(physicalDevice, surface);
+			swapChainAdequate = !swapChainSupport.Formats.empty() && !swapChainSupport.PresentModes.empty();
+		}
+		
+		return indices.IsComplete() && extensionsSupported && swapChainAdequate;
 	}
 	static bool CheckPhysicalDeviceExtensionSupport(VkPhysicalDevice physicalDevice)
 	{
