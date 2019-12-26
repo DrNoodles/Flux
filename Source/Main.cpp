@@ -122,13 +122,15 @@ private:
 	}
 
 
+
 	void InitVulkan(bool enableValidationLayers)
 	{
 		_instance = CreateInstance(enableValidationLayers);
 		if (enableValidationLayers) _debugMessenger = SetupDebugMessenger(_instance);
 		_surface = CreateSurface(_instance, _window);
 		_physicalDevice = PickPhysicalDevice(_instance, _surface);
-		std::tie(_device, _graphicsQueue, _presentQueue) = CreateLogicalDevice(_physicalDevice, g_validationLayers, _surface);
+		std::tie(_device, _graphicsQueue, _presentQueue) = 
+			CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -393,8 +395,11 @@ private:
 		return requiredExtensions.empty();
 	}
 
-	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(VkPhysicalDevice physicalDevice,
-		const std::vector<const char*>& validationLayers, VkSurfaceKHR surface)
+	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(
+		VkPhysicalDevice                physicalDevice,
+		VkSurfaceKHR                    surface, 
+		const std::vector<const char*>& validationLayers, 
+		const std::vector<const char*>& physicalDeviceExtensions)
 	{
 		// Create QueueCreateInfo for each queue family
 		
@@ -419,7 +424,7 @@ private:
 		VkPhysicalDeviceFeatures deviceFeatures = {};
 
 
-		// Create the logical device
+		// Prepare logical device create info
 		VkDeviceCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		createInfo.queueCreateInfoCount = uint32_t(queueCreateInfos.size());
@@ -427,10 +432,12 @@ private:
 		createInfo.pEnabledFeatures = &deviceFeatures;
 		createInfo.enabledLayerCount = (uint32_t)validationLayers.size();
 		createInfo.ppEnabledLayerNames = validationLayers.data();
+		createInfo.enabledExtensionCount = (uint32_t)physicalDeviceExtensions.size();
+		createInfo.ppEnabledExtensionNames = physicalDeviceExtensions.data();
 
-		
+
+		// Create the logical device and queues
 		VkDevice device;
-
 		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device))
 		{
 			throw std::runtime_error("Failed to create logical device.");
