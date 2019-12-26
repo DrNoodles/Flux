@@ -9,6 +9,8 @@
 #include <set>
 #include <algorithm>
 
+#define OUT // syntax helper
+
 /////// GLOBALS ///////////////////////////////////////////////////////////////////////////////////////////////////////
 const int g_width = 800;
 const int g_height = 600;
@@ -149,7 +151,12 @@ private:
 	VkQueue _graphicsQueue = nullptr;
 	VkQueue _presentQueue = nullptr;
 	VkSwapchainKHR _swapchain = nullptr;
+	
+	std::vector<VkImage> _swapchainImages{};
+	VkFormat _swapchainImageFormat;
+	VkExtent2D _swapchainExtent;
 
+	
 	void InitWindow()
 	{
 		glfwInit();
@@ -165,7 +172,9 @@ private:
 		_instance = CreateInstance(enableValidationLayers);
 
 		if (enableValidationLayers) 
+		{
 			_debugMessenger = SetupDebugMessenger(_instance);
+		}
 
 		_surface = CreateSurface(_instance, _window);
 
@@ -174,7 +183,8 @@ private:
 		std::tie(_device, _graphicsQueue, _presentQueue) = 
 			CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
 
-		_swapchain = CreateSwapchain(_physicalDevice, _surface, _device);
+		_swapchain = CreateSwapchain(_physicalDevice, _surface, _device, 
+			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -446,7 +456,6 @@ private:
 		return requiredExtensions.empty();
 	}
 
-		
 	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(
 		VkPhysicalDevice physicalDevice,
 		VkSurfaceKHR surface, 
@@ -505,7 +514,9 @@ private:
 	}
 
 	[[nodiscard]] static VkSwapchainKHR CreateSwapchain(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, 
-		VkDevice device)
+		VkDevice device, 
+		std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat, VkExtent2D& OUTswapchainExtent)
+	// TODO Remove OUT params, use tuple return
 	{
 		const SwapChainSupportDetails deets = QuerySwapChainSupport(physicalDevice, surface);
 
@@ -514,12 +525,12 @@ private:
 		const auto extent = ChooseSwapExtent(deets.Capabilities);
 
 		// Image count
-		uint32_t imageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
+		uint32_t minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
 		const auto maxImageCount = deets.Capabilities.maxImageCount;
 		const auto maxImageCountExists = maxImageCount != 0;
-		if (maxImageCountExists && imageCount > maxImageCount)
+		if (maxImageCountExists && minImageCount > maxImageCount)
 		{
-			imageCount = maxImageCount;
+			minImageCount = maxImageCount;
 		}
 
 		
@@ -527,7 +538,7 @@ private:
 		VkSwapchainCreateInfoKHR info = {};
 		info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		info.surface = surface;
-		info.minImageCount = imageCount;
+		info.minImageCount = minImageCount;
 		info.imageFormat = surfaceFormat.format;
 		info.imageColorSpace = surfaceFormat.colorSpace;
 		info.imageExtent = extent;
@@ -564,6 +575,15 @@ private:
 		{
 			throw std::runtime_error("Failed to create swap chain!");
 		}
+
+
+		// Retrieve swapchain images
+		uint32_t imageCount;
+		vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
+		OUTswapchainImages.resize(imageCount);
+		vkGetSwapchainImagesKHR(device, swapchain, &imageCount, OUTswapchainImages.data());
+		OUTswapchainExtent = extent;
+		OUTswapchainImageFormat = surfaceFormat.format;
 
 		return swapchain;
 	}
@@ -611,6 +631,7 @@ private:
 
 		return e;
 	}
+
 	
 	void MainLoop()
 	{
