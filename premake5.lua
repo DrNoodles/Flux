@@ -1,5 +1,6 @@
 workspace "Vulkan"
 	configurations {"Debug", "Release"}
+	--prebuildcommands { 'path "($SolutionDir)../compile-shaders.bat"' }
 	architecture "x86_64"
 	location "Build"
 	cppdialect "C++17"

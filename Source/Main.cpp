@@ -8,6 +8,7 @@
 #include <optional>
 #include <set>
 #include <algorithm>
+#include <fstream>
 
 #define OUT // syntax helper
 
@@ -128,6 +129,24 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 
+static std::vector<char> ReadFile(const std::string& path)
+{
+	std::ifstream file(path, std::ios::ate | std::ios::binary); // ate starts reading from eof
+
+	if (!file.is_open())
+	{
+		throw std::runtime_error("failed to open file " + path);
+	}
+
+	const size_t filesize = (size_t)file.tellg();
+	std::vector<char> buffer( filesize );
+	file.seekg(0);
+	file.read(buffer.data(), filesize);
+	file.close();
+
+	return buffer;
+}
+
 
 /////// CLASS HELLOTRIANGLEAPPLICATION ////////////////////////////////////////////////////////////////////////////////
 class HelloTriangleApplication
@@ -167,7 +186,6 @@ private:
 	}
 
 
-
 	void InitVulkan(bool enableValidationLayers)
 	{
 		_instance = CreateInstance(enableValidationLayers);
@@ -188,6 +206,9 @@ private:
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 
 		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
+
+		const auto shaderDir = std::string(R"(../Bin/)");
+		CreateGraphicsPipeline(shaderDir, _device);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -665,6 +686,48 @@ private:
 
 		return imageViews;
 	}
+
+	static void CreateGraphicsPipeline(const std::string& shaderDir, VkDevice device)
+	{
+		const auto vertShaderCode = ReadFile(shaderDir + "shader.vert.spv");
+		const auto fragShaderCode = ReadFile(shaderDir + "shader.frag.spv");
+
+		const auto vertShaderModule = CreateShaderModule(vertShaderCode, device);
+		const auto fragShaderModule = CreateShaderModule(fragShaderCode, device);
+
+		VkPipelineShaderStageCreateInfo vertci = {};
+		vertci.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertci.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertci.module = vertShaderModule;
+		vertci.pName = "main";
+		
+		VkPipelineShaderStageCreateInfo fragci = {};
+		fragci.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragci.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragci.module = fragShaderModule;
+		fragci.pName = "main";
+
+		VkPipelineShaderStageCreateInfo shaderStages[] = { vertci, fragci };
+		
+		vkDestroyShaderModule(device, vertShaderModule, nullptr);
+		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	}
+	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device)
+	{
+		VkShaderModuleCreateInfo ci = {};
+		ci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		ci.codeSize = code.size();
+		ci.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+		VkShaderModule shaderModule;
+		if (vkCreateShaderModule(device, &ci, nullptr, &shaderModule))
+		{
+			throw std::runtime_error("Failed to create shader module");
+		}
+
+		return shaderModule;
+	}
+
 	
 	void MainLoop()
 	{
