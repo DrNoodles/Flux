@@ -9,6 +9,7 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
+#include <array>
 
 #define OUT // syntax helper
 
@@ -173,8 +174,10 @@ private:
 	
 	std::vector<VkImage> _swapchainImages{};
 	std::vector<VkImageView> _swapchainImageViews{};
-	VkFormat _swapchainImageFormat;
-	VkExtent2D _swapchainExtent;
+	VkFormat _swapchainImageFormat{};
+	VkExtent2D _swapchainExtent{};
+	
+	VkPipelineLayout _pipelineLayout = nullptr;
 
 	
 	void InitWindow()
@@ -208,7 +211,7 @@ private:
 		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
 
 		const auto shaderDir = std::string(R"(../Bin/)");
-		CreateGraphicsPipeline(shaderDir, _device);
+		CreateGraphicsPipeline(shaderDir, _device, _swapchainExtent);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -687,30 +690,206 @@ private:
 		return imageViews;
 	}
 
-	static void CreateGraphicsPipeline(const std::string& shaderDir, VkDevice device)
+
+	[[nodiscard]] static VkPipelineLayout CreateGraphicsPipeline(const std::string& shaderDir, VkDevice device, 
+		const VkExtent2D& swapchainExtent)
 	{
-		const auto vertShaderCode = ReadFile(shaderDir + "shader.vert.spv");
-		const auto fragShaderCode = ReadFile(shaderDir + "shader.frag.spv");
 
-		const auto vertShaderModule = CreateShaderModule(vertShaderCode, device);
-		const auto fragShaderModule = CreateShaderModule(fragShaderCode, device);
 
-		VkPipelineShaderStageCreateInfo vertci = {};
-		vertci.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertci.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertci.module = vertShaderModule;
-		vertci.pName = "main";
+		//// SHADER MODULES ////
+
 		
-		VkPipelineShaderStageCreateInfo fragci = {};
-		fragci.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragci.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragci.module = fragShaderModule;
-		fragci.pName = "main";
+		// Load shader stages
+		VkShaderModule vertShaderModule;
+		VkShaderModule fragShaderModule;
+		VkPipelineShaderStageCreateInfo shaderStages[2];
+		{
+			const auto vertShaderCode = ReadFile(shaderDir + "shader.vert.spv");
+			const auto fragShaderCode = ReadFile(shaderDir + "shader.frag.spv");
 
-		VkPipelineShaderStageCreateInfo shaderStages[] = { vertci, fragci };
+			vertShaderModule = CreateShaderModule(vertShaderCode, device);
+			fragShaderModule = CreateShaderModule(fragShaderCode, device);
+
+			VkPipelineShaderStageCreateInfo vertCI = {};
+			vertCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			vertCI.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			vertCI.module = vertShaderModule;
+			vertCI.pName = "main";
+
+			VkPipelineShaderStageCreateInfo fragCI = {};
+			fragCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			fragCI.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			fragCI.module = fragShaderModule;
+			fragCI.pName = "main";
+
+			shaderStages[0] = vertCI;
+			shaderStages[1] = fragCI;
+		}
+
+
+
+		//// FIXED FUNCTIONS ////
 		
+
+		
+		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
+		VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
+		{
+			vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+			vertexInputCI.vertexBindingDescriptionCount = 0;
+			vertexInputCI.pVertexBindingDescriptions = nullptr;
+			vertexInputCI.vertexAttributeDescriptionCount = 0;
+			vertexInputCI.pVertexAttributeDescriptions = nullptr;
+		}
+
+		
+		// Input Assembly  -  What kind of geo will be drawn from the verts and whether primitive restart is enabled
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCI = {};
+		{
+			inputAssemblyCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+			inputAssemblyCI.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			inputAssemblyCI.primitiveRestartEnable = VK_FALSE;
+		}
+
+
+		// Viewports and scissor  -  The region of the frambuffer we render output to
+		VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
+		{
+			viewport.x = 0;
+			viewport.y = 0;
+			viewport.width = (float)swapchainExtent.width;
+			viewport.height = (float)swapchainExtent.height;
+			viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
+			viewport.maxDepth = 1;
+		}
+		VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
+		{
+			scissor.offset = { 0,0 };
+			scissor.extent = swapchainExtent;
+		}
+		VkPipelineViewportStateCreateInfo viewportCI = {};
+		{
+			viewportCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+			viewportCI.viewportCount = 1;
+			viewportCI.pViewports = &viewport;
+			viewportCI.scissorCount = 1;
+			viewportCI.pScissors = &scissor;
+		}
+
+
+		// Rasterizer  -  Config how geometry turns into fragments
+		VkPipelineRasterizationStateCreateInfo rasterizationCI = {};
+		{
+			rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+			rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
+			rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
+			rasterizationCI.frontFace = VK_FRONT_FACE_CLOCKWISE;
+			rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
+			rasterizationCI.depthBiasEnable = VK_FALSE;
+			rasterizationCI.depthBiasConstantFactor = 0.0f; // optional
+			rasterizationCI.depthBiasClamp = 0.0f; // optional
+			rasterizationCI.depthBiasSlopeFactor = 0.0f; // optional
+			rasterizationCI.depthClampEnable = VK_FALSE; // clamp depth frags beyond the near/far clip planes?
+			rasterizationCI.rasterizerDiscardEnable = VK_FALSE; // stop geo from passing through the raster stage?
+		}
+
+
+		// Multisampling
+		VkPipelineMultisampleStateCreateInfo multisampleCI = {};
+		{
+			multisampleCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+			multisampleCI.sampleShadingEnable = VK_FALSE;
+			multisampleCI.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+			multisampleCI.minSampleShading = 1; // optional
+			multisampleCI.pSampleMask = nullptr; // Optional
+			multisampleCI.alphaToCoverageEnable = VK_FALSE; // Optional
+			multisampleCI.alphaToOneEnable = VK_FALSE; // Optional
+		}
+		
+
+		// TODO Depth and Stencil testing
+		VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
+		{
+			depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+			// ...
+			// ...
+			// ...
+		}
+
+
+		// Color Blending  -  How colors output from frag shader are combined with existing colors
+		VkPipelineColorBlendAttachmentState colorBlendAttachment = {}; // Mix old with new to create a final color
+		{
+			colorBlendAttachment.blendEnable = VK_FALSE;
+			colorBlendAttachment.colorWriteMask = 
+				VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+			colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+			colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		}
+		VkPipelineColorBlendStateCreateInfo colorBlendCI = {}; // Combine old and new with a bitwise operation
+		{
+			colorBlendCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+			colorBlendCI.logicOpEnable = VK_FALSE;
+			colorBlendCI.logicOp = VK_LOGIC_OP_COPY; // Optional
+			colorBlendCI.attachmentCount = 1;
+			colorBlendCI.pAttachments = &colorBlendAttachment;
+			colorBlendCI.blendConstants[0] = 0.0f; // Optional
+			colorBlendCI.blendConstants[1] = 0.0f; // Optional
+			colorBlendCI.blendConstants[2] = 0.0f; // Optional
+			colorBlendCI.blendConstants[3] = 0.0f; // Optional
+		}
+
+
+		// Dynamic State  -  Set which states can be changed without recreating the pipeline. Must be set at draw time
+		std::array<VkDynamicState,1> dynamicStates =
+		{
+			VK_DYNAMIC_STATE_VIEWPORT,
+			//VK_DYNAMIC_STATE_LINE_WIDTH,
+		};
+		VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
+		{
+			dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+			dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
+			dynamicStateCI.pDynamicStates = dynamicStates.data();
+		}
+
+
+		// Create Pipeline Layout  -  Used to pass uniforms to shaders at runtime
+		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
+		{
+			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			pipelineLayoutCI.setLayoutCount = 0;
+			pipelineLayoutCI.pSetLayouts = nullptr;
+			pipelineLayoutCI.pushConstantRangeCount = 0;
+			pipelineLayoutCI.pPushConstantRanges = nullptr;
+		}
+
+		VkPipelineLayout pipelineLayout = nullptr;
+		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to Create Pipeline Layout!");
+		}
+
+
+
+		//// RENDER PASS ////
+
+
+		
+		// TODO... MORE!
+
+
+
+		
+		// Cleanup
 		vkDestroyShaderModule(device, vertShaderModule, nullptr);
 		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+
+		return { pipelineLayout };
 	}
 	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device)
 	{
@@ -745,6 +924,7 @@ private:
 			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
 		}
 
+		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
 		for (auto& imageView : _swapchainImageViews)
 		{
 			vkDestroyImageView(_device, imageView, nullptr);
