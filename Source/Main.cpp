@@ -170,8 +170,9 @@ private:
 	VkDevice _device = nullptr;
 	VkQueue _graphicsQueue = nullptr;
 	VkQueue _presentQueue = nullptr;
-	VkSwapchainKHR _swapchain = nullptr;
 	
+	VkSwapchainKHR _swapchain = nullptr;
+	std::vector<VkFramebuffer> _swapchainFramebuffers{};
 	std::vector<VkImage> _swapchainImages{};
 	std::vector<VkImageView> _swapchainImageViews{};
 	VkFormat _swapchainImageFormat{};
@@ -216,6 +217,8 @@ private:
 		
 		const auto shaderDir = std::string(R"(../Bin/)");
 		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(shaderDir, _renderPass, _device, _swapchainExtent);
+
+		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -663,7 +666,7 @@ private:
 		return e;
 	}
 
-	static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& swapchainImages, VkFormat format, 
+	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& swapchainImages, VkFormat format,
 		VkDevice device)
 	{
 		std::vector<VkImageView> imageViews{ swapchainImages.size() };
@@ -986,6 +989,38 @@ private:
 		return shaderModule;
 	}
 
+	[[nodiscard]] static std::vector<VkFramebuffer> CreateFramebuffer(
+		VkDevice device,
+		VkRenderPass renderPass,
+		const VkExtent2D& swapchainExtent,
+		const std::vector<VkImageView>& swapchainImageViews)
+	{
+		std::vector<VkFramebuffer> swapchainFramebuffers{swapchainImageViews.size()};
+
+		for (size_t i = 0; i < swapchainImageViews.size(); ++i)
+		{
+			VkImageView attachments[] = { swapchainImageViews[i] };
+
+			VkFramebufferCreateInfo framebufferCI = {};
+			{
+				framebufferCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				framebufferCI.renderPass = renderPass;
+				framebufferCI.attachmentCount = 1;
+				framebufferCI.pAttachments = attachments;
+				framebufferCI.width = swapchainExtent.width;
+				framebufferCI.height = swapchainExtent.height;
+				framebufferCI.layers = 1;
+
+				if (vkCreateFramebuffer(device, &framebufferCI, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS)
+				{
+					throw std::runtime_error("Failed to reate Framebuffer");
+				}
+			}
+		}
+
+		return swapchainFramebuffers;
+	}
+	
 	
 	void MainLoop()
 	{
@@ -1003,14 +1038,11 @@ private:
 			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
 		}
 
+		for (auto& f : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, f, nullptr); }
 		vkDestroyPipeline(_device, _pipeline, nullptr);
 		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
 		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		for (auto& imageView : _swapchainImageViews)
-		{
-			vkDestroyImageView(_device, imageView, nullptr);
-		}
-		
+		for (auto& iv : _swapchainImageViews) { vkDestroyImageView(_device, iv, nullptr); }
 		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 		vkDestroyDevice(_device, nullptr);
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
