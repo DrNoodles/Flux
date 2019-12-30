@@ -177,8 +177,8 @@ private:
 	VkFormat _swapchainImageFormat{};
 	VkExtent2D _swapchainExtent{};
 	
-	VkRenderPass _renderPass;
-	
+	VkRenderPass _renderPass = nullptr;
+	VkPipeline _pipeline = nullptr;
 	VkPipelineLayout _pipelineLayout = nullptr;
 
 	
@@ -189,7 +189,6 @@ private:
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // we'll handle resizing
 		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
 	}
-
 
 
 	void InitVulkan(bool enableValidationLayers)
@@ -216,7 +215,7 @@ private:
 		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
 		
 		const auto shaderDir = std::string(R"(../Bin/)");
-		_pipelineLayout = CreateGraphicsPipeline(shaderDir, _device, _swapchainExtent);
+		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(shaderDir, _renderPass, _device, _swapchainExtent);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -531,7 +530,7 @@ private:
 
 		// Create the logical device and queues
 		VkDevice device;
-		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device))
+		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create logical device.");
 		}
@@ -603,7 +602,7 @@ private:
 
 		// Create swap chain
 		VkSwapchainKHR swapchain;
-		if (vkCreateSwapchainKHR(device, &info, nullptr, &swapchain))
+		if (vkCreateSwapchainKHR(device, &info, nullptr, &swapchain) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create swap chain!");
 		}
@@ -695,6 +694,7 @@ private:
 		return imageViews;
 	}
 
+	// The attachments referenced by the pipeline stages and their usage
 	[[nodiscard]] static VkRenderPass CreateRenderPass(VkFormat format, VkDevice device)
 	{
 		// Define the colour/depth buffer attachments
@@ -733,18 +733,19 @@ private:
 		}
 
 		VkRenderPass renderPass;
-		if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass))
+		if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create render pass");
 		}
 
 		return renderPass;
 	}
-	
-	[[nodiscard]] static VkPipelineLayout CreateGraphicsPipeline(const std::string& shaderDir, VkDevice device, 
+
+	// The uniform and push values referenced by the shader that can be updated at draw time
+	[[nodiscard]] static std::tuple<VkPipeline, VkPipelineLayout>
+	CreateGraphicsPipeline(const std::string& shaderDir, VkRenderPass renderPass, VkDevice device, 
 		const VkExtent2D& swapchainExtent)
 	{
-
 
 		//// SHADER MODULES ////
 
@@ -752,7 +753,8 @@ private:
 		// Load shader stages
 		VkShaderModule vertShaderModule;
 		VkShaderModule fragShaderModule;
-		VkPipelineShaderStageCreateInfo shaderStages[2];
+		const auto numShaders = 2;
+		std::array<VkPipelineShaderStageCreateInfo, numShaders> shaderStageCIs{};
 		{
 			const auto vertShaderCode = ReadFile(shaderDir + "shader.vert.spv");
 			const auto fragShaderCode = ReadFile(shaderDir + "shader.frag.spv");
@@ -772,14 +774,16 @@ private:
 			fragCI.module = fragShaderModule;
 			fragCI.pName = "main";
 
-			shaderStages[0] = vertCI;
-			shaderStages[1] = fragCI;
+			shaderStageCIs[0] = vertCI;
+			shaderStageCIs[1] = fragCI;
 		}
 
 
 
 		//// FIXED FUNCTIONS ////
-		
+
+		// all of the structures that define the fixed - function stages of the pipeline, like input assembly,
+		// rasterizer, viewport and color blending
 
 		
 		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
@@ -858,13 +862,13 @@ private:
 		
 
 		// TODO Depth and Stencil testing
-		VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
-		{
-			depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-			// ...
-			// ...
-			// ...
-		}
+		//VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
+		//{
+		//	depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		//	// ...
+		//	// ...
+		//	// ...
+		//}
 
 
 		// Color Blending  -  How colors output from frag shader are combined with existing colors
@@ -895,17 +899,17 @@ private:
 
 
 		// Dynamic State  -  Set which states can be changed without recreating the pipeline. Must be set at draw time
-		std::array<VkDynamicState,1> dynamicStates =
-		{
-			VK_DYNAMIC_STATE_VIEWPORT,
-			//VK_DYNAMIC_STATE_LINE_WIDTH,
-		};
-		VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
-		{
-			dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-			dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
-			dynamicStateCI.pDynamicStates = dynamicStates.data();
-		}
+		//std::array<VkDynamicState,1> dynamicStates =
+		//{
+		//	VK_DYNAMIC_STATE_VIEWPORT,
+		//	//VK_DYNAMIC_STATE_LINE_WIDTH,
+		//};
+		//VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
+		//{
+		//	dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		//	dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
+		//	dynamicStateCI.pDynamicStates = dynamicStates.data();
+		//}
 
 
 		// Create Pipeline Layout  -  Used to pass uniforms to shaders at runtime
@@ -926,20 +930,45 @@ private:
 
 
 
-		//// RENDER PASS ////
+		// Create the Pipeline  -  Finally!...
+		VkGraphicsPipelineCreateInfo graphicsPipelineCI = {};
+		{
+			graphicsPipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
+			// Programmable
+			graphicsPipelineCI.stageCount = (uint32_t)shaderStageCIs.size();
+			graphicsPipelineCI.pStages = shaderStageCIs.data();
 
-		
-		// 
+			// Fixed function
+			graphicsPipelineCI.pVertexInputState = &vertexInputCI;
+			graphicsPipelineCI.pInputAssemblyState = &inputAssemblyCI;
+			graphicsPipelineCI.pViewportState = &viewportCI;
+			graphicsPipelineCI.pRasterizationState = &rasterizationCI;
+			graphicsPipelineCI.pMultisampleState = &multisampleCI;
+			graphicsPipelineCI.pDepthStencilState = nullptr;
+			graphicsPipelineCI.pColorBlendState = &colorBlendCI;
+			graphicsPipelineCI.pDynamicState = nullptr;
+			
+			graphicsPipelineCI.layout = pipelineLayout;
 
+			graphicsPipelineCI.renderPass = renderPass;
+			graphicsPipelineCI.subpass = 0;
 
+			graphicsPipelineCI.basePipelineHandle = VK_NULL_HANDLE; // is our pipeline derived from another?
+			graphicsPipelineCI.basePipelineIndex = -1;
+		}
+		VkPipeline pipeline;
+		if (vkCreateGraphicsPipelines(device, nullptr, 1, &graphicsPipelineCI, nullptr, &pipeline) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create Pipeline");
+		}
 
 		
 		// Cleanup
 		vkDestroyShaderModule(device, vertShaderModule, nullptr);
 		vkDestroyShaderModule(device, fragShaderModule, nullptr);
 
-		return { pipelineLayout };
+		return { pipeline, pipelineLayout };
 	}
 	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device)
 	{
@@ -949,7 +978,7 @@ private:
 		ci.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 		VkShaderModule shaderModule;
-		if (vkCreateShaderModule(device, &ci, nullptr, &shaderModule))
+		if (vkCreateShaderModule(device, &ci, nullptr, &shaderModule) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create shader module");
 		}
@@ -974,6 +1003,7 @@ private:
 			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
 		}
 
+		vkDestroyPipeline(_device, _pipeline, nullptr);
 		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
 		vkDestroyRenderPass(_device, _renderPass, nullptr);
 		for (auto& imageView : _swapchainImageViews)
