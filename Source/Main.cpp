@@ -177,6 +177,8 @@ private:
 	VkFormat _swapchainImageFormat{};
 	VkExtent2D _swapchainExtent{};
 	
+	VkRenderPass _renderPass;
+	
 	VkPipelineLayout _pipelineLayout = nullptr;
 
 	
@@ -187,6 +189,7 @@ private:
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // we'll handle resizing
 		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
 	}
+
 
 
 	void InitVulkan(bool enableValidationLayers)
@@ -210,8 +213,10 @@ private:
 
 		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
 
+		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
+		
 		const auto shaderDir = std::string(R"(../Bin/)");
-		CreateGraphicsPipeline(shaderDir, _device, _swapchainExtent);
+		_pipelineLayout = CreateGraphicsPipeline(shaderDir, _device, _swapchainExtent);
 	}
 	
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -690,7 +695,52 @@ private:
 		return imageViews;
 	}
 
+	[[nodiscard]] static VkRenderPass CreateRenderPass(VkFormat format, VkDevice device)
+	{
+		// Define the colour/depth buffer attachments
+		VkAttachmentDescription colorAttachmentDesc = {};
+		{
+			colorAttachmentDesc.format = format;
+			colorAttachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
+			colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
+			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
+			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before render pass begins
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // outgoing memory layout after render pass
+		}
+		VkAttachmentReference colorAttachmentRef = {};
+		{
+			colorAttachmentRef.attachment = 0;
+			colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+		VkSubpassDescription subpassDesc = {};
+		{
+			subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpassDesc.colorAttachmentCount = 1;
+			subpassDesc.pColorAttachments = &colorAttachmentRef;
+		}
 
+
+		// Create render pass
+		VkRenderPassCreateInfo renderPassCI = {};
+		{
+			renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			renderPassCI.attachmentCount = 1;
+			renderPassCI.pAttachments = &colorAttachmentDesc;
+			renderPassCI.subpassCount = 1;
+			renderPassCI.pSubpasses = &subpassDesc;
+		}
+
+		VkRenderPass renderPass;
+		if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass))
+		{
+			throw std::runtime_error("Failed to create render pass");
+		}
+
+		return renderPass;
+	}
+	
 	[[nodiscard]] static VkPipelineLayout CreateGraphicsPipeline(const std::string& shaderDir, VkDevice device, 
 		const VkExtent2D& swapchainExtent)
 	{
@@ -880,7 +930,7 @@ private:
 
 
 		
-		// TODO... MORE!
+		// 
 
 
 
@@ -925,6 +975,7 @@ private:
 		}
 
 		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+		vkDestroyRenderPass(_device, _renderPass, nullptr);
 		for (auto& imageView : _swapchainImageViews)
 		{
 			vkDestroyImageView(_device, imageView, nullptr);
