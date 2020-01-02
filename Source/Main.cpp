@@ -183,6 +183,9 @@ private:
 	VkCommandPool _commandPool = nullptr;
 	std::vector<VkCommandBuffer> _commandBuffers{};
 
+	VkSemaphore _renderFinishedSemaphore = nullptr;
+	VkSemaphore _imageAvailableSemaphore = nullptr;
+
 
 	
 	void InitWindow()
@@ -227,6 +230,50 @@ private:
 
 		_commandBuffers = CreateCommandBuffers((uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, 
 			_swapchainExtent, _pipeline, _swapchainFramebuffers);
+
+		std::tie(_renderFinishedSemaphore, _imageAvailableSemaphore) = CreateSemaphores(_device);
+	}
+
+
+	void DrawFrame()
+	{
+		// Aquire an image from the swap chain
+		uint32_t imageIndex;
+		vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphore, nullptr, &imageIndex);
+
+
+		// Submitting the command buffer
+		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
+		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphore };
+		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+		const uint32_t signalCount = 1;
+		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphore };
+
+		VkSubmitInfo submitInfo = {};
+		{
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.waitSemaphoreCount = waitCount;
+			submitInfo.pWaitSemaphores = waitSemaphores;
+			submitInfo.pWaitDstStageMask = waitStages;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex]; // cmdbuf that binds the swapchain image we acquired as color attachment
+			submitInfo.signalSemaphoreCount = signalCount;
+			submitInfo.pSignalSemaphores = signalSemaphores;
+		}
+
+		if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, nullptr) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to submit Draw Command Buffer");
+		}
+		
+		
+		// TODO Execute the command buffer with that image as attachment in the framebuffer
+		
+
+		// TODO Return the image to the swap chain for presentation
+
+		
 	}
 
 	
@@ -235,6 +282,7 @@ private:
 		while (!glfwWindowShouldClose(_window))
 		{
 			glfwPollEvents();
+			DrawFrame();
 		}
 	}
 
@@ -246,6 +294,8 @@ private:
 			DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
 		}
 
+		vkDestroySemaphore(_device, _renderFinishedSemaphore , nullptr);
+		vkDestroySemaphore(_device, _imageAvailableSemaphore, nullptr);
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
 		for (auto& f : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, f, nullptr); }
 		vkDestroyPipeline(_device, _pipeline, nullptr);
@@ -260,6 +310,7 @@ private:
 		glfwTerminate();
 	}
 
+	
 
 	#pragma region InitVulkan static helpers
 
@@ -1162,7 +1213,25 @@ private:
 		return commandBuffers;
 	}
 
+	// Returns render finished semaphore and image available semaphore, in that order
+	[[nodiscard]] static std::tuple<VkSemaphore, VkSemaphore> CreateSemaphores(VkDevice device)
+	{
+		VkSemaphoreCreateInfo semaphoreCI = {};
+		{
+			semaphoreCI.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		}
 
+		VkSemaphore renderFinishedSemaphore;
+		VkSemaphore imageAvailableSemaphore;
+		if (vkCreateSemaphore(device, &semaphoreCI, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
+		    vkCreateSemaphore(device, &semaphoreCI, nullptr, &imageAvailableSemaphore) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create semaphores");
+		}
+
+		return { renderFinishedSemaphore, imageAvailableSemaphore };
+	}
+	
 	#pragma endregion 
 };
 
