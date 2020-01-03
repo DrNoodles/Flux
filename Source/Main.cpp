@@ -242,7 +242,7 @@ private:
 		vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphore, nullptr, &imageIndex);
 
 
-		// Submitting the command buffer
+		// Execute the command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphore };
 		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -253,11 +253,11 @@ private:
 		VkSubmitInfo submitInfo = {};
 		{
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex]; // cmdbuf that binds the swapchain image we acquired as color attachment
 			submitInfo.waitSemaphoreCount = waitCount;
 			submitInfo.pWaitSemaphores = waitSemaphores;
 			submitInfo.pWaitDstStageMask = waitStages;
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex]; // cmdbuf that binds the swapchain image we acquired as color attachment
 			submitInfo.signalSemaphoreCount = signalCount;
 			submitInfo.pSignalSemaphores = signalSemaphores;
 		}
@@ -267,13 +267,22 @@ private:
 			throw std::runtime_error("Failed to submit Draw Command Buffer");
 		}
 		
-		
-		// TODO Execute the command buffer with that image as attachment in the framebuffer
-		
 
-		// TODO Return the image to the swap chain for presentation
+		// Return the image to the swap chain for presentation
+		std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
+		VkPresentInfoKHR presentInfo = {};
+		{
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = signalSemaphores;
+			presentInfo.swapchainCount = (uint32_t)swapchains.size();
+			presentInfo.pSwapchains = swapchains.data();
+			presentInfo.pImageIndices = &imageIndex;
+			presentInfo.pResults = nullptr;
+		}
 
-		
+		vkQueuePresentKHR(_presentQueue, &presentInfo);
+		//vkQueueWaitIdle(_presentQueue);
 	}
 
 	
@@ -284,6 +293,8 @@ private:
 			glfwPollEvents();
 			DrawFrame();
 		}
+
+		vkDeviceWaitIdle(_device);
 	}
 
 	
@@ -823,7 +834,16 @@ private:
 			subpassDesc.colorAttachmentCount = 1;
 			subpassDesc.pColorAttachments = &colorAttachmentRef;
 		}
-
+		// Set dependency for the implicit external subpass to wait for the swapchain to finish reading from it
+		VkSubpassDependency subpassDependency = {};
+		{
+			subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
+			subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			subpassDependency.srcAccessMask = 0;
+			subpassDependency.dstSubpass = 0; // this pass
+			subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		}
 
 		// Create render pass
 		VkRenderPassCreateInfo renderPassCI = {};
@@ -833,6 +853,8 @@ private:
 			renderPassCI.pAttachments = &colorAttachmentDesc;
 			renderPassCI.subpassCount = 1;
 			renderPassCI.pSubpasses = &subpassDesc;
+			renderPassCI.dependencyCount = 1;
+			renderPassCI.pDependencies = &subpassDependency;
 		}
 
 		VkRenderPass renderPass;
