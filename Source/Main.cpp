@@ -152,19 +152,14 @@ static std::vector<char> ReadFile(const std::string& path)
 
 
 
-void WinResizeCallback(GLFWwindow* w, int x, int y)
-{
-
-}
-
-
 
 /////// CLASS HELLOTRIANGLEAPPLICATION ////////////////////////////////////////////////////////////////////////////////
 class HelloTriangleApplication
 {
 public:
 	std::string ShaderDir{};
-
+	bool FramebufferResized = false;
+	
 	void Run()
 	{
 		InitWindow();
@@ -174,7 +169,7 @@ public:
 	}
 
 private:
-
+	
 	GLFWwindow* _window = nullptr;
 	VkInstance _instance = nullptr;
 	VkSurfaceKHR _surface = nullptr;
@@ -211,9 +206,11 @@ private:
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // we'll handle resizing
+	//	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // we'll handle resizing
 		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
-		glfwSetWindowSizeCallback(_window, WinResizeCallback);
+
+		glfwSetWindowUserPointer(_window, this);
+		glfwSetWindowSizeCallback(_window, FramebufferResizeCallback);
 	}
 
 
@@ -268,8 +265,19 @@ private:
 		
 		// Aquire an image from the swap chain
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame], nullptr,
-			&imageIndex);
+		VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+			nullptr, &imageIndex);
+
+		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		{
+			FramebufferResized = false;
+			RecreateSwapcain();
+			return;
+		}
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to acquire swapchain image!");
+		}
 
 		// If the image is still used by a previous frame, wait for it to finish!
 		if (_framesInFlight[imageIndex] != nullptr)
@@ -321,7 +329,15 @@ private:
 			presentInfo.pResults = nullptr;
 		}
 
-		vkQueuePresentKHR(_presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(_presentQueue, &presentInfo);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		{
+			RecreateSwapcain();
+		}
+		else if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed ot present swapchain image!");
+		}
 
 		_currentFrame = (_currentFrame + 1) % g_maxFramesInFlight;
 	}
@@ -371,11 +387,20 @@ private:
 	
 	void RecreateSwapcain()
 	{
-		vkDeviceWaitIdle(_device);
-
-
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
+
+		// This handles a minimized window. Wait until it has size > 0
+		while (width == 0 || height == 0)
+		{
+			glfwGetFramebufferSize(_window, &width, &height);
+			glfwWaitEvents();
+		}
+
+
+		vkDeviceWaitIdle(_device);
+
+		
 		VkExtent2D windowSize{ width, height };
 		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
@@ -1343,6 +1368,11 @@ private:
 	#pragma endregion
 
 
+	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
+	{
+		auto app = (HelloTriangleApplication*)glfwGetWindowUserPointer(window);
+		app->FramebufferResized = true;
+	}
 };
 
 
