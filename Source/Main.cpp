@@ -268,13 +268,13 @@ private:
 		VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
 			nullptr, &imageIndex);
 
-		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			FramebufferResized = false;
 			RecreateSwapcain();
 			return;
 		}
-		if (result != VK_SUCCESS)
+		const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+		if (!isUsable)
 		{
 			throw std::runtime_error("Failed to acquire swapchain image!");
 		}
@@ -330,8 +330,9 @@ private:
 		}
 
 		result = vkQueuePresentKHR(_presentQueue, &presentInfo);
-		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
+			FramebufferResized = false;
 			RecreateSwapcain();
 		}
 		else if (result != VK_SUCCESS)
@@ -387,6 +388,7 @@ private:
 	
 	void RecreateSwapcain()
 	{
+		
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
 
@@ -399,6 +401,9 @@ private:
 
 
 		vkDeviceWaitIdle(_device);
+
+
+		CleanupSwapchain();
 
 		
 		VkExtent2D windowSize{ width, height };
