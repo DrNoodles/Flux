@@ -151,10 +151,20 @@ static std::vector<char> ReadFile(const std::string& path)
 
 
 
+
+void WinResizeCallback(GLFWwindow* w, int x, int y)
+{
+
+}
+
+
+
 /////// CLASS HELLOTRIANGLEAPPLICATION ////////////////////////////////////////////////////////////////////////////////
 class HelloTriangleApplication
 {
 public:
+	std::string ShaderDir{};
+
 	void Run()
 	{
 		InitWindow();
@@ -195,20 +205,20 @@ private:
 	std::vector<VkFence> _framesInFlight{};
 	size_t _currentFrame = 0;
 
+
 	
 	void InitWindow()
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // we'll handle resizing
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // we'll handle resizing
 		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
+		glfwSetWindowSizeCallback(_window, WinResizeCallback);
 	}
 
 
 	void InitVulkan(bool enableValidationLayers)
 	{
-		const auto shaderDir = std::string(R"(../Bin/)");
-		
 		_instance = CreateInstance(enableValidationLayers);
 
 		if (enableValidationLayers) 
@@ -223,22 +233,29 @@ private:
 		std::tie(_device, _graphicsQueue, _presentQueue) = 
 			CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
 
-		_swapchain = CreateSwapchain(_physicalDevice, _surface, _device, 
+		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
+
+
+
+		int width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		VkExtent2D windowSize{ width, height };
+		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 
 		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
 
 		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
 		
-		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(shaderDir, _renderPass, _device, _swapchainExtent);
+		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _renderPass, _device, _swapchainExtent);
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
-
-		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
 		_commandBuffers = CreateCommandBuffers((uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, 
 			_swapchainExtent, _pipeline, _swapchainFramebuffers);
 
+
+		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _framesInFlight) = 
 			CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
@@ -324,16 +341,13 @@ private:
 	
 	void CleanUp(bool enableValidationLayers)
 	{
+		CleanupSwapchain();
+
 		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
-		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-		vkDestroyPipeline(_device, _pipeline, nullptr);
-		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
-		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
-		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 		vkDestroyDevice(_device, nullptr);
 		if (enableValidationLayers) { DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
@@ -342,8 +356,43 @@ private:
 		glfwTerminate();
 	}
 
-	
 
+	void CleanupSwapchain()
+	{
+		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
+		vkDestroyPipeline(_device, _pipeline, nullptr);
+		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+		vkDestroyRenderPass(_device, _renderPass, nullptr);
+		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	}
+
+	
+	void RecreateSwapcain()
+	{
+		vkDeviceWaitIdle(_device);
+
+
+		int width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		VkExtent2D windowSize{ width, height };
+		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
+			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
+
+		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
+
+		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
+
+		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _renderPass, _device, _swapchainExtent);
+
+		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
+
+		_commandBuffers = CreateCommandBuffers((uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
+			_swapchainExtent, _pipeline, _swapchainFramebuffers);
+	}
+
+	
 	#pragma region InitVulkan static helpers
 
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
@@ -676,9 +725,9 @@ private:
 		return { device, graphicsQueue, presentQueue };
 	}
 
-
-	[[nodiscard]] static VkSwapchainKHR CreateSwapchain(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
-		VkDevice device,
+	
+	[[nodiscard]] static VkSwapchainKHR
+	CreateSwapchain(const VkExtent2D& windowSize, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkDevice device,
 		std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat, VkExtent2D& OUTswapchainExtent)
 		// TODO Remove OUT params, use tuple return
 	{
@@ -686,7 +735,7 @@ private:
 
 		const auto surfaceFormat = ChooseSwapSurfaceFormat(deets.Formats);
 		const auto presentMode = ChooseSwapPresentMode(deets.PresentModes);
-		const auto extent = ChooseSwapExtent(deets.Capabilities);
+		const auto extent = ChooseSwapExtent(windowSize, deets.Capabilities);
 
 		// Image count
 		uint32_t minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
@@ -777,7 +826,7 @@ private:
 
 		return VK_PRESENT_MODE_FIFO_KHR; // use the only required format as fallback
 	}
-	static VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+	static VkExtent2D ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities)
 	{
 		const auto& c = capabilities;
 
@@ -789,7 +838,7 @@ private:
 		}
 
 		// Find the biggest extent possible
-		VkExtent2D e = { g_width, g_height };
+		VkExtent2D e = windowSize;
 		e.width = std::max(c.minImageExtent.width, std::min(c.maxImageExtent.width, e.width));
 		e.height = std::max(c.minImageExtent.height, std::min(c.maxImageExtent.height, e.height));
 
@@ -1291,10 +1340,10 @@ private:
 		return { renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, framesInFlight };
 	}
 	
-	#pragma endregion 
+	#pragma endregion
+
+
 };
-
-
 
 
 
@@ -1305,7 +1354,8 @@ private:
 int main()
 {
 	HelloTriangleApplication app;
-
+	app.ShaderDir = R"(../Bin/)";
+	
 	try
 	{
 		app.Run();
