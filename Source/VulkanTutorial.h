@@ -101,7 +101,7 @@ private:
 
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
-		VkExtent2D windowSize{ width, height };
+		const VkExtent2D windowSize{ (uint32_t)width, (uint32_t)height };
 		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 
@@ -271,7 +271,7 @@ private:
 		CleanupSwapchain();
 
 
-		VkExtent2D windowSize{ width, height };
+		const VkExtent2D windowSize{ (uint32_t)width, (uint32_t)height };
 		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 
@@ -878,15 +878,17 @@ private:
 
 
 		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
+		auto vertBindingDesc = Vertex::BindingDescription();
+		auto vertAttrDesc = Vertex::AttributeDescriptions();
 		VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
 		{
 			vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-			vertexInputCI.vertexBindingDescriptionCount = 0;
-			vertexInputCI.pVertexBindingDescriptions = nullptr;
-			vertexInputCI.vertexAttributeDescriptionCount = 0;
-			vertexInputCI.pVertexAttributeDescriptions = nullptr;
+			vertexInputCI.vertexBindingDescriptionCount = 1;
+			vertexInputCI.pVertexBindingDescriptions = &vertBindingDesc;
+			vertexInputCI.vertexAttributeDescriptionCount = (uint32_t)vertAttrDesc.size();
+			vertexInputCI.pVertexAttributeDescriptions = vertAttrDesc.data();
 		}
-
+			
 
 		// Input Assembly  -  What kind of geo will be drawn from the verts and whether primitive restart is enabled
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCI = {};

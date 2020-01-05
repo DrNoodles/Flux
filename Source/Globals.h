@@ -1,7 +1,8 @@
 #pragma once
 #include "Types.h"
 
-
+#include <vector>
+#include <glm/glm.hpp>
 
 /////// GLOBAL DATA ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -18,12 +19,21 @@ const std::vector<const char*> g_physicalDeviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+
+const std::vector<Vertex> vertices =
+{
+	// Pos          // Color
+	{{ 0.0f,-0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
+
 #ifdef DEBUG
 	const bool g_enableValidationLayers = true;
 #else
 	const bool g_enableValidationLayers = false;
 #endif
-
 
 
 /////// GLOBAL FUNCTIONS //////////////////////////////////////////////////////////////////////////////////////////////
