@@ -95,8 +95,8 @@ private:
 
 		_physicalDevice = PickPhysicalDevice(_instance, _surface);
 
-		std::tie(_device, _graphicsQueue, _presentQueue) =
-			CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
+		std::tie(_device, _graphicsQueue, _presentQueue)
+			= CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
 
 		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
@@ -116,15 +116,16 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		std::tie(_vertexBuffer, _vertexBufferMemory) = CreateVertexBuffer(g_vertices, _device, _physicalDevice);
+		std::tie(_vertexBuffer, _vertexBufferMemory)
+			= CreateVertexBuffer(g_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 		
 		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)g_vertices.size(), 
 			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline, 
 			_swapchainFramebuffers);
 
 
-		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _framesInFlight) =
-			CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
+		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _framesInFlight)
+			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 
 
@@ -632,8 +633,9 @@ private:
 
 
 	[[nodiscard]] static VkSwapchainKHR
-		CreateSwapchain(const VkExtent2D& windowSize, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkDevice device,
-			std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat, VkExtent2D& OUTswapchainExtent)
+		CreateSwapchain(const VkExtent2D& windowSize, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, 
+			VkDevice device, std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat, 
+			VkExtent2D& OUTswapchainExtent)
 		// TODO Remove OUT params, use tuple return
 	{
 		const SwapChainSupportDetails deets = QuerySwapChainSupport(physicalDevice, surface);
@@ -751,8 +753,8 @@ private:
 	}
 
 
-	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& swapchainImages, VkFormat format,
-		VkDevice device)
+	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& swapchainImages, 
+		VkFormat format, VkDevice device)
 	{
 		std::vector<VkImageView> imageViews{ swapchainImages.size() };
 
@@ -1141,28 +1143,165 @@ private:
 	}
 
 
-
 	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
-	CreateVertexBuffer(const std::vector<Vertex>& vertices, VkDevice device, VkPhysicalDevice physicalDevice)
+	CreateVertexBuffer(const std::vector<Vertex>& vertices, VkQueue transferQueue, VkCommandPool transferCommandPool, 
+		VkPhysicalDevice physicalDevice, VkDevice device)
 	{
+		const VkDeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
+
+		// Create temp staging buffer - to copy vertices from system mem to gpu mem
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(bufSize, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, // property flags
+			device, physicalDevice);
+
+		// Load vertex data into staging buffer
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufSize, 0, &data);
+			memcpy(data, vertices.data(), bufSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+
+		// Create vertex buffer - with optimal memory speeds
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
+		std::tie(vertexBuffer, vertexBufferMemory) = CreateBuffer(bufSize, 
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, // usage flags
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
+			device, physicalDevice);
 
-		// Create vertex buffer
-		const VkDeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
-		const VkBufferUsageFlagBits flag = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		const VkMemoryPropertyFlags props = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-		CreateBuffer(bufSize, flag, props, device, physicalDevice, vertexBuffer, vertexBufferMemory);
+		// Copy from staging buffer to vertex buffer
+		CopyBuffer(stagingBuffer, vertexBuffer, bufSize, transferCommandPool, transferQueue, device);
+
+		// Cleanup temp buffer
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+		
+		return { vertexBuffer, vertexBufferMemory };
+	}
+	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
+		CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
+			VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		VkBuffer outBuffer; VkDeviceMemory outBufferMemory;
+
+		VkBufferCreateInfo bufferCI = {};
+		{
+			bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferCI.size = size;
+			bufferCI.usage = usageFlags;
+			bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
+
+		if (vkCreateBuffer(device, &bufferCI, nullptr, &outBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create vertex buffer");
+		}
 
 
-		// Fill buffer with vertex data
-		void* data;
-		vkMapMemory(device, vertexBufferMemory, 0, bufSize, 0, &data);
-			memcpy(data, vertices.data(), bufSize);
-		vkUnmapMemory(device, vertexBufferMemory);
+		// Memory requirements
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(device, outBuffer, &memRequirements);
+
+
+		// Allocate buffer memory
+		VkMemoryAllocateInfo memoryAllocInfo = {};
+		{
+			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			memoryAllocInfo.allocationSize = memRequirements.size;
+			memoryAllocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, propertyFlags, physicalDevice);
+		}
+
+		if (vkAllocateMemory(device, &memoryAllocInfo, nullptr, &outBufferMemory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate vertex buffer memory");
+		}
+
+
+		// Associate buffer memory with the buffer
+		vkBindBufferMemory(device, outBuffer, outBufferMemory, 0);
+
+		return { outBuffer, outBufferMemory };
+	}
+	// Helper method to find suitable memory type on GPU
+	static uint32_t
+	FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, VkPhysicalDevice physicalDevice)
+	{
+		VkPhysicalDeviceMemoryProperties physicalMemProps;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalMemProps);
+
+		// Find a mem type that's suitable
+		for (uint32_t i = 0; i < physicalMemProps.memoryTypeCount; i++)
+		{
+			const bool flagExists = typeFilter & (1 << i);
+			const bool propertiesMatch = (physicalMemProps.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags;
+
+			if (flagExists && propertiesMatch)
+			{
+				return i;
+			}
+		}
+
+		throw std::runtime_error("Failed to find a suitable memory type");
+	};
+	static void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, uint64_t bufferSize,
+		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
+	{
+		// Allocate temp command buffer
+		VkCommandBufferAllocateInfo allocInfo = {};
+		{
+			allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			allocInfo.commandPool = transferCommandPool;
+			allocInfo.commandBufferCount = 1;
+		}
+		VkCommandBuffer commandBuffer;
+		if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate temp command buffer for buffer copying");
+		}
+
+		
+		// Record commands to copy memory from src to dst
+		VkCommandBufferBeginInfo beginInfo = {};
+		{
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		}
+
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to begin recording command buffer");
+		}
+
+		VkBufferCopy copyRegion = {};
+		{
+			copyRegion.srcOffset = 0;
+			copyRegion.dstOffset = 0;
+			copyRegion.size = bufferSize;
+		}
+		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+		
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to end recording command buffer");
+		}
+
+
+		// Execute and wait for copy command
+		VkSubmitInfo submitInfo = {};
+		{
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+		}
+		vkQueueSubmit(transferQueue, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(transferQueue);
 		
 
-		return { vertexBuffer, vertexBufferMemory };
+		// Cleanup
+		vkFreeCommandBuffers(device, transferCommandPool, 1, &commandBuffer);
 	}
 
 	
@@ -1282,69 +1421,6 @@ private:
 
 	#pragma endregion
 
-
-
-	// Helper method to find suitable memory type on GPU
-	static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags props, VkPhysicalDevice physicalDevice)
-	{
-		VkPhysicalDeviceMemoryProperties physicalMemProps;
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalMemProps);
-
-		// Find a mem type that's suitable
-		for (uint32_t i = 0; i < physicalMemProps.memoryTypeCount; i++)
-		{
-			const bool flagExists = typeFilter & (1 << i);
-			const bool propertiesMatch = (physicalMemProps.memoryTypes[i].propertyFlags & props) == props;
-
-			if (flagExists && propertiesMatch)
-			{
-				return i;
-			}
-		}
-
-		throw std::runtime_error("Failed to find a suitable memory type");
-	};
-
-	static void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags properties, 
-		VkDevice device, VkPhysicalDevice physicalDevice,
-		VkBuffer& outBuffer, VkDeviceMemory& outBufferMemory)
-	{
-		VkBufferCreateInfo bufferCI = {};
-		{
-			bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			bufferCI.size = size;
-			bufferCI.usage = usageFlags;
-			bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		}
-
-		if (vkCreateBuffer(device, &bufferCI, nullptr, &outBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create vertex buffer");
-		}
-
-
-		// Memory requirements
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(device, outBuffer, &memRequirements);
-
-
-		// Allocate buffer memory
-		VkMemoryAllocateInfo memoryAllocInfo = {};
-		{
-			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			memoryAllocInfo.allocationSize = memRequirements.size;
-			memoryAllocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
-		}
-
-		if (vkAllocateMemory(device, &memoryAllocInfo, nullptr, &outBufferMemory) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to allocate vertex buffer memory");
-		}
-
-
-		// Associate buffer memory with the buffer
-		vkBindBufferMemory(device, outBuffer, outBufferMemory, 0);
-	}
 	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
