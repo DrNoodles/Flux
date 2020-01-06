@@ -116,11 +116,11 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		std::tie(_vertexBuffer, _vertexBufferMemory) = CreateVertexBuffer(_device, _physicalDevice);
+		std::tie(_vertexBuffer, _vertexBufferMemory) = CreateVertexBuffer(g_vertices, _device, _physicalDevice);
 		
-		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
-			_swapchainExtent, _pipeline, _swapchainFramebuffers);
-
+		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)g_vertices.size(), 
+			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline, 
+			_swapchainFramebuffers);
 
 
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _framesInFlight) =
@@ -292,8 +292,9 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
-			_swapchainExtent, _pipeline, _swapchainFramebuffers);
+		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)g_vertices.size(),
+			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline,
+			_swapchainFramebuffers);
 	}
 
 
@@ -1140,78 +1141,24 @@ private:
 	}
 
 
+
 	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
-	CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
+	CreateVertexBuffer(const std::vector<Vertex>& vertices, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
-		// Create buffer
-		VkBufferCreateInfo bufferCI = {};
-		{
-			bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			bufferCI.size = sizeof(vertices[0]) * vertices.size();
-			bufferCI.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-			bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		}
-
 		VkBuffer vertexBuffer;
-		if (vkCreateBuffer(device, &bufferCI, nullptr, &vertexBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create vertex buffer");
-		}
-
-
-		// Helper method to find suitable memory type on GPU
-		auto FindMemoryType = [](uint32_t typeFilter, VkMemoryPropertyFlags properties, VkPhysicalDevice physicalDevice)
-		{
-			VkPhysicalDeviceMemoryProperties physicalMemProps;
-			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalMemProps);
-
-			// Find a mem type that's suitable
-			for (uint32_t i = 0; i < physicalMemProps.memoryTypeCount; i++)
-			{
-				const bool flagExists = typeFilter & (1 << i);
-				const bool propertiesMatch = (physicalMemProps.memoryTypes[i].propertyFlags & properties) == properties;
-
-				if (flagExists && propertiesMatch)
-				{
-					return i;
-				}
-			}
-
-			throw std::runtime_error("Failed to find a suitable memory type");
-		};
-
-		
-		// Memory requirements
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
-
-		
-		// Allocate buffer memory
-		VkMemoryAllocateInfo memoryAllocInfo = {};
-		{
-			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			memoryAllocInfo.allocationSize = memRequirements.size;
-			memoryAllocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits,
-				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | // Ensure memcpys are sync'd across system and GPU mem
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,   // Make buffer visible to cpu
-				physicalDevice);
-		}
-
 		VkDeviceMemory vertexBufferMemory;
-		if (vkAllocateMemory(device, &memoryAllocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to allocate vertex buffer memory");
-		}
 
-		
-		// Associate buffer memory with the buffer
-		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+		// Create vertex buffer
+		const VkDeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
+		const VkBufferUsageFlagBits flag = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		const VkMemoryPropertyFlags props = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+		CreateBuffer(bufSize, flag, props, device, physicalDevice, vertexBuffer, vertexBufferMemory);
 
 
 		// Fill buffer with vertex data
 		void* data;
-		vkMapMemory(device, vertexBufferMemory, 0, bufferCI.size, 0, &data);
-			memcpy(data, vertices.data(), bufferCI.size);
+		vkMapMemory(device, vertexBufferMemory, 0, bufSize, 0, &data);
+			memcpy(data, vertices.data(), bufSize);
 		vkUnmapMemory(device, vertexBufferMemory);
 		
 
@@ -1221,6 +1168,7 @@ private:
 	
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		VkBuffer vertexBuffer,
+		uint32_t verticesSize,
 		uint32_t numBuffers,
 		VkCommandPool commandPool,
 		VkDevice device,
@@ -1282,8 +1230,8 @@ private:
 			VkBuffer vertexBuffers[] = { vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
+			vkCmdDraw(cmdBuf, verticesSize, 1, 0, 0);
 			
-			vkCmdDraw(cmdBuf, (uint32_t)vertices.size(), 1, 0, 0);
 			vkCmdEndRenderPass(cmdBuf);
 
 			// Finish up!
@@ -1335,6 +1283,69 @@ private:
 	#pragma endregion
 
 
+
+	// Helper method to find suitable memory type on GPU
+	static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags props, VkPhysicalDevice physicalDevice)
+	{
+		VkPhysicalDeviceMemoryProperties physicalMemProps;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalMemProps);
+
+		// Find a mem type that's suitable
+		for (uint32_t i = 0; i < physicalMemProps.memoryTypeCount; i++)
+		{
+			const bool flagExists = typeFilter & (1 << i);
+			const bool propertiesMatch = (physicalMemProps.memoryTypes[i].propertyFlags & props) == props;
+
+			if (flagExists && propertiesMatch)
+			{
+				return i;
+			}
+		}
+
+		throw std::runtime_error("Failed to find a suitable memory type");
+	};
+
+	static void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags properties, 
+		VkDevice device, VkPhysicalDevice physicalDevice,
+		VkBuffer& outBuffer, VkDeviceMemory& outBufferMemory)
+	{
+		VkBufferCreateInfo bufferCI = {};
+		{
+			bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferCI.size = size;
+			bufferCI.usage = usageFlags;
+			bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
+
+		if (vkCreateBuffer(device, &bufferCI, nullptr, &outBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create vertex buffer");
+		}
+
+
+		// Memory requirements
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(device, outBuffer, &memRequirements);
+
+
+		// Allocate buffer memory
+		VkMemoryAllocateInfo memoryAllocInfo = {};
+		{
+			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			memoryAllocInfo.allocationSize = memRequirements.size;
+			memoryAllocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
+		}
+
+		if (vkAllocateMemory(device, &memoryAllocInfo, nullptr, &outBufferMemory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate vertex buffer memory");
+		}
+
+
+		// Associate buffer memory with the buffer
+		vkBindBufferMemory(device, outBuffer, outBufferMemory, 0);
+	}
+	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
 		auto app = (VulkanTutorial*)glfwGetWindowUserPointer(window);

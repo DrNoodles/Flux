@@ -20,7 +20,7 @@ const std::vector<const char*> g_physicalDeviceExtensions = {
 };
 
 
-const std::vector<Vertex> vertices =
+const std::vector<Vertex> g_vertices =
 {
 	// Pos          // Color
 	{{ 0.0f,-0.5f}, {1.0f, 0.0f, 0.0f}},
