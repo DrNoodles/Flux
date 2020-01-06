@@ -3,6 +3,7 @@
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
 #include <vector>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <fstream>
 #include <array>
+#include <chrono>
 
 #include "Globals.h"
 #include "Types.h"
@@ -65,12 +67,15 @@ private:
 	std::vector<VkFence> _framesInFlight{};
 	size_t _currentFrame = 0;
 
+	// Mesh Buffers
 	VkBuffer _vertexBuffer = nullptr;
 	VkDeviceMemory _vertexBufferMemory = nullptr;
 	VkBuffer _indexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;
 	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
-
+	std::vector<VkBuffer> _uniformBuffers{};
+	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
+	
 	
 	void InitWindow()
 	{
@@ -82,7 +87,6 @@ private:
 		glfwSetWindowUserPointer(_window, this);
 		glfwSetWindowSizeCallback(_window, FramebufferResizeCallback);
 	}
-
 
 
 	void InitVulkan(bool enableValidationLayers)
@@ -117,8 +121,8 @@ private:
 
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 		
-		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, 
-			_device, _swapchainExtent);
+		std::tie(_pipeline, _pipelineLayout)
+			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, _device, _swapchainExtent);
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
@@ -127,6 +131,9 @@ private:
 
 		std::tie(_indexBuffer, _indexBufferMemory)
 			= CreateIndexBuffer(g_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		std::tie(_uniformBuffers, _uniformBuffersMemory)
+			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
 		
 		_commandBuffers = CreateCommandBuffers(
 			_vertexBuffer, (uint32_t)g_vertices.size(), _indexBuffer, (uint32_t)g_indices.size(),
@@ -138,7 +145,7 @@ private:
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 
-
+	
 	void DrawFrame()
 	{
 		// Sync CPU-GPU
@@ -177,6 +184,8 @@ private:
 		const uint32_t signalCount = 1;
 		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
 
+		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
+		
 		VkSubmitInfo submitInfo = {};
 		{
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -225,6 +234,33 @@ private:
 	}
 
 
+	static void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+	{
+		// Compute time elapsed
+		static auto startTime = std::chrono::high_resolution_clock::now();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		// Create new ubo
+		const auto vfov = 45.f;
+		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
+		
+		UniformBufferObject ubo = {};
+		{
+			ubo.Model = glm::rotate(glm::mat4{ 1 }, time * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
+			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
+			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
+			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+		}
+
+		// Push ubo
+		void* data;
+		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
+			memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(device, uniformBufMem);
+	}
+
+
 	void MainLoop()
 	{
 		while (!glfwWindowShouldClose(_window))
@@ -245,6 +281,8 @@ private:
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
+		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
+		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 		vkDestroyBuffer(_device, _indexBuffer, nullptr);
 		vkFreeMemory(_device, _indexBufferMemory, nullptr);
 		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
@@ -1504,7 +1542,27 @@ private:
 
 		return uboSetLayout;
 	}
-	
+
+
+	static std::tuple<std::vector<VkBuffer>,std::vector<VkDeviceMemory>>
+	CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		const VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+		
+		std::vector<VkBuffer> buffers{ count };
+		std::vector<VkDeviceMemory> buffersMemory{ count };
+
+		for (size_t i = 0; i < count; ++i)
+		{
+			const auto usageFlags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			const auto propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+			std::tie(buffers[i], buffersMemory[i])
+				= CreateBuffer(bufferSize, usageFlags, propertyFlags, device, physicalDevice);
+		}
+
+		return { buffers, buffersMemory };
+	}
 	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
