@@ -20,20 +20,26 @@ const std::vector<const char*> g_physicalDeviceExtensions = {
 };
 
 
-const std::vector<Vertex> g_vertices =
-{
-	// Pos          // Color
-	{{ 0.0f,-0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{ 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-};
-
-
 #ifdef DEBUG
 	const bool g_enableValidationLayers = true;
 #else
 	const bool g_enableValidationLayers = false;
 #endif
+
+
+
+const std::vector<Vertex> g_vertices =
+{
+	// Pos          // Color
+	{{-0.5f,-0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{ 0.5f,-0.5f}, {1.0f, 1.0f, 1.0f}},
+	{{ 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+};
+const std::vector<uint16_t> g_indices = { 0,1,2,2,3,0 };
+
+
+
 
 
 /////// GLOBAL FUNCTIONS //////////////////////////////////////////////////////////////////////////////////////////////

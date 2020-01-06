@@ -67,7 +67,8 @@ private:
 
 	VkBuffer _vertexBuffer = nullptr;
 	VkDeviceMemory _vertexBufferMemory = nullptr;
-
+	VkBuffer _indexBuffer = nullptr;
+	VkDeviceMemory _indexBufferMemory = nullptr;
 
 	
 	void InitWindow()
@@ -118,8 +119,12 @@ private:
 
 		std::tie(_vertexBuffer, _vertexBufferMemory)
 			= CreateVertexBuffer(g_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		std::tie(_indexBuffer, _indexBufferMemory)
+			= CreateIndexBuffer(g_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 		
-		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)g_vertices.size(), 
+		_commandBuffers = CreateCommandBuffers(
+			_vertexBuffer, (uint32_t)g_vertices.size(), _indexBuffer, (uint32_t)g_indices.size(),
 			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline, 
 			_swapchainFramebuffers);
 
@@ -235,6 +240,8 @@ private:
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
+		vkDestroyBuffer(_device, _indexBuffer, nullptr);
+		vkFreeMemory(_device, _indexBufferMemory, nullptr);
 		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
 		vkFreeMemory(_device, _vertexBufferMemory, nullptr);
 		
@@ -293,7 +300,8 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)g_vertices.size(),
+		_commandBuffers = CreateCommandBuffers(
+			_vertexBuffer, (uint32_t)g_vertices.size(), _indexBuffer, (uint32_t)g_indices.size(),
 			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline,
 			_swapchainFramebuffers);
 	}
@@ -1181,6 +1189,44 @@ private:
 		return { vertexBuffer, vertexBufferMemory };
 	}
 	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
+		CreateIndexBuffer(const std::vector<uint16_t>& indices, VkQueue transferQueue, VkCommandPool transferCommandPool,
+			VkPhysicalDevice physicalDevice, VkDevice device)
+	{
+		const VkDeviceSize bufSize = sizeof(indices[0]) * indices.size();
+
+		// Create temp staging buffer - to copy indices from system mem to gpu mem
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(bufSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, // property flags
+			device, physicalDevice);
+
+		// Load vertex data into staging buffer
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufSize, 0, &data);
+			memcpy(data, indices.data(), bufSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+
+		// Create index buffer - with optimal memory speeds
+		VkBuffer indexBuffer;
+		VkDeviceMemory indexBufferMemory;
+		std::tie(indexBuffer, indexBufferMemory) = CreateBuffer(bufSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, // usage flags
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
+			device, physicalDevice);
+
+		// Copy from staging buffer to vertex buffer
+		CopyBuffer(stagingBuffer, indexBuffer, bufSize, transferCommandPool, transferQueue, device);
+
+		// Cleanup temp buffer
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+		return { indexBuffer, indexBufferMemory };
+	}
+
+	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
 		CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkDevice device, VkPhysicalDevice physicalDevice)
 	{
@@ -1306,8 +1352,8 @@ private:
 
 	
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
-		VkBuffer vertexBuffer,
-		uint32_t verticesSize,
+		VkBuffer vertexBuffer, uint32_t verticesSize,
+		VkBuffer indexBuffer, uint32_t indicesSize,
 		uint32_t numBuffers,
 		VkCommandPool commandPool,
 		VkDevice device,
@@ -1366,10 +1412,12 @@ private:
 			vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+			// Draw mesh
 			VkBuffer vertexBuffers[] = { vertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
-			vkCmdDraw(cmdBuf, verticesSize, 1, 0, 0);
+			vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
 			
 			vkCmdEndRenderPass(cmdBuf);
 
