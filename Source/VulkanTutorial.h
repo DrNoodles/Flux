@@ -69,6 +69,7 @@ private:
 	VkDeviceMemory _vertexBufferMemory = nullptr;
 	VkBuffer _indexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;
+	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
 
 	
 	void InitWindow()
@@ -81,6 +82,7 @@ private:
 		glfwSetWindowUserPointer(_window, this);
 		glfwSetWindowSizeCallback(_window, FramebufferResizeCallback);
 	}
+
 
 
 	void InitVulkan(bool enableValidationLayers)
@@ -113,7 +115,10 @@ private:
 
 		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
 
-		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _renderPass, _device, _swapchainExtent);
+		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
+		
+		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, 
+			_device, _swapchainExtent);
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
@@ -244,7 +249,8 @@ private:
 		vkFreeMemory(_device, _indexBufferMemory, nullptr);
 		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
 		vkFreeMemory(_device, _vertexBufferMemory, nullptr);
-		
+
+		vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
 		vkDestroyDevice(_device, nullptr);
 		if (enableValidationLayers) { DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
@@ -296,7 +302,8 @@ private:
 
 		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
 
-		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _renderPass, _device, _swapchainExtent);
+		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass,
+			_device, _swapchainExtent);
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
@@ -854,7 +861,8 @@ private:
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	[[nodiscard]] static std::tuple<VkPipeline, VkPipelineLayout>
-		CreateGraphicsPipeline(const std::string& shaderDir, VkRenderPass renderPass, VkDevice device,
+		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout& descriptorSetLayout,
+			VkRenderPass renderPass, VkDevice device,
 			const VkExtent2D& swapchainExtent)
 	{
 
@@ -1029,8 +1037,8 @@ private:
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
 		{
 			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			pipelineLayoutCI.setLayoutCount = 0;
-			pipelineLayoutCI.pSetLayouts = nullptr;
+			pipelineLayoutCI.setLayoutCount = 1;
+			pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
 			pipelineLayoutCI.pushConstantRangeCount = 0;
 			pipelineLayoutCI.pPushConstantRanges = nullptr;
 		}
@@ -1469,6 +1477,34 @@ private:
 
 	#pragma endregion
 
+
+	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device)
+	{
+		VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+		{
+			uboLayoutBinding.binding = 0; // correlates to shader
+			uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			uboLayoutBinding.descriptorCount = 1;
+			uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // only used in vertex shader
+			uboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+		}
+
+		VkDescriptorSetLayoutCreateInfo uboSetLayoutCI = {};
+		{
+			uboSetLayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			uboSetLayoutCI.bindingCount = 1;
+			uboSetLayoutCI.pBindings = &uboLayoutBinding;
+		}
+		
+		VkDescriptorSetLayout uboSetLayout;
+		if (vkCreateDescriptorSetLayout(device, &uboSetLayoutCI, nullptr, &uboSetLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create descriptor set layout");
+		}
+
+		return uboSetLayout;
+	}
+	
 	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
