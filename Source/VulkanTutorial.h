@@ -65,8 +65,11 @@ private:
 	std::vector<VkFence> _framesInFlight{};
 	size_t _currentFrame = 0;
 
+	VkBuffer _vertexBuffer = nullptr;
+	VkDeviceMemory _vertexBufferMemory = nullptr;
 
 
+	
 	void InitWindow()
 	{
 		glfwInit();
@@ -113,7 +116,9 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		_commandBuffers = CreateCommandBuffers((uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
+		std::tie(_vertexBuffer, _vertexBufferMemory) = CreateVertexBuffer(_device, _physicalDevice);
+		
+		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
 			_swapchainExtent, _pipeline, _swapchainFramebuffers);
 
 
@@ -229,11 +234,15 @@ private:
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
+		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
+		vkFreeMemory(_device, _vertexBufferMemory, nullptr);
+		
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
 		vkDestroyDevice(_device, nullptr);
 		if (enableValidationLayers) { DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkDestroyInstance(_instance, nullptr);
+		
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
@@ -283,7 +292,7 @@ private:
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
-		_commandBuffers = CreateCommandBuffers((uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
+		_commandBuffers = CreateCommandBuffers(_vertexBuffer, (uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass,
 			_swapchainExtent, _pipeline, _swapchainFramebuffers);
 	}
 
@@ -1131,7 +1140,87 @@ private:
 	}
 
 
+	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
+	CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		// Create buffer
+		VkBufferCreateInfo bufferCI = {};
+		{
+			bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferCI.size = sizeof(vertices[0]) * vertices.size();
+			bufferCI.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+			bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
+
+		VkBuffer vertexBuffer;
+		if (vkCreateBuffer(device, &bufferCI, nullptr, &vertexBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create vertex buffer");
+		}
+
+
+		// Helper method to find suitable memory type on GPU
+		auto FindMemoryType = [](uint32_t typeFilter, VkMemoryPropertyFlags properties, VkPhysicalDevice physicalDevice)
+		{
+			VkPhysicalDeviceMemoryProperties physicalMemProps;
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalMemProps);
+
+			// Find a mem type that's suitable
+			for (uint32_t i = 0; i < physicalMemProps.memoryTypeCount; i++)
+			{
+				const bool flagExists = typeFilter & (1 << i);
+				const bool propertiesMatch = (physicalMemProps.memoryTypes[i].propertyFlags & properties) == properties;
+
+				if (flagExists && propertiesMatch)
+				{
+					return i;
+				}
+			}
+
+			throw std::runtime_error("Failed to find a suitable memory type");
+		};
+
+		
+		// Memory requirements
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+		
+		// Allocate buffer memory
+		VkMemoryAllocateInfo memoryAllocInfo = {};
+		{
+			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			memoryAllocInfo.allocationSize = memRequirements.size;
+			memoryAllocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits,
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | // Ensure memcpys are sync'd across system and GPU mem
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,   // Make buffer visible to cpu
+				physicalDevice);
+		}
+
+		VkDeviceMemory vertexBufferMemory;
+		if (vkAllocateMemory(device, &memoryAllocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate vertex buffer memory");
+		}
+
+		
+		// Associate buffer memory with the buffer
+		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+
+		// Fill buffer with vertex data
+		void* data;
+		vkMapMemory(device, vertexBufferMemory, 0, bufferCI.size, 0, &data);
+			memcpy(data, vertices.data(), bufferCI.size);
+		vkUnmapMemory(device, vertexBufferMemory);
+		
+
+		return { vertexBuffer, vertexBufferMemory };
+	}
+
+	
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
+		VkBuffer vertexBuffer,
 		uint32_t numBuffers,
 		VkCommandPool commandPool,
 		VkDevice device,
@@ -1179,20 +1268,26 @@ private:
 				renderPassBeginInfo.pClearValues = &clearColor;
 			}
 
-
+			
 			// Begin recording renderpass
-			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
+			const auto cmdBuf = commandBuffers[i];
+			if (vkBeginCommandBuffer(cmdBuf, &beginInfo) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to begin recording command buffer");
 			}
 
-			vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-			vkCmdDraw(commandBuffers[i], 3, 1, 0, 0); // TODO Ewww....
-			vkCmdEndRenderPass(commandBuffers[i]);
+			vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+			VkBuffer vertexBuffers[] = { vertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
+			
+			vkCmdDraw(cmdBuf, (uint32_t)vertices.size(), 1, 0, 0);
+			vkCmdEndRenderPass(cmdBuf);
 
 			// Finish up!
-			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
+			if (vkEndCommandBuffer(cmdBuf) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to end recording command buffer");
 			}
