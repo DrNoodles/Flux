@@ -748,9 +748,11 @@ private:
 	{
 		for (const auto& mode : presentModes)
 		{
-			if (mode == VK_PRESENT_MODE_MAILBOX_KHR) // triple buffering
+			// TODO Investigate performance issues in release mode when in mailbox - huge stuttering
+
+			//if (mode == VK_PRESENT_MODE_MAILBOX_KHR) // triple buffering
 			{
-				return mode;
+				//return mode;
 			}
 		}
 
