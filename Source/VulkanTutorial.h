@@ -292,12 +292,14 @@ private:
 			_uniformBuffers, _device);
 		
 		_commandBuffers = CreateCommandBuffers(
-				_vertexBuffer, (uint32_t)g_vertices.size(), 
-				_indexBuffer, (uint32_t)g_indices.size(),
-				(uint32_t)_swapchainImages.size(), 
-				_commandPool, _device, _renderPass, 
-				_swapchainExtent, _pipeline,
-				_swapchainFramebuffers);
+			(uint32_t)_swapchainImages.size(),
+			_vertexBuffer, (uint32_t)g_vertices.size(), 
+			_indexBuffer, (uint32_t)g_indices.size(),
+			_descriptorSets,
+			_commandPool, _device, _renderPass, 
+			_swapchainExtent, 
+			_pipeline, _pipelineLayout,
+			_swapchainFramebuffers);
 
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 	}
@@ -964,7 +966,7 @@ private:
 			rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 			rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
 			rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
-			rasterizationCI.frontFace = VK_FRONT_FACE_CLOCKWISE;
+			rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 			rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 			rasterizationCI.depthBiasEnable = VK_FALSE;
 			rasterizationCI.depthBiasConstantFactor = 0.0f; // optional
@@ -1366,28 +1368,31 @@ private:
 
 	
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
+		uint32_t numBuffersToCreate,
 		VkBuffer vertexBuffer, uint32_t verticesSize,
 		VkBuffer indexBuffer, uint32_t indicesSize,
-		uint32_t numBuffers,
+		const std::vector<VkDescriptorSet>& descriptorSets,
 		VkCommandPool commandPool,
 		VkDevice device,
 		VkRenderPass renderPass,
 		VkExtent2D swapchainExtent,
 		VkPipeline pipeline,
+		VkPipelineLayout pipelineLayout,
 		const std::vector<VkFramebuffer>& swapchainFramebuffers)
 	{
-		std::vector<VkCommandBuffer> commandBuffers{ numBuffers };
-
-
+		assert(numBuffersToCreate == swapchainFramebuffers.size());
+		assert(numBuffersToCreate == descriptorSets.size());
+		
 		// Allocate command buffer
 		VkCommandBufferAllocateInfo commandBufferAllocInfo = {};
 		{
 			commandBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 			commandBufferAllocInfo.commandPool = commandPool;
 			commandBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			commandBufferAllocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+			commandBufferAllocInfo.commandBufferCount = numBuffersToCreate;
 		}
 
+		std::vector<VkCommandBuffer> commandBuffers{ numBuffersToCreate };
 		if (vkAllocateCommandBuffers(device, &commandBufferAllocInfo, commandBuffers.data()) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to allocate Command Buffers");
@@ -1395,47 +1400,54 @@ private:
 
 
 		// Record command buffer
+		VkCommandBufferBeginInfo beginInfo = {};
+		{
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = 0;
+			beginInfo.pInheritanceInfo = nullptr;
+		}
+		
 		for (size_t i = 0; i < commandBuffers.size(); ++i)
 		{
-			VkCommandBufferBeginInfo beginInfo = {};
-			{
-				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-				beginInfo.flags = 0;
-				beginInfo.pInheritanceInfo = nullptr;
-			}
-			VkRenderPassBeginInfo renderPassBeginInfo = {};
-			{
-				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				renderPassBeginInfo.renderPass = renderPass;
-				renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
-				renderPassBeginInfo.renderArea.offset = { 0,0 };
-				renderPassBeginInfo.renderArea.extent = swapchainExtent;
-				VkClearValue clearColor = { 0.f,0.f,0.f,1.f };
-				renderPassBeginInfo.clearValueCount = 1;
-				renderPassBeginInfo.pClearValues = &clearColor;
-			}
-
-			
-			// Begin recording renderpass
 			const auto cmdBuf = commandBuffers[i];
-			if (vkBeginCommandBuffer(cmdBuf, &beginInfo) != VK_SUCCESS)
+
+			// Start command buffer
+			if (vkBeginCommandBuffer(cmdBuf, &beginInfo) == VK_SUCCESS)	
+			{
+				// Record renderpass
+				VkRenderPassBeginInfo renderPassBeginInfo = {};
+				{
+					renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+					renderPassBeginInfo.renderPass = renderPass;
+					renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
+					renderPassBeginInfo.renderArea.offset = { 0,0 };
+					renderPassBeginInfo.renderArea.extent = swapchainExtent;
+					VkClearValue clearColor = { 0.f,0.f,0.f,1.f };
+					renderPassBeginInfo.clearValueCount = 1;
+					renderPassBeginInfo.pClearValues = &clearColor;
+				}
+				
+				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				{
+					vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+					// Draw mesh
+					VkBuffer vertexBuffers[] = { vertexBuffer };
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+					vkCmdBindDescriptorSets(cmdBuf, 
+						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+					vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
+				}
+				vkCmdEndRenderPass(cmdBuf);
+			}
+			else
 			{
 				throw std::runtime_error("Failed to begin recording command buffer");
 			}
-
-			vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-			// Draw mesh
-			VkBuffer vertexBuffers[] = { vertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-			vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
 			
-			vkCmdEndRenderPass(cmdBuf);
-
-			// Finish up!
+			// End command buffer
 			if (vkEndCommandBuffer(cmdBuf) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to end recording command buffer");
@@ -1541,7 +1553,6 @@ private:
 		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, VkDevice device)
 	{
 		assert(count == uniformBuffers.size());
-		assert(sizeof(uniformBuffers[0]) == sizeof(UniformBufferObject));
 		
 		// Need a copy of the layout per set as they'll be index matched arrays
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
@@ -1555,22 +1566,25 @@ private:
 			allocInfo.descriptorSetCount = count;
 			allocInfo.pSetLayouts = descriptorSetLayouts.data();
 		}
+		
 		std::vector<VkDescriptorSet> descriptorSets{ count };
-		if (VK_SUCCESS != vkAllocateDescriptorSets(device,&allocInfo, descriptorSets.data()))
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()))
 		{
 			throw std::runtime_error("Failed to create descriptor sets");
 		}
 
 
-		// Configure our new descriptor sets to point to our buffer
+		// Configure our new descriptor sets 
 		for (size_t i = 0; i < count; ++i)
 		{
+			// .. to point to our buffer
 			VkDescriptorBufferInfo bufferInfo = {};
 			{
 				bufferInfo.buffer = uniformBuffers[i];
 				bufferInfo.offset = 0;
 				bufferInfo.range = sizeof(UniformBufferObject);
 			}
+			// .. and configured for what's in the buffer
 			VkWriteDescriptorSet descriptorWrite = {};
 			{
 				descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1587,10 +1601,6 @@ private:
 			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 		}
 
-
-		
-		
-		
 		return descriptorSets;
 	}
 	
@@ -1652,4 +1662,3 @@ private:
 		app->FramebufferResized = true;
 	}
 };
-
