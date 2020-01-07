@@ -64,7 +64,7 @@ private:
 	std::vector<VkSemaphore> _renderFinishedSemaphores{};
 	std::vector<VkSemaphore> _imageAvailableSemaphores{};
 	std::vector<VkFence> _inFlightFences{};
-	std::vector<VkFence> _framesInFlight{};
+	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
 	// Mesh Buffers
@@ -72,10 +72,13 @@ private:
 	VkDeviceMemory _vertexBufferMemory = nullptr;
 	VkBuffer _indexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;
-	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
+	
 	std::vector<VkBuffer> _uniformBuffers{};
 	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
-	
+	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
+	VkDescriptorPool _descriptorPool = nullptr;
+	std::vector<VkDescriptorSet> _descriptorSets{};
+
 	
 	void InitWindow()
 	{
@@ -107,24 +110,7 @@ private:
 
 		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
-
-
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		const VkExtent2D windowSize{ (uint32_t)width, (uint32_t)height };
-		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
-			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
-
-		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
-
-		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
-
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
-		
-		std::tie(_pipeline, _pipelineLayout)
-			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, _device, _swapchainExtent);
-
-		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
 
 		std::tie(_vertexBuffer, _vertexBufferMemory)
 			= CreateVertexBuffer(g_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
@@ -132,16 +118,13 @@ private:
 		std::tie(_indexBuffer, _indexBufferMemory)
 			= CreateIndexBuffer(g_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
-		std::tie(_uniformBuffers, _uniformBuffersMemory)
-			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
-		
-		_commandBuffers = CreateCommandBuffers(
-			_vertexBuffer, (uint32_t)g_vertices.size(), _indexBuffer, (uint32_t)g_indices.size(),
-			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline, 
-			_swapchainFramebuffers);
 
+		int width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
 
-		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _framesInFlight)
+		CreateSwapchain(width, height);
+
+		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 
@@ -158,7 +141,7 @@ private:
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			RecreateSwapcain();
+			RecreateSwapchain();
 			return;
 		}
 		const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
@@ -168,13 +151,13 @@ private:
 		}
 
 		// If the image is still used by a previous frame, wait for it to finish!
-		if (_framesInFlight[imageIndex] != nullptr)
+		if (_imagesInFlight[imageIndex] != nullptr)
 		{
-			vkWaitForFences(_device, 1, &_framesInFlight[imageIndex], true, UINT64_MAX);
+			vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
 		}
 
 		// Mark the image as now being in use by this frame
-		_framesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
 		// Execute the command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
@@ -223,7 +206,7 @@ private:
 		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
 			FramebufferResized = false;
-			RecreateSwapcain();
+			RecreateSwapchain();
 		}
 		else if (result != VK_SUCCESS)
 		{
@@ -231,33 +214,6 @@ private:
 		}
 
 		_currentFrame = (_currentFrame + 1) % g_maxFramesInFlight;
-	}
-
-
-	static void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
-	{
-		// Compute time elapsed
-		static auto startTime = std::chrono::high_resolution_clock::now();
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-		// Create new ubo
-		const auto vfov = 45.f;
-		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
-		
-		UniformBufferObject ubo = {};
-		{
-			ubo.Model = glm::rotate(glm::mat4{ 1 }, time * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
-			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
-			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
-			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
-		}
-
-		// Push ubo
-		void* data;
-		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
-			memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, uniformBufMem);
 	}
 
 
@@ -281,8 +237,6 @@ private:
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
-		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
-		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 		vkDestroyBuffer(_device, _indexBuffer, nullptr);
 		vkFreeMemory(_device, _indexBufferMemory, nullptr);
 		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
@@ -302,6 +256,9 @@ private:
 
 	void CleanupSwapchain()
 	{
+		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
+		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
+		vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
 		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
 		vkDestroyPipeline(_device, _pipeline, nullptr);
@@ -312,43 +269,54 @@ private:
 	}
 
 
-	void RecreateSwapcain()
+	void CreateSwapchain(int width, int height)
 	{
-
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-
-		// This handles a minimized window. Wait until it has size > 0
-		while (width == 0 || height == 0)
-		{
-			glfwGetFramebufferSize(_window, &width, &height);
-			glfwWaitEvents();
-		}
-
-
-		vkDeviceWaitIdle(_device);
-
-
-		CleanupSwapchain();
-
-
-		const VkExtent2D windowSize{ (uint32_t)width, (uint32_t)height };
-		_swapchain = CreateSwapchain(windowSize, _physicalDevice, _surface, _device,
+		_swapchain = CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 
 		_swapchainImageViews = CreateImageViews(_swapchainImages, _swapchainImageFormat, _device);
 
 		_renderPass = CreateRenderPass(_swapchainImageFormat, _device);
 
-		std::tie(_pipeline, _pipelineLayout) = CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass,
-			_device, _swapchainExtent);
+		std::tie(_pipeline, _pipelineLayout)
+			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, _device, _swapchainExtent);
 
 		_swapchainFramebuffers = CreateFramebuffer(_device, _renderPass, _swapchainExtent, _swapchainImageViews);
+		
+		std::tie(_uniformBuffers, _uniformBuffersMemory)
+			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
 
+		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
+
+		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool, 
+			_uniformBuffers, _device);
+		
 		_commandBuffers = CreateCommandBuffers(
-			_vertexBuffer, (uint32_t)g_vertices.size(), _indexBuffer, (uint32_t)g_indices.size(),
-			(uint32_t)_swapchainImages.size(), _commandPool, _device, _renderPass, _swapchainExtent, _pipeline,
-			_swapchainFramebuffers);
+				_vertexBuffer, (uint32_t)g_vertices.size(), 
+				_indexBuffer, (uint32_t)g_indices.size(),
+				(uint32_t)_swapchainImages.size(), 
+				_commandPool, _device, _renderPass, 
+				_swapchainExtent, _pipeline,
+				_swapchainFramebuffers);
+
+		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
+	}
+
+	
+	void RecreateSwapchain()
+	{
+		// This handles a minimized window. Wait until it has size > 0
+		int width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		while (width == 0 || height == 0)
+		{
+			glfwGetFramebufferSize(_window, &width, &height);
+			glfwWaitEvents();
+		}
+		
+		vkDeviceWaitIdle(_device);
+		CleanupSwapchain();
+		CreateSwapchain(width, height);
 	}
 
 
@@ -1497,7 +1465,7 @@ private:
 		std::vector<VkSemaphore> renderFinishedSemaphores{ numFramesInFlight };
 		std::vector<VkSemaphore> imageAvailableSemaphores{ numFramesInFlight };
 		std::vector<VkFence> inFlightFences{ numFramesInFlight };
-		std::vector<VkFence> framesInFlight{ numSwapchainImages, nullptr };
+		std::vector<VkFence> imagesInFlight{ numSwapchainImages, nullptr };
 
 		for (size_t i = 0; i < numFramesInFlight; i++)
 		{
@@ -1510,10 +1478,8 @@ private:
 		}
 
 
-		return { renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, framesInFlight };
+		return { renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, imagesInFlight };
 	}
-
-	#pragma endregion
 
 
 	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device)
@@ -1543,7 +1509,92 @@ private:
 		return uboSetLayout;
 	}
 
+	
+	static VkDescriptorPool CreateDescriptorPool(uint32_t count, VkDevice device)
+	{
+		// Which descriptor types our descriptor sets will contain and how many of them
+		VkDescriptorPoolSize poolSize = {};
+		{
+			poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			poolSize.descriptorCount = count;
+		}
 
+		VkDescriptorPoolCreateInfo poolCI = {};
+		{
+			poolCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			poolCI.poolSizeCount = 1;
+			poolCI.pPoolSizes = &poolSize;
+			poolCI.maxSets = count; // max num of descriptor sets that may be allocated
+		}
+
+		VkDescriptorPool pool;
+		if (vkCreateDescriptorPool(device, &poolCI, nullptr, &pool) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create descriptor pool!");
+		}
+
+		return pool;
+	}
+
+
+	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout, 
+		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, VkDevice device)
+	{
+		assert(count == uniformBuffers.size());
+		assert(sizeof(uniformBuffers[0]) == sizeof(UniformBufferObject));
+		
+		// Need a copy of the layout per set as they'll be index matched arrays
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
+
+		
+		// Create descriptor sets
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		{
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = pool;
+			allocInfo.descriptorSetCount = count;
+			allocInfo.pSetLayouts = descriptorSetLayouts.data();
+		}
+		std::vector<VkDescriptorSet> descriptorSets{ count };
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device,&allocInfo, descriptorSets.data()))
+		{
+			throw std::runtime_error("Failed to create descriptor sets");
+		}
+
+
+		// Configure our new descriptor sets to point to our buffer
+		for (size_t i = 0; i < count; ++i)
+		{
+			VkDescriptorBufferInfo bufferInfo = {};
+			{
+				bufferInfo.buffer = uniformBuffers[i];
+				bufferInfo.offset = 0;
+				bufferInfo.range = sizeof(UniformBufferObject);
+			}
+			VkWriteDescriptorSet descriptorWrite = {};
+			{
+				descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWrite.dstSet = descriptorSets[i];
+				descriptorWrite.dstBinding = 0; // correlates to shader binding
+				descriptorWrite.dstArrayElement = 0;
+				descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				descriptorWrite.descriptorCount = 1;
+				descriptorWrite.pBufferInfo = &bufferInfo; // descriptor is one of buffer, image or texelbufferview
+				descriptorWrite.pImageInfo = nullptr;
+				descriptorWrite.pTexelBufferView = nullptr;
+			}
+
+			vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		}
+
+
+		
+		
+		
+		return descriptorSets;
+	}
+	
+	
 	static std::tuple<std::vector<VkBuffer>,std::vector<VkDeviceMemory>>
 	CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
@@ -1563,6 +1614,37 @@ private:
 
 		return { buffers, buffersMemory };
 	}
+
+
+	#pragma endregion
+
+
+	static void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+	{
+		// Compute time elapsed
+		static auto startTime = std::chrono::high_resolution_clock::now();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		// Create new ubo
+		const auto vfov = 45.f;
+		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
+
+		UniformBufferObject ubo = {};
+		{
+			ubo.Model = glm::rotate(glm::mat4{ 1 }, time * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
+			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
+			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
+			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+		}
+
+		// Push ubo
+		void* data;
+		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
+		memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(device, uniformBufMem);
+	}
+
 	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
