@@ -16,10 +16,9 @@
 
 #include "Globals.h"
 #include "Types.h"
+#include <string>
 
 #define OUT // syntax helper
-
-
 
 class VulkanTutorial
 {
@@ -36,7 +35,8 @@ public:
 	}
 
 private:
-
+	FpsCounter _fpsCounter{};
+	
 	GLFWwindow* _window = nullptr;
 	VkInstance _instance = nullptr;
 	VkSurfaceKHR _surface = nullptr;
@@ -748,11 +748,9 @@ private:
 	{
 		for (const auto& mode : presentModes)
 		{
-			// TODO Investigate performance issues in release mode when in mailbox - huge stuttering
-
-			//if (mode == VK_PRESENT_MODE_MAILBOX_KHR) // triple buffering
+			if (mode == VK_PRESENT_MODE_MAILBOX_KHR) // triple buffering
 			{
-				//return mode;
+				return mode;
 			}
 		}
 
@@ -1631,20 +1629,37 @@ private:
 	#pragma endregion
 
 
-	static void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point _lastTime;
+	std::chrono::steady_clock::time_point _lastFpsUpdate;
+	const std::chrono::duration<double, std::chrono::seconds::period> _updateRate{ 1 };
+
+	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
 	{
 		// Compute time elapsed
-		static auto startTime = std::chrono::high_resolution_clock::now();
 		const auto currentTime = std::chrono::high_resolution_clock::now();
-		const float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		const float totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
+		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
+		_lastTime = currentTime;
 
+		// Report fps
+		_fpsCounter.AddFrameTime(dt);
+		if ((currentTime - _lastFpsUpdate) > _updateRate)
+		{
+			char buffer[32];
+			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
+			glfwSetWindowTitle(_window, buffer);
+			_lastFpsUpdate = currentTime;
+		}
+	
+		
 		// Create new ubo
 		const auto vfov = 45.f;
 		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
 
 		UniformBufferObject ubo = {};
 		{
-			ubo.Model = glm::rotate(glm::mat4{ 1 }, time * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
+			ubo.Model = glm::rotate(glm::mat4{ 1 }, totalTime * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
 			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
 			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan

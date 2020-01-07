@@ -69,3 +69,35 @@ struct QueueFamilyIndices
 		return GraphicsFamily.has_value() && PresentFamily.has_value();
 	}
 };
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class FpsCounter
+{
+public:
+	FpsCounter() : FpsCounter(120) {}
+	explicit FpsCounter(size_t bufferSize)
+	{
+		_buffer.resize(bufferSize, 0);
+	}
+	void AddFrameTime(double dt)
+	{
+		_secPerFrameAccumulator += dt - _buffer[_index];
+		_buffer[_index] = dt;
+		_index = (_index + 1) % _buffer.size();
+	}
+
+	double GetFps() const
+	{
+		return 1.0 / (_secPerFrameAccumulator / (double)_buffer.size());
+		return _frameRate;
+		
+	}
+
+private:
+	double _frameRate = 0;
+	double _secPerFrameAccumulator = 0;
+	std::vector<double> _buffer{};
+	size_t _index = 0;
+};
+
