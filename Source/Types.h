@@ -4,7 +4,10 @@
 #include <vector>
 #include <array>
 #include <vulkan/vulkan.h>
+
 #include <glm/glm.hpp>
+#define GLM_ENABLE_EXPERIMENTAL // for hash
+#include <glm/gtx/hash.hpp>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniformBufferObject
@@ -21,6 +24,11 @@ struct Vertex
 	glm::vec3 Color;
 	glm::vec2 TexCoord;
 
+	bool operator==(const Vertex& other) const
+	{
+		return Pos == other.Pos && Color == other.Color && TexCoord == other.TexCoord;
+	}
+	
 	static VkVertexInputBindingDescription BindingDescription()
 	{
 		VkVertexInputBindingDescription bindingDesc = {};
@@ -55,6 +63,19 @@ struct Vertex
 		return attrDesc;
 	}
 };
+namespace std
+{
+	template<> struct hash<Vertex>
+	{
+		size_t operator()(Vertex const& vertex) const noexcept
+		{
+			return ((hash<glm::vec3>()(vertex.Pos) ^
+				(hash<glm::vec3>()(vertex.Color) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.TexCoord) << 1);
+		}
+	};
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SwapChainSupportDetails

@@ -4,6 +4,7 @@ int main()
 {
 	VulkanTutorial app;
 	app.ShaderDir = R"(../Bin/)";
+	app.AssetsDir = R"(../Source/Assets/)";
 	
 	try
 	{

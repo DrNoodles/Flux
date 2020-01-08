@@ -2,6 +2,7 @@
 
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
+
 #include <stbi/stb_image.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -16,10 +17,10 @@
 #include <optional>
 #include <set>
 #include <algorithm>
-#include <fstream>
 #include <array>
 #include <chrono>
 #include <string>
+#include <unordered_map>
 
 #include "Globals.h"
 #include "Types.h"
@@ -30,6 +31,7 @@ class VulkanTutorial
 {
 public:
 	std::string ShaderDir{};
+	std::string AssetsDir{};
 	bool FramebufferResized = false;
 
 	void Run()
@@ -66,9 +68,9 @@ private:
 	std::vector<VkCommandBuffer> _commandBuffers{};
 
 	// Depth
-	VkImage _depthImage;
-	VkDeviceMemory _depthImageMemory;
-	VkImageView _depthImageView;
+	VkImage _depthImage = nullptr;
+	VkDeviceMemory _depthImageMemory = nullptr;
+	VkImageView _depthImageView = nullptr;
 	
 	// Synchronization
 	std::vector<VkSemaphore> _renderFinishedSemaphores{};
@@ -78,10 +80,12 @@ private:
 	size_t _currentFrame = 0;
 
 	// Mesh stuff
+	std::vector<Vertex> _vertices{};
+	std::vector<uint32_t> _indices{};
 	VkBuffer _vertexBuffer = nullptr;
-	VkDeviceMemory _vertexBufferMemory = nullptr;
-	VkBuffer _indexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;
+	VkBuffer _indexBuffer = nullptr;
+	VkDeviceMemory _vertexBufferMemory = nullptr;
 	
 	std::vector<VkBuffer> _uniformBuffers{};
 	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
@@ -132,9 +136,10 @@ private:
 
 		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
-		const std::string path = "../Source/Textures/statue_1024.jpg";
+		
+		const std::string texPath = AssetsDir + "Chalet/chalet.jpg";
 		std::tie(_textureImage, _textureImageMemory)
-			= CreateTextureImage(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
+			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
 
 		_textureImageView = CreateTextureImageView(_textureImage, _device);
 
@@ -142,11 +147,15 @@ private:
 		
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 
+		const std::string modelPath = AssetsDir + "Chalet/chalet.obj";
+		std::tie(_vertices,_indices) = LoadModel(modelPath);
+		
 		std::tie(_vertexBuffer, _vertexBufferMemory)
-			= CreateVertexBuffer(g_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+			= CreateVertexBuffer(_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
 		std::tie(_indexBuffer, _indexBufferMemory)
-			= CreateIndexBuffer(g_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+			= CreateIndexBuffer(_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
 
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
@@ -335,8 +344,8 @@ private:
 		
 		_commandBuffers = CreateCommandBuffers(
 			(uint32_t)_swapchainImages.size(),
-			_vertexBuffer, (uint32_t)g_vertices.size(), 
-			_indexBuffer, (uint32_t)g_indices.size(),
+			_vertexBuffer, (uint32_t)_vertices.size(), 
+			_indexBuffer, (uint32_t)_indices.size(),
 			_descriptorSets,
 			_commandPool, _device, _renderPass, 
 			_swapchainExtent, 
@@ -1264,7 +1273,7 @@ private:
 	}
 
 	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
-		CreateIndexBuffer(const std::vector<uint16_t>& indices, VkQueue transferQueue, VkCommandPool transferCommandPool,
+		CreateIndexBuffer(const std::vector<uint32_t>& indices, VkQueue transferQueue, VkCommandPool transferCommandPool,
 			VkPhysicalDevice physicalDevice, VkDevice device)
 	{
 		const VkDeviceSize bufSize = sizeof(indices[0]) * indices.size();
@@ -1690,7 +1699,7 @@ private:
 					VkBuffer vertexBuffers[] = { vertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+					vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(cmdBuf, 
 						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 					vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
@@ -2101,6 +2110,68 @@ private:
 	
 	#pragma endregion
 
+
+	#pragma region Model
+
+
+	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>> LoadModel(const std::string& modelPath)
+	{
+		tinyobj::attrib_t attrib;
+		std::vector<tinyobj::shape_t> shapes;
+		std::vector<tinyobj::material_t> materials;
+		std::string warn, err;
+
+		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPath.c_str()))
+		{
+			throw std::runtime_error(warn + err);
+		}
+
+		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
+		
+		for (const auto& shape : shapes)
+		{
+			for (const auto& tinyIndex : shape.mesh.indices)
+			{
+				Vertex vertex = {};
+
+				vertex.Pos =
+				{
+					attrib.vertices[3 * tinyIndex.vertex_index + 0],
+					attrib.vertices[3 * tinyIndex.vertex_index + 1],
+					attrib.vertices[3 * tinyIndex.vertex_index + 2],
+				};
+				vertex.TexCoord =
+				{
+					attrib.texcoords[2 * tinyIndex.texcoord_index + 0],
+					1.0f - attrib.texcoords[2 * tinyIndex.texcoord_index + 1], // invert y texCoord to conform to vulkan
+				};
+				vertex.Color = { 1,1,1 };
+
+			
+				// Check if this vertex is unique
+				if (uniqueVertices.count(vertex) == 0)
+				{
+					const auto newVertIndex = (uint32_t)vertices.size();
+					uniqueVertices[vertex] = newVertIndex;
+					vertices.emplace_back(vertex);
+				}
+
+				const uint32_t existingVertIndex = uniqueVertices[vertex];
+				indices.push_back(existingVertIndex);
+			}
+		}
+
+		std::cout << "Model loaded! (" + std::to_string(vertices.size()) + " verts, " << 
+			std::to_string(indices.size()) << " indices)\n";
+		
+		return { std::move(vertices), std::move(indices) };
+	}
+
+	
+	#pragma endregion
+
 	
 	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
 	{
@@ -2128,8 +2199,8 @@ private:
 		UniformBufferObject ubo = {};
 		{
 			//ubo.Model = glm::mat4{ 1 };
-			ubo.Model = glm::rotate(glm::mat4{ 1 }, totalTime * glm::radians(90.f), glm::vec3{ 0, 0, 1 });
-			ubo.View = glm::lookAt(glm::vec3{ 1,1,1 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
+			ubo.Model = glm::rotate(glm::mat4{ 1 }, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
+			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
 			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 		}
