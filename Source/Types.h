@@ -69,9 +69,12 @@ namespace std
 	{
 		size_t operator()(Vertex const& vertex) const noexcept
 		{
-			return ((hash<glm::vec3>()(vertex.Pos) ^
-				(hash<glm::vec3>()(vertex.Color) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.TexCoord) << 1);
+			// based on hash technique recommendation from https://en.cppreference.com/w/cpp/utility/hash
+			// ... which is apparently flawed... good enough? probably!
+			const size_t posHash = hash<glm::vec3>()(vertex.Pos);
+			const size_t colorHash = hash<glm::vec3>()(vertex.Color);
+			const size_t texCoordHash = hash<glm::vec2>()(vertex.TexCoord);
+			return ((posHash ^ (colorHash << 1)) >> 1) ^ (texCoordHash << 1);
 		}
 	};
 }
