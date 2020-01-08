@@ -17,7 +17,7 @@ struct UniformBufferObject
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Vertex
 {
-	glm::vec2 Pos;
+	glm::vec3 Pos;
 	glm::vec3 Color;
 	glm::vec2 TexCoord;
 
@@ -39,7 +39,7 @@ struct Vertex
 			// Pos
 			attrDesc[0].binding = 0;
 			attrDesc[0].location = 0;
-			attrDesc[0].format = VK_FORMAT_R32G32_SFLOAT;
+			attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 			attrDesc[0].offset = offsetof(Vertex, Pos);
 			// Color
 			attrDesc[1].binding = 0;
