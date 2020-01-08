@@ -18,6 +18,7 @@ project "Renderer"
 		"External/glm/include",
 		"External/stbi/include",
 		"External/vulkan/include",
+		"External/tinyobjloader/include",
 	}
 
 	libdirs { 
