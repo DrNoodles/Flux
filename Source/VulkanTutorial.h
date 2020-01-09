@@ -53,6 +53,8 @@ private:
 	VkQueue _graphicsQueue = nullptr;
 	VkQueue _presentQueue = nullptr;
 
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
 	VkSwapchainKHR _swapchain = nullptr;
 	std::vector<VkFramebuffer> _swapchainFramebuffers{};
 	std::vector<VkImage> _swapchainImages{};
@@ -60,17 +62,22 @@ private:
 	VkFormat _swapchainImageFormat{};
 	VkExtent2D _swapchainExtent{};
 
+	// Color image
+	VkImage _colorImage = nullptr;
+	VkDeviceMemory _colorImageMemory = nullptr;
+	VkImageView _colorImageView = nullptr;
+	
+	// Depth image - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _depthImage = nullptr;
+	VkDeviceMemory _depthImageMemory = nullptr;
+	VkImageView _depthImageView = nullptr;
+	
 	VkRenderPass _renderPass = nullptr;
 	VkPipeline _pipeline = nullptr;
 	VkPipelineLayout _pipelineLayout = nullptr;
 
 	VkCommandPool _commandPool = nullptr;
 	std::vector<VkCommandBuffer> _commandBuffers{};
-
-	// Depth
-	VkImage _depthImage = nullptr;
-	VkDeviceMemory _depthImageMemory = nullptr;
-	VkImageView _depthImageView = nullptr;
 	
 	// Synchronization
 	std::vector<VkSemaphore> _renderFinishedSemaphores{};
@@ -94,11 +101,10 @@ private:
 	std::vector<VkDescriptorSet> _descriptorSets{};
 
 	// Texture
-	uint32_t _textureMipLevels = 1;
+	uint32_t _textureMipLevels = 0;
 	VkImage _textureImage = nullptr;
 	VkDeviceMemory _textureImageMemory = nullptr;
 	VkImageView _textureImageView = nullptr;
-	
 	VkSampler _textureSampler = nullptr;
 	
 	// Time
@@ -108,6 +114,7 @@ private:
 	const std::chrono::duration<double, std::chrono::seconds::period> _updateRate{ 1 };
 	FpsCounter _fpsCounter{};
 
+	
 	
 	void InitWindow()
 	{
@@ -132,14 +139,13 @@ private:
 
 		_surface = CreateSurface(_instance, _window);
 
-		_physicalDevice = PickPhysicalDevice(_instance, _surface);
+		std::tie(_physicalDevice, _msaaSamples) = PickPhysicalDevice(_instance, _surface);
 
 		std::tie(_device, _graphicsQueue, _presentQueue)
 			= CreateLogicalDevice(_physicalDevice, _surface, g_validationLayers, g_physicalDeviceExtensions);
 
 		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
-		
 		const std::string texPath = AssetsDir + "Chalet/chalet.jpg";
 		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
@@ -301,15 +307,21 @@ private:
 
 	void CleanupSwapchainAndDependents()
 	{
+		vkDestroyImageView(_device, _colorImageView, nullptr);
+		vkDestroyImage(_device, _colorImage, nullptr);
+		vkFreeMemory(_device, _colorImageMemory, nullptr);
+		
 		vkDestroyImageView(_device, _depthImageView, nullptr);
 		vkDestroyImage(_device, _depthImage, nullptr);
 		vkFreeMemory(_device, _depthImageMemory, nullptr);
 		
 		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
 		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
+		
 		vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
 		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
+
 		vkDestroyPipeline(_device, _pipeline, nullptr);
 		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
 		vkDestroyRenderPass(_device, _renderPass, nullptr);
@@ -326,16 +338,21 @@ private:
 		_swapchainImageViews
 			= CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, _device);
 
-		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= CreateDepthResources(_swapchainExtent, _commandPool, _graphicsQueue, _device, _physicalDevice);
+		std::tie(_colorImage, _colorImageMemory, _colorImageView)
+			= CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples, 
+				_commandPool, _graphicsQueue, _device, _physicalDevice);
 		
-		_renderPass = CreateRenderPass(_swapchainImageFormat, _device, _physicalDevice);
+		std::tie(_depthImage, _depthImageMemory, _depthImageView)
+			= CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device, 
+				_physicalDevice);
+		
+		_renderPass = CreateRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
 		std::tie(_pipeline, _pipelineLayout)
-			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _renderPass, _device, _swapchainExtent);
+			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _msaaSamples, _renderPass, _device, _swapchainExtent);
 
 		_swapchainFramebuffers
-			= CreateFramebuffer(_depthImageView, _device, _renderPass, _swapchainExtent, _swapchainImageViews);
+			= CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent, _swapchainImageViews);
 		
 		std::tie(_uniformBuffers, _uniformBuffersMemory)
 			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
@@ -376,7 +393,7 @@ private:
 	}
 
 
-	#pragma region InitVulkan static helpers
+	#pragma region InitVulkan
 
 	[[nodiscard]] static VkInstance CreateInstance(bool enableValidationLayers)
 	{
@@ -578,11 +595,14 @@ private:
 		return VK_FALSE;
 	}
 
-
-	[[nodiscard]] static VkPhysicalDevice PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
+	
+	
+	[[nodiscard]] static std::tuple<VkPhysicalDevice, VkSampleCountFlagBits>
+	PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	{
 		VkPhysicalDevice physicalDevice = nullptr;
-
+		VkSampleCountFlagBits msaaSamples;
+		
 		// Query available devices
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -590,16 +610,18 @@ private:
 		{
 			throw std::runtime_error("Failed to find GPUs with Vulkan support.");
 		}
-		std::vector<VkPhysicalDevice> devices{ deviceCount };
-		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+		std::vector<VkPhysicalDevice> physicalDevices{ deviceCount };
+		vkEnumeratePhysicalDevices(instance, &deviceCount, physicalDevices.data());
 
 
 		// Use the first suitable physical device
-		for (const auto& device : devices)
+		for (const auto& pd : physicalDevices)
 		{
-			if (IsDeviceSuitable(device, surface))
+			if (IsDeviceSuitable(pd, surface))
 			{
-				physicalDevice = device;
+				physicalDevice = pd;
+				msaaSamples = GetMaxUsableSampleCount(pd);
+				std::cout << "msaa: " << std::to_string(msaaSamples) << std::endl;
 				break;
 			}
 		}
@@ -609,7 +631,7 @@ private:
 			throw std::runtime_error("Failed to find a suitable GPU");
 		}
 
-		return physicalDevice;
+		return { physicalDevice, msaaSamples };
 	}
 	static bool IsDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 	{
@@ -659,7 +681,24 @@ private:
 
 		return requiredExtensions.empty();
 	}
+	static VkSampleCountFlagBits GetMaxUsableSampleCount(VkPhysicalDevice physicalDevice)
+	{
+		VkPhysicalDeviceProperties props;
+		vkGetPhysicalDeviceProperties(physicalDevice, &props);
 
+		const VkSampleCountFlags counts =
+			props.limits.sampledImageColorSampleCounts &
+			props.limits.sampledImageDepthSampleCounts;
+
+		if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+		if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+		if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+		if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+		if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+		if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+		return VK_SAMPLE_COUNT_1_BIT;
+	}
 
 	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(
 		VkPhysicalDevice physicalDevice,
@@ -845,24 +884,33 @@ private:
 
 	// The attachments referenced by the pipeline stages and their usage
 	[[nodiscard]] static VkRenderPass
-	CreateRenderPass(VkFormat format, VkDevice device, VkPhysicalDevice physicalDevice)
+	CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device, 
+		VkPhysicalDevice physicalDevice)
 	{
-		// Define the colour and dpeth attachments
+		// Color attachment
 		VkAttachmentDescription colorAttachmentDesc = {};
 		{
-			colorAttachmentDesc.format = format;
-			colorAttachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDesc.format = swapchainFormat;
+			colorAttachmentDesc.samples = msaaSamples;
 			colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
 			colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
 			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
 			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before render pass begins
-			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // outgoing memory layout after render pass
+			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before renderpass
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // memory layout after renderpass
 		}
+		VkAttachmentReference colorAttachmentRef = {};
+		{
+			colorAttachmentRef.attachment = 0;
+			colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
+		
+		// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
 		VkAttachmentDescription depthAttachmentDesc = {};
 		{
 			depthAttachmentDesc.format = FindDepthFormat(physicalDevice);
-			depthAttachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachmentDesc.samples = msaaSamples;
 			depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
 			depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
@@ -870,25 +918,41 @@ private:
 			depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		}
-		VkAttachmentReference colorAttachmentRef = {};
-		{
-			colorAttachmentRef.attachment = 0;
-			colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		}
 		VkAttachmentReference depthAttachmentRef = {};
 		{
 			depthAttachmentRef.attachment = 1;
 			depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		}
 
+
+		// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
+		VkAttachmentDescription colorAttachmentResolveDesc = {};
+		{
+			colorAttachmentResolveDesc.format = swapchainFormat;
+			colorAttachmentResolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentResolveDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentResolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentResolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentResolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentResolveDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentResolveDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		}
+		VkAttachmentReference colorAttachmentResolveRef = {};
+		{
+			colorAttachmentResolveRef.attachment = 2;
+			colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
+
 		
-		// Associate colour and depth attachements with a subpass
+		// Associate color and depth attachements with a subpass
 		VkSubpassDescription subpassDesc = {};
 		{
 			subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 			subpassDesc.colorAttachmentCount = 1;
 			subpassDesc.pColorAttachments = &colorAttachmentRef;
 			subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
+			subpassDesc.pResolveAttachments = &colorAttachmentResolveRef;
 		}
 
 		
@@ -905,7 +969,11 @@ private:
 
 		
 		// Create render pass
-		std::array<VkAttachmentDescription, 2> attachments = { colorAttachmentDesc, depthAttachmentDesc };
+		std::array<VkAttachmentDescription, 3> attachments = {
+			colorAttachmentDesc,
+			depthAttachmentDesc,
+			colorAttachmentResolveDesc
+		};
 		
 		VkRenderPassCreateInfo renderPassCI = {};
 		{
@@ -930,9 +998,8 @@ private:
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	[[nodiscard]] static std::tuple<VkPipeline, VkPipelineLayout>
-		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout& descriptorSetLayout,
-			VkRenderPass renderPass, VkDevice device,
-			const VkExtent2D& swapchainExtent)
+		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout& descriptorSetLayout, 
+			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device, const VkExtent2D& swapchainExtent)
 	{
 
 		//// SHADER MODULES ////
@@ -1043,7 +1110,7 @@ private:
 		{
 			multisampleCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 			multisampleCI.sampleShadingEnable = VK_FALSE;
-			multisampleCI.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+			multisampleCI.rasterizationSamples = msaaSamples;
 			multisampleCI.minSampleShading = 1; // optional
 			multisampleCI.pSampleMask = nullptr; // optional
 			multisampleCI.alphaToCoverageEnable = VK_FALSE; // optional
@@ -1186,6 +1253,7 @@ private:
 
 
 	[[nodiscard]] static std::vector<VkFramebuffer> CreateFramebuffer(
+		VkImageView colorImageView,
 		VkImageView depthImageView,
 		VkDevice device,
 		VkRenderPass renderPass,
@@ -1196,7 +1264,7 @@ private:
 
 		for (size_t i = 0; i < swapchainImageViews.size(); ++i)
 		{
-			std::array<VkImageView, 2> attachments = { swapchainImageViews[i], depthImageView };
+			std::array<VkImageView, 3> attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
 
 			VkFramebufferCreateInfo framebufferCI = {};
 			{
@@ -1357,63 +1425,6 @@ private:
 		vkBindBufferMemory(device, outBuffer, outBufferMemory, 0);
 
 		return { outBuffer, outBufferMemory };
-	}
-
-	
-	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
-		CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, 
-			VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
-			VkPhysicalDevice physicalDevice, VkDevice device)
-	{
-		VkImage textureImage;
-		VkDeviceMemory textureImageMemory;
-		
-		// Create image buffer
-		VkImageCreateInfo imageCI = {};
-		{
-			imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCI.imageType = VK_IMAGE_TYPE_2D;
-			imageCI.extent.width = width;
-			imageCI.extent.height = height;
-			imageCI.extent.depth = 1; // one-dimensional
-			imageCI.mipLevels = mipLevels; 
-			imageCI.arrayLayers = 1; // not an array
-			imageCI.format = format;
-			imageCI.tiling = tiling;
-			imageCI.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;//not usable by gpu and first transition discards the texels
-			imageCI.usage = usageFlags;
-			imageCI.samples = VK_SAMPLE_COUNT_1_BIT; // the multisampling mode
-			imageCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		}
-
-		if (VK_SUCCESS != vkCreateImage(device, &imageCI, nullptr, &textureImage))
-		{
-			throw std::runtime_error("Failed to create image");
-		}
-
-
-		// Allocate image buffer memory
-		VkMemoryRequirements memRequirements;
-		vkGetImageMemoryRequirements(device, textureImage, &memRequirements);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		{
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = memRequirements.size;
-			allocInfo.memoryTypeIndex = FindMemoryType(
-				memRequirements.memoryTypeBits,
-				propertyFlags, // optimal reads
-				physicalDevice);
-		}
-
-		if (VK_SUCCESS != vkAllocateMemory(device, &allocInfo, nullptr, &textureImageMemory))
-		{
-			throw std::runtime_error("Failed to allocate texture image memory");
-		}
-
-		vkBindImageMemory(device, textureImage, textureImageMemory, 0);
-
-		return { textureImage, textureImageMemory };
 	}
 
 
@@ -1929,86 +1940,117 @@ private:
 
 		return { buffers, buffersMemory };
 	}
+	
+	#pragma endregion
 
+	
+	#pragma region Image, ImageView, ImageMemory, MipLevels, DepthImage, TextureImage, etc
 
-	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t>
-	CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
+	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
+	CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, 
+		VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 		VkPhysicalDevice physicalDevice, VkDevice device)
 	{
-		// Load texture from file into system mem
-		int texWidth, texHeight, texChannels;
-		unsigned char* texels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		if (!texels)
-		{
-			stbi_image_free(texels);
-			throw std::runtime_error("Failed to load texture image: " + path);
-		}
-
-		const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
-		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
-		
-		// Create staging buffer
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(
-			imageSize,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
-			device, physicalDevice);
-
-		
-		// Copy texels from system mem to GPU staging buffer
-		void* data;
-		vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-			memcpy(data, texels, imageSize);
-		vkUnmapMemory(device, stagingBufferMemory);
-
-		
-		// Free loaded image from system mem
-		stbi_image_free(texels);
-
-
-		// Create image buffer
 		VkImage textureImage;
 		VkDeviceMemory textureImageMemory;
-		std::tie(textureImage, textureImageMemory) = CreateImage(texWidth, texHeight, 
-			mipLevels, 
-			VK_FORMAT_R8G8B8A8_UNORM, // format
-			VK_IMAGE_TILING_OPTIMAL,  // tiling
-			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
-			physicalDevice, device);
+
+		// Create image buffer
+		VkImageCreateInfo imageCI = {};
+		{
+			imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCI.imageType = VK_IMAGE_TYPE_2D;
+			imageCI.extent.width = width;
+			imageCI.extent.height = height;
+			imageCI.extent.depth = 1; // one-dimensional
+			imageCI.mipLevels = mipLevels;
+			imageCI.arrayLayers = 1; // not an array
+			imageCI.format = format;
+			imageCI.tiling = tiling;
+			imageCI.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;//not usable by gpu and first transition discards the texels
+			imageCI.usage = usageFlags;
+			imageCI.samples = numSamples; // the multisampling mode
+			imageCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
+
+		if (VK_SUCCESS != vkCreateImage(device, &imageCI, nullptr, &textureImage))
+		{
+			throw std::runtime_error("Failed to create image");
+		}
 
 
-		// Transition image layout to optimal for copying to it from the staging buffer
-		TransitionImageLayout(textureImage, 
-			VK_FORMAT_R8G8B8A8_UNORM, 
-			VK_IMAGE_LAYOUT_UNDEFINED,             // from
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // to
-			mipLevels,
-			transferCommandPool, transferQueue, device);
+		// Allocate image buffer memory
+		VkMemoryRequirements memRequirements;
+		vkGetImageMemoryRequirements(device, textureImage, &memRequirements);
 
-		
-		// Copy texels from staging buffer to image buffer
-		CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight, transferCommandPool, transferQueue, device);
+		VkMemoryAllocateInfo allocInfo = {};
+		{
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memRequirements.size;
+			allocInfo.memoryTypeIndex = FindMemoryType(
+				memRequirements.memoryTypeBits,
+				propertyFlags, // optimal reads
+				physicalDevice);
+		}
 
+		if (VK_SUCCESS != vkAllocateMemory(device, &allocInfo, nullptr, &textureImageMemory))
+		{
+			throw std::runtime_error("Failed to allocate texture image memory");
+		}
 
-		GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, 
-			transferCommandPool, transferQueue, device, physicalDevice);
+		vkBindImageMemory(device, textureImage, textureImageMemory, 0);
 
-
-		// Destroy the staging buffer
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
-
-		return { textureImage, textureImageMemory, mipLevels };
+		return { textureImage, textureImageMemory };
 	}
+	
+
+	[[nodiscard]] static VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags,
+		uint32_t mipLevels, VkDevice device)
+	{
+		VkImageView imageView;
+
+		VkImageViewCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = image;
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = format;
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.subresourceRange.aspectMask = aspectFlags;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = mipLevels;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(device, &createInfo, nullptr, &imageView) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create image views");
+		}
+
+		return imageView;
+	}
+
+
+	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
+		VkFormat format, VkImageAspectFlagBits aspectFlags, uint32_t mipLevels, VkDevice device)
+	{
+		std::vector<VkImageView> imageViews{ images.size() };
+
+		for (size_t i = 0; i < images.size(); ++i)
+		{
+			imageViews[i] = CreateImageView(images[i], format, aspectFlags, mipLevels, device);
+		}
+
+		return imageViews;
+	}
+
 
 	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
 	static void
-	GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, 
-		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
+		GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels,
+			VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
 		// Check if device supports linear blitting
 		VkFormatProperties formatProperties;
@@ -2018,7 +2060,7 @@ private:
 			throw std::runtime_error("Texture image format does not support linear blitting!");
 		}
 
-		
+
 		auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
 
 		VkImageMemoryBarrier barrier = {};
@@ -2059,7 +2101,7 @@ private:
 				0, nullptr,   // buffer barriers
 				1, &barrier); // image barriers
 
-			
+
 			// Blit the smaller image to the dst 
 			VkImageBlit blit = {};
 			{
@@ -2091,7 +2133,7 @@ private:
 			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			vkCmdPipelineBarrier(commandBuffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, 
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
 				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 				0,
 				0, nullptr,   // mem barriers
@@ -2104,7 +2146,7 @@ private:
 			if (srcMipHeight > 1) srcMipHeight /= 2;
 		}
 
-		
+
 		// Transition the final mip to be optimal for reading by shader (wasn't processed in the loop)
 		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
 		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // still dst from precondition
@@ -2118,50 +2160,86 @@ private:
 			0, nullptr,   // mem barriers
 			0, nullptr,   // buffer barriers
 			1, &barrier); // image barriers
-		
+
 		EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
 	}
 
 	
-	[[nodiscard]] static VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags, 
-		uint32_t mipLevels, VkDevice device)
+	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t>
+		CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
+			VkPhysicalDevice physicalDevice, VkDevice device)
 	{
-		VkImageView imageView;
-
-		VkImageViewCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = image;
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = format;
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.subresourceRange.aspectMask = aspectFlags;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = mipLevels;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(device, &createInfo, nullptr, &imageView) != VK_SUCCESS)
+		// Load texture from file into system mem
+		int texWidth, texHeight, texChannels;
+		unsigned char* texels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		if (!texels)
 		{
-			throw std::runtime_error("Failed to create image views");
+			stbi_image_free(texels);
+			throw std::runtime_error("Failed to load texture image: " + path);
 		}
 
-		return imageView;
-	}
-	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
-		VkFormat format, VkImageAspectFlagBits aspectFlags, uint32_t mipLevels, VkDevice device)
-	{
-		std::vector<VkImageView> imageViews{ images.size() };
+		const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
+		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
 
-		for (size_t i = 0; i < images.size(); ++i)
-		{
-			imageViews[i] = CreateImageView(images[i], format, aspectFlags, mipLevels, device);
-		}
+		// Create staging buffer
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(
+			imageSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
+			device, physicalDevice);
 
-		return imageViews;
+
+		// Copy texels from system mem to GPU staging buffer
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+		memcpy(data, texels, imageSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+
+
+		// Free loaded image from system mem
+		stbi_image_free(texels);
+
+
+		// Create image buffer
+		VkImage textureImage;
+		VkDeviceMemory textureImageMemory;
+		std::tie(textureImage, textureImageMemory) = CreateImage(texWidth, texHeight,
+			mipLevels, 
+			VK_SAMPLE_COUNT_1_BIT,
+			VK_FORMAT_R8G8B8A8_UNORM, // format
+			VK_IMAGE_TILING_OPTIMAL,  // tiling
+			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
+			physicalDevice, device);
+
+
+		// Transition image layout to optimal for copying to it from the staging buffer
+		TransitionImageLayout(textureImage,
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_IMAGE_LAYOUT_UNDEFINED,             // from
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // to
+			mipLevels,
+			transferCommandPool, transferQueue, device);
+
+
+		// Copy texels from staging buffer to image buffer
+		CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight, transferCommandPool, transferQueue, device);
+
+
+		GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels,
+			transferCommandPool, transferQueue, device, physicalDevice);
+
+
+		// Destroy the staging buffer
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+
+		return { textureImage, textureImageMemory, mipLevels };
 	}
+
+
 	[[nodiscard]] static VkImageView CreateTextureImageView(VkImage textureImage, uint32_t mipLevels, VkDevice device)
 	{
 		return CreateImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
@@ -2186,7 +2264,7 @@ private:
 			samplerCI.mipLodBias = 0;
 			samplerCI.minLod = 0;
 			samplerCI.maxLod = (float)mipLevels;
-			
+
 		}
 
 		VkSampler textureSampler;
@@ -2200,7 +2278,37 @@ private:
 
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>
-	CreateDepthResources(VkExtent2D extent, VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
+		CreateColorResources(VkFormat format, VkExtent2D extent, VkSampleCountFlagBits msaaSamples, 
+			VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		const uint32_t mipLevels = 1;
+
+		// Create color image and memory
+		VkImage colorImage;
+		VkDeviceMemory colorImageMemory;
+		
+		std::tie(colorImage, colorImageMemory) = CreateImage(
+			extent.width, extent.height, 
+			mipLevels,
+			msaaSamples,
+			format,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			physicalDevice, device);
+
+		
+		// Create image view
+		VkImageView colorImageView
+			= CreateImageView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
+
+		return { colorImage, colorImageMemory, colorImageView };
+	}
+
+	
+	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>
+		CreateDepthResources(VkExtent2D extent, VkSampleCountFlagBits msaaSamples, VkCommandPool transferCommandPool, 
+			VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
 		const VkFormat depthFormat = FindDepthFormat(physicalDevice);
 		const uint32_t mipLevels = 1;
@@ -2209,7 +2317,9 @@ private:
 		VkImage depthImage;
 		VkDeviceMemory depthImageMemory;
 		std::tie(depthImage, depthImageMemory) = CreateImage(
-			extent.width, extent.height, mipLevels,
+			extent.width, extent.height, 
+			mipLevels,
+			msaaSamples,
 			depthFormat,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -2217,14 +2327,6 @@ private:
 			physicalDevice, device);
 
 
-		// Transition image layout to depth-stencil optimal
-		TransitionImageLayout(depthImage, depthFormat,
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-			mipLevels,
-			transferCommandPool, transferQueue, device);
-
-		
 		// Create image view
 		VkImageView depthImageView
 			= CreateImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, device);
@@ -2232,12 +2334,51 @@ private:
 		return { depthImage, depthImageMemory, depthImageView };
 	}
 
+
+	static bool HasStencilComponent(VkFormat format)
+	{
+		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+	}
+
 	
+	static VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice)
+	{
+		return FindSupportedFormat(
+			{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			physicalDevice);
+	}
+
+	
+	static VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling,
+		VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice)
+	{
+		for (auto format : candidates)
+		{
+			VkFormatProperties props;
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+
+			if (tiling == VK_IMAGE_TILING_LINEAR &&
+				(props.linearTilingFeatures & features) == features)
+			{
+				return format;
+			}
+
+			if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+				(props.optimalTilingFeatures & features) == features)
+			{
+				return format;
+			}
+		}
+
+		throw std::runtime_error("Failed to find supported format");
+	}
+
 	#pragma endregion
 
-
+	
 	#pragma region Model
-
 
 	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>> LoadModel(const std::string& modelPath)
 	{
@@ -2294,7 +2435,6 @@ private:
 		return { std::move(vertices), std::move(indices) };
 	}
 
-	
 	#pragma endregion
 
 	
@@ -2335,42 +2475,6 @@ private:
 		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
 		vkUnmapMemory(device, uniformBufMem);
-	}
-
-	static bool HasStencilComponent(VkFormat format)
-	{
-		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-	}
-	static VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice)
-	{
-		return FindSupportedFormat(
-			{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			physicalDevice);
-	}
-	static VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, 
-		VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice)
-	{
-		for (auto format : candidates)
-		{
-			VkFormatProperties props;
-			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
-
-			if (tiling == VK_IMAGE_TILING_LINEAR &&
-				(props.linearTilingFeatures & features) == features)
-			{
-				return format;
-			}
-
-			if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-				(props.optimalTilingFeatures & features) == features)
-			{
-				return format;
-			}
-		}
-
-		throw std::runtime_error("Failed to find supported format");
 	}
 
 	
