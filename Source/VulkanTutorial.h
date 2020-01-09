@@ -596,7 +596,6 @@ private:
 	}
 
 	
-	
 	[[nodiscard]] static std::tuple<VkPhysicalDevice, VkSampleCountFlagBits>
 	PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	{
@@ -621,7 +620,7 @@ private:
 			{
 				physicalDevice = pd;
 				msaaSamples = GetMaxUsableSampleCount(pd);
-				std::cout << "msaa: " << std::to_string(msaaSamples) << std::endl;
+				std::cout << "MSAAx" << std::to_string(msaaSamples) << std::endl;
 				break;
 			}
 		}
@@ -1109,8 +1108,8 @@ private:
 		VkPipelineMultisampleStateCreateInfo multisampleCI = {};
 		{
 			multisampleCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-			multisampleCI.sampleShadingEnable = VK_FALSE;
 			multisampleCI.rasterizationSamples = msaaSamples;
+			multisampleCI.sampleShadingEnable = VK_FALSE;
 			multisampleCI.minSampleShading = 1; // optional
 			multisampleCI.pSampleMask = nullptr; // optional
 			multisampleCI.alphaToCoverageEnable = VK_FALSE; // optional
@@ -2463,8 +2462,8 @@ private:
 
 		UniformBufferObject ubo = {};
 		{
-			//ubo.Model = glm::mat4{ 1 };
-			ubo.Model = glm::rotate(glm::mat4{ 1 }, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
+			ubo.Model = glm::mat4{ 1 };
+			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
 			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
 			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
