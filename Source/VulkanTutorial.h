@@ -79,7 +79,7 @@ private:
 	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
-	// Mesh stuff
+	// Mesh
 	std::vector<Vertex> _vertices{};
 	std::vector<uint32_t> _indices{};
 	VkBuffer _vertexBuffer = nullptr;
@@ -93,11 +93,14 @@ private:
 	VkDescriptorPool _descriptorPool = nullptr;
 	std::vector<VkDescriptorSet> _descriptorSets{};
 
+	// Texture
+	uint32_t _textureMipLevels = 1;
 	VkImage _textureImage = nullptr;
 	VkDeviceMemory _textureImageMemory = nullptr;
 	VkImageView _textureImageView = nullptr;
+	
 	VkSampler _textureSampler = nullptr;
-
+	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastTime;
@@ -138,12 +141,12 @@ private:
 
 		
 		const std::string texPath = AssetsDir + "Chalet/chalet.jpg";
-		std::tie(_textureImage, _textureImageMemory)
+		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
+		
+		_textureImageView = CreateTextureImageView(_textureImage, _textureMipLevels, _device);
 
-		_textureImageView = CreateTextureImageView(_textureImage, _device);
-
-		_textureSampler = CreateTextureSampler(_device);
+		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
 		
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 
@@ -321,7 +324,7 @@ private:
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
 		
 		_swapchainImageViews
-			= CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, _device);
+			= CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, _device);
 
 		std::tie(_depthImage, _depthImageMemory, _depthImageView)
 			= CreateDepthResources(_swapchainExtent, _commandPool, _graphicsQueue, _device, _physicalDevice);
@@ -1358,7 +1361,7 @@ private:
 
 	
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
-		CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, 
+		CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, 
 			VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkPhysicalDevice physicalDevice, VkDevice device)
 	{
@@ -1373,7 +1376,7 @@ private:
 			imageCI.extent.width = width;
 			imageCI.extent.height = height;
 			imageCI.extent.depth = 1; // one-dimensional
-			imageCI.mipLevels = 1; // no mips
+			imageCI.mipLevels = mipLevels; 
 			imageCI.arrayLayers = 1; // not an array
 			imageCI.format = format;
 			imageCI.tiling = tiling;
@@ -1487,7 +1490,7 @@ private:
 
 	
 	static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
-		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
+		uint32_t mipLevels, VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
 	{	
 		// Setup barrier before transitioning image layout
 		VkImageMemoryBarrier barrier = {};
@@ -1498,9 +1501,9 @@ private:
 			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // these are used when transferring queue families
 			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			barrier.image = image;
-			barrier.subresourceRange.aspectMask = // Defined below - subresource range defines which parts of  
-			barrier.subresourceRange.baseMipLevel = 0;							  // ...the image are affected.
-			barrier.subresourceRange.levelCount = 1;
+			barrier.subresourceRange.aspectMask = // Defined below - subresource range defines which parts of..  
+			barrier.subresourceRange.baseMipLevel = 0;												// ..the image are affected.
+			barrier.subresourceRange.levelCount = mipLevels;
 			barrier.subresourceRange.baseArrayLayer = 0;
 			barrier.subresourceRange.layerCount = 1;
 			barrier.srcAccessMask = 0; // Defined below - which operations to wait on before the barrier
@@ -1928,7 +1931,7 @@ private:
 	}
 
 
-	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
+	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t>
 	CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
 		VkPhysicalDevice physicalDevice, VkDevice device)
 	{
@@ -1942,7 +1945,7 @@ private:
 		}
 
 		const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
-
+		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
 		
 		// Create staging buffer
 		VkBuffer stagingBuffer;
@@ -1969,17 +1972,20 @@ private:
 		VkImage textureImage;
 		VkDeviceMemory textureImageMemory;
 		std::tie(textureImage, textureImageMemory) = CreateImage(texWidth, texHeight, 
+			mipLevels, 
 			VK_FORMAT_R8G8B8A8_UNORM, // format
 			VK_IMAGE_TILING_OPTIMAL,  // tiling
-			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
+			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
 			physicalDevice, device);
 
 
-		// Transition image layout to optimal for copying to it
-		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, 
+		// Transition image layout to optimal for copying to it from the staging buffer
+		TransitionImageLayout(textureImage, 
+			VK_FORMAT_R8G8B8A8_UNORM, 
 			VK_IMAGE_LAYOUT_UNDEFINED,             // from
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,  // to
+			mipLevels,
 			transferCommandPool, transferQueue, device);
 
 		
@@ -1987,23 +1993,138 @@ private:
 		CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight, transferCommandPool, transferQueue, device);
 
 
-		// Transition image layout to optimal for use in shaders
-		TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, 
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,    //from
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,//to
-			transferCommandPool, transferQueue, device);
+		GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, 
+			transferCommandPool, transferQueue, device, physicalDevice);
 
-		
+
 		// Destroy the staging buffer
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 
-		return { textureImage, textureImageMemory };
+		return { textureImage, textureImageMemory, mipLevels };
+	}
+
+	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
+	static void
+	GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels, 
+		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		// Check if device supports linear blitting
+		VkFormatProperties formatProperties;
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
+		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+		{
+			throw std::runtime_error("Texture image format does not support linear blitting!");
+		}
+
+		
+		auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
+
+		VkImageMemoryBarrier barrier = {};
+		{
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.image = image;
+			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			barrier.subresourceRange.baseMipLevel = 0; // Defined later
+			barrier.subresourceRange.levelCount = 1;
+			barrier.subresourceRange.baseArrayLayer = 0;
+			barrier.subresourceRange.layerCount = 1;
+		}
+
+		auto srcMipWidth = (int32_t)texWidth;
+		auto srcMipHeight = (int32_t)texHeight;
+
+		for (uint32_t i = 1; i < mipLevels; i++)
+		{
+			const uint32_t srcMipLevel = i - 1;
+			const uint32_t dstMipLevel = i;
+			const int32_t dstMipWidth = srcMipWidth > 1 ? srcMipWidth / 2 : 1;
+			const int32_t dstMipHeight = srcMipHeight > 1 ? srcMipHeight / 2 : 1;
+
+
+			// Transition layout of src mip to TRANSFER_SRC_OPTIMAL (Note: dst mip is already TRANSFER_DST_OPTIMAL)
+			barrier.subresourceRange.baseMipLevel = srcMipLevel;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			vkCmdPipelineBarrier(commandBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0,
+				0, nullptr,   // mem barriers
+				0, nullptr,   // buffer barriers
+				1, &barrier); // image barriers
+
+			
+			// Blit the smaller image to the dst 
+			VkImageBlit blit = {};
+			{
+				blit.srcOffsets[0] = { 0,0,0 };
+				blit.srcOffsets[1] = { srcMipWidth,srcMipHeight,1 };
+				blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				blit.srcSubresource.mipLevel = srcMipLevel;
+				blit.srcSubresource.baseArrayLayer = 0;
+				blit.srcSubresource.layerCount = 1;
+
+				blit.dstOffsets[0] = { 0,0,0 };
+				blit.dstOffsets[1] = { dstMipWidth,dstMipHeight,1 };
+				blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				blit.dstSubresource.mipLevel = dstMipLevel;
+				blit.dstSubresource.baseArrayLayer = 0;
+				blit.dstSubresource.layerCount = 1;
+			}
+			vkCmdBlitImage(commandBuffer,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit,
+				VK_FILTER_LINEAR);
+
+
+			// Transition layout of the src mip to optimal shader readible (we don't need to read it again)
+			barrier.subresourceRange.baseMipLevel = srcMipLevel;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			vkCmdPipelineBarrier(commandBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, 
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0,
+				0, nullptr,   // mem barriers
+				0, nullptr,   // buffer barriers
+				1, &barrier); // image barriers
+
+
+			// Halve mip dimensions in prep for next loop iteration 
+			if (srcMipWidth > 1) srcMipWidth /= 2;
+			if (srcMipHeight > 1) srcMipHeight /= 2;
+		}
+
+		
+		// Transition the final mip to be optimal for reading by shader (wasn't processed in the loop)
+		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // still dst from precondition
+		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(commandBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0,
+			0, nullptr,   // mem barriers
+			0, nullptr,   // buffer barriers
+			1, &barrier); // image barriers
+		
+		EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
 	}
 
 	
 	[[nodiscard]] static VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags, 
-		VkDevice device)
+		uint32_t mipLevels, VkDevice device)
 	{
 		VkImageView imageView;
 
@@ -2018,7 +2139,7 @@ private:
 		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 		createInfo.subresourceRange.aspectMask = aspectFlags;
 		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.levelCount = mipLevels;
 		createInfo.subresourceRange.baseArrayLayer = 0;
 		createInfo.subresourceRange.layerCount = 1;
 
@@ -2029,25 +2150,25 @@ private:
 
 		return imageView;
 	}
-	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& swapchainImages,
-		VkFormat format, VkImageAspectFlagBits aspectFlags, VkDevice device)
+	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
+		VkFormat format, VkImageAspectFlagBits aspectFlags, uint32_t mipLevels, VkDevice device)
 	{
-		std::vector<VkImageView> imageViews{ swapchainImages.size() };
+		std::vector<VkImageView> imageViews{ images.size() };
 
-		for (size_t i = 0; i < swapchainImages.size(); ++i)
+		for (size_t i = 0; i < images.size(); ++i)
 		{
-			imageViews[i] = CreateImageView(swapchainImages[i], format, aspectFlags, device);
+			imageViews[i] = CreateImageView(images[i], format, aspectFlags, mipLevels, device);
 		}
 
 		return imageViews;
 	}
-	[[nodiscard]] static VkImageView CreateTextureImageView(VkImage textureImage, VkDevice device)
+	[[nodiscard]] static VkImageView CreateTextureImageView(VkImage textureImage, uint32_t mipLevels, VkDevice device)
 	{
-		return CreateImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, device);
+		return CreateImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
 	}
 
 
-	[[nodiscard]] static VkSampler CreateTextureSampler(VkDevice device)
+	[[nodiscard]] static VkSampler CreateTextureSampler(uint32_t mipLevels, VkDevice device)
 	{
 		VkSamplerCreateInfo samplerCI = {};
 		{
@@ -2064,7 +2185,8 @@ private:
 			samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 			samplerCI.mipLodBias = 0;
 			samplerCI.minLod = 0;
-			samplerCI.maxLod = 0;
+			samplerCI.maxLod = (float)mipLevels;
+			
 		}
 
 		VkSampler textureSampler;
@@ -2081,12 +2203,13 @@ private:
 	CreateDepthResources(VkExtent2D extent, VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
 		const VkFormat depthFormat = FindDepthFormat(physicalDevice);
+		const uint32_t mipLevels = 1;
 
 		// Create depth image and memory
 		VkImage depthImage;
 		VkDeviceMemory depthImageMemory;
 		std::tie(depthImage, depthImageMemory) = CreateImage(
-			extent.width, extent.height,
+			extent.width, extent.height, mipLevels,
 			depthFormat,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -2098,11 +2221,13 @@ private:
 		TransitionImageLayout(depthImage, depthFormat,
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			mipLevels,
 			transferCommandPool, transferQueue, device);
 
 		
 		// Create image view
-		VkImageView depthImageView = CreateImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, device);
+		VkImageView depthImageView
+			= CreateImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, device);
 
 		return { depthImage, depthImageMemory, depthImageView };
 	}
@@ -2163,7 +2288,7 @@ private:
 			}
 		}
 
-		std::cout << "Model loaded! (" + std::to_string(vertices.size()) + " verts, " << 
+		std::cout << "\nModel loaded! (" + std::to_string(vertices.size()) + " verts, " << 
 			std::to_string(indices.size()) << " indices)\n";
 		
 		return { std::move(vertices), std::move(indices) };
