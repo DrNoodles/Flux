@@ -88,19 +88,22 @@ private:
 
 	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
 	VkDescriptorPool _descriptorPool = nullptr;
+
+	std::vector<Mesh> _meshes{};
 	
 	// Per Mesh
-	std::vector<Vertex> _vertices{};
-	std::vector<uint32_t> _indices{};
+	/*std::vector<Vertex> _vertices{};
+	std::vector<uint32_t> _indices{};*/
 	
-	VkBuffer _vertexBuffer = nullptr;
-	VkDeviceMemory _indexBufferMemory = nullptr;
-	VkBuffer _indexBuffer = nullptr;
+	/*VkBuffer _vertexBuffer = nullptr;
 	VkDeviceMemory _vertexBufferMemory = nullptr;
-	
+	VkBuffer _indexBuffer = nullptr;
+	VkDeviceMemory _indexBufferMemory = nullptr;*/
+
+	//std::vector<VkDescriptorSet> _descriptorSets{};
+
 	std::vector<VkBuffer> _uniformBuffers{};
 	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
-	std::vector<VkDescriptorSet> _descriptorSets{};
 	
 
 	// Texture
@@ -196,13 +199,11 @@ private:
 
 		RecordCommandBuffer(
 			_commandBuffers[imageIndex],
-			_assetLoaded,
-			_vertexBuffer, (uint32_t)_vertices.size(),
-			_indexBuffer, (uint32_t)_indices.size(),
+			_meshes,
+			imageIndex,
 			_swapchainExtent,
-			_descriptorSets[imageIndex],
 			_swapchainFramebuffers[imageIndex],
-			_commandPool, _device, _renderPass,
+			_renderPass,
 			_pipeline, _pipelineLayout);
 
 		
@@ -327,11 +328,17 @@ private:
 		vkDestroyImageView(_device, _textureImageView, nullptr);
 		vkDestroyImage(_device, _textureImage, nullptr);
 		vkFreeMemory(_device, _textureImageMemory, nullptr);
-		
-		vkDestroyBuffer(_device, _indexBuffer, nullptr);
-		vkFreeMemory(_device, _indexBufferMemory, nullptr);
-		vkDestroyBuffer(_device, _vertexBuffer, nullptr);
-		vkFreeMemory(_device, _vertexBufferMemory, nullptr);
+
+		for (auto& mesh : _meshes)
+		{
+			mesh.Vertices.clear();
+			mesh.Indices.clear();
+			vkDestroyBuffer(_device, mesh.IndexBuffer, nullptr);
+			vkFreeMemory(_device, mesh.IndexBufferMemory, nullptr);
+			vkDestroyBuffer(_device, mesh.VertexBuffer, nullptr);
+			vkFreeMemory(_device, mesh.VertexBufferMemory, nullptr);
+		}
+
 
 		vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
@@ -357,6 +364,12 @@ private:
 		
 		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
 		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
+
+		for (auto& mesh : _meshes)
+		{
+			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+			//mesh.DescriptorSets.clear();
+		}
 		
 		vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
@@ -401,24 +414,15 @@ private:
 		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
 
 
-		// TODO For each model, rebuild it's descriptor sets! < this will work for initialization (no models) and n models
-		if (_assetLoaded)
+		for (auto& mesh : _meshes)
 		{
-			_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout,
+			mesh.DescriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout,
 				_descriptorPool, _uniformBuffers, _textureImageView, _textureSampler, _device);
 		}
-		else
-		{
-			_descriptorSets.resize(_swapchainImages.size()); //Make sure descriptor sets (although empty) one per frame
-		}
-
 
 		_commandBuffers = CreateCommandBuffers(
-			_assetLoaded,
-			_vertexBuffer, (uint32_t)_vertices.size(),
-			_indexBuffer, (uint32_t)_indices.size(),
-			_descriptorSets,
 			(uint32_t)_swapchainImages.size(),
+			_meshes,
 			_swapchainExtent,
 			_swapchainFramebuffers,
 			_commandPool, _device, _renderPass,
@@ -1701,13 +1705,9 @@ private:
 	
 
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
-		// Mesh data, put this shit into a struct and pass in an array of sructs (Models)
-		bool isAssetLoaded,
-		VkBuffer vertexBuffer, uint32_t verticesSize,
-		VkBuffer indexBuffer, uint32_t indicesSize,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-
 		uint32_t numBuffersToCreate,
+
+		const std::vector<Mesh>& meshes,
 		VkExtent2D swapchainExtent,
 		const std::vector<VkFramebuffer>& swapchainFramebuffers,
 
@@ -1718,7 +1718,7 @@ private:
 		VkPipelineLayout pipelineLayout)
 	{
 		assert(numBuffersToCreate == swapchainFramebuffers.size());
-		assert(numBuffersToCreate == descriptorSets.size());
+		//assert(numBuffersToCreate == descriptorSets.size());
 
 		// Allocate command buffer
 		VkCommandBufferAllocateInfo commandBufferAllocInfo = {};
@@ -1735,11 +1735,16 @@ private:
 			throw std::runtime_error("Failed to allocate Command Buffers");
 		}
 
-		for (size_t i = 0; i < commandBuffers.size(); ++i)
+		for (uint32_t i = 0; i < commandBuffers.size(); ++i)
 		{
-			RecordCommandBuffer(commandBuffers[i], isAssetLoaded, vertexBuffer, verticesSize, indexBuffer, indicesSize, 
-				swapchainExtent, descriptorSets[i], swapchainFramebuffers[i], commandPool, device, renderPass, pipeline, 
-				pipelineLayout);
+			RecordCommandBuffer(
+				commandBuffers[i],
+				meshes,
+				i,
+				swapchainExtent,
+				swapchainFramebuffers[i],
+				renderPass,
+				pipeline, pipelineLayout);
 		}
 
 		return commandBuffers;
@@ -1749,18 +1754,12 @@ private:
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 
-		// Mesh data, put this shit into a struct and pass in an array of sructs (Models)
-		bool isAssetLoaded,
-		VkBuffer vertexBuffer, uint32_t verticesSize,
-		VkBuffer indexBuffer, uint32_t indicesSize,
+		const std::vector<Mesh>& meshes,
+		int descriptorSetIndex,
 
 		VkExtent2D swapchainExtent,
-
-		VkDescriptorSet descriptorSet,
 		VkFramebuffer swapchainFramebuffer,
 
-		VkCommandPool commandPool,
-		VkDevice device,
 		VkRenderPass renderPass,
 		VkPipeline pipeline,
 		VkPipelineLayout pipelineLayout)
@@ -1798,18 +1797,18 @@ private:
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-				if (isAssetLoaded)
+				for (const auto& mesh : meshes)
 				{
 					// Draw mesh
-					VkBuffer vertexBuffers[] = { vertexBuffer };
+					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, 
+						&mesh.DescriptorSets[descriptorSetIndex], 0, nullptr);
 					/*const void* pValues;
 					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-					vkCmdDrawIndexed(commandBuffer, indicesSize, 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 				}
 			}
 			vkCmdEndRenderPass(commandBuffer);
@@ -2534,18 +2533,21 @@ private:
 
 
 
-	bool _assetLoaded = false;
 	
 	void LoadAsset()
 	{
-		if (_assetLoaded) return;
+		if (!_meshes.empty()) return;
 
+		Mesh mesh{};
+
+		
 		std::cout << "Loading asset\n";
 
 		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
 		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
 
 
+		
 		// Load texture
 		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
@@ -2555,35 +2557,40 @@ private:
 		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
 
 
+
+		
 		// Load model
-		std::tie(_vertices,_indices) = LoadModel(modelPath);
+		std::tie(mesh.Vertices, mesh.Indices) = LoadModel(modelPath);
+		
+		mesh.IndexCount = mesh.Indices.size(); // this seems weird for now, goal is to remove Indices and Vertices
+		mesh.VertexCount = mesh.Vertices.size();
+		
+		std::tie(mesh.VertexBuffer, mesh.VertexBufferMemory)
+			= CreateVertexBuffer(mesh.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
-		std::tie(_vertexBuffer, _vertexBufferMemory)
-			= CreateVertexBuffer(_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		std::tie(mesh.IndexBuffer, mesh.IndexBufferMemory)
+			= CreateIndexBuffer(mesh.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
-		std::tie(_indexBuffer, _indexBufferMemory)
-			= CreateIndexBuffer(_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
+		mesh.DescriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
 			_uniformBuffers, _textureImageView, _textureSampler, _device);
 
+	
+		std::cout << "\nModel loaded! (" + std::to_string(mesh.VertexCount) + " verts, " <<
+			std::to_string(mesh.IndexCount) << " indices)\n";
 
-		std::cout << "\nModel loaded! (" + std::to_string(_vertices.size()) + " verts, " <<
-			std::to_string(_indices.size()) << " indices)\n";
-
-		_assetLoaded = true;
+		_meshes.emplace_back(std::move(mesh));
 	}
 
 	void UnloadAsset()
 	{
 		return;
 		
-		if (!_assetLoaded) return;
+		//if (!_assetLoaded) return;
 
 		std::cout << "Unloading asset\n";
 
 
-		_assetLoaded = false;
+		//_assetLoaded = false;
 	}
 
 
@@ -2607,11 +2614,11 @@ private:
 
 		if (key == GLFW_KEY_X)
 		{
-			if (_assetLoaded)
+			/*if (_assetLoaded)
 			{
 				UnloadAsset();
 			}
-			else
+			else*/
 			{
 				LoadAsset();
 			}
