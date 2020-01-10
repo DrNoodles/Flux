@@ -400,7 +400,18 @@ private:
 
 		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
 
-		_descriptorSets.resize(_swapchainImages.size()); //Make sure descriptor sets (although empty) one per frame
+
+		// TODO For each model, rebuild it's descriptor sets! < this will work for initialization (no models) and n models
+		if (_assetLoaded)
+		{
+			_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout,
+				_descriptorPool, _uniformBuffers, _textureImageView, _textureSampler, _device);
+		}
+		else
+		{
+			_descriptorSets.resize(_swapchainImages.size()); //Make sure descriptor sets (although empty) one per frame
+		}
+
 
 		_commandBuffers = CreateCommandBuffers(
 			_assetLoaded,
@@ -2516,9 +2527,6 @@ private:
 			}
 		}
 
-		std::cout << "\nModel loaded! (" + std::to_string(vertices.size()) + " verts, " << 
-			std::to_string(indices.size()) << " indices)\n";
-		
 		return { std::move(vertices), std::move(indices) };
 	}
 
@@ -2527,7 +2535,7 @@ private:
 
 
 	bool _assetLoaded = false;
-
+	
 	void LoadAsset()
 	{
 		if (_assetLoaded) return;
@@ -2559,6 +2567,9 @@ private:
 		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
 			_uniformBuffers, _textureImageView, _textureSampler, _device);
 
+
+		std::cout << "\nModel loaded! (" + std::to_string(_vertices.size()) + " verts, " <<
+			std::to_string(_indices.size()) << " indices)\n";
 
 		_assetLoaded = true;
 	}
