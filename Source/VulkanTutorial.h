@@ -154,8 +154,8 @@ private:
 
 		
 
-
-		
+		// Mesh! - TODO Remove from here
+		/*
 		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
 		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
@@ -173,6 +173,9 @@ private:
 		std::tie(_indexBuffer, _indexBufferMemory)
 			= CreateIndexBuffer(_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
+*/
+
+		
 
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
@@ -213,7 +216,7 @@ private:
 		// Mark the image as now being in use by this frame
 		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
-
+		
 		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
 
 
@@ -423,8 +426,9 @@ private:
 
 		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
 
-		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
-			_uniformBuffers, _textureImageView, _textureSampler, _device);
+		_descriptorSets.resize(_swapchainImages.size()); //Make sure descriptor sets (although empty) one per frame
+		//_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
+		//	_uniformBuffers, _textureImageView, _textureSampler, _device);
 
 		_commandBuffers = CreateCommandBuffers(
 			_assetLoaded,
