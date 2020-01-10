@@ -86,9 +86,13 @@ private:
 	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
-	// Mesh
+	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
+	VkDescriptorPool _descriptorPool = nullptr;
+	
+	// Per Mesh
 	std::vector<Vertex> _vertices{};
 	std::vector<uint32_t> _indices{};
+	
 	VkBuffer _vertexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;
 	VkBuffer _indexBuffer = nullptr;
@@ -96,9 +100,8 @@ private:
 	
 	std::vector<VkBuffer> _uniformBuffers{};
 	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
-	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
-	VkDescriptorPool _descriptorPool = nullptr;
 	std::vector<VkDescriptorSet> _descriptorSets{};
+	
 
 	// Texture
 	uint32_t _textureMipLevels = 0;
@@ -120,11 +123,11 @@ private:
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-	//	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // we'll handle resizing
 		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
 
 		glfwSetWindowUserPointer(_window, this);
 		glfwSetWindowSizeCallback(_window, FramebufferResizeCallback);
+		glfwSetKeyCallback(_window, KeyCallback);
 	}
 
 
@@ -146,6 +149,13 @@ private:
 
 		_commandPool = CreateCommandPool(FindQueueFamilies(_physicalDevice, _surface), _device);
 
+		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
+
+
+		
+
+
+		
 		const std::string texPath = AssetsDir + "Chalet/chalet.jpg";
 		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
@@ -153,8 +163,6 @@ private:
 		_textureImageView = CreateTextureImageView(_textureImage, _textureMipLevels, _device);
 
 		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
-		
-		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 
 		const std::string modelPath = AssetsDir + "Chalet/chalet.obj";
 		std::tie(_vertices,_indices) = LoadModel(modelPath);
@@ -170,13 +178,25 @@ private:
 		glfwGetFramebufferSize(_window, &width, &height);
 		CreateSwapchainAndDependents(width, height);
 
+		_commandBuffers = CreateCommandBuffers(
+			_assetLoaded,
+			_vertexBuffer, (uint32_t)_vertices.size(),
+			_indexBuffer, (uint32_t)_indices.size(),
+			_descriptorSets,
+			(size_t)_swapchainImages.size(),
+			_swapchainExtent,
+			_swapchainFramebuffers,
+			_commandPool, _device, _renderPass,
+			_pipeline, _pipelineLayout);
+
+		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 
 	
 	void DrawFrame()
-	{
+	{		
 		// Sync CPU-GPU
 		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
 
@@ -213,7 +233,28 @@ private:
 		const uint32_t signalCount = 1;
 		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
 
+
+		// Update uniforms
 		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
+
+	/*	VkCommandBufferResetFlags flags = VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT;
+		if (VK_SUCCESS != vkResetCommandBuffer(_commandBuffers[imageIndex], flags))
+		{
+			throw std::runtime_error("Failed to reset the command buffer during the draw loop");
+		}*/
+		// Rebuild command buffers  -  TODO Fix this! Can we reuse commandBuffers rather than rebuild? Otherwise, ONLY rebuild the command buffer that we need to
+		/*vkFreeCommandBuffers(_device, _commandPool, 1, &_commandBuffers[imageIndex]);
+		_commandBuffers[imageIndex] = CreateCommandBuffers(
+			_assetLoaded,
+			_vertexBuffer, (uint32_t)_vertices.size(),
+			_indexBuffer, (uint32_t)_indices.size(),
+			_descriptorSets,
+			1,
+			_swapchainExtent,
+			_swapchainFramebuffers,
+			_commandPool, _device, _renderPass,
+			_pipeline, _pipelineLayout)[0];*/
+		
 		
 		VkSubmitInfo submitInfo = {};
 		{
@@ -275,6 +316,46 @@ private:
 	}
 
 
+	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+	{
+		// Compute time elapsed
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		const float totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
+		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
+		_lastTime = currentTime;
+
+		// Report fps
+		_fpsCounter.AddFrameTime(dt);
+		if ((currentTime - _lastFpsUpdate) > _updateRate)
+		{
+			char buffer[32];
+			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
+			glfwSetWindowTitle(_window, buffer);
+			_lastFpsUpdate = currentTime;
+		}
+
+
+		// Create new ubo
+		const auto vfov = 45.f;
+		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
+
+		UniformBufferObject ubo = {};
+		{
+			ubo.Model = glm::mat4{ 1 };
+			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
+			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
+			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
+			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+		}
+
+		// Push ubo
+		void* data;
+		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
+		memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(device, uniformBufMem);
+	}
+
+
 	void CleanUp(bool enableValidationLayers)
 	{
 		CleanupSwapchainAndDependents();
@@ -319,9 +400,8 @@ private:
 		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 		
 		vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
-		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
 		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-
+		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
 		vkDestroyPipeline(_device, _pipeline, nullptr);
 		vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
 		vkDestroyRenderPass(_device, _renderPass, nullptr);
@@ -331,46 +411,40 @@ private:
 
 
 	void CreateSwapchainAndDependents(int width, int height)
-	{	
+	{
 		_swapchain = CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device,
 			OUT _swapchainImages, OUT _swapchainImageFormat, OUT _swapchainExtent);
-		
+
 		_swapchainImageViews
 			= CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, _device);
 
 		std::tie(_colorImage, _colorImageMemory, _colorImageView)
-			= CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples, 
+			= CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
 				_commandPool, _graphicsQueue, _device, _physicalDevice);
-		
+
 		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device, 
+			= CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
 				_physicalDevice);
-		
+
 		_renderPass = CreateRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
 		std::tie(_pipeline, _pipelineLayout)
-			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _msaaSamples, _renderPass, _device, _swapchainExtent);
+			= CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _msaaSamples, _renderPass, _device,
+				_swapchainExtent);
 
 		_swapchainFramebuffers
-			= CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent, _swapchainImageViews);
-		
+			= CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent,
+				_swapchainImageViews);
+
 		std::tie(_uniformBuffers, _uniformBuffersMemory)
 			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
 
 		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
 
-		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool, 
+		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
 			_uniformBuffers, _textureImageView, _textureSampler, _device);
+
 		
-		_commandBuffers = CreateCommandBuffers(
-			(uint32_t)_swapchainImages.size(),
-			_vertexBuffer, (uint32_t)_vertices.size(), 
-			_indexBuffer, (uint32_t)_indices.size(),
-			_descriptorSets,
-			_commandPool, _device, _renderPass, 
-			_swapchainExtent, 
-			_pipeline, _pipelineLayout,
-			_swapchainFramebuffers);
 
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 	}
@@ -699,6 +773,7 @@ private:
 		return VK_SAMPLE_COUNT_1_BIT;
 	}
 
+	
 	[[nodiscard]] static std::tuple<VkDevice, VkQueue, VkQueue> CreateLogicalDevice(
 		VkPhysicalDevice physicalDevice,
 		VkSurfaceKHR surface,
@@ -1451,7 +1526,7 @@ private:
 	
 
 	static void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize,
-	                       VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
+		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
 	{
 		const auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
 		
@@ -1641,20 +1716,24 @@ private:
 
 	
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
-		uint32_t numBuffersToCreate,
+		// Mesh data, put this shit into a struct and pass in an array of sructs (Models)
+		bool isAssetLoaded,
 		VkBuffer vertexBuffer, uint32_t verticesSize,
 		VkBuffer indexBuffer, uint32_t indicesSize,
 		const std::vector<VkDescriptorSet>& descriptorSets,
+
+		uint32_t numBuffersToCreate,
+		VkExtent2D swapchainExtent,
+		const std::vector<VkFramebuffer>& swapchainFramebuffers,
+
 		VkCommandPool commandPool,
 		VkDevice device,
 		VkRenderPass renderPass,
-		VkExtent2D swapchainExtent,
 		VkPipeline pipeline,
-		VkPipelineLayout pipelineLayout,
-		const std::vector<VkFramebuffer>& swapchainFramebuffers)
+		VkPipelineLayout pipelineLayout)
 	{
-		assert(numBuffersToCreate == swapchainFramebuffers.size());
-		assert(numBuffersToCreate == descriptorSets.size());
+		//assert(numBuffersToCreate == swapchainFramebuffers.size());
+		//assert(numBuffersToCreate == descriptorSets.size());
 		
 		// Allocate command buffer
 		VkCommandBufferAllocateInfo commandBufferAllocInfo = {};
@@ -1715,6 +1794,8 @@ private:
 					vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(cmdBuf, 
 						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+					/*const void* pValues;
+					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
 					vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
 				}
 				vkCmdEndRenderPass(cmdBuf);
@@ -1771,6 +1852,7 @@ private:
 	}
 
 
+	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device)
 	{
 		// Prepare layout bindings
@@ -1844,6 +1926,7 @@ private:
 	}
 
 
+	// Associates the UBO and texture to sets for use in shaders
 	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout, 
 		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, VkImageView imageView, VkSampler imageSampler, 
 		VkDevice device)
@@ -1920,7 +2003,7 @@ private:
 	}
 	
 	
-	static std::tuple<std::vector<VkBuffer>,std::vector<VkDeviceMemory>>
+	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
 	CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
 		const VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -2263,7 +2346,6 @@ private:
 			samplerCI.mipLodBias = 0;
 			samplerCI.minLod = 0;
 			samplerCI.maxLod = (float)mipLevels;
-
 		}
 
 		VkSampler textureSampler;
@@ -2436,50 +2518,68 @@ private:
 
 	#pragma endregion
 
-	
-	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+
+
+	bool _assetLoaded = false;
+
+	void LoadAsset()
 	{
-		// Compute time elapsed
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		const float totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
-		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
-		_lastTime = currentTime;
+		if (_assetLoaded) return;
 
-		// Report fps
-		_fpsCounter.AddFrameTime(dt);
-		if ((currentTime - _lastFpsUpdate) > _updateRate)
-		{
-			char buffer[32];
-			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
-			glfwSetWindowTitle(_window, buffer);
-			_lastFpsUpdate = currentTime;
-		}
-	
-		
-		// Create new ubo
-		const auto vfov = 45.f;
-		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
+		std::cout << "Loading asset\n";
 
-		UniformBufferObject ubo = {};
-		{
-			ubo.Model = glm::mat4{ 1 };
-			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
-			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
-			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
-			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
-		}
 
-		// Push ubo
-		void* data;
-		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, uniformBufMem);
+		_assetLoaded = true;
 	}
 
+	void UnloadAsset()
+	{
+		if (!_assetLoaded) return;
+
+		std::cout << "Unloading asset\n";
+
+
+		_assetLoaded = false;
+	}
+
+
+	#pragma region GLFW Callbacks
+	
+	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+	{
+		auto app = (VulkanTutorial*)glfwGetWindowUserPointer(window);
+		app->OnKeyCallback(key, scancode, action, mods);
+	}
+	void OnKeyCallback(int key, int scancode, int action, int mods)
+	{
+		// ONLY on pressed is handled
+		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
+
+		if (key == GLFW_KEY_ESCAPE)
+		{
+			glfwSetWindowShouldClose(_window, 1);
+		}
+		// Focus selected
+
+		if (key == GLFW_KEY_X)
+		{
+			if (_assetLoaded)
+			{
+				UnloadAsset();
+			}
+			else
+			{
+				LoadAsset();
+			}
+		}
+	}
 	
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
 		auto app = (VulkanTutorial*)glfwGetWindowUserPointer(window);
 		app->FramebufferResized = true;
 	}
+
+	#pragma endregion 
+
 };
