@@ -21,6 +21,7 @@ struct UniformBufferObject
 struct Vertex
 {
 	glm::vec3 Pos;
+	glm::vec3 Normal;
 	glm::vec3 Color;
 	glm::vec2 TexCoord;
 
@@ -40,25 +41,30 @@ struct Vertex
 		return bindingDesc;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 3> AttributeDescriptions()
+	static std::array<VkVertexInputAttributeDescription, 4> AttributeDescriptions()
 	{
-		std::array<VkVertexInputAttributeDescription, 3> attrDesc = {};
+		std::array<VkVertexInputAttributeDescription, 4> attrDesc = {};
 		{
 			// Pos
 			attrDesc[0].binding = 0;
 			attrDesc[0].location = 0;
 			attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 			attrDesc[0].offset = offsetof(Vertex, Pos);
-			// Color
+			// Normal
 			attrDesc[1].binding = 0;
 			attrDesc[1].location = 1;
 			attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-			attrDesc[1].offset = offsetof(Vertex, Color);
-			// TexCoord
+			attrDesc[1].offset = offsetof(Vertex, Normal);
+			// Color
 			attrDesc[2].binding = 0;
 			attrDesc[2].location = 2;
-			attrDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
-			attrDesc[2].offset = offsetof(Vertex, TexCoord);
+			attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attrDesc[2].offset = offsetof(Vertex, Color);
+			// TexCoord
+			attrDesc[3].binding = 0;
+			attrDesc[3].location = 3;
+			attrDesc[3].format = VK_FORMAT_R32G32_SFLOAT;
+			attrDesc[3].offset = offsetof(Vertex, TexCoord);
 		}
 		return attrDesc;
 	}
@@ -72,9 +78,15 @@ namespace std
 			// based on hash technique recommendation from https://en.cppreference.com/w/cpp/utility/hash
 			// ... which is apparently flawed... good enough? probably!
 			const size_t posHash = hash<glm::vec3>()(vertex.Pos);
+			const size_t normalHash = hash<glm::vec3>()(vertex.Normal);
 			const size_t colorHash = hash<glm::vec3>()(vertex.Color);
 			const size_t texCoordHash = hash<glm::vec2>()(vertex.TexCoord);
-			return ((posHash ^ (colorHash << 1)) >> 1) ^ (texCoordHash << 1);
+
+			const size_t join1 = (posHash ^ (normalHash << 1)) >> 1;
+			const size_t join2 = (join1 ^ (colorHash << 1)) >> 1;
+			const size_t join3 = join2 ^ (texCoordHash << 1);
+			
+			return join3;
 		}
 	};
 }

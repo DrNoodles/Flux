@@ -156,7 +156,7 @@ private:
 
 
 		
-		const std::string texPath = AssetsDir + "Chalet/chalet.jpg";
+		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
 		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
 		
@@ -164,7 +164,7 @@ private:
 
 		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
 
-		const std::string modelPath = AssetsDir + "Chalet/chalet.obj";
+		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
 		std::tie(_vertices,_indices) = LoadModel(modelPath);
 		
 		std::tie(_vertexBuffer, _vertexBufferMemory)
@@ -323,8 +323,9 @@ private:
 		UniformBufferObject ubo = {};
 		{
 			ubo.Model = glm::mat4{ 1 };
-			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 0, 1 });
-			ubo.View = glm::lookAt(glm::vec3{ 2,2,2 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,0,1 });
+			//ubo.Model = glm::scale(ubo.Model, glm::vec3{ 0.05f });
+			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 1, 0 });
+			ubo.View = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
 			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 		}
@@ -1383,12 +1384,14 @@ private:
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, // property flags
 			device, physicalDevice);
 
+		
 		// Load vertex data into staging buffer
 		void* data;
 		vkMapMemory(device, stagingBufferMemory, 0, bufSize, 0, &data);
 			memcpy(data, vertices.data(), bufSize);
 		vkUnmapMemory(device, stagingBufferMemory);
 
+		
 		// Create vertex buffer - with optimal memory speeds
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
@@ -1397,12 +1400,15 @@ private:
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
 			device, physicalDevice);
 
+		
 		// Copy from staging buffer to vertex buffer
 		CopyBuffer(stagingBuffer, vertexBuffer, bufSize, transferCommandPool, transferQueue, device);
 
+		
 		// Cleanup temp buffer
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
+
 		
 		return { vertexBuffer, vertexBufferMemory };
 	}
@@ -1805,7 +1811,7 @@ private:
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-				//if (isAssetLoaded)
+				if (isAssetLoaded)
 				{
 					// Draw mesh
 					VkBuffer vertexBuffers[] = { vertexBuffer };
@@ -2506,6 +2512,12 @@ private:
 					attrib.vertices[3 * tinyIndex.vertex_index + 0],
 					attrib.vertices[3 * tinyIndex.vertex_index + 1],
 					attrib.vertices[3 * tinyIndex.vertex_index + 2],
+				};
+				vertex.Normal =
+				{
+					attrib.normals[3 * tinyIndex.vertex_index + 0],
+					attrib.normals[3 * tinyIndex.vertex_index + 1],
+					attrib.normals[3 * tinyIndex.vertex_index + 2],
 				};
 				vertex.TexCoord =
 				{
