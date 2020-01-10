@@ -151,32 +151,6 @@ private:
 
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 
-
-		
-
-		// Mesh! - TODO Remove from here
-		/*
-		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
-		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
-			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
-		
-		_textureImageView = CreateTextureImageView(_textureImage, _textureMipLevels, _device);
-
-		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
-
-		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
-		std::tie(_vertices,_indices) = LoadModel(modelPath);
-		
-		std::tie(_vertexBuffer, _vertexBufferMemory)
-			= CreateVertexBuffer(_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-		std::tie(_indexBuffer, _indexBufferMemory)
-			= CreateIndexBuffer(_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-*/
-
-		
-
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
 		CreateSwapchainAndDependents(width, height);
@@ -427,8 +401,6 @@ private:
 		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
 
 		_descriptorSets.resize(_swapchainImages.size()); //Make sure descriptor sets (although empty) one per frame
-		//_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
-		//	_uniformBuffers, _textureImageView, _textureSampler, _device);
 
 		_commandBuffers = CreateCommandBuffers(
 			_assetLoaded,
@@ -2562,12 +2534,39 @@ private:
 
 		std::cout << "Loading asset\n";
 
+		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
+		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
+
+
+		// Load texture
+		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
+			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
+
+		_textureImageView = CreateTextureImageView(_textureImage, _textureMipLevels, _device);
+
+		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
+
+
+		// Load model
+		std::tie(_vertices,_indices) = LoadModel(modelPath);
+
+		std::tie(_vertexBuffer, _vertexBufferMemory)
+			= CreateVertexBuffer(_vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		std::tie(_indexBuffer, _indexBufferMemory)
+			= CreateIndexBuffer(_indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
+			_uniformBuffers, _textureImageView, _textureSampler, _device);
+
 
 		_assetLoaded = true;
 	}
 
 	void UnloadAsset()
 	{
+		return;
+		
 		if (!_assetLoaded) return;
 
 		std::cout << "Unloading asset\n";
