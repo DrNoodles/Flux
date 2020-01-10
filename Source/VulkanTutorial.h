@@ -177,18 +177,6 @@ private:
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
 		CreateSwapchainAndDependents(width, height);
-
-		_commandBuffers = CreateCommandBuffers(
-			_assetLoaded,
-			_vertexBuffer, (uint32_t)_vertices.size(),
-			_indexBuffer, (uint32_t)_indices.size(),
-			_descriptorSets,
-			(size_t)_swapchainImages.size(),
-			_swapchainExtent,
-			_swapchainFramebuffers,
-			_commandPool, _device, _renderPass,
-			_pipeline, _pipelineLayout);
-
 		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
@@ -216,15 +204,31 @@ private:
 			throw std::runtime_error("Failed to acquire swapchain image!");
 		}
 
+		
 		// If the image is still used by a previous frame, wait for it to finish!
 		if (_imagesInFlight[imageIndex] != nullptr)
 		{
 			vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
 		}
-
 		// Mark the image as now being in use by this frame
 		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
+
+		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
+
+
+		RecordCommandBuffer(
+			_commandBuffers[imageIndex],
+			_assetLoaded,
+			_vertexBuffer, (uint32_t)_vertices.size(),
+			_indexBuffer, (uint32_t)_indices.size(),
+			_swapchainExtent,
+			_descriptorSets[imageIndex],
+			_swapchainFramebuffers[imageIndex],
+			_commandPool, _device, _renderPass,
+			_pipeline, _pipelineLayout);
+
+		
 		// Execute the command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
@@ -232,29 +236,6 @@ private:
 
 		const uint32_t signalCount = 1;
 		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
-
-
-		// Update uniforms
-		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
-
-	/*	VkCommandBufferResetFlags flags = VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT;
-		if (VK_SUCCESS != vkResetCommandBuffer(_commandBuffers[imageIndex], flags))
-		{
-			throw std::runtime_error("Failed to reset the command buffer during the draw loop");
-		}*/
-		// Rebuild command buffers  -  TODO Fix this! Can we reuse commandBuffers rather than rebuild? Otherwise, ONLY rebuild the command buffer that we need to
-		/*vkFreeCommandBuffers(_device, _commandPool, 1, &_commandBuffers[imageIndex]);
-		_commandBuffers[imageIndex] = CreateCommandBuffers(
-			_assetLoaded,
-			_vertexBuffer, (uint32_t)_vertices.size(),
-			_indexBuffer, (uint32_t)_indices.size(),
-			_descriptorSets,
-			1,
-			_swapchainExtent,
-			_swapchainFramebuffers,
-			_commandPool, _device, _renderPass,
-			_pipeline, _pipelineLayout)[0];*/
-		
 		
 		VkSubmitInfo submitInfo = {};
 		{
@@ -444,7 +425,16 @@ private:
 		_descriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
 			_uniformBuffers, _textureImageView, _textureSampler, _device);
 
-		
+		_commandBuffers = CreateCommandBuffers(
+			_assetLoaded,
+			_vertexBuffer, (uint32_t)_vertices.size(),
+			_indexBuffer, (uint32_t)_indices.size(),
+			_descriptorSets,
+			(uint32_t)_swapchainImages.size(),
+			_swapchainExtent,
+			_swapchainFramebuffers,
+			_commandPool, _device, _renderPass,
+			_pipeline, _pipelineLayout);
 
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 	}
@@ -1367,7 +1357,7 @@ private:
 		{
 			commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 			commandPoolCI.queueFamilyIndex = queueFamilyIndices.GraphicsFamily.value();
-			commandPoolCI.flags = 0;
+			commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		}
 		VkCommandPool commandPool;
 		if (vkCreateCommandPool(device, &commandPoolCI, nullptr, &commandPool) != VK_SUCCESS)
@@ -1715,6 +1705,8 @@ private:
 	}
 
 	
+	
+
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		// Mesh data, put this shit into a struct and pass in an array of sructs (Models)
 		bool isAssetLoaded,
@@ -1732,9 +1724,9 @@ private:
 		VkPipeline pipeline,
 		VkPipelineLayout pipelineLayout)
 	{
-		//assert(numBuffersToCreate == swapchainFramebuffers.size());
-		//assert(numBuffersToCreate == descriptorSets.size());
-		
+		assert(numBuffersToCreate == swapchainFramebuffers.size());
+		assert(numBuffersToCreate == descriptorSets.size());
+
 		// Allocate command buffer
 		VkCommandBufferAllocateInfo commandBufferAllocInfo = {};
 		{
@@ -1750,72 +1742,98 @@ private:
 			throw std::runtime_error("Failed to allocate Command Buffers");
 		}
 
+		for (size_t i = 0; i < commandBuffers.size(); ++i)
+		{
+			RecordCommandBuffer(commandBuffers[i], isAssetLoaded, vertexBuffer, verticesSize, indexBuffer, indicesSize, 
+				swapchainExtent, descriptorSets[i], swapchainFramebuffers[i], commandPool, device, renderPass, pipeline, 
+				pipelineLayout);
+		}
 
-		// Record command buffer
+		return commandBuffers;
+	}
+
+	
+	static void RecordCommandBuffer(
+		VkCommandBuffer commandBuffer,
+
+		// Mesh data, put this shit into a struct and pass in an array of sructs (Models)
+		bool isAssetLoaded,
+		VkBuffer vertexBuffer, uint32_t verticesSize,
+		VkBuffer indexBuffer, uint32_t indicesSize,
+
+		VkExtent2D swapchainExtent,
+
+		VkDescriptorSet descriptorSet,
+		VkFramebuffer swapchainFramebuffer,
+
+		VkCommandPool commandPool,
+		VkDevice device,
+		VkRenderPass renderPass,
+		VkPipeline pipeline,
+		VkPipelineLayout pipelineLayout)
+	{
+
+		// Start recording command buffer
 		VkCommandBufferBeginInfo beginInfo = {};
 		{
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			beginInfo.flags = 0;
 			beginInfo.pInheritanceInfo = nullptr;
 		}
-		
-		for (size_t i = 0; i < commandBuffers.size(); ++i)
+
+		// Start command buffer
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
 		{
-			const auto cmdBuf = commandBuffers[i];
+			// Record renderpass
+			std::array<VkClearValue, 2> clearColors = {};
+			clearColors[0].color = { 0.f,0.f,0.f,1.f };
+			clearColors[1].depthStencil = { 1.f,0ui32 }; //depth, stencil
 
-			// Start command buffer
-			if (vkBeginCommandBuffer(cmdBuf, &beginInfo) == VK_SUCCESS)	
+			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			{
-				// Record renderpass
-				std::array<VkClearValue, 2> clearColors = {};
-				clearColors[0].color = { 0.f,0.f,0.f,1.f };
-				clearColors[1].depthStencil = { 1.f,0ui32 }; //depth, stencil
-				
-				VkRenderPassBeginInfo renderPassBeginInfo = {};
-				{
-					renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-					renderPassBeginInfo.renderPass = renderPass;
-					renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
-					renderPassBeginInfo.renderArea.offset = { 0,0 };
-					renderPassBeginInfo.renderArea.extent = swapchainExtent;
-					
-					renderPassBeginInfo.clearValueCount = (uint32_t)clearColors.size();
-					renderPassBeginInfo.pClearValues = clearColors.data();
-				}
-				
-				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				{
-					vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				renderPassBeginInfo.renderPass = renderPass;
+				renderPassBeginInfo.framebuffer = swapchainFramebuffer;
+				renderPassBeginInfo.renderArea.offset = { 0,0 };
+				renderPassBeginInfo.renderArea.extent = swapchainExtent;
 
+				renderPassBeginInfo.clearValueCount = (uint32_t)clearColors.size();
+				renderPassBeginInfo.pClearValues = clearColors.data();
+			}
+
+			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+				//if (isAssetLoaded)
+				{
 					// Draw mesh
 					VkBuffer vertexBuffers[] = { vertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
-					vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(cmdBuf, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(cmdBuf, 
-						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer,
+						VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 					/*const void* pValues;
 					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-					vkCmdDrawIndexed(cmdBuf, indicesSize, 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffer, indicesSize, 1, 0, 0, 0);
 				}
-				vkCmdEndRenderPass(cmdBuf);
 			}
-			else
-			{
-				throw std::runtime_error("Failed to begin recording command buffer");
-			}
-			
-			// End command buffer
-			if (vkEndCommandBuffer(cmdBuf) != VK_SUCCESS)
-			{
-				throw std::runtime_error("Failed to end recording command buffer");
-			}
+			vkCmdEndRenderPass(commandBuffer);
+		}
+		else
+		{
+			throw std::runtime_error("Failed to begin recording command buffer");
 		}
 
 
-		return commandBuffers;
+		// End command buffer
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to end recording command buffer");
+		}
 	}
-
+	
 
 	// Returns render finished semaphore and image available semaphore, in that order
 	[[nodiscard]]
