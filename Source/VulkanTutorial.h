@@ -220,10 +220,20 @@ private:
 		}
 
 		
+		// Update Camera
+		const auto vfov = 45.f;
+		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
+		const auto view = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
+		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+
+
+		// Update Model
 		for (auto& model : _models)
 		{
-			UpdateUniformBuffer(model->Infos[imageIndex].UniformBufferMemory, _swapchainExtent, _device);
+			UpdateUniformBuffer(imageIndex, model.get(), view, projection, _device);
 		}
+
 
 		RecordCommandBuffer(
 			_commandBuffers[imageIndex],
@@ -235,7 +245,7 @@ private:
 			_pipeline, _pipelineLayout);
 
 		
-		// Execute the command buffer with the image as an attachment in the framebuffer
+		// Execute command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
 		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -304,27 +314,26 @@ private:
 
 
 
-	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
+	void UpdateUniformBuffer(uint32_t imageIndex, Model* model, const glm::mat4& View, const glm::mat4& Projection, 
+		VkDevice device)
 	{
 		// Create new ubo
-		const auto vfov = 45.f;
-		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
 
 		UniformBufferObject ubo = {};
 		{
-			ubo.Model = glm::mat4{ 1 };
+			ubo.Model = model->Transform.GetMatrix();
 			//ubo.Model = glm::scale(ubo.Model, glm::vec3{ 0.05f });
 			ubo.Model = glm::rotate(ubo.Model, _totalTime * glm::radians(60.f), glm::vec3{ 0, 1, 0 });
-			ubo.View = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
-			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
-			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+			ubo.View = View;
+			ubo.Projection = Projection;
 		}
 
 		// Push ubo
 		void* data;
-		vkMapMemory(device, uniformBufMem, 0, sizeof(ubo), 0, &data);
+		const auto uniformMem = model->Infos[imageIndex].UniformBufferMemory;
+		vkMapMemory(device, uniformMem, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(device, uniformBufMem);
+		vkUnmapMemory(device, uniformMem);
 	}
 
 
@@ -424,9 +433,9 @@ private:
 				_swapchainImageViews);
 
 
-		const size_t numThingsToMake = _swapchainImages.size();
+		const size_t numImagesInFlight = _swapchainImages.size();
 		
-		_descriptorPool = CreateDescriptorPool((uint32_t)numThingsToMake, _device);
+		_descriptorPool = CreateDescriptorPool((uint32_t)numImagesInFlight * 2, _device);
 
 
 		for (auto& model : _models)
@@ -435,17 +444,17 @@ private:
 			std::vector<VkDeviceMemory> uniformBuffersMemory;
 			
 			std::tie(uniformBuffers, uniformBuffersMemory)
-				= CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+				= CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
-			std::vector<VkDescriptorSet> descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, 
+			std::vector<VkDescriptorSet> descriptorSets = CreateDescriptorSets((uint32_t)numImagesInFlight, 
 				_descriptorSetLayout, _descriptorPool, uniformBuffers, model->Texture->View, model->Texture->Sampler, 
 				_device);
 
 			
 			auto& modelInfos = model->Infos;
-			modelInfos.resize(numThingsToMake);
+			modelInfos.resize(numImagesInFlight);
 
-			for (auto i = 0; i < numThingsToMake; i++)
+			for (auto i = 0; i < numImagesInFlight; i++)
 			{
 				modelInfos[i].UniformBuffer = uniformBuffers[i];
 				modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
@@ -454,7 +463,7 @@ private:
 		}
 
 		_commandBuffers = CreateCommandBuffers(
-			(uint32_t)numThingsToMake,
+			(uint32_t)numImagesInFlight,
 			_models,
 			_swapchainExtent,
 			_swapchainFramebuffers,
@@ -2572,7 +2581,7 @@ private:
 
 	void LoadAsset()
 	{
-		if (!_meshes.empty()) return;
+		//if (!_meshes.empty()) return;
 
 		std::cout << "Loading asset\n";
 
@@ -2612,6 +2621,7 @@ private:
 		auto model = std::make_unique<Model>();
 		model->Mesh = mesh.get();
 		model->Texture = texture.get();
+		model->Transform.SetPos({ .1 * _models.size(),0,0 });
 
 		const auto numThingsToMake = _swapchainImages.size();
 
