@@ -2,12 +2,9 @@
 
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
-
 #include <stbi/stb_image.h>
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,12 +17,18 @@
 #include <array>
 #include <chrono>
 #include <string>
+#include <iomanip>
 #include <unordered_map>
 
 #include "Globals.h"
 #include "Types.h"
+#include "Camera.h"
 
 #define OUT // syntax helper
+
+class VulkanTutorial;
+inline std::unordered_map<GLFWwindow*, VulkanTutorial*> _windowMap;
+
 
 class VulkanTutorial
 {
@@ -95,6 +98,8 @@ private:
 
 	// Scene
 	std::vector<std::unique_ptr<Model>> _models{};
+
+	const glm::ivec2 _defaultWindowSize = { 800,600 };
 	
 	// Per Mesh
 	/*std::vector<Vertex> _vertices{};
@@ -121,7 +126,7 @@ private:
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastTime;
-	float _totalTime;
+	float _totalTime = 0;
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
 	const std::chrono::duration<double, std::chrono::seconds::period> _updateRate{ 1 };
 	FpsCounter _fpsCounter{};
@@ -132,11 +137,21 @@ private:
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-		_window = glfwCreateWindow(g_width, g_height, "Vulkan", nullptr, nullptr);
 
-		glfwSetWindowUserPointer(_window, this);
-		glfwSetWindowSizeCallback(_window, FramebufferResizeCallback);
+		GLFWwindow* window = glfwCreateWindow(_defaultWindowSize.x, _defaultWindowSize.y, "Vulkan", nullptr, nullptr);
+		if (window == nullptr)
+		{
+			throw std::runtime_error("Failed to create GLFWwindow");
+		}
+		_window = window;
+		_windowMap.insert(std::make_pair(_window, this));
+
+		//glfwSetWindowUserPointer(_window, this);
+		
+		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
 		glfwSetKeyCallback(_window, KeyCallback);
+		glfwSetCursorPosCallback(_window, CursorPosCallback);
+		glfwSetScrollCallback(_window, ScrollCallback);
 	}
 
 
@@ -162,6 +177,7 @@ private:
 
 		int width, height;
 		glfwGetFramebufferSize(_window, &width, &height);
+		
 		CreateSwapchainAndDependents(width, height);
 		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
@@ -202,13 +218,16 @@ private:
 		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
 
+		auto startBench = std::chrono::steady_clock::now();
+
+		
 		// Compute time elapsed
 		const auto currentTime = std::chrono::high_resolution_clock::now();
 		_totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
 		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
 		_lastTime = currentTime;
 
-		
+
 		// Report fps
 		_fpsCounter.AddFrameTime(dt);
 		if ((currentTime - _lastFpsUpdate) > _updateRate)
@@ -223,17 +242,17 @@ private:
 		// Update Camera
 		const auto vfov = 45.f;
 		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
-		const auto view = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
+		//const auto view = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
+		const auto view = _camera.GetViewMatrix();
 		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
-
+		
 
 		// Update Model
 		for (auto& model : _models)
 		{
 			UpdateUniformBuffer(imageIndex, model.get(), view, projection, _device);
 		}
-
 
 		RecordCommandBuffer(
 			_commandBuffers[imageIndex],
@@ -244,6 +263,7 @@ private:
 			_renderPass,
 			_pipeline, _pipelineLayout);
 
+		
 		
 		// Execute command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
@@ -265,6 +285,10 @@ private:
 			submitInfo.pSignalSemaphores = signalSemaphores;
 		}
 
+		const std::chrono::duration<double, std::chrono::milliseconds::period> duration
+			= std::chrono::steady_clock::now() - startBench;
+		std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
+		
 		vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
 
 		if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
@@ -313,9 +337,8 @@ private:
 	}
 
 
-
 	void UpdateUniformBuffer(uint32_t imageIndex, Model* model, const glm::mat4& View, const glm::mat4& Projection, 
-		VkDevice device)
+		VkDevice device) const
 	{
 		// Create new ubo
 
@@ -434,10 +457,12 @@ private:
 
 
 		const size_t numImagesInFlight = _swapchainImages.size();
+
 		
-		_descriptorPool = CreateDescriptorPool((uint32_t)numImagesInFlight * 2, _device);
+		const uint32_t numDescSetGroups = 1000; // Max renderable objects! This is gross, but it'll do for now.
+		_descriptorPool = CreateDescriptorPool((uint32_t)numImagesInFlight * numDescSetGroups, _device);
 
-
+		
 		for (auto& model : _models)
 		{
 			std::vector<VkBuffer> uniformBuffers;
@@ -469,7 +494,6 @@ private:
 			_swapchainFramebuffers,
 			_commandPool, _device, _renderPass,
 			_pipeline, _pipelineLayout);
-
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 	}
 
@@ -484,7 +508,7 @@ private:
 			glfwGetFramebufferSize(_window, &width, &height);
 			glfwWaitEvents();
 		}
-		
+
 		vkDeviceWaitIdle(_device);
 		CleanupSwapchainAndDependents();
 		CreateSwapchainAndDependents(width, height);
@@ -1965,12 +1989,13 @@ private:
 			poolCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 			poolCI.poolSizeCount = (uint32_t)poolSizes.size();
 			poolCI.pPoolSizes = poolSizes.data();
-			poolCI.maxSets = count; 
+			poolCI.maxSets = count;
 		}
 
 		VkDescriptorPool pool;
 		if (vkCreateDescriptorPool(device, &poolCI, nullptr, &pool) != VK_SUCCESS)
 		{
+			// TODO Handle allocation failures as it's determined normal behaviour in spec
 			throw std::runtime_error("Failed to create descriptor pool!");
 		}
 
@@ -2511,9 +2536,9 @@ private:
 	#pragma endregion
 
 	
-	#pragma region Model
+	#pragma region Mesh
 
-	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>> LoadModel(const std::string& modelPath)
+	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>> LoadMesh(const std::string& modelPath)
 	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -2569,7 +2594,7 @@ private:
 		}
 
 
-		std::cout << "\nModel loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
+		std::cout << "Mesh loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
 			<< " indices)\n";
 
 		
@@ -2578,10 +2603,10 @@ private:
 
 	#pragma endregion
 
-
+	Camera _camera;
 	void LoadAsset()
 	{
-		//if (!_meshes.empty()) return;
+		if (!_meshes.empty()) return;
 
 		std::cout << "Loading asset\n";
 
@@ -2602,7 +2627,7 @@ private:
 		// Load mesh
 		std::vector<Vertex> vertices{};
 		std::vector<uint32_t> indices{};
-		std::tie(vertices, indices) = LoadModel(modelPath);
+		std::tie(vertices, indices) = LoadMesh(modelPath);
 
 		
 		// Load mesh resource
@@ -2617,36 +2642,41 @@ private:
 			= CreateIndexBuffer(indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
 
-		// Crete model, descriptor sets and uniform buffers
-		auto model = std::make_unique<Model>();
-		model->Mesh = mesh.get();
-		model->Texture = texture.get();
-		model->Transform.SetPos({ .1 * _models.size(),0,0 });
-
-		const auto numThingsToMake = _swapchainImages.size();
-
-		std::vector<VkBuffer> uniformBuffers;
-		std::vector<VkDeviceMemory> uniformBuffersMemory;
-		std::vector<VkDescriptorSet> descriptorSets;
-		
-		std::tie(uniformBuffers, uniformBuffersMemory) = CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
-		descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool, 
-			uniformBuffers, model->Texture->View, model->Texture->Sampler, _device);
-
-		auto& modelInfos = model->Infos;
-		modelInfos.resize(numThingsToMake);
-		for (auto i = 0; i < numThingsToMake; i++)
+		for (int i = 0; i < 1000; i++)
 		{
-			modelInfos[i].UniformBuffer = uniformBuffers[i];
-			modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
-			modelInfos[i].DescriptorSet = descriptorSets[i];
+				
+			// Crete model, descriptor sets and uniform buffers
+			auto model = std::make_unique<Model>();
+			model->Mesh = mesh.get();
+			model->Texture = texture.get();
+			model->Transform.SetPos({ .1 * _models.size(),0,0 });
+
+			const auto numThingsToMake = _swapchainImages.size();
+
+			std::vector<VkBuffer> uniformBuffers;
+			std::vector<VkDeviceMemory> uniformBuffersMemory;
+			std::vector<VkDescriptorSet> descriptorSets;
+			
+			std::tie(uniformBuffers, uniformBuffersMemory) = CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+			descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool, 
+				uniformBuffers, model->Texture->View, model->Texture->Sampler, _device);
+
+			auto& modelInfos = model->Infos;
+			modelInfos.resize(numThingsToMake);
+			for (auto i = 0; i < numThingsToMake; i++)
+			{
+				modelInfos[i].UniformBuffer = uniformBuffers[i];
+				modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
+				modelInfos[i].DescriptorSet = descriptorSets[i];
+			}
+			_models.emplace_back(std::move(model));
+
 		}
 
 		
 		// Store results!
 		_meshes.emplace_back(std::move(mesh));
 		_textures.emplace_back(std::move(texture));
-		_models.emplace_back(std::move(model));
 	}
 
 	void UnloadAsset()
@@ -2663,11 +2693,36 @@ private:
 
 
 	#pragma region GLFW Callbacks
+
 	
+
+	// Callbacks
+	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
+	{
+		_windowMap[window]->OnScrollChanged(xOffset, yOffset);
+	}
 	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
-		auto app = (VulkanTutorial*)glfwGetWindowUserPointer(window);
-		app->OnKeyCallback(key, scancode, action, mods);
+		_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
+	}
+	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
+	{
+		_windowMap[window]->OnCursorPosChanged(xPos, yPos);
+	}
+	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
+	{
+		_windowMap[window]->OnWindowSizeChanged(width, height);
+		
+	}
+
+
+	bool _firstCursorInput = true;
+	double _lastCursorX{}, _lastCursorY{};
+	
+	// Event handlers
+	void OnScrollChanged(double xOffset, double yOffset)
+	{
+		_camera.ProcessMouseScroll(float(yOffset));
 	}
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
@@ -2692,11 +2747,63 @@ private:
 			}
 		}
 	}
-	
-	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
+	void OnCursorPosChanged(double xPos, double yPos)
 	{
-		auto app = (VulkanTutorial*)glfwGetWindowUserPointer(window);
-		app->FramebufferResized = true;
+		// On first input lets remove a snap
+		if (_firstCursorInput)
+		{
+			_lastCursorX = xPos;
+			_lastCursorY = yPos;
+			_firstCursorInput = false;
+		}
+
+		const auto xDiff = xPos - _lastCursorX;
+		const auto yDiff = _lastCursorY - yPos;
+		_lastCursorX = xPos;
+		_lastCursorY = yPos;
+
+
+
+		
+		const glm::vec2 diffRatio{ xDiff / _swapchainExtent.width, yDiff / _swapchainExtent.height };
+		const auto window = _window;
+		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
+		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
+		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
+
+		// Camera control
+		if (isLmb)
+		{
+			//_camera.ProcessMouseMovement(float(xDiff), float(yDiff));
+
+			const float arcSpeed = 3;
+			_camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
+		}
+		if (isMmb || isRmb)
+		{
+			const auto dir = isMmb
+				? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
+			: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
+
+			const auto len = glm::length(dir);
+			if (len > 0.000001f) // small float
+			{
+				auto speed = Speed::Normal;
+				if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+				{
+					speed = Speed::Slow;
+				}
+				if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+				{
+					speed = Speed::Fast;
+				}
+				_camera.Move(len, glm::normalize(dir), speed);
+			}
+		}
+	}
+	void OnWindowSizeChanged(int width, int height)
+	{
+		FramebufferResized = true;
 	}
 
 	#pragma endregion 

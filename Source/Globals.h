@@ -8,9 +8,6 @@
 
 const size_t g_maxFramesInFlight = 2;
 
-const int g_width = 800;
-const int g_height = 600;
-
 const std::vector<const char*> g_validationLayers = {
 	"VK_LAYER_KHRONOS_validation",
 };
