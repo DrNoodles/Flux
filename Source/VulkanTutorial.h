@@ -27,7 +27,7 @@
 #define OUT // syntax helper
 
 class VulkanTutorial;
-inline std::unordered_map<GLFWwindow*, VulkanTutorial*> _windowMap;
+inline std::unordered_map<GLFWwindow*, VulkanTutorial*> g_windowMap;
 
 
 class VulkanTutorial
@@ -46,7 +46,8 @@ public:
 	}
 
 private:
-	
+	const glm::ivec2 _defaultWindowSize = { 800,600 };
+
 	GLFWwindow* _window = nullptr;
 	VkInstance _instance = nullptr;
 	VkSurfaceKHR _surface = nullptr;
@@ -98,31 +99,8 @@ private:
 
 	// Scene
 	std::vector<std::unique_ptr<Model>> _models{};
+	Camera _camera;
 
-	const glm::ivec2 _defaultWindowSize = { 800,600 };
-	
-	// Per Mesh
-	/*std::vector<Vertex> _vertices{};
-	std::vector<uint32_t> _indices{};*/
-	
-	/*VkBuffer _vertexBuffer = nullptr;
-	VkDeviceMemory _vertexBufferMemory = nullptr;
-	VkBuffer _indexBuffer = nullptr;
-	VkDeviceMemory _indexBufferMemory = nullptr;*/
-
-
-	// 1 per frame
-	//std::vector<VkDescriptorSet> _descriptorSets{};
-	//std::vector<VkBuffer> _uniformBuffers{};
-	//std::vector<VkDeviceMemory> _uniformBuffersMemory{};
-	
-	// Texture
-	//uint32_t _textureMipLevels = 0;
-	//VkImage _textureImage = nullptr;
-	//VkDeviceMemory _textureImageMemory = nullptr;
-	//VkImageView _textureImageView = nullptr;
-	//VkSampler _textureSampler = nullptr;
-	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastTime;
@@ -144,7 +122,7 @@ private:
 			throw std::runtime_error("Failed to create GLFWwindow");
 		}
 		_window = window;
-		_windowMap.insert(std::make_pair(_window, this));
+		g_windowMap.insert(std::make_pair(_window, this));
 
 		//glfwSetWindowUserPointer(_window, this);
 		
@@ -183,8 +161,6 @@ private:
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
-
-
 	
 
 	void DrawFrame()
@@ -2534,7 +2510,7 @@ private:
 	#pragma endregion
 
 	
-	#pragma region Mesh
+	#pragma region Scene Management
 
 	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMesh(const std::string& modelPath)
 	{
@@ -2608,9 +2584,8 @@ private:
 		return { std::move(vertices), std::move(indices), aabb };
 	}
 
-	#pragma endregion
 
-	Camera _camera;
+	
 	void LoadAsset()
 	{
 		if (!_meshes.empty()) return;
@@ -2741,29 +2716,27 @@ private:
 		_camera.Focus(center, radius, float(_swapchainExtent.width) / float(_swapchainExtent.height));
 	}
 
-
-
-
+	#pragma endregion
 
 	
-	#pragma region GLFW Callbacks
+	#pragma region GLFW Callbacks, event handling
 
 	// Callbacks
 	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
 	{
-		_windowMap[window]->OnScrollChanged(xOffset, yOffset);
+		g_windowMap[window]->OnScrollChanged(xOffset, yOffset);
 	}
 	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
-		_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
+		g_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
 	}
 	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
 	{
-		_windowMap[window]->OnCursorPosChanged(xPos, yPos);
+		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
 	}
 	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	{
-		_windowMap[window]->OnWindowSizeChanged(width, height);
+		g_windowMap[window]->OnWindowSizeChanged(width, height);
 		
 	}
 
@@ -2860,5 +2833,4 @@ private:
 	}
 
 	#pragma endregion 
-
 };
