@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL // for hash
 #include <glm/gtx/hash.hpp>
+#include "Transform.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniformBufferObject
@@ -125,6 +126,7 @@ struct Model
 {
 	Mesh* Mesh = nullptr;
 	Texture* Texture = nullptr;
+	Transform Transform;
 
 	// Array containing one per frame in flight
 	std::vector<ModelInfo> Infos{};
