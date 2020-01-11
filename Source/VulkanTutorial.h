@@ -244,7 +244,7 @@ private:
 		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
 		//const auto view = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
 		const auto view = _camera.GetViewMatrix();
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
 		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 		
 
@@ -341,11 +341,9 @@ private:
 		VkDevice device) const
 	{
 		// Create new ubo
-
 		UniformBufferObject ubo = {};
 		{
 			ubo.Model = model->Transform.GetMatrix();
-			//ubo.Model = glm::scale(ubo.Model, glm::vec3{ 0.05f });
 			ubo.Model = glm::rotate(ubo.Model, _totalTime * glm::radians(60.f), glm::vec3{ 0, 1, 0 });
 			ubo.View = View;
 			ubo.Projection = Projection;
@@ -2538,7 +2536,7 @@ private:
 	
 	#pragma region Mesh
 
-	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>> LoadMesh(const std::string& modelPath)
+	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMesh(const std::string& modelPath)
 	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -2553,7 +2551,7 @@ private:
 		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
-		
+
 		for (const auto& shape : shapes)
 		{
 			for (const auto& tinyIndex : shape.mesh.indices)
@@ -2593,12 +2591,21 @@ private:
 			}
 		}
 
+		
+		// Compute AABB
+		std::vector<glm::vec3> positions{ vertices.size() };
+		for (size_t i = 0; i< vertices.size(); i++)
+		{
+			positions[i] = vertices[i].Pos;
+		}
+		AABB aabb{ positions };
 
+		
 		std::cout << "Mesh loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
 			<< " indices)\n";
 
 		
-		return { std::move(vertices), std::move(indices) };
+		return { std::move(vertices), std::move(indices), aabb };
 	}
 
 	#pragma endregion
@@ -2627,13 +2634,15 @@ private:
 		// Load mesh
 		std::vector<Vertex> vertices{};
 		std::vector<uint32_t> indices{};
-		std::tie(vertices, indices) = LoadMesh(modelPath);
+		AABB bounds;
+		std::tie(vertices, indices, bounds) = LoadMesh(modelPath);
 
 		
 		// Load mesh resource
 		auto mesh = std::make_unique<Mesh>();
 		mesh->IndexCount = indices.size();
 		mesh->VertexCount = vertices.size();
+		mesh->Bounds = bounds;
 		
 		std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
 			= CreateVertexBuffer(vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
@@ -2691,10 +2700,53 @@ private:
 		//_assetLoaded = false;
 	}
 
+	void FrameAll()
+	{
+		// Nothing to frame?
+		if (_models.empty())
+		{
+			return; // TODO Setup default scene framing?
+		}
 
-	#pragma region GLFW Callbacks
+
+		// Compute the bounds of all renderable's in the selection
+		AABB bounds;
+		bool first = true;
+		for (auto& model : _models)
+		{
+			auto local = model->Mesh->Bounds;
+			auto world = local.Transform(model->Transform.GetMatrix());
+
+			if (first)
+			{
+				first = false;
+				bounds = world;
+			}
+			else
+			{
+				bounds = bounds.Merge(world);
+			}
+		}
+
+
+		if (first == true || bounds.IsEmpty())
+		{
+			return;
+		}
+
+
+		// Focus the bounds!
+		auto center = bounds.Center();
+		auto radius = glm::length(bounds.Max() - bounds.Min());
+		_camera.Focus(center, radius, float(_swapchainExtent.width) / float(_swapchainExtent.height));
+	}
+
+
+
+
 
 	
+	#pragma region GLFW Callbacks
 
 	// Callbacks
 	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
@@ -2734,7 +2786,8 @@ private:
 			glfwSetWindowShouldClose(_window, 1);
 		}
 		// Focus selected
-
+		if (key == GLFW_KEY_F) { FrameAll(); }
+		
 		if (key == GLFW_KEY_X)
 		{
 			/*if (_assetLoaded)
