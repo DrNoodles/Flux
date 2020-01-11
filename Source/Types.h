@@ -95,8 +95,9 @@ namespace std
 struct Texture
 {
 	VkImage Image;
-	VkDeviceMemory DeviceMemory;
+	VkDeviceMemory Memory;
 	VkImageView View;
+	VkSampler Sampler;
 	uint32_t Width;
 	uint32_t Height;
 	uint32_t MipLevels;
@@ -105,26 +106,29 @@ struct Texture
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Mesh
 {
-	// TODO remove these from mem??
-	std::vector<Vertex> Vertices{};
-	std::vector<uint32_t> Indices{};
-
 	size_t VertexCount = 0;
 	size_t IndexCount = 0;
 	VkBuffer VertexBuffer = nullptr;
 	VkDeviceMemory VertexBufferMemory = nullptr;
 	VkBuffer IndexBuffer = nullptr;
 	VkDeviceMemory IndexBufferMemory = nullptr;
-
-	std::vector<VkDescriptorSet> DescriptorSets{}; // 1 per frame
 };
 
+struct ModelInfo // for lack of a better name...
+{
+	VkDescriptorSet DescriptorSet;
+	VkBuffer UniformBuffer;
+	VkDeviceMemory UniformBufferMemory;
+};
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//struct Asset
-//{
-//	Texture Texture;
-//};
+struct Model
+{
+	Mesh* Mesh = nullptr;
+	Texture* Texture = nullptr;
 
+	// Array containing one per frame in flight
+	std::vector<ModelInfo> Infos{};
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SwapChainSupportDetails

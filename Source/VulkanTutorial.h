@@ -89,7 +89,12 @@ private:
 	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
 	VkDescriptorPool _descriptorPool = nullptr;
 
-	std::vector<Mesh> _meshes{};
+	// Resources
+	std::vector<std::unique_ptr<Mesh>> _meshes{};
+	std::vector<std::unique_ptr<Texture>> _textures{};
+
+	// Scene
+	std::vector<std::unique_ptr<Model>> _models{};
 	
 	// Per Mesh
 	/*std::vector<Vertex> _vertices{};
@@ -100,22 +105,23 @@ private:
 	VkBuffer _indexBuffer = nullptr;
 	VkDeviceMemory _indexBufferMemory = nullptr;*/
 
+
+	// 1 per frame
 	//std::vector<VkDescriptorSet> _descriptorSets{};
-
-	std::vector<VkBuffer> _uniformBuffers{};
-	std::vector<VkDeviceMemory> _uniformBuffersMemory{};
+	//std::vector<VkBuffer> _uniformBuffers{};
+	//std::vector<VkDeviceMemory> _uniformBuffersMemory{};
 	
-
 	// Texture
-	uint32_t _textureMipLevels = 0;
-	VkImage _textureImage = nullptr;
-	VkDeviceMemory _textureImageMemory = nullptr;
-	VkImageView _textureImageView = nullptr;
-	VkSampler _textureSampler = nullptr;
+	//uint32_t _textureMipLevels = 0;
+	//VkImage _textureImage = nullptr;
+	//VkDeviceMemory _textureImageMemory = nullptr;
+	//VkImageView _textureImageView = nullptr;
+	//VkSampler _textureSampler = nullptr;
 	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastTime;
+	float _totalTime;
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
 	const std::chrono::duration<double, std::chrono::seconds::period> _updateRate{ 1 };
 	FpsCounter _fpsCounter{};
@@ -162,7 +168,9 @@ private:
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 
+
 	
+
 	void DrawFrame()
 	{		
 		// Sync CPU-GPU
@@ -193,13 +201,33 @@ private:
 		// Mark the image as now being in use by this frame
 		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
-		
-		UpdateUniformBuffer(_uniformBuffersMemory[imageIndex], _swapchainExtent, _device);
 
+		// Compute time elapsed
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		_totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
+		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
+		_lastTime = currentTime;
+
+		
+		// Report fps
+		_fpsCounter.AddFrameTime(dt);
+		if ((currentTime - _lastFpsUpdate) > _updateRate)
+		{
+			char buffer[32];
+			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
+			glfwSetWindowTitle(_window, buffer);
+			_lastFpsUpdate = currentTime;
+		}
+
+		
+		for (auto& model : _models)
+		{
+			UpdateUniformBuffer(model->Infos[imageIndex].UniformBufferMemory, _swapchainExtent, _device);
+		}
 
 		RecordCommandBuffer(
 			_commandBuffers[imageIndex],
-			_meshes,
+			_models,
 			imageIndex,
 			_swapchainExtent,
 			_swapchainFramebuffers[imageIndex],
@@ -275,25 +303,9 @@ private:
 	}
 
 
+
 	void UpdateUniformBuffer(VkDeviceMemory uniformBufMem, const VkExtent2D& swapchainExtent, VkDevice device)
 	{
-		// Compute time elapsed
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		const float totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
-		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
-		_lastTime = currentTime;
-
-		// Report fps
-		_fpsCounter.AddFrameTime(dt);
-		if ((currentTime - _lastFpsUpdate) > _updateRate)
-		{
-			char buffer[32];
-			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
-			glfwSetWindowTitle(_window, buffer);
-			_lastFpsUpdate = currentTime;
-		}
-
-
 		// Create new ubo
 		const auto vfov = 45.f;
 		const float aspect = swapchainExtent.width / (float)swapchainExtent.height;
@@ -302,7 +314,7 @@ private:
 		{
 			ubo.Model = glm::mat4{ 1 };
 			//ubo.Model = glm::scale(ubo.Model, glm::vec3{ 0.05f });
-			ubo.Model = glm::rotate(ubo.Model, totalTime * glm::radians(60.f), glm::vec3{ 0, 1, 0 });
+			ubo.Model = glm::rotate(ubo.Model, _totalTime * glm::radians(60.f), glm::vec3{ 0, 1, 0 });
 			ubo.View = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
 			ubo.Projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 100.f);
 			ubo.Projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
@@ -324,21 +336,23 @@ private:
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
-		vkDestroySampler(_device, _textureSampler, nullptr);
-		vkDestroyImageView(_device, _textureImageView, nullptr);
-		vkDestroyImage(_device, _textureImage, nullptr);
-		vkFreeMemory(_device, _textureImageMemory, nullptr);
-
 		for (auto& mesh : _meshes)
 		{
-			mesh.Vertices.clear();
-			mesh.Indices.clear();
-			vkDestroyBuffer(_device, mesh.IndexBuffer, nullptr);
-			vkFreeMemory(_device, mesh.IndexBufferMemory, nullptr);
-			vkDestroyBuffer(_device, mesh.VertexBuffer, nullptr);
-			vkFreeMemory(_device, mesh.VertexBufferMemory, nullptr);
+			//mesh.Vertices.clear();
+			//mesh.Indices.clear();
+			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
+			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
 		}
 
+		for (auto& texture : _textures)
+		{
+			vkDestroySampler(_device, texture->Sampler, nullptr);
+			vkDestroyImageView(_device, texture->View, nullptr);
+			vkDestroyImage(_device, texture->Image, nullptr);
+			vkFreeMemory(_device, texture->Memory, nullptr);
+		}
 
 		vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
@@ -361,16 +375,17 @@ private:
 		vkDestroyImageView(_device, _depthImageView, nullptr);
 		vkDestroyImage(_device, _depthImage, nullptr);
 		vkFreeMemory(_device, _depthImageMemory, nullptr);
-		
-		for (auto& x : _uniformBuffers) { vkDestroyBuffer(_device, x, nullptr); }
-		for (auto& x : _uniformBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 
-		for (auto& mesh : _meshes)
+		for (auto& model : _models)
 		{
-			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
-			//mesh.DescriptorSets.clear();
+			for (auto& info : model->Infos)
+			{
+				vkDestroyBuffer(_device, info.UniformBuffer, nullptr);
+				vkFreeMemory(_device, info.UniformBufferMemory, nullptr); 
+				//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+			}
 		}
-		
+
 		vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
 		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
@@ -408,21 +423,39 @@ private:
 			= CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent,
 				_swapchainImageViews);
 
-		std::tie(_uniformBuffers, _uniformBuffersMemory)
-			= CreateUniformBuffers(_swapchainImages.size(), _device, _physicalDevice);
 
-		_descriptorPool = CreateDescriptorPool((uint32_t)_swapchainImages.size(), _device);
+		const size_t numThingsToMake = _swapchainImages.size();
+		
+		_descriptorPool = CreateDescriptorPool((uint32_t)numThingsToMake, _device);
 
 
-		for (auto& mesh : _meshes)
+		for (auto& model : _models)
 		{
-			mesh.DescriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout,
-				_descriptorPool, _uniformBuffers, _textureImageView, _textureSampler, _device);
+			std::vector<VkBuffer> uniformBuffers;
+			std::vector<VkDeviceMemory> uniformBuffersMemory;
+			
+			std::tie(uniformBuffers, uniformBuffersMemory)
+				= CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+
+			std::vector<VkDescriptorSet> descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, 
+				_descriptorSetLayout, _descriptorPool, uniformBuffers, model->Texture->View, model->Texture->Sampler, 
+				_device);
+
+			
+			auto& modelInfos = model->Infos;
+			modelInfos.resize(numThingsToMake);
+
+			for (auto i = 0; i < numThingsToMake; i++)
+			{
+				modelInfos[i].UniformBuffer = uniformBuffers[i];
+				modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
+				modelInfos[i].DescriptorSet = descriptorSets[i];
+			}
 		}
 
 		_commandBuffers = CreateCommandBuffers(
-			(uint32_t)_swapchainImages.size(),
-			_meshes,
+			(uint32_t)numThingsToMake,
+			_models,
 			_swapchainExtent,
 			_swapchainFramebuffers,
 			_commandPool, _device, _renderPass,
@@ -1707,7 +1740,7 @@ private:
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		uint32_t numBuffersToCreate,
 
-		const std::vector<Mesh>& meshes,
+		const std::vector<std::unique_ptr<Model>>& models,
 		VkExtent2D swapchainExtent,
 		const std::vector<VkFramebuffer>& swapchainFramebuffers,
 
@@ -1739,7 +1772,7 @@ private:
 		{
 			RecordCommandBuffer(
 				commandBuffers[i],
-				meshes,
+				models,
 				i,
 				swapchainExtent,
 				swapchainFramebuffers[i],
@@ -1754,8 +1787,8 @@ private:
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 
-		const std::vector<Mesh>& meshes,
-		int descriptorSetIndex,
+		const std::vector<std::unique_ptr<Model>>& models,
+		int frameIndex,
 
 		VkExtent2D swapchainExtent,
 		VkFramebuffer swapchainFramebuffer,
@@ -1797,18 +1830,18 @@ private:
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-				for (const auto& mesh : meshes)
+				for (const auto& model : models)
 				{
 					// Draw mesh
-					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+					VkBuffer vertexBuffers[] = { model->Mesh->VertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindIndexBuffer(commandBuffer, model->Mesh->IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, 
-						&mesh.DescriptorSets[descriptorSetIndex], 0, nullptr);
+						&model->Infos[frameIndex].DescriptorSet, 0, nullptr);
 					/*const void* pValues;
 					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)model->Mesh->IndexCount, 1, 0, 0, 0);
 				}
 			}
 			vkCmdEndRenderPass(commandBuffer);
@@ -2257,7 +2290,7 @@ private:
 	}
 
 	
-	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t>
+	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t, uint32_t, uint32_t>
 		CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
 			VkPhysicalDevice physicalDevice, VkDevice device)
 	{
@@ -2328,7 +2361,7 @@ private:
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 
-		return { textureImage, textureImageMemory, mipLevels };
+		return { textureImage, textureImageMemory, mipLevels, texWidth, texHeight };
 	}
 
 
@@ -2526,59 +2559,84 @@ private:
 			}
 		}
 
+
+		std::cout << "\nModel loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
+			<< " indices)\n";
+
+		
 		return { std::move(vertices), std::move(indices) };
 	}
 
 	#pragma endregion
 
 
-
-	
 	void LoadAsset()
 	{
 		if (!_meshes.empty()) return;
 
-		Mesh mesh{};
-
-		
 		std::cout << "Loading asset\n";
 
 		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
 		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
 
-
-		
-		// Load texture
-		std::tie(_textureImage, _textureImageMemory, _textureMipLevels)
+	
+		// Load texture resource
+		auto texture = std::make_unique<Texture>();
+		std::tie(texture->Image, texture->Memory, texture->MipLevels, texture->Width, texture->Height)
 			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
 
-		_textureImageView = CreateTextureImageView(_textureImage, _textureMipLevels, _device);
+		texture->View = CreateTextureImageView(texture->Image, texture->MipLevels, _device);
 
-		_textureSampler = CreateTextureSampler(_textureMipLevels, _device);
+		texture->Sampler = CreateTextureSampler(texture->MipLevels, _device);
 
 
+		// Load mesh
+		std::vector<Vertex> vertices{};
+		std::vector<uint32_t> indices{};
+		std::tie(vertices, indices) = LoadModel(modelPath);
 
 		
-		// Load model
-		std::tie(mesh.Vertices, mesh.Indices) = LoadModel(modelPath);
+		// Load mesh resource
+		auto mesh = std::make_unique<Mesh>();
+		mesh->IndexCount = indices.size();
+		mesh->VertexCount = vertices.size();
 		
-		mesh.IndexCount = mesh.Indices.size(); // this seems weird for now, goal is to remove Indices and Vertices
-		mesh.VertexCount = mesh.Vertices.size();
+		std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
+			= CreateVertexBuffer(vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
+			= CreateIndexBuffer(indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+
+		// Crete model, descriptor sets and uniform buffers
+		auto model = std::make_unique<Model>();
+		model->Mesh = mesh.get();
+		model->Texture = texture.get();
+
+		const auto numThingsToMake = _swapchainImages.size();
+
+		std::vector<VkBuffer> uniformBuffers;
+		std::vector<VkDeviceMemory> uniformBuffersMemory;
+		std::vector<VkDescriptorSet> descriptorSets;
 		
-		std::tie(mesh.VertexBuffer, mesh.VertexBufferMemory)
-			= CreateVertexBuffer(mesh.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		std::tie(uniformBuffers, uniformBuffersMemory) = CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+		descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool, 
+			uniformBuffers, model->Texture->View, model->Texture->Sampler, _device);
 
-		std::tie(mesh.IndexBuffer, mesh.IndexBufferMemory)
-			= CreateIndexBuffer(mesh.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		auto& modelInfos = model->Infos;
+		modelInfos.resize(numThingsToMake);
+		for (auto i = 0; i < numThingsToMake; i++)
+		{
+			modelInfos[i].UniformBuffer = uniformBuffers[i];
+			modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
+			modelInfos[i].DescriptorSet = descriptorSets[i];
+		}
 
-		mesh.DescriptorSets = CreateDescriptorSets((uint32_t)_swapchainImages.size(), _descriptorSetLayout, _descriptorPool,
-			_uniformBuffers, _textureImageView, _textureSampler, _device);
-
-	
-		std::cout << "\nModel loaded! (" + std::to_string(mesh.VertexCount) + " verts, " <<
-			std::to_string(mesh.IndexCount) << " indices)\n";
-
+		
+		// Store results!
 		_meshes.emplace_back(std::move(mesh));
+		_textures.emplace_back(std::move(texture));
+		_models.emplace_back(std::move(model));
 	}
 
 	void UnloadAsset()
