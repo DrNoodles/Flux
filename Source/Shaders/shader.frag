@@ -12,8 +12,8 @@ const vec3 lightDir = normalize(vec3(-1,1,1));
 
 void main() 
 {
-	//outColor = vec4(fragNormal,1.0);
-	//return;
+//	outColor = vec4(fragNormal,1.0);
+//	return;
 
 	float lightStrength = clamp(dot(lightDir, fragNormal),0,1);
 

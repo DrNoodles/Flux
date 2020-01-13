@@ -2512,7 +2512,7 @@ private:
 	
 	#pragma region Scene Management
 
-	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMesh(const std::string& modelPath)
+	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMeshData(const std::string& modelPath)
 	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -2584,55 +2584,64 @@ private:
 		return { std::move(vertices), std::move(indices), aabb };
 	}
 
-
-	
-	void LoadAsset()
+	std::unique_ptr<Texture> LoadTexture(const std::string& path) const
 	{
-		if (!_meshes.empty()) return;
-
-		std::cout << "Loading asset\n";
-
-		const std::string texPath = AssetsDir + "Wilbur/Wilbur.png";
-		const std::string modelPath = AssetsDir + "Blob/Blob.obj";
-
-	
-		// Load texture resource
 		auto texture = std::make_unique<Texture>();
+
+		// TODO Pull the teture library out of the CreateTextureImage, just work on array of pixels
 		std::tie(texture->Image, texture->Memory, texture->MipLevels, texture->Width, texture->Height)
-			= CreateTextureImage(texPath, _commandPool, _graphicsQueue, _physicalDevice, _device);
+			= CreateTextureImage(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
 
 		texture->View = CreateTextureImageView(texture->Image, texture->MipLevels, _device);
 
 		texture->Sampler = CreateTextureSampler(texture->MipLevels, _device);
 
+		return texture;
+	}
 
-		// Load mesh
+	std::unique_ptr<Mesh> LoadMesh(const std::string& path) const
+	{
+		auto mesh = std::make_unique<Mesh>();
+
 		std::vector<Vertex> vertices{};
 		std::vector<uint32_t> indices{};
 		AABB bounds;
-		std::tie(vertices, indices, bounds) = LoadMesh(modelPath);
+		std::tie(vertices, indices, bounds) = LoadMeshData(path);
 
-		
+
 		// Load mesh resource
-		auto mesh = std::make_unique<Mesh>();
 		mesh->IndexCount = indices.size();
 		mesh->VertexCount = vertices.size();
 		mesh->Bounds = bounds;
-		
+
 		std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
 			= CreateVertexBuffer(vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
 		std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
 			= CreateIndexBuffer(indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
+		return mesh;
+	}
 
-		for (int i = 0; i < 1000; i++)
+	
+	void LoadAssets()
+	{
+		if (!_meshes.empty()) return;
+
+
+		// TODO Safeguard against bad mesh data, handle exceptions and report to user, etc..
+		std::cout << "Loading asset\n";
+		auto mesh = LoadMesh(AssetsDir + "blob/blob.obj");
+		auto basecolorMap = LoadTexture(AssetsDir + "Railgun/basecolor.jpg");
+		auto normalMap = LoadTexture(AssetsDir + "Railgun/normal.jpg");
+
+
+		for (int i = 0; i < 1; i++)
 		{
-				
 			// Crete model, descriptor sets and uniform buffers
 			auto model = std::make_unique<Model>();
 			model->Mesh = mesh.get();
-			model->Texture = texture.get();
+			model->Texture = basecolorMap.get();
 			model->Transform.SetPos({ .1 * _models.size(),0,0 });
 
 			const auto numThingsToMake = _swapchainImages.size();
@@ -2660,7 +2669,8 @@ private:
 		
 		// Store results!
 		_meshes.emplace_back(std::move(mesh));
-		_textures.emplace_back(std::move(texture));
+		_textures.emplace_back(std::move(basecolorMap));
+		_textures.emplace_back(std::move(normalMap));
 	}
 
 	void UnloadAsset()
@@ -2769,7 +2779,7 @@ private:
 			}
 			else*/
 			{
-				LoadAsset();
+				LoadAssets();
 			}
 		}
 	}

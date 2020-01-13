@@ -175,13 +175,10 @@ public:
 
 	double GetFps() const
 	{
-		return 1.0 / (_secPerFrameAccumulator / (double)_buffer.size());
-		return _frameRate;
-		
+		return _buffer.size() / _secPerFrameAccumulator;
 	}
 
 private:
-	double _frameRate = 0;
 	double _secPerFrameAccumulator = 0;
 	std::vector<double> _buffer{};
 	size_t _index = 0;
