@@ -263,7 +263,7 @@ private:
 
 		const std::chrono::duration<double, std::chrono::milliseconds::period> duration
 			= std::chrono::steady_clock::now() - startBench;
-		std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
+		//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 		
 		vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
 
@@ -446,7 +446,7 @@ private:
 				= CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
 			std::vector<VkDescriptorSet> descriptorSets = CreateDescriptorSets((uint32_t)numImagesInFlight, 
-				_descriptorSetLayout, _descriptorPool, uniformBuffers, model->Texture->View, model->Texture->Sampler, 
+				_descriptorSetLayout, _descriptorPool, uniformBuffers, *model->BasecolorMap, *model->NormalMap, 
 				_device);
 
 			
@@ -1914,15 +1914,24 @@ private:
 			uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 			uboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
 		}
-		VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+		VkDescriptorSetLayoutBinding basecolorMapLayoutBinding = {};
 		{
-			samplerLayoutBinding.binding = 1; // correlates to shader
-			samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			samplerLayoutBinding.descriptorCount = 1;
-			samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			samplerLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+			basecolorMapLayoutBinding.binding = 1; // correlates to shader
+			basecolorMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			basecolorMapLayoutBinding.descriptorCount = 1;
+			basecolorMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			basecolorMapLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
 		}
-		std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+		VkDescriptorSetLayoutBinding normalMapLayoutBinding = {};
+		{
+			normalMapLayoutBinding.binding = 2; // correlates to shader
+			normalMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			normalMapLayoutBinding.descriptorCount = 1;
+			normalMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			normalMapLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+		}
+		
+		std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, basecolorMapLayoutBinding, normalMapLayoutBinding };
 
 
 		// Create descriptor set layout
@@ -1948,12 +1957,14 @@ private:
 		// count: max num of descriptor sets that may be allocated
 
 		// Define which descriptor types our descriptor sets contain
-		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+		std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 		{
 			poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			poolSizes[0].descriptorCount = count;
 			poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			poolSizes[1].descriptorCount = count;
+			poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			poolSizes[2].descriptorCount = count;
 		}
 
 
@@ -1979,7 +1990,7 @@ private:
 
 	// Associates the UBO and texture to sets for use in shaders
 	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout, 
-		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, VkImageView imageView, VkSampler imageSampler, 
+		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const Texture& basecolorMap, const Texture& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
 		VkDevice device)
 	{
 		assert(count == uniformBuffers.size());
@@ -2003,7 +2014,7 @@ private:
 			throw std::runtime_error("Failed to create descriptor sets");
 		}
 
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+		std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 		
 		// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
 		for (size_t i = 0; i < count; ++i)
@@ -2028,12 +2039,13 @@ private:
 			}
 
 
-			// Texture image descriptor set
-			VkDescriptorImageInfo imageInfo = {};
+			
+			// Basecolor Map  -  Texture image descriptor set
+			VkDescriptorImageInfo baseColorInfo = {};
 			{
-				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = imageView;
-				imageInfo.sampler = imageSampler;
+				baseColorInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				baseColorInfo.imageView = basecolorMap.View;
+				baseColorInfo.sampler = basecolorMap.Sampler;
 			}
 			{
 				descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2043,10 +2055,30 @@ private:
 				descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				descriptorWrites[1].descriptorCount = 1;
 				descriptorWrites[1].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-				descriptorWrites[1].pImageInfo = &imageInfo;
+				descriptorWrites[1].pImageInfo = &baseColorInfo;
 				descriptorWrites[1].pTexelBufferView = nullptr;
 			}
 
+			
+			// Normal Map  -  Texture image descriptor set
+			VkDescriptorImageInfo normalMapInfo = {};
+			{
+				normalMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				normalMapInfo.imageView = normalMap.View;
+				normalMapInfo.sampler = normalMap.Sampler;
+			}
+			{
+				descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWrites[2].dstSet = descriptorSets[i];
+				descriptorWrites[2].dstBinding = 2; // correlates to shader binding
+				descriptorWrites[2].dstArrayElement = 0;
+				descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWrites[2].descriptorCount = 1;
+				descriptorWrites[2].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+				descriptorWrites[2].pImageInfo = &normalMapInfo;
+				descriptorWrites[2].pTexelBufferView = nullptr;
+			}
+			
 			vkUpdateDescriptorSets(device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 		}
 
@@ -2553,7 +2585,11 @@ private:
 				};
 				vertex.Color = { 1,1,1 };
 
-			
+
+				glm::vec3 tmp{ 1,0,0 };
+				vertex.Tangent = glm::cross(tmp, vertex.Normal); // horribly hacky and not actually a tangent!
+				
+				
 				// Check if this vertex is unique
 				if (uniqueVertices.count(vertex) == 0)
 				{
@@ -2566,7 +2602,7 @@ private:
 				indices.push_back(existingVertIndex);
 			}
 		}
-
+		
 		
 		// Compute AABB
 		std::vector<glm::vec3> positions{ vertices.size() };
@@ -2638,10 +2674,12 @@ private:
 
 		for (int i = 0; i < 1; i++)
 		{
-			// Crete model, descriptor sets and uniform buffers
 			auto model = std::make_unique<Model>();
+
+			// Crete model, descriptor sets and uniform buffers
 			model->Mesh = mesh.get();
-			model->Texture = basecolorMap.get();
+			model->BasecolorMap = basecolorMap.get();
+			model->NormalMap = normalMap.get();
 			model->Transform.SetPos({ .1 * _models.size(),0,0 });
 
 			const auto numThingsToMake = _swapchainImages.size();
@@ -2652,7 +2690,7 @@ private:
 			
 			std::tie(uniformBuffers, uniformBuffersMemory) = CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
 			descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool, 
-				uniformBuffers, model->Texture->View, model->Texture->Sampler, _device);
+				uniformBuffers, *model->BasecolorMap, *model->NormalMap, _device);
 
 			auto& modelInfos = model->Infos;
 			modelInfos.resize(numThingsToMake);
@@ -2662,8 +2700,8 @@ private:
 				modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
 				modelInfos[i].DescriptorSet = descriptorSets[i];
 			}
+			
 			_models.emplace_back(std::move(model));
-
 		}
 
 		

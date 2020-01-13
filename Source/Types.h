@@ -22,10 +22,13 @@ struct UniformBufferObject
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Vertex
 {
-	glm::vec3 Pos;
-	glm::vec3 Normal;
-	glm::vec3 Color;
-	glm::vec2 TexCoord;
+	alignas(16) glm::vec3 Pos;
+	alignas(16) glm::vec3 Normal;
+	alignas(16) glm::vec3 Color;
+	alignas(16) glm::vec2 TexCoord;
+	alignas(16) glm::vec3 Tangent;
+//	glm::vec3 Bitangent;
+
 
 	bool operator==(const Vertex& other) const
 	{
@@ -43,9 +46,9 @@ struct Vertex
 		return bindingDesc;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 4> AttributeDescriptions()
+	static std::array<VkVertexInputAttributeDescription, 5> AttributeDescriptions()
 	{
-		std::array<VkVertexInputAttributeDescription, 4> attrDesc = {};
+		std::array<VkVertexInputAttributeDescription, 5> attrDesc = {};
 		{
 			// Pos
 			attrDesc[0].binding = 0;
@@ -67,6 +70,16 @@ struct Vertex
 			attrDesc[3].location = 3;
 			attrDesc[3].format = VK_FORMAT_R32G32_SFLOAT;
 			attrDesc[3].offset = offsetof(Vertex, TexCoord);
+			// Tangent
+			attrDesc[4].binding = 0;
+			attrDesc[4].location = 4;
+			attrDesc[4].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attrDesc[4].offset = offsetof(Vertex, Tangent);
+			//// Bitangent
+			//attrDesc[5].binding = 0;
+			//attrDesc[5].location = 5;
+			//attrDesc[5].format = VK_FORMAT_R32G32B32_SFLOAT;
+			//attrDesc[5].offset = offsetof(Vertex, Bitangent);
 		}
 		return attrDesc;
 	}
@@ -83,12 +96,16 @@ namespace std
 			const size_t normalHash = hash<glm::vec3>()(vertex.Normal);
 			const size_t colorHash = hash<glm::vec3>()(vertex.Color);
 			const size_t texCoordHash = hash<glm::vec2>()(vertex.TexCoord);
+			const size_t tangentCoordHash = hash<glm::vec2>()(vertex.Tangent);
+		//	const size_t bitangentCoordHash = hash<glm::vec2>()(vertex.Bitangent);
 
 			const size_t join1 = (posHash ^ (normalHash << 1)) >> 1;
 			const size_t join2 = (join1 ^ (colorHash << 1)) >> 1;
-			const size_t join3 = join2 ^ (texCoordHash << 1);
+			const size_t join3 = (join2 ^ (texCoordHash << 1)) >> 1;
+			const size_t join4 = (join3 ^ (tangentCoordHash << 1));// >> 1;
+		//	const size_t join5 = (join4 ^ (bitangentCoordHash << 1));
 			
-			return join3;
+			return join4;
 		}
 	};
 }
@@ -129,7 +146,8 @@ struct ModelInfo // for lack of a better name...
 struct Model
 {
 	Mesh* Mesh = nullptr;
-	Texture* Texture = nullptr;
+	Texture* BasecolorMap = nullptr;
+	Texture* NormalMap = nullptr;
 	Transform Transform;
 
 	// Array containing one per frame in flight
