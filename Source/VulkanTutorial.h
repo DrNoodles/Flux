@@ -2,12 +2,12 @@
 
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
-#include <stbi/stb_image.h>
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tinyobjloader/tiny_obj_loader.h>
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <stbi/stb_image.h>
 
 #include <iostream>
 #include <vector>
@@ -23,6 +23,7 @@
 #include "Globals.h"
 #include "Types.h"
 #include "Camera.h"
+#include "IModelLoaderService.h"
 
 #define OUT // syntax helper
 
@@ -33,6 +34,11 @@ inline std::unordered_map<GLFWwindow*, VulkanTutorial*> g_windowMap;
 class VulkanTutorial
 {
 public:
+	explicit VulkanTutorial(std::unique_ptr<IModelLoaderService>&& modelLoaderService)
+	{
+		_modelLoaderService = std::move(modelLoaderService);
+	}
+	
 	std::string ShaderDir{};
 	std::string AssetsDir{};
 	bool FramebufferResized = false;
@@ -46,6 +52,12 @@ public:
 	}
 
 private:
+	// Dependencies
+	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+
+
+
+	
 	const glm::ivec2 _defaultWindowSize = { 800,600 };
 
 	GLFWwindow* _window = nullptr;
@@ -94,8 +106,8 @@ private:
 	VkDescriptorPool _descriptorPool = nullptr;
 
 	// Resources
-	std::vector<std::unique_ptr<Mesh>> _meshes{};
-	std::vector<std::unique_ptr<Texture>> _textures{};
+	std::vector<std::unique_ptr<MeshResources>> _meshes{};
+	std::vector<std::unique_ptr<TextureResources>> _textures{};
 
 	// Scene
 	std::vector<std::unique_ptr<Model>> _models{};
@@ -1990,7 +2002,7 @@ private:
 
 	// Associates the UBO and texture to sets for use in shaders
 	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout, 
-		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const Texture& basecolorMap, const Texture& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
+		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const TextureResources& basecolorMap, const TextureResources& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
 		VkDevice device)
 	{
 		assert(count == uniformBuffers.size());
@@ -2544,85 +2556,85 @@ private:
 	
 	#pragma region Scene Management
 
-	static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMeshData(const std::string& modelPath)
+	//static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMeshData(const std::string& modelPath)
+	//{
+	//	tinyobj::attrib_t attrib;
+	//	std::vector<tinyobj::shape_t> shapes;
+	//	std::vector<tinyobj::material_t> materials;
+	//	std::string warn, err;
+
+	//	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPath.c_str()))
+	//	{
+	//		throw std::runtime_error(warn + err);
+	//	}
+
+	//	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+	//	std::vector<Vertex> vertices;
+	//	std::vector<uint32_t> indices;
+
+	//	for (const auto& shape : shapes)
+	//	{
+	//		for (const auto& tinyIndex : shape.mesh.indices)
+	//		{
+	//			Vertex vertex = {};
+
+	//			vertex.Pos =
+	//			{
+	//				attrib.vertices[3 * tinyIndex.vertex_index + 0],
+	//				attrib.vertices[3 * tinyIndex.vertex_index + 1],
+	//				attrib.vertices[3 * tinyIndex.vertex_index + 2],
+	//			};
+	//			vertex.Normal =
+	//			{
+	//				attrib.normals[3 * tinyIndex.vertex_index + 0],
+	//				attrib.normals[3 * tinyIndex.vertex_index + 1],
+	//				attrib.normals[3 * tinyIndex.vertex_index + 2],
+	//			};
+	//			vertex.TexCoord =
+	//			{
+	//				attrib.texcoords[2 * tinyIndex.texcoord_index + 0],
+	//				1.0f - attrib.texcoords[2 * tinyIndex.texcoord_index + 1], // invert y texCoord to conform to vulkan
+	//			};
+	//			vertex.Color = { 1,1,1 };
+
+
+	//			glm::vec3 tmp{ 1,0,0 };
+	//			vertex.Tangent = glm::cross(tmp, vertex.Normal); // horribly hacky and not actually a tangent!
+	//			
+	//			
+	//			// Check if this vertex is unique
+	//			if (uniqueVertices.count(vertex) == 0)
+	//			{
+	//				const auto newVertIndex = (uint32_t)vertices.size();
+	//				uniqueVertices[vertex] = newVertIndex;
+	//				vertices.emplace_back(vertex);
+	//			}
+
+	//			const uint32_t existingVertIndex = uniqueVertices[vertex];
+	//			indices.push_back(existingVertIndex);
+	//		}
+	//	}
+	//	
+	//	
+	//	// Compute AABB
+	//	std::vector<glm::vec3> positions{ vertices.size() };
+	//	for (size_t i = 0; i< vertices.size(); i++)
+	//	{
+	//		positions[i] = vertices[i].Pos;
+	//	}
+	//	AABB aabb{ positions };
+
+	//	
+	//	std::cout << "Mesh loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
+	//		<< " indices)\n";
+
+	//	
+	//	return { std::move(vertices), std::move(indices), aabb };
+	//}
+
+	std::unique_ptr<TextureResources> LoadTextureResources(const std::string& path) const
 	{
-		tinyobj::attrib_t attrib;
-		std::vector<tinyobj::shape_t> shapes;
-		std::vector<tinyobj::material_t> materials;
-		std::string warn, err;
-
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPath.c_str()))
-		{
-			throw std::runtime_error(warn + err);
-		}
-
-		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
-
-		for (const auto& shape : shapes)
-		{
-			for (const auto& tinyIndex : shape.mesh.indices)
-			{
-				Vertex vertex = {};
-
-				vertex.Pos =
-				{
-					attrib.vertices[3 * tinyIndex.vertex_index + 0],
-					attrib.vertices[3 * tinyIndex.vertex_index + 1],
-					attrib.vertices[3 * tinyIndex.vertex_index + 2],
-				};
-				vertex.Normal =
-				{
-					attrib.normals[3 * tinyIndex.vertex_index + 0],
-					attrib.normals[3 * tinyIndex.vertex_index + 1],
-					attrib.normals[3 * tinyIndex.vertex_index + 2],
-				};
-				vertex.TexCoord =
-				{
-					attrib.texcoords[2 * tinyIndex.texcoord_index + 0],
-					1.0f - attrib.texcoords[2 * tinyIndex.texcoord_index + 1], // invert y texCoord to conform to vulkan
-				};
-				vertex.Color = { 1,1,1 };
-
-
-				glm::vec3 tmp{ 1,0,0 };
-				vertex.Tangent = glm::cross(tmp, vertex.Normal); // horribly hacky and not actually a tangent!
-				
-				
-				// Check if this vertex is unique
-				if (uniqueVertices.count(vertex) == 0)
-				{
-					const auto newVertIndex = (uint32_t)vertices.size();
-					uniqueVertices[vertex] = newVertIndex;
-					vertices.emplace_back(vertex);
-				}
-
-				const uint32_t existingVertIndex = uniqueVertices[vertex];
-				indices.push_back(existingVertIndex);
-			}
-		}
-		
-		
-		// Compute AABB
-		std::vector<glm::vec3> positions{ vertices.size() };
-		for (size_t i = 0; i< vertices.size(); i++)
-		{
-			positions[i] = vertices[i].Pos;
-		}
-		AABB aabb{ positions };
-
-		
-		std::cout << "Mesh loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
-			<< " indices)\n";
-
-		
-		return { std::move(vertices), std::move(indices), aabb };
-	}
-
-	std::unique_ptr<Texture> LoadTexture(const std::string& path) const
-	{
-		auto texture = std::make_unique<Texture>();
+		auto texture = std::make_unique<TextureResources>();
 
 		// TODO Pull the teture library out of the CreateTextureImage, just work on array of pixels
 		std::tie(texture->Image, texture->Memory, texture->MipLevels, texture->Width, texture->Height)
@@ -2635,28 +2647,38 @@ private:
 		return texture;
 	}
 
-	std::unique_ptr<Mesh> LoadMesh(const std::string& path) const
+	std::unique_ptr<MeshResources> LoadMeshResources(const ModelDefinition& modelDefinition) const
 	{
-		auto mesh = std::make_unique<Mesh>();
-
-		std::vector<Vertex> vertices{};
-		std::vector<uint32_t> indices{};
-		AABB bounds;
-		std::tie(vertices, indices, bounds) = LoadMeshData(path);
+		assert(!modelDefinition.Meshes.empty());
 
 
+		// NOTE: Only loading first mesh found in model for now
+		// TODO Load all meshes
+		auto meshDef = modelDefinition.Meshes[0];
+		
+		auto meshResources = std::make_unique<MeshResources>();
+
+		// Compute AABB
+		std::vector<glm::vec3> positions{ meshDef.Vertices.size() };
+		for (size_t i = 0; i < meshDef.Vertices.size(); i++)
+		{
+			positions[i] = meshDef.Vertices[i].Pos;
+		}
+		const AABB bounds{ positions };
+
+		
 		// Load mesh resource
-		mesh->IndexCount = indices.size();
-		mesh->VertexCount = vertices.size();
-		mesh->Bounds = bounds;
+		meshResources->IndexCount = meshDef.Indices.size();
+		meshResources->VertexCount = meshDef.Vertices.size();
+		meshResources->Bounds = bounds;
+		
+		std::tie(meshResources->VertexBuffer, meshResources->VertexBufferMemory)
+			= CreateVertexBuffer(meshDef.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
-		std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
-			= CreateVertexBuffer(vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-		std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
-			= CreateIndexBuffer(indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-		return mesh;
+		std::tie(meshResources->IndexBuffer, meshResources->IndexBufferMemory)
+			= CreateIndexBuffer(meshDef.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		
+		return meshResources;
 	}
 
 	
@@ -2664,12 +2686,21 @@ private:
 	{
 		if (!_meshes.empty()) return;
 
+		const auto modelDefinition = _modelLoaderService->LoadModel(AssetsDir + "blob/blob.obj");
 
+		//for (const auto& meshDef : modelDefinition.Meshes)
+		//{
+
+		//}
+		
 		// TODO Safeguard against bad mesh data, handle exceptions and report to user, etc..
 		std::cout << "Loading asset\n";
-		auto mesh = LoadMesh(AssetsDir + "blob/blob.obj");
-		auto basecolorMap = LoadTexture(AssetsDir + "Railgun/basecolor.jpg");
-		auto normalMap = LoadTexture(AssetsDir + "Railgun/normal.jpg");
+		auto mesh = LoadMeshResources(modelDefinition);
+
+		// TODO Load materials found in file
+		
+		auto basecolorMap = LoadTextureResources(AssetsDir + "Railgun/basecolor.jpg");
+		auto normalMap = LoadTextureResources(AssetsDir + "Railgun/normal.jpg");
 
 
 		for (int i = 0; i < 1; i++)

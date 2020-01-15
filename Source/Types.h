@@ -11,12 +11,45 @@
 #include "Transform.h"
 #include "AABB.h"
 
+typedef int8_t   i8;
+typedef int16_t  i16;
+typedef int32_t  i32;
+typedef int64_t  i64;
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+constexpr i8  i8_min  = INT8_MIN;
+constexpr i16 i16_min = INT16_MIN;
+constexpr i32 i32_min = INT32_MIN;
+constexpr i64 i64_min = INT64_MIN;
+
+constexpr i8  i8_max  = INT8_MAX;
+constexpr i16 i16_max = INT16_MAX;
+constexpr i32 i32_max = INT32_MAX;
+constexpr i64 i64_max = INT64_MAX;
+
+constexpr u8  u8_max  = UINT8_MAX;
+constexpr u16 u16_max = UINT16_MAX;
+constexpr u32 u32_max = UINT32_MAX;
+constexpr u64 u64_max = UINT64_MAX;
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniformBufferObject
 {
 	alignas(16) glm::mat4 Model;
 	alignas(16) glm::mat4 View;
 	alignas(16) glm::mat4 Projection;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct RenderableMesh
+{
+	u32 MeshId;
+	u32 MatId;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +144,7 @@ namespace std
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct Texture
+struct TextureResources
 {
 	VkImage Image;
 	VkDeviceMemory Memory;
@@ -123,7 +156,7 @@ struct Texture
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct Mesh
+struct MeshResources
 {
 	size_t VertexCount = 0;
 	size_t IndexCount = 0;
@@ -135,7 +168,7 @@ struct Mesh
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ModelInfo // for lack of a better name...
+struct ModelInfoResources // for lack of a better name...
 {
 	VkDescriptorSet DescriptorSet;
 	VkBuffer UniformBuffer;
@@ -145,13 +178,13 @@ struct ModelInfo // for lack of a better name...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Model
 {
-	Mesh* Mesh = nullptr;
-	Texture* BasecolorMap = nullptr;
-	Texture* NormalMap = nullptr;
+	MeshResources* Mesh = nullptr;
+	TextureResources* BasecolorMap = nullptr;
+	TextureResources* NormalMap = nullptr;
 	Transform Transform;
 
 	// Array containing one per frame in flight
-	std::vector<ModelInfo> Infos{};
+	std::vector<ModelInfoResources> Infos{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

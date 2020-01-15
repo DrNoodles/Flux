@@ -2,7 +2,7 @@
 #include "Types.h"
 
 #include <vector>
-#include <glm/glm.hpp>
+#include <fstream>
 
 /////// GLOBAL DATA ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +39,11 @@ QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceK
 
 	for (uint32_t i = 0; i < queueFamilyCount; ++i)
 	{
+		// TODO Get a VK_QUEUE_TRANSFER_BIT for a new transferQueue for all the host to device local transfers
+		// 
+		// Transfer queue will be async and not block other work. It has some latency though.
+		// If needing an immediate copy for work done right now, then graphics or compute queues are faster, but clog system
+		
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
 			indices.GraphicsFamily = i;
