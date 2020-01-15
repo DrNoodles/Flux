@@ -1,8 +1,10 @@
 #pragma once
-#include "Types.h"
 
 #include <vector>
 #include <fstream>
+
+#include "GpuTypes.h"
+
 
 /////// GLOBAL DATA ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +24,6 @@ const std::vector<const char*> g_physicalDeviceExtensions = {
 #else
 	const bool g_enableValidationLayers = false;
 #endif
-
 
 
 
@@ -111,24 +112,4 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 	const auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 	if (func) func(instance, messenger, pAllocator);
 }
-
-static std::vector<char> ReadFile(const std::string& path)
-{
-	std::ifstream file(path, std::ios::ate | std::ios::binary); // ate starts reading from eof
-
-	if (!file.is_open())
-	{
-		throw std::runtime_error("failed to open file " + path);
-	}
-
-	const size_t filesize = (size_t)file.tellg();
-	std::vector<char> buffer(filesize);
-	file.seekg(0);
-	file.read(buffer.data(), filesize);
-	file.close();
-
-	return buffer;
-}
-
-
 

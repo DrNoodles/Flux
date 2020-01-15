@@ -1,40 +1,15 @@
 #pragma once
 
-#include <optional>
-#include <vector>
-#include <array>
-#include <vulkan/vulkan.h>
+#include "../Shared/CommonTypes.h"
+#include "../Shared/AABB.h"
 
+#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL // for hash
 #include <glm/gtx/hash.hpp>
-#include "Transform.h"
-#include "AABB.h"
 
-typedef int8_t   i8;
-typedef int16_t  i16;
-typedef int32_t  i32;
-typedef int64_t  i64;
-
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-constexpr i8  i8_min  = INT8_MIN;
-constexpr i16 i16_min = INT16_MIN;
-constexpr i32 i32_min = INT32_MIN;
-constexpr i64 i64_min = INT64_MIN;
-
-constexpr i8  i8_max  = INT8_MAX;
-constexpr i16 i16_max = INT16_MAX;
-constexpr i32 i32_max = INT32_MAX;
-constexpr i64 i64_max = INT64_MAX;
-
-constexpr u8  u8_max  = UINT8_MAX;
-constexpr u16 u16_max = UINT16_MAX;
-constexpr u32 u32_max = UINT32_MAX;
-constexpr u64 u64_max = UINT64_MAX;
+#include <array>
+#include <optional>
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,13 +21,6 @@ struct UniformBufferObject
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct RenderableMesh
-{
-	u32 MeshId;
-	u32 MatId;
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Vertex
 {
 	alignas(16) glm::vec3 Pos;
@@ -60,8 +28,6 @@ struct Vertex
 	alignas(16) glm::vec3 Color;
 	alignas(16) glm::vec2 TexCoord;
 	alignas(16) glm::vec3 Tangent;
-//	glm::vec3 Bitangent;
-
 
 	bool operator==(const Vertex& other) const
 	{
@@ -144,7 +110,7 @@ namespace std
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct TextureResources
+struct TextureResource
 {
 	VkImage Image;
 	VkDeviceMemory Memory;
@@ -156,7 +122,7 @@ struct TextureResources
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct MeshResources
+struct MeshResource
 {
 	size_t VertexCount = 0;
 	size_t IndexCount = 0;
@@ -168,7 +134,7 @@ struct MeshResources
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ModelInfoResources // for lack of a better name...
+struct ModelInfoResource // for lack of a better name...
 {
 	VkDescriptorSet DescriptorSet;
 	VkBuffer UniformBuffer;
@@ -178,13 +144,14 @@ struct ModelInfoResources // for lack of a better name...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Model
 {
-	MeshResources* Mesh = nullptr;
-	TextureResources* BasecolorMap = nullptr;
-	TextureResources* NormalMap = nullptr;
-	Transform Transform;
+	MeshResource* Mesh = nullptr;
+	TextureResource* BasecolorMap = nullptr;
+	TextureResource* NormalMap = nullptr;
+
+	// TODO Eventually make these Infos auto generate in an unordered map, has would be the unique combination of mesh and texture resources
 
 	// Array containing one per frame in flight
-	std::vector<ModelInfoResources> Infos{};
+	std::vector<ModelInfoResource> Infos{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,32 +173,3 @@ struct QueueFamilyIndices
 		return GraphicsFamily.has_value() && PresentFamily.has_value();
 	}
 };
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class FpsCounter
-{
-public:
-	FpsCounter() : FpsCounter(120) {}
-	explicit FpsCounter(size_t bufferSize)
-	{
-		_buffer.resize(bufferSize, 0);
-	}
-	void AddFrameTime(double dt)
-	{
-		_secPerFrameAccumulator += dt - _buffer[_index];
-		_buffer[_index] = dt;
-		_index = (_index + 1) % _buffer.size();
-	}
-
-	double GetFps() const
-	{
-		return _buffer.size() / _secPerFrameAccumulator;
-	}
-
-private:
-	double _secPerFrameAccumulator = 0;
-	std::vector<double> _buffer{};
-	size_t _index = 0;
-};
-

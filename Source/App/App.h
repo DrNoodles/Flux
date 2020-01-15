@@ -1,0 +1,424 @@
+#pragma once
+
+#include "IModelLoaderService.h"
+#include "Camera.h"
+#include "AppTypes.h"
+#include "ResourceManager.h"
+
+#include "../Shared/AABB.h"
+#include "../Renderer/VulkanGpuService.h"
+
+#define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
+#include <GLFW/glfw3.h>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <stbi/stb_image.h>
+
+#include <iostream>
+#include <utility>
+#include <vector>
+#include <algorithm>
+#include <chrono>
+#include <string>
+#include <iomanip>
+#include <unordered_map>
+
+
+class App;
+inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
+
+
+// TODO Extract IWindow interface and VulkanWindow impl from App
+class App final : public IVulkanGpuServiceDelegate
+{
+public:
+
+	bool FramebufferResized = false;
+	AppOptions _options;
+
+
+	explicit App(
+		AppOptions options,
+		std::unique_ptr<ResourceManager>&& resourceManager,
+		std::unique_ptr<IModelLoaderService>&& modelLoaderService)
+		
+	{
+		// Set Dependencies
+		_options = std::move(options);
+		_resourceManager = std::move(resourceManager);
+		_modelLoaderService = std::move(modelLoaderService);
+		
+		// Init all the things
+		InitWindow();
+		_gpuService = std::make_unique<VulkanGpuService>(*this);
+	}
+	~App()
+	{
+		_gpuService->CleanUp();
+
+		glfwDestroyWindow(_window);
+		glfwTerminate();
+	}
+
+	
+	void Run()
+	{
+		while (!glfwWindowShouldClose(_window))
+		{
+			glfwPollEvents();
+
+
+			// Compute time elapsed
+			const auto currentTime = std::chrono::high_resolution_clock::now();
+			_totalTime = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _startTime).count();
+			const auto dt = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _lastTime).count();
+			_lastTime = currentTime;
+
+
+			// Report fps
+			_fpsCounter.AddFrameTime(dt);
+			if ((currentTime - _lastFpsUpdate) > _reportFpsRate)
+			{
+				char buffer[32];
+				snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
+				glfwSetWindowTitle(_window, buffer);
+				_lastFpsUpdate = currentTime;
+			}
+
+			
+			_gpuService->DrawFrame(dt);
+		}
+	}
+
+	
+
+#pragma region IVulkanGpuServiceDelegate
+	
+	VkSurfaceKHR CreateSurface(VkInstance instance) const override
+	{
+		VkSurfaceKHR surface;
+		if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create window surface");
+		}
+		return surface;
+	}
+	VkExtent2D GetFramebufferSize() override
+	{
+		i32 width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		return { (u32)width, (u32)height };
+	}
+	Camera UpdateState(float dt) override
+	{
+		return _camera;
+	}
+	VkExtent2D WaitTillFramebufferHasSize() override
+	{
+		// This handles a minimized window. Wait until it has size > 0
+		i32 width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		while (width == 0 || height == 0)
+		{
+			glfwGetFramebufferSize(_window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		return { (u32)width, (u32)height };
+	}
+
+	#pragma endregion
+
+	
+private:
+	// Dependencies
+	std::unique_ptr<VulkanGpuService> _gpuService = nullptr;
+	std::unique_ptr<ResourceManager> _resourceManager;
+	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+
+	
+	const glm::ivec2 _defaultWindowSize = { 800,600 };
+
+	GLFWwindow* _window = nullptr;
+	
+	// Resources
+	/*std::vector<std::unique_ptr<MeshResources>> _meshes{};
+	std::vector<std::unique_ptr<TextureResources>> _textures{};
+	std::vector<std::unique_ptr<Model>> _models{};*/
+
+	// Scene
+	Camera _camera;
+	std::vector<std::unique_ptr<Entity>> _scene{};
+
+	// Time
+	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point _lastTime;
+	float _totalTime = 0;
+	std::chrono::steady_clock::time_point _lastFpsUpdate;
+	const std::chrono::duration<double, std::chrono::seconds::period> _reportFpsRate{ 1 };
+	FpsCounter _fpsCounter{};
+
+
+	void InitWindow()
+	{
+		glfwInit();
+		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
+
+		GLFWwindow* window = glfwCreateWindow(_defaultWindowSize.x, _defaultWindowSize.y, "Vulkan", nullptr, nullptr);
+		if (window == nullptr)
+		{
+			throw std::runtime_error("Failed to create GLFWwindow");
+		}
+		_window = window;
+		g_windowMap.insert(std::make_pair(_window, this));
+
+		//glfwSetWindowUserPointer(_window, this);
+		
+		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
+		glfwSetKeyCallback(_window, KeyCallback);
+		glfwSetCursorPosCallback(_window, CursorPosCallback);
+		glfwSetScrollCallback(_window, ScrollCallback);
+	}
+
+
+	void Update()
+	{
+		// TODO Update scene state
+	}
+
+	
+	#pragma region Scene Management
+
+
+	bool _assetLoaded = false;
+	void LoadAssets()
+	{
+		if (!_assetLoaded) return;
+		_assetLoaded = true;
+
+		
+		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
+		std::cout << "Loading model:" << path << std::endl;
+		RenderableComponent renderable = _resourceManager->LoadRenderableFromFile(path);
+
+		Entity entity;
+		entity.ModelId
+		
+		_scene.
+		
+	/*	const auto modelDefinition = _modelLoaderService->LoadModel(path);
+		if (!modelDefinition.has_value())
+		{
+			std::cerr << "Failed to load model:" << path << std::endl;
+			return;
+		}
+
+*/
+
+		
+		// TODO Safeguard against bad mesh data, handle exceptions and report to user, etc..
+
+		//
+		//auto mesh = _gpuService->LoadMeshResource(modelDefinition.value());
+
+		//// TODO Load materials found in file
+		//
+		//auto basecolorMap = _gpuService->LoadTextureResource(_options.AssetsDir + "Railgun/basecolor.jpg");
+		//auto normalMap = _gpuService->LoadTextureResource(_options.AssetsDir + "Railgun/normal.jpg");
+
+
+		//for (int i = 0; i < 1; i++)
+		//{
+		//	auto model = std::make_unique<Model>();
+		//	
+		//	model->Mesh = mesh.get();
+		//	model->BasecolorMap = basecolorMap.get();
+		//	model->NormalMap = normalMap.get();
+		//	model->Transform.SetPos({ .1 * _models.size(),0,0 });
+		//	model->Infos = _gpuService->CreateModelInfoResources(*model);
+		//	
+		//	_models.emplace_back(std::move(model));
+		//}
+
+		//
+		//// Store results!
+		//_meshes.emplace_back(std::move(mesh));
+		//_textures.emplace_back(std::move(basecolorMap));
+		//_textures.emplace_back(std::move(normalMap));
+	}
+
+	void UnloadAsset()
+	{
+		return;
+		
+		//if (!_assetLoaded) return;
+
+		std::cout << "Unloading asset\n";
+
+
+		//_assetLoaded = false;
+	}
+
+	void FrameAll()
+	{
+		// Nothing to frame?
+		if (_scene.empty())
+		{
+			return; // TODO Setup default scene framing?
+		}
+
+
+		// Compute the bounds of all renderable's in the selection
+		AABB bounds;
+		bool first = true;
+		for (auto& entity : _scene)
+		{
+			
+			auto local = entity->Mesh->Bounds;
+			auto world = local.Transform(model->Transform.GetMatrix());
+
+			if (first)
+			{
+				first = false;
+				bounds = world;
+			}
+			else
+			{
+				bounds = bounds.Merge(world);
+			}
+		}
+
+
+		if (first == true || bounds.IsEmpty())
+		{
+			return;
+		}
+
+
+		// Focus the bounds!
+		auto center = bounds.Center();
+		auto radius = glm::length(bounds.Max() - bounds.Min());
+		const auto framebufferSize = GetFramebufferSize();
+		const f32 viewportAspect = float(framebufferSize.width) / float(framebufferSize.height);
+		_camera.Focus(center, radius, viewportAspect);
+	}
+
+	#pragma endregion
+
+	
+	#pragma region GLFW Callbacks, event handling
+
+	// Callbacks
+	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
+	{
+		g_windowMap[window]->OnScrollChanged(xOffset, yOffset);
+	}
+	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+	{
+		g_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
+	}
+	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
+	{
+		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
+	}
+	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
+	{
+		g_windowMap[window]->OnWindowSizeChanged(width, height);
+		
+	}
+
+
+	bool _firstCursorInput = true;
+	double _lastCursorX{}, _lastCursorY{};
+	
+	// Event handlers
+	void OnScrollChanged(double xOffset, double yOffset)
+	{
+		_camera.ProcessMouseScroll(float(yOffset));
+	}
+	void OnKeyCallback(int key, int scancode, int action, int mods)
+	{
+		// ONLY on pressed is handled
+		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
+
+		if (key == GLFW_KEY_ESCAPE)
+		{
+			glfwSetWindowShouldClose(_window, 1);
+		}
+		// Focus selected
+		if (key == GLFW_KEY_F) { FrameAll(); }
+		
+		if (key == GLFW_KEY_X)
+		{
+			/*if (_assetLoaded)
+			{
+				UnloadAsset();
+			}
+			else*/
+			{
+				LoadAssets();
+			}
+		}
+	}
+	void OnCursorPosChanged(double xPos, double yPos)
+	{
+		// On first input lets remove a snap
+		if (_firstCursorInput)
+		{
+			_lastCursorX = xPos;
+			_lastCursorY = yPos;
+			_firstCursorInput = false;
+		}
+
+		const auto xDiff = xPos - _lastCursorX;
+		const auto yDiff = _lastCursorY - yPos;
+		_lastCursorX = xPos;
+		_lastCursorY = yPos;
+
+
+
+		const auto windowSize = GetFramebufferSize();
+		const glm::vec2 diffRatio{ xDiff / windowSize.width, yDiff / windowSize.height };
+		const auto window = _window;
+		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
+		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
+		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
+
+		// Camera control
+		if (isLmb)
+		{
+			//_camera.ProcessMouseMovement(float(xDiff), float(yDiff));
+
+			const float arcSpeed = 3;
+			_camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
+		}
+		if (isMmb || isRmb)
+		{
+			const auto dir = isMmb
+				? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
+			: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
+
+			const auto len = glm::length(dir);
+			if (len > 0.000001f) // small float
+			{
+				auto speed = Speed::Normal;
+				if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+				{
+					speed = Speed::Slow;
+				}
+				if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+				{
+					speed = Speed::Fast;
+				}
+				_camera.Move(len, glm::normalize(dir), speed);
+			}
+		}
+	}
+	void OnWindowSizeChanged(int width, int height)
+	{
+		FramebufferResized = true;
+	}
+
+	#pragma endregion 
+};

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stbi/stb_image.h>
+
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 
@@ -7,7 +9,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <stbi/stb_image.h>
 
 #include <iostream>
 #include <vector>
@@ -17,50 +18,203 @@
 #include <array>
 #include <chrono>
 #include <string>
-#include <iomanip>
-#include <unordered_map>
 
-#include "Globals.h"
-#include "Types.h"
-#include "Camera.h"
-#include "IModelLoaderService.h"
+#include "../App/Camera.h" // TODO Factor this out
+#include "GpuTypes.h"
+#include "VulkanGpuServiceGlobals.h"
 
 #define OUT // syntax helper
 
-class VulkanTutorial;
-inline std::unordered_map<GLFWwindow*, VulkanTutorial*> g_windowMap;
-
-
-class VulkanTutorial
+class IVulkanGpuServiceDelegate
 {
 public:
-	explicit VulkanTutorial(std::unique_ptr<IModelLoaderService>&& modelLoaderService)
-	{
-		_modelLoaderService = std::move(modelLoaderService);
-	}
-	
+	virtual ~IVulkanGpuServiceDelegate() = default;
+	virtual VkSurfaceKHR CreateSurface(VkInstance instance) const = 0;
+
+	// Renderer stuff
+	virtual VkExtent2D GetFramebufferSize() = 0;
+	virtual Camera UpdateState(float dt) = 0;
+	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
+
+};
+
+class VulkanGpuService
+{
+public:
+
 	std::string ShaderDir{};
 	std::string AssetsDir{};
 	bool FramebufferResized = false;
-
-	void Run()
+	
+	explicit VulkanGpuService(IVulkanGpuServiceDelegate& builder) : _surfaceBuilder(builder)
 	{
-		InitWindow();
 		InitVulkan(g_enableValidationLayers);
-		MainLoop();
-		CleanUp(g_enableValidationLayers);
 	}
+
+
+	void DrawFrame(float dt)
+	{
+		// Sync CPU-GPU
+		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
+
+		// Aquire an image from the swap chain
+		uint32_t imageIndex;
+		VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+			nullptr, &imageIndex);
+
+		if (result == VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			RecreateSwapchain();
+			return;
+		}
+		const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+		if (!isUsable)
+		{
+			throw std::runtime_error("Failed to acquire swapchain image!");
+		}
+
+
+		// If the image is still used by a previous frame, wait for it to finish!
+		if (_imagesInFlight[imageIndex] != nullptr)
+		{
+			vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
+		}
+		// Mark the image as now being in use by this frame
+		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+
+		auto startBench = std::chrono::steady_clock::now();
+
+		auto camera = _surfaceBuilder.UpdateState(dt);
+
+
+		// Calc View & Projection matrices
+		const auto view = camera.GetViewMatrix();
+
+		const auto vfov = 45.f;
+		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
+		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
+
+
+		// Update Model
+		for (auto& model : _models)
+		{
+			UpdateUniformBuffer(imageIndex, model.get(), view, projection, _device);
+		}
+
+		RecordCommandBuffer(
+			_commandBuffers[imageIndex],
+			_models,
+			imageIndex,
+			_swapchainExtent,
+			_swapchainFramebuffers[imageIndex],
+			_renderPass,
+			_pipeline, _pipelineLayout);
+
+
+
+		// Execute command buffer with the image as an attachment in the framebuffer
+		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
+		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
+		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+		const uint32_t signalCount = 1;
+		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
+
+		VkSubmitInfo submitInfo = {};
+		{
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex]; // cmdbuf that binds the swapchain image we acquired as color attachment
+			submitInfo.waitSemaphoreCount = waitCount;
+			submitInfo.pWaitSemaphores = waitSemaphores;
+			submitInfo.pWaitDstStageMask = waitStages;
+			submitInfo.signalSemaphoreCount = signalCount;
+			submitInfo.pSignalSemaphores = signalSemaphores;
+		}
+
+		const std::chrono::duration<double, std::chrono::milliseconds::period> duration
+			= std::chrono::steady_clock::now() - startBench;
+		//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
+
+		vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
+
+		if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to submit Draw Command Buffer");
+		}
+
+
+		// Return the image to the swap chain for presentation
+		std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
+		VkPresentInfoKHR presentInfo = {};
+		{
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = signalSemaphores;
+			presentInfo.swapchainCount = (uint32_t)swapchains.size();
+			presentInfo.pSwapchains = swapchains.data();
+			presentInfo.pImageIndices = &imageIndex;
+			presentInfo.pResults = nullptr;
+		}
+
+		result = vkQueuePresentKHR(_presentQueue, &presentInfo);
+		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		{
+			FramebufferResized = false;
+			RecreateSwapchain();
+		}
+		else if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed ot present swapchain image!");
+		}
+
+		_currentFrame = (_currentFrame + 1) % g_maxFramesInFlight;
+	}
+
+	void CleanUp(bool enableValidationLayers)
+	{
+		vkDeviceWaitIdle(_device);
+
+		CleanupSwapchainAndDependents();
+
+		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+
+		for (auto& mesh : _meshes)
+		{
+			//mesh.Vertices.clear();
+			//mesh.Indices.clear();
+			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
+			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
+		}
+
+		for (auto& texture : _textures)
+		{
+			vkDestroySampler(_device, texture->Sampler, nullptr);
+			vkDestroyImageView(_device, texture->View, nullptr);
+			vkDestroyImage(_device, texture->Image, nullptr);
+			vkFreeMemory(_device, texture->Memory, nullptr);
+		}
+
+		vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
+		vkDestroyCommandPool(_device, _commandPool, nullptr);
+		vkDestroyDevice(_device, nullptr);
+		if (enableValidationLayers) { DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+	}
+
+
 
 private:
 	// Dependencies
-	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
-
-
-
+	IVulkanGpuServiceDelegate& _surfaceBuilder;
 	
-	const glm::ivec2 _defaultWindowSize = { 800,600 };
-
-	GLFWwindow* _window = nullptr;
 	VkInstance _instance = nullptr;
 	VkSurfaceKHR _surface = nullptr;
 	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
@@ -106,43 +260,11 @@ private:
 	VkDescriptorPool _descriptorPool = nullptr;
 
 	// Resources
-	std::vector<std::unique_ptr<MeshResources>> _meshes{};
-	std::vector<std::unique_ptr<TextureResources>> _textures{};
+//	std::vector<std::unique_ptr<MeshResources>> _meshes{};
+//	std::vector<std::unique_ptr<TextureResources>> _textures{};
 
 	// Scene
-	std::vector<std::unique_ptr<Model>> _models{};
-	Camera _camera;
-
-	// Time
-	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
-	std::chrono::steady_clock::time_point _lastTime;
-	float _totalTime = 0;
-	std::chrono::steady_clock::time_point _lastFpsUpdate;
-	const std::chrono::duration<double, std::chrono::seconds::period> _updateRate{ 1 };
-	FpsCounter _fpsCounter{};
-
-	
-	
-	void InitWindow()
-	{
-		glfwInit();
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-
-		GLFWwindow* window = glfwCreateWindow(_defaultWindowSize.x, _defaultWindowSize.y, "Vulkan", nullptr, nullptr);
-		if (window == nullptr)
-		{
-			throw std::runtime_error("Failed to create GLFWwindow");
-		}
-		_window = window;
-		g_windowMap.insert(std::make_pair(_window, this));
-
-		//glfwSetWindowUserPointer(_window, this);
-		
-		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
-		glfwSetKeyCallback(_window, KeyCallback);
-		glfwSetCursorPosCallback(_window, CursorPosCallback);
-		glfwSetScrollCallback(_window, ScrollCallback);
-	}
+//	std::vector<std::unique_ptr<Model>> _models{};
 
 
 	void InitVulkan(bool enableValidationLayers)
@@ -154,7 +276,7 @@ private:
 			_debugMessenger = SetupDebugMessenger(_instance);
 		}
 
-		_surface = CreateSurface(_instance, _window);
+		_surface = _surfaceBuilder.CreateSurface(_instance);
 
 		std::tie(_physicalDevice, _msaaSamples) = PickPhysicalDevice(_instance, _surface);
 
@@ -165,164 +287,14 @@ private:
 
 		_descriptorSetLayout = CreateDescriptorSetLayout(_device);
 
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
 		
-		CreateSwapchainAndDependents(width, height);
+		const auto size = _surfaceBuilder.GetFramebufferSize();
+		CreateSwapchainAndDependents(size.width, size.height);
 		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= CreateSyncObjects(g_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
 	
-
-	void DrawFrame()
-	{		
-		// Sync CPU-GPU
-		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
-
-		// Aquire an image from the swap chain
-		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
-			nullptr, &imageIndex);
-
-		if (result == VK_ERROR_OUT_OF_DATE_KHR)
-		{
-			RecreateSwapchain();
-			return;
-		}
-		const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
-		if (!isUsable)
-		{
-			throw std::runtime_error("Failed to acquire swapchain image!");
-		}
-
-		
-		// If the image is still used by a previous frame, wait for it to finish!
-		if (_imagesInFlight[imageIndex] != nullptr)
-		{
-			vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
-		}
-		// Mark the image as now being in use by this frame
-		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
-
-
-		auto startBench = std::chrono::steady_clock::now();
-
-		
-		// Compute time elapsed
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		_totalTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - _startTime).count();
-		const double dt = std::chrono::duration<double, std::chrono::seconds::period>(currentTime - _lastTime).count();
-		_lastTime = currentTime;
-
-
-		// Report fps
-		_fpsCounter.AddFrameTime(dt);
-		if ((currentTime - _lastFpsUpdate) > _updateRate)
-		{
-			char buffer[32];
-			snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
-			glfwSetWindowTitle(_window, buffer);
-			_lastFpsUpdate = currentTime;
-		}
-
-		
-		// Update Camera
-		const auto vfov = 45.f;
-		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
-		//const auto view = glm::lookAt(glm::vec3{ 1,1,3 }, glm::vec3{ 0,0,0 }, glm::vec3{ 0,1,0 });
-		const auto view = _camera.GetViewMatrix();
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
-		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
-		
-
-		// Update Model
-		for (auto& model : _models)
-		{
-			UpdateUniformBuffer(imageIndex, model.get(), view, projection, _device);
-		}
-
-		RecordCommandBuffer(
-			_commandBuffers[imageIndex],
-			_models,
-			imageIndex,
-			_swapchainExtent,
-			_swapchainFramebuffers[imageIndex],
-			_renderPass,
-			_pipeline, _pipelineLayout);
-
-		
-		
-		// Execute command buffer with the image as an attachment in the framebuffer
-		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
-		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
-		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-		const uint32_t signalCount = 1;
-		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
-		
-		VkSubmitInfo submitInfo = {};
-		{
-			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex]; // cmdbuf that binds the swapchain image we acquired as color attachment
-			submitInfo.waitSemaphoreCount = waitCount;
-			submitInfo.pWaitSemaphores = waitSemaphores;
-			submitInfo.pWaitDstStageMask = waitStages;
-			submitInfo.signalSemaphoreCount = signalCount;
-			submitInfo.pSignalSemaphores = signalSemaphores;
-		}
-
-		const std::chrono::duration<double, std::chrono::milliseconds::period> duration
-			= std::chrono::steady_clock::now() - startBench;
-		//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
-		
-		vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
-
-		if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to submit Draw Command Buffer");
-		}
-
-
-		// Return the image to the swap chain for presentation
-		std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
-		VkPresentInfoKHR presentInfo = {};
-		{
-			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = signalSemaphores;
-			presentInfo.swapchainCount = (uint32_t)swapchains.size();
-			presentInfo.pSwapchains = swapchains.data();
-			presentInfo.pImageIndices = &imageIndex;
-			presentInfo.pResults = nullptr;
-		}
-
-		result = vkQueuePresentKHR(_presentQueue, &presentInfo);
-		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-		{
-			FramebufferResized = false;
-			RecreateSwapchain();
-		}
-		else if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed ot present swapchain image!");
-		}
-
-		_currentFrame = (_currentFrame + 1) % g_maxFramesInFlight;
-	}
-
-
-	void MainLoop()
-	{
-		while (!glfwWindowShouldClose(_window))
-		{
-			glfwPollEvents();
-			DrawFrame();
-		}
-
-		vkDeviceWaitIdle(_device);
-	}
 
 
 	void UpdateUniformBuffer(uint32_t imageIndex, Model* model, const glm::mat4& View, const glm::mat4& Projection, 
@@ -343,44 +315,6 @@ private:
 		vkMapMemory(device, uniformMem, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
 		vkUnmapMemory(device, uniformMem);
-	}
-
-
-	void CleanUp(bool enableValidationLayers)
-	{
-		CleanupSwapchainAndDependents();
-
-		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
-		for (auto& mesh : _meshes)
-		{
-			//mesh.Vertices.clear();
-			//mesh.Indices.clear();
-			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
-			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
-			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
-			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
-		}
-
-		for (auto& texture : _textures)
-		{
-			vkDestroySampler(_device, texture->Sampler, nullptr);
-			vkDestroyImageView(_device, texture->View, nullptr);
-			vkDestroyImage(_device, texture->Image, nullptr);
-			vkFreeMemory(_device, texture->Memory, nullptr);
-		}
-
-		vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
-		vkDestroyCommandPool(_device, _commandPool, nullptr);
-		vkDestroyDevice(_device, nullptr);
-		if (enableValidationLayers) { DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-		vkDestroyInstance(_instance, nullptr);
-		
-		glfwDestroyWindow(_window);
-		glfwTerminate();
 	}
 
 
@@ -486,18 +420,11 @@ private:
 	
 	void RecreateSwapchain()
 	{
-		// This handles a minimized window. Wait until it has size > 0
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		while (width == 0 || height == 0)
-		{
-			glfwGetFramebufferSize(_window, &width, &height);
-			glfwWaitEvents();
-		}
+		auto size = _surfaceBuilder.WaitTillFramebufferHasSize();
 
 		vkDeviceWaitIdle(_device);
 		CleanupSwapchainAndDependents();
-		CreateSwapchainAndDependents(width, height);
+		CreateSwapchainAndDependents(size.width, size.height);
 	}
 
 
@@ -2002,7 +1929,7 @@ private:
 
 	// Associates the UBO and texture to sets for use in shaders
 	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout, 
-		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const TextureResources& basecolorMap, const TextureResources& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
+		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const TextureResource& basecolorMap, const TextureResource& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
 		VkDevice device)
 	{
 		assert(count == uniformBuffers.size());
@@ -2553,363 +2480,5 @@ private:
 
 	#pragma endregion
 
-	
-	#pragma region Scene Management
 
-	//static std::tuple<std::vector<Vertex>,std::vector<uint32_t>, AABB> LoadMeshData(const std::string& modelPath)
-	//{
-	//	tinyobj::attrib_t attrib;
-	//	std::vector<tinyobj::shape_t> shapes;
-	//	std::vector<tinyobj::material_t> materials;
-	//	std::string warn, err;
-
-	//	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPath.c_str()))
-	//	{
-	//		throw std::runtime_error(warn + err);
-	//	}
-
-	//	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
-	//	std::vector<Vertex> vertices;
-	//	std::vector<uint32_t> indices;
-
-	//	for (const auto& shape : shapes)
-	//	{
-	//		for (const auto& tinyIndex : shape.mesh.indices)
-	//		{
-	//			Vertex vertex = {};
-
-	//			vertex.Pos =
-	//			{
-	//				attrib.vertices[3 * tinyIndex.vertex_index + 0],
-	//				attrib.vertices[3 * tinyIndex.vertex_index + 1],
-	//				attrib.vertices[3 * tinyIndex.vertex_index + 2],
-	//			};
-	//			vertex.Normal =
-	//			{
-	//				attrib.normals[3 * tinyIndex.vertex_index + 0],
-	//				attrib.normals[3 * tinyIndex.vertex_index + 1],
-	//				attrib.normals[3 * tinyIndex.vertex_index + 2],
-	//			};
-	//			vertex.TexCoord =
-	//			{
-	//				attrib.texcoords[2 * tinyIndex.texcoord_index + 0],
-	//				1.0f - attrib.texcoords[2 * tinyIndex.texcoord_index + 1], // invert y texCoord to conform to vulkan
-	//			};
-	//			vertex.Color = { 1,1,1 };
-
-
-	//			glm::vec3 tmp{ 1,0,0 };
-	//			vertex.Tangent = glm::cross(tmp, vertex.Normal); // horribly hacky and not actually a tangent!
-	//			
-	//			
-	//			// Check if this vertex is unique
-	//			if (uniqueVertices.count(vertex) == 0)
-	//			{
-	//				const auto newVertIndex = (uint32_t)vertices.size();
-	//				uniqueVertices[vertex] = newVertIndex;
-	//				vertices.emplace_back(vertex);
-	//			}
-
-	//			const uint32_t existingVertIndex = uniqueVertices[vertex];
-	//			indices.push_back(existingVertIndex);
-	//		}
-	//	}
-	//	
-	//	
-	//	// Compute AABB
-	//	std::vector<glm::vec3> positions{ vertices.size() };
-	//	for (size_t i = 0; i< vertices.size(); i++)
-	//	{
-	//		positions[i] = vertices[i].Pos;
-	//	}
-	//	AABB aabb{ positions };
-
-	//	
-	//	std::cout << "Mesh loaded! (" + std::to_string(vertices.size()) + " verts, " << std::to_string(indices.size())
-	//		<< " indices)\n";
-
-	//	
-	//	return { std::move(vertices), std::move(indices), aabb };
-	//}
-
-	std::unique_ptr<TextureResources> LoadTextureResources(const std::string& path) const
-	{
-		auto texture = std::make_unique<TextureResources>();
-
-		// TODO Pull the teture library out of the CreateTextureImage, just work on array of pixels
-		std::tie(texture->Image, texture->Memory, texture->MipLevels, texture->Width, texture->Height)
-			= CreateTextureImage(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
-
-		texture->View = CreateTextureImageView(texture->Image, texture->MipLevels, _device);
-
-		texture->Sampler = CreateTextureSampler(texture->MipLevels, _device);
-
-		return texture;
-	}
-
-	std::unique_ptr<MeshResources> LoadMeshResources(const ModelDefinition& modelDefinition) const
-	{
-		assert(!modelDefinition.Meshes.empty());
-
-
-		// NOTE: Only loading first mesh found in model for now
-		// TODO Load all meshes
-		auto meshDef = modelDefinition.Meshes[0];
-		
-		auto meshResources = std::make_unique<MeshResources>();
-
-		// Compute AABB
-		std::vector<glm::vec3> positions{ meshDef.Vertices.size() };
-		for (size_t i = 0; i < meshDef.Vertices.size(); i++)
-		{
-			positions[i] = meshDef.Vertices[i].Pos;
-		}
-		const AABB bounds{ positions };
-
-		
-		// Load mesh resource
-		meshResources->IndexCount = meshDef.Indices.size();
-		meshResources->VertexCount = meshDef.Vertices.size();
-		meshResources->Bounds = bounds;
-		
-		std::tie(meshResources->VertexBuffer, meshResources->VertexBufferMemory)
-			= CreateVertexBuffer(meshDef.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-
-		std::tie(meshResources->IndexBuffer, meshResources->IndexBufferMemory)
-			= CreateIndexBuffer(meshDef.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
-		
-		return meshResources;
-	}
-
-	
-	void LoadAssets()
-	{
-		if (!_meshes.empty()) return;
-
-		const auto modelDefinition = _modelLoaderService->LoadModel(AssetsDir + "blob/blob.obj");
-
-		//for (const auto& meshDef : modelDefinition.Meshes)
-		//{
-
-		//}
-		
-		// TODO Safeguard against bad mesh data, handle exceptions and report to user, etc..
-		std::cout << "Loading asset\n";
-		auto mesh = LoadMeshResources(modelDefinition);
-
-		// TODO Load materials found in file
-		
-		auto basecolorMap = LoadTextureResources(AssetsDir + "Railgun/basecolor.jpg");
-		auto normalMap = LoadTextureResources(AssetsDir + "Railgun/normal.jpg");
-
-
-		for (int i = 0; i < 1; i++)
-		{
-			auto model = std::make_unique<Model>();
-
-			// Crete model, descriptor sets and uniform buffers
-			model->Mesh = mesh.get();
-			model->BasecolorMap = basecolorMap.get();
-			model->NormalMap = normalMap.get();
-			model->Transform.SetPos({ .1 * _models.size(),0,0 });
-
-			const auto numThingsToMake = _swapchainImages.size();
-
-			std::vector<VkBuffer> uniformBuffers;
-			std::vector<VkDeviceMemory> uniformBuffersMemory;
-			std::vector<VkDescriptorSet> descriptorSets;
-			
-			std::tie(uniformBuffers, uniformBuffersMemory) = CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
-			descriptorSets = CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool, 
-				uniformBuffers, *model->BasecolorMap, *model->NormalMap, _device);
-
-			auto& modelInfos = model->Infos;
-			modelInfos.resize(numThingsToMake);
-			for (auto i = 0; i < numThingsToMake; i++)
-			{
-				modelInfos[i].UniformBuffer = uniformBuffers[i];
-				modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
-				modelInfos[i].DescriptorSet = descriptorSets[i];
-			}
-			
-			_models.emplace_back(std::move(model));
-		}
-
-		
-		// Store results!
-		_meshes.emplace_back(std::move(mesh));
-		_textures.emplace_back(std::move(basecolorMap));
-		_textures.emplace_back(std::move(normalMap));
-	}
-
-	void UnloadAsset()
-	{
-		return;
-		
-		//if (!_assetLoaded) return;
-
-		std::cout << "Unloading asset\n";
-
-
-		//_assetLoaded = false;
-	}
-
-	void FrameAll()
-	{
-		// Nothing to frame?
-		if (_models.empty())
-		{
-			return; // TODO Setup default scene framing?
-		}
-
-
-		// Compute the bounds of all renderable's in the selection
-		AABB bounds;
-		bool first = true;
-		for (auto& model : _models)
-		{
-			auto local = model->Mesh->Bounds;
-			auto world = local.Transform(model->Transform.GetMatrix());
-
-			if (first)
-			{
-				first = false;
-				bounds = world;
-			}
-			else
-			{
-				bounds = bounds.Merge(world);
-			}
-		}
-
-
-		if (first == true || bounds.IsEmpty())
-		{
-			return;
-		}
-
-
-		// Focus the bounds!
-		auto center = bounds.Center();
-		auto radius = glm::length(bounds.Max() - bounds.Min());
-		_camera.Focus(center, radius, float(_swapchainExtent.width) / float(_swapchainExtent.height));
-	}
-
-	#pragma endregion
-
-	
-	#pragma region GLFW Callbacks, event handling
-
-	// Callbacks
-	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
-	{
-		g_windowMap[window]->OnScrollChanged(xOffset, yOffset);
-	}
-	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-	{
-		g_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
-	}
-	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
-	{
-		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
-	}
-	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
-	{
-		g_windowMap[window]->OnWindowSizeChanged(width, height);
-		
-	}
-
-
-	bool _firstCursorInput = true;
-	double _lastCursorX{}, _lastCursorY{};
-	
-	// Event handlers
-	void OnScrollChanged(double xOffset, double yOffset)
-	{
-		_camera.ProcessMouseScroll(float(yOffset));
-	}
-	void OnKeyCallback(int key, int scancode, int action, int mods)
-	{
-		// ONLY on pressed is handled
-		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
-
-		if (key == GLFW_KEY_ESCAPE)
-		{
-			glfwSetWindowShouldClose(_window, 1);
-		}
-		// Focus selected
-		if (key == GLFW_KEY_F) { FrameAll(); }
-		
-		if (key == GLFW_KEY_X)
-		{
-			/*if (_assetLoaded)
-			{
-				UnloadAsset();
-			}
-			else*/
-			{
-				LoadAssets();
-			}
-		}
-	}
-	void OnCursorPosChanged(double xPos, double yPos)
-	{
-		// On first input lets remove a snap
-		if (_firstCursorInput)
-		{
-			_lastCursorX = xPos;
-			_lastCursorY = yPos;
-			_firstCursorInput = false;
-		}
-
-		const auto xDiff = xPos - _lastCursorX;
-		const auto yDiff = _lastCursorY - yPos;
-		_lastCursorX = xPos;
-		_lastCursorY = yPos;
-
-
-
-		
-		const glm::vec2 diffRatio{ xDiff / _swapchainExtent.width, yDiff / _swapchainExtent.height };
-		const auto window = _window;
-		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
-		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
-		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
-
-		// Camera control
-		if (isLmb)
-		{
-			//_camera.ProcessMouseMovement(float(xDiff), float(yDiff));
-
-			const float arcSpeed = 3;
-			_camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
-		}
-		if (isMmb || isRmb)
-		{
-			const auto dir = isMmb
-				? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
-			: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
-
-			const auto len = glm::length(dir);
-			if (len > 0.000001f) // small float
-			{
-				auto speed = Speed::Normal;
-				if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-				{
-					speed = Speed::Slow;
-				}
-				if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-				{
-					speed = Speed::Fast;
-				}
-				_camera.Move(len, glm::normalize(dir), speed);
-			}
-		}
-	}
-	void OnWindowSizeChanged(int width, int height)
-	{
-		FramebufferResized = true;
-	}
-
-	#pragma endregion 
 };

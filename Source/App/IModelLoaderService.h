@@ -1,8 +1,12 @@
 #pragma once
+
+#include "AppTypes.h"
+#include "../Renderer/GpuTypes.h" // Vertex
+
 #include <vector>
 #include <string>
+#include <optional>
 
-#include "Types.h"
 
 enum class TextureType : char
 {
@@ -37,5 +41,5 @@ class IModelLoaderService
 {
 public:
 	virtual ~IModelLoaderService() = default;
-	virtual ModelDefinition LoadModel(const std::string& path) = 0;
+	virtual std::optional<ModelDefinition> LoadModel(const std::string& path) = 0;
 };
