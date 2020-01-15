@@ -4,7 +4,7 @@
 int main()
 {
 	std::unique_ptr<IModelLoaderService> modelLoaderService = std::make_unique<AssImpMeshLoader>();
-	VulkanTutorial app(std::move(modelLoaderService));
+	VulkanTutorial app{ std::move(modelLoaderService) };
 	
 	app.ShaderDir = R"(../Bin/)";
 	app.AssetsDir = R"(../Source/Assets/)";

@@ -22,9 +22,10 @@ struct TextureDefinition
 
 struct MeshDefinition
 {
+	std::string Name{};
 	std::vector<Vertex> Vertices{};
 	std::vector<u32> Indices{};
-	std::vector<TextureDefinition> Textures;
+	std::vector<TextureDefinition> Textures{};
 };
 
 struct ModelDefinition

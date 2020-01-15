@@ -9,7 +9,6 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-class ShaderResource;
 
 class AssImpMeshLoader final : public IModelLoaderService
 {
@@ -62,7 +61,9 @@ private:
 		const std::string& directory)
 	{
 		MeshDefinition meshDefinition{};
-		
+
+		meshDefinition.Name = mesh->mName.C_Str();
+
 		// Get verts
 		for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
 		{
