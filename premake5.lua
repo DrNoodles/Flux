@@ -13,15 +13,16 @@ project "Renderer"
 	objdir "Build/Intermediate/%{cfg.buildcfg}"
 
 	includedirs {
+		"External/assimp/include",
 		"External/glad/include",
 		"External/glfw/include",
 		"External/glm/include",
 		"External/stbi/include",
 		"External/vulkan/include",
-		"External/tinyobjloader/include",
 	}
 
 	libdirs { 
+		"External/assimp/lib",
 		"External/glfw/lib",
 		"External/vulkan/lib",
 	}
@@ -42,9 +43,9 @@ project "Renderer"
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
-		links { "glfw3_x64_debug.lib", "vulkan-1.lib", }
+		links { "glfw3_x64_debug.lib", "vulkan-1.lib", "assimp-vc142-mtd.lib", "IrrXMLd.lib", "zlibstaticd.lib", }
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"
-		links { "glfw3_x64_release.lib", "vulkan-1.lib", }
+		links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", }
