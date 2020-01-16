@@ -1,6 +1,6 @@
 #include "FileService.h"
 
-#include "../../../External/tinyfiledialogs/tinyfiledialogs.h"
+#include <tinyfiledialogs/tinyfiledialogs.h>
 
 #include <fstream>
 #include <iostream>

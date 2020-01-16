@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../Shared/CommonTypes.h"
-#include "../Shared/AABB.h"
+#include <Shared/CommonTypes.h>
+#include <Shared/AABB.h>
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>

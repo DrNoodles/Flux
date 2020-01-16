@@ -142,7 +142,7 @@ private:
 		}
 		return textures;
 	}
-
+	
 	static TextureType MapTextureTypeFromAssimpToShared(aiTextureType aiType)
 	{
 		switch (aiType)

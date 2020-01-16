@@ -13,12 +13,13 @@ project "Renderer"
 	objdir "Build/Intermediate/%{cfg.buildcfg}"
 
 	includedirs {
+		"Source/", -- for <app/*.h> <renderer/*.h> <shared/*.h> includes
 		"External/assimp/include",
-		"External/glad/include",
 		"External/glfw/include",
 		"External/glm/include",
 		"External/stbi/include",
 		"External/vulkan/include",
+		"External/tinyfiledialogs/include/",
 	}
 
 	libdirs { 
@@ -32,13 +33,15 @@ project "Renderer"
 		"Source/**.cpp",
 		"Source/**.frag",
 		"Source/**.vert",
-		"External/glad/src/glad.c",
 		"External/stbi/src/stb_image.cpp",
+		"External/tinyfiledialogs/src/**",
 		"External/imgui/**",
-		"External/tinyfiledialogs/**",
 		"External/imgui-filebrowser/**",
 	}
-	excludes { "External/imgui/main.cpp" }
+
+	excludes { 
+		"External/imgui/main.cpp",
+	}
 
 	filter "configurations:Debug"
 		defines { "DEBUG" }

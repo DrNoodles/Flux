@@ -3,18 +3,24 @@
 
 int main()
 {
-	// Bootstrappin'
-	
-	std::unique_ptr<IModelLoaderService> modelLoaderService = std::make_unique<AssimpModelLoaderService>();
-
-	AppOptions options;
-	options.ShaderDir = R"(../Bin/)";
-	options.AssetsDir = R"(../Source/Assets/)";
-	
-	App app{ options, std::move(modelLoaderService) };
+	// Bootstrap and go
 	
 	try
 	{
+		std::unique_ptr<IModelLoaderService> modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+
+		AppOptions options;
+		options.ShaderDir = R"(../Bin/)";
+		options.AssetsDir = R"(../Source/Assets/)";
+
+		#ifdef DEBUG
+			options.EnabledVulkanValidationLayers = true;
+		#else
+			options.EnabledVulkanValidationLayers = false;
+		#endif
+
+		
+		App app{ options, std::move(modelLoaderService) };
 		app.Run();
 	}
 	catch (const std::exception & e)

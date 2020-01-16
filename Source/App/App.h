@@ -5,9 +5,11 @@
 #include "AppTypes.h"
 #include "ResourceManager.h"
 
-#include "../Shared/AABB.h"
-#include "../Renderer/VulkanGpuService.h"
+#include <Shared/AABB.h>
+#include <Renderer/VulkanGpuService.h>
+#include <Renderer/GpuTypes.h>
 
+#define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
@@ -51,7 +53,7 @@ public:
 		
 		// Init all the things
 		InitWindow();
-		_gpuService = std::make_unique<VulkanGpuService>(*this);
+		_gpuService = std::make_unique<VulkanGpuService>(_options.EnabledVulkanValidationLayers, *this);
 	}
 	~App()
 	{
@@ -61,7 +63,7 @@ public:
 		glfwTerminate();
 	}
 
-	
+
 	void Run()
 	{
 		while (!glfwWindowShouldClose(_window))
@@ -86,12 +88,28 @@ public:
 				_lastFpsUpdate = currentTime;
 			}
 
+			Update(dt);
 			
-			_gpuService->DrawFrame(dt);
+			_gpuService->DrawFrame(dt, _entities, _camera);
 		}
 	}
 
-	
+
+	void Update(const float dt) const
+	{
+		const auto degreesPerSec = 60.f;
+		const auto rotationDelta = dt * glm::radians(degreesPerSec);
+
+		for (const auto& entity : _entities)
+		{
+			auto& transform = entity->Transform;
+
+			auto rot = transform.GetRot();
+			rot.y += rotationDelta;
+			transform.SetRot(rot);
+		}
+	}
+
 
 #pragma region IVulkanGpuServiceDelegate
 	
@@ -110,10 +128,10 @@ public:
 		glfwGetFramebufferSize(_window, &width, &height);
 		return { (u32)width, (u32)height };
 	}
-	Camera UpdateState(float dt) override
-	{
-		return _camera;
-	}
+	//Camera UpdateState(float dt) override
+	//{
+	//	return _camera;
+	//}
 	VkExtent2D WaitTillFramebufferHasSize() override
 	{
 		// This handles a minimized window. Wait until it has size > 0
@@ -142,14 +160,9 @@ private:
 
 	GLFWwindow* _window = nullptr;
 	
-	// Resources
-	/*std::vector<std::unique_ptr<MeshResources>> _meshes{};
-	std::vector<std::unique_ptr<TextureResources>> _textures{};
-	std::vector<std::unique_ptr<Model>> _models{};*/
-
 	// Scene
 	Camera _camera;
-	std::vector<std::unique_ptr<Entity>> _scene{};
+	std::vector<std::unique_ptr<Entity>> _entities{};
 
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
@@ -181,12 +194,6 @@ private:
 		glfwSetScrollCallback(_window, ScrollCallback);
 	}
 
-
-	void Update()
-	{
-		// TODO Update scene state
-	}
-
 	
 	#pragma region Scene Management
 
@@ -200,12 +207,10 @@ private:
 		
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
-		RenderableComponent renderable = _resourceManager->LoadRenderableFromFile(path);
 
 		Entity entity;
-		entity.ModelId
+		entity.Renderable = _resourceManager->LoadRenderableFromFile(path);
 		
-		_scene.
 		
 	/*	const auto modelDefinition = _modelLoaderService->LoadModel(path);
 		if (!modelDefinition.has_value())
@@ -248,57 +253,47 @@ private:
 		//_textures.emplace_back(std::move(normalMap));
 	}
 
-	void UnloadAsset()
-	{
-		return;
-		
-		//if (!_assetLoaded) return;
-
-		std::cout << "Unloading asset\n";
-
-
-		//_assetLoaded = false;
-	}
-
+	
 	void FrameAll()
 	{
 		// Nothing to frame?
-		if (_scene.empty())
+		if (_entities.empty())
 		{
 			return; // TODO Setup default scene framing?
 		}
 
 
 		// Compute the bounds of all renderable's in the selection
-		AABB bounds;
+		AABB totalBounds;
 		bool first = true;
-		for (auto& entity : _scene)
+		for (auto& entity : _entities)
 		{
+			Model modelRes = _resourceManager->GetModel(entity->Renderable.ModelId);
+			auto localBounds = modelRes.Mesh->Bounds;
 			
-			auto local = entity->Mesh->Bounds;
-			auto world = local.Transform(model->Transform.GetMatrix());
+			auto worldBounds = localBounds.Transform(model->Transform.GetMatrix());
 
 			if (first)
 			{
 				first = false;
-				bounds = world;
+				totalBounds = worldBounds;
 			}
 			else
 			{
-				bounds = bounds.Merge(world);
+				totalBounds = totalBounds.Merge(worldBounds);
 			}
 		}
 
 
-		if (first == true || bounds.IsEmpty())
+		if (first == true || totalBounds.IsEmpty())
 		{
 			return;
 		}
 
 
 		// Focus the bounds!
-		auto center = bounds.Center();
-		auto radius = glm::length(bounds.Max() - bounds.Min());
+		auto center = totalBounds.Center();
+		auto radius = glm::length(totalBounds.Max() - totalBounds.Min());
 		const auto framebufferSize = GetFramebufferSize();
 		const f32 viewportAspect = float(framebufferSize.width) / float(framebufferSize.height);
 		_camera.Focus(center, radius, viewportAspect);
@@ -342,24 +337,9 @@ private:
 		// ONLY on pressed is handled
 		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
 
-		if (key == GLFW_KEY_ESCAPE)
-		{
-			glfwSetWindowShouldClose(_window, 1);
-		}
-		// Focus selected
-		if (key == GLFW_KEY_F) { FrameAll(); }
-		
-		if (key == GLFW_KEY_X)
-		{
-			/*if (_assetLoaded)
-			{
-				UnloadAsset();
-			}
-			else*/
-			{
-				LoadAssets();
-			}
-		}
+		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
+		if (key == GLFW_KEY_F)      { FrameAll(); }
+		if (key == GLFW_KEY_X)      { LoadAssets(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
