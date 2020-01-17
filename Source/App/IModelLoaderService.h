@@ -2,7 +2,7 @@
 
 #include "AppTypes.h"
 
-#include <Renderer/GpuTypes.h> // Vertex
+#include "Renderer/GpuTypes.h" // Vertex
 
 #include <vector>
 #include <string>

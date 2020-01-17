@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Shared/CommonTypes.h>
-#include <Shared/AABB.h>
+#include "Shared/CommonTypes.h"
+#include "Shared/AABB.h"
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -142,15 +142,14 @@ struct ModelInfoResource // for lack of a better name...
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct Model
+struct ModelResource
 {
 	MeshResource* Mesh = nullptr;
 	TextureResource* BasecolorMap = nullptr;
 	TextureResource* NormalMap = nullptr;
 
-	// TODO Eventually make these Infos auto generate in an unordered map, has would be the unique combination of mesh and texture resources
-
 	// Array containing one per frame in flight
+	// TODO Eventually make these Infos auto generate in an unordered map, has would be the unique combination of mesh and texture resources
 	std::vector<ModelInfoResource> Infos{};
 };
 

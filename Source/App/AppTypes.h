@@ -1,7 +1,8 @@
 #pragma once
 
-#include <Shared/CommonTypes.h>
-#include <Shared/Transform.h>
+#include "Shared/CommonTypes.h"
+#include "Shared/Transform.h"
+
 #include <string>
 #include <vector>
 
@@ -14,14 +15,14 @@ struct AppOptions
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct RenderableMesh
-{
-	u32 ModelId = u32_max;
-
-	// Material
-	u32 BasecolorMapId = u32_max;
-	u32 NormalMapId = u32_max;
-};
+//struct RenderableMesh
+//{
+//	u32 ModelId = u32_max;
+//
+//	// Material
+//	u32 BasecolorMapId = u32_max;
+//	u32 NormalMapId = u32_max;
+//};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct RenderableComponent

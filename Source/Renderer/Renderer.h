@@ -3,9 +3,8 @@
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
 
-#include <App/Camera.h> // TODO Factor this out
+#include "App/Camera.h" // TODO Factor this out
 
-#include <stbi/stb_image.h>
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
@@ -14,19 +13,17 @@
 
 #include <iostream>
 #include <vector>
-#include <optional>
 #include <set>
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <string>
 
 using vkh = VulkanHelpers;
 
-class IVulkanGpuServiceDelegate
+class IRendererDelegate
 {
 public:
-	virtual ~IVulkanGpuServiceDelegate() = default;
+	virtual ~IRendererDelegate() = default;
 	virtual VkSurfaceKHR CreateSurface(VkInstance instance) const = 0;
 
 	// Renderer stuff
@@ -35,7 +32,7 @@ public:
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
 };
 
-class VulkanGpuService
+class Renderer
 {
 public:
 
@@ -43,13 +40,17 @@ public:
 	std::string AssetsDir{};
 	bool FramebufferResized = false;
 	
-	explicit VulkanGpuService(bool enableValidationLayers, IVulkanGpuServiceDelegate& builder) : _surfaceBuilder(builder)
+	explicit Renderer(bool enableValidationLayers, IRendererDelegate& delegate) : _delegate(delegate)
 	{
 		_enableValidationLayers = enableValidationLayers;
 		InitVulkan();
 	}
 
-	void DrawFrame(float dt, const std::vector<std::unique_ptr<Entity>>& entities, const Camera& camera)
+	
+	void DrawFrame(float dt, 
+		const std::vector<std::unique_ptr<Entity>>& entities,
+		const std::vector<std::unique_ptr<ModelResource>>& modelResources,
+		const Camera& camera)
 	{
 		// Sync CPU-GPU
 		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
@@ -95,7 +96,7 @@ public:
 		for (const auto& entity : entities) // TODO pass in entities from outside
 		{
 			UpdateUniformBuffer(
-				_models[entity->Renderable.ModelId]->Infos[imageIndex].UniformBufferMemory, // eww
+				modelResources[entity->Renderable.ModelId]->Infos[imageIndex].UniformBufferMemory, // eww
 				entity->Transform.GetMatrix(),
 				camera.GetViewMatrix(), 
 				projection, 
@@ -104,7 +105,7 @@ public:
 
 		vkh::RecordCommandBuffer(
 			_commandBuffers[imageIndex],
-			_models,
+			modelResources,
 			imageIndex,
 			_swapchainExtent,
 			_swapchainFramebuffers[imageIndex],
@@ -173,6 +174,7 @@ public:
 	}
 
 
+	// TODO convert to RAII?
 	void CleanUp()
 	{
 		vkDeviceWaitIdle(_device);
@@ -213,7 +215,7 @@ public:
 
 private:
 	// Dependencies
-	IVulkanGpuServiceDelegate& _surfaceBuilder;
+	IRendererDelegate& _delegate;
 
 
 	const size_t _maxFramesInFlight = 2;
@@ -268,13 +270,6 @@ private:
 	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
 	VkDescriptorPool _descriptorPool = nullptr;
 
-	// Resources
-	std::vector<std::unique_ptr<MeshResource>> _meshes{};
-	std::vector<std::unique_ptr<TextureResource>> _textures{};
-
-	// Scene
-	std::vector<std::unique_ptr<Model>> _models{};
-
 
 	void InitVulkan()
 	{
@@ -285,7 +280,7 @@ private:
 			_debugMessenger = vkh::SetupDebugMessenger(_instance);
 		}
 
-		_surface = _surfaceBuilder.CreateSurface(_instance);
+		_surface = _delegate.CreateSurface(_instance);
 
 		std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
 
@@ -297,7 +292,7 @@ private:
 		_descriptorSetLayout = vkh::CreateDescriptorSetLayout(_device);
 
 		
-		const auto size = _surfaceBuilder.GetFramebufferSize();
+		const auto size = _delegate.GetFramebufferSize();
 		CreateSwapchainAndDependents(size.width, size.height);
 		
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
@@ -388,7 +383,8 @@ private:
 		const uint32_t numDescSetGroups = 1000; // Max renderable objects! This is gross, but it'll do for now.
 		_descriptorPool = vkh::CreateDescriptorPool((uint32_t)numImagesInFlight * numDescSetGroups, _device);
 
-		
+
+		// Create uniform buffers and descriptor sets per image in swapchain
 		for (auto& model : _models)
 		{
 			std::vector<VkBuffer> uniformBuffers;
@@ -413,6 +409,7 @@ private:
 			}
 		}
 
+		
 		_commandBuffers = vkh::CreateCommandBuffers(
 			(uint32_t)numImagesInFlight,
 			_models,
@@ -426,7 +423,7 @@ private:
 	
 	void RecreateSwapchain()
 	{
-		auto size = _surfaceBuilder.WaitTillFramebufferHasSize();
+		auto size = _delegate.WaitTillFramebufferHasSize();
 
 		vkDeviceWaitIdle(_device);
 		CleanupSwapchainAndDependents();

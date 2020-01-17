@@ -5,9 +5,9 @@
 #include "AppTypes.h"
 #include "ResourceManager.h"
 
-#include <Shared/AABB.h>
-#include <Renderer/VulkanGpuService.h>
-#include <Renderer/GpuTypes.h>
+#include "Shared/AABB.h"
+#include "Renderer/Renderer.h"
+#include "Renderer/GpuTypes.h"
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
@@ -32,12 +32,11 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 // TODO Extract IWindow interface and VulkanWindow impl from App
-class App final : public IVulkanGpuServiceDelegate
+class App final : public IRendererDelegate
 {
 public:
 
 	bool FramebufferResized = false;
-	AppOptions _options;
 
 
 	explicit App(
@@ -53,11 +52,11 @@ public:
 		
 		// Init all the things
 		InitWindow();
-		_gpuService = std::make_unique<VulkanGpuService>(_options.EnabledVulkanValidationLayers, *this);
+		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, *this);
 	}
 	~App()
 	{
-		_gpuService->CleanUp();
+		_renderer->CleanUp();
 
 		glfwDestroyWindow(_window);
 		glfwTerminate();
@@ -90,7 +89,7 @@ public:
 
 			Update(dt);
 			
-			_gpuService->DrawFrame(dt, _entities, _camera);
+			_renderer->DrawFrame(dt, _entities, _resourceManager->GetModelResources(), _camera);
 		}
 	}
 
@@ -111,7 +110,7 @@ public:
 	}
 
 
-#pragma region IVulkanGpuServiceDelegate
+	#pragma region IVulkanGpuServiceDelegate
 	
 	VkSurfaceKHR CreateSurface(VkInstance instance) const override
 	{
@@ -151,14 +150,15 @@ public:
 	
 private:
 	// Dependencies
-	std::unique_ptr<VulkanGpuService> _gpuService = nullptr;
+	std::unique_ptr<Renderer> _renderer = nullptr;
 	std::unique_ptr<ResourceManager> _resourceManager;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 
 	
 	const glm::ivec2 _defaultWindowSize = { 800,600 };
-
 	GLFWwindow* _window = nullptr;
+	AppOptions _options;
+
 	
 	// Scene
 	Camera _camera;
@@ -197,65 +197,26 @@ private:
 	
 	#pragma region Scene Management
 
-
 	bool _assetLoaded = false;
-	void LoadAssets()
+	void LoadAssets() 
 	{
-		if (!_assetLoaded) return;
+		if (!_assetLoaded) { return; }
 		_assetLoaded = true;
 
-		
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
-
-		Entity entity;
-		entity.Renderable = _resourceManager->LoadRenderableFromFile(path);
 		
-		
-	/*	const auto modelDefinition = _modelLoaderService->LoadModel(path);
-		if (!modelDefinition.has_value())
-		{
-			std::cerr << "Failed to load model:" << path << std::endl;
-			return;
-		}
-
-*/
-
-		
-		// TODO Safeguard against bad mesh data, handle exceptions and report to user, etc..
-
-		//
-		//auto mesh = _gpuService->LoadMeshResource(modelDefinition.value());
-
-		//// TODO Load materials found in file
-		//
-		//auto basecolorMap = _gpuService->LoadTextureResource(_options.AssetsDir + "Railgun/basecolor.jpg");
-		//auto normalMap = _gpuService->LoadTextureResource(_options.AssetsDir + "Railgun/normal.jpg");
-
-
-		//for (int i = 0; i < 1; i++)
-		//{
-		//	auto model = std::make_unique<Model>();
-		//	
-		//	model->Mesh = mesh.get();
-		//	model->BasecolorMap = basecolorMap.get();
-		//	model->NormalMap = normalMap.get();
-		//	model->Transform.SetPos({ .1 * _models.size(),0,0 });
-		//	model->Infos = _gpuService->CreateModelInfoResources(*model);
-		//	
-		//	_models.emplace_back(std::move(model));
-		//}
-
-		//
-		//// Store results!
-		//_meshes.emplace_back(std::move(mesh));
-		//_textures.emplace_back(std::move(basecolorMap));
-		//_textures.emplace_back(std::move(normalMap));
+		auto entity = std::make_unique<Entity>();
+		entity->Renderable = _resourceManager->LoadRenderableComponentFromFile(path);
+		_entities.emplace_back(std::move(entity));
 	}
 
 	
 	void FrameAll()
 	{
+		// TODO Fix this method!
+		return;
+		/*
 		// Nothing to frame?
 		if (_entities.empty())
 		{
@@ -268,7 +229,7 @@ private:
 		bool first = true;
 		for (auto& entity : _entities)
 		{
-			Model modelRes = _resourceManager->GetModel(entity->Renderable.ModelId);
+			ModelResource modelRes = _resourceManager->GetModel(entity->Renderable.ModelId);
 			auto localBounds = modelRes.Mesh->Bounds;
 			
 			auto worldBounds = localBounds.Transform(model->Transform.GetMatrix());
@@ -297,8 +258,10 @@ private:
 		const auto framebufferSize = GetFramebufferSize();
 		const f32 viewportAspect = float(framebufferSize.width) / float(framebufferSize.height);
 		_camera.Focus(center, radius, viewportAspect);
+		*/
 	}
 
+	
 	#pragma endregion
 
 	

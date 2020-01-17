@@ -3,7 +3,7 @@
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
 
-#include <Shared/FileService.h>
+#include "Shared/FileService.h"
 
 #include <stbi/stb_image.h>
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
@@ -1287,7 +1287,7 @@ public:
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		uint32_t numBuffersToCreate,
 
-		const std::vector<std::unique_ptr<Model>>& models,
+		const std::vector<std::unique_ptr<ModelResource>>& models,
 		VkExtent2D swapchainExtent,
 		const std::vector<VkFramebuffer>& swapchainFramebuffers,
 
@@ -1315,6 +1315,7 @@ public:
 			throw std::runtime_error("Failed to allocate Command Buffers");
 		}
 
+		// TODO Is recording necessary as part of the create? We're rebuilding this per frame anyways
 		for (uint32_t i = 0; i < commandBuffers.size(); ++i)
 		{
 			RecordCommandBuffer(
@@ -1334,7 +1335,7 @@ public:
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 
-		const std::vector<std::unique_ptr<Model>>& models,
+		const std::vector<std::unique_ptr<ModelResource>>& models,
 		int frameIndex,
 
 		VkExtent2D swapchainExtent,
