@@ -19,7 +19,8 @@ project "Renderer"
 		"External/glm/include",
 		"External/stbi/include",
 		"External/vulkan/include",
-		"External/tinyfiledialogs/include/",
+		"External/tinyfiledialogs/",
+		"External/imgui/",
 	}
 
 	libdirs { 
@@ -36,11 +37,11 @@ project "Renderer"
 		"External/stbi/src/stb_image.cpp",
 		"External/tinyfiledialogs/**",
 		"External/imgui/**",
-		"External/imgui-filebrowser/**",
+		--"External/imgui-filebrowser/**",
 	}
 
 	excludes { 
-		"External/imgui/main.cpp",
+		"External/imgui/imgui/main.cpp",
 	}
 
 	filter "configurations:Debug"
