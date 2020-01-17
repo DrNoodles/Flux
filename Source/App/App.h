@@ -1,13 +1,13 @@
 #pragma once
 
 #include "IModelLoaderService.h"
+#include "AssImpModelLoaderService.h"
 #include "Camera.h"
 #include "AppTypes.h"
-#include "ResourceManager.h"
+#include "SceneManager.h"
 
 #include "Shared/AABB.h"
 #include "Renderer/Renderer.h"
-#include "Renderer/GpuTypes.h"
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
@@ -38,21 +38,19 @@ public:
 
 	bool FramebufferResized = false;
 
-
-	explicit App(
-		AppOptions options,
-		std::unique_ptr<ResourceManager>&& resourceManager,
-		std::unique_ptr<IModelLoaderService>&& modelLoaderService)
-		
+	
+	explicit App(AppOptions options)
 	{
 		// Set Dependencies
 		_options = std::move(options);
-		_resourceManager = std::move(resourceManager);
-		_modelLoaderService = std::move(modelLoaderService);
 		
 		// Init all the things
 		InitWindow();
-		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, *this);
+
+		// Services
+		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir, *this);
+		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+		_sceneManager = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
 	}
 	~App()
 	{
@@ -88,8 +86,7 @@ public:
 			}
 
 			Update(dt);
-			
-			_renderer->DrawFrame(dt, _entities, _resourceManager->GetModelResources(), _camera);
+			Draw(dt);
 		}
 	}
 
@@ -97,7 +94,7 @@ public:
 	void Update(const float dt) const
 	{
 		const auto degreesPerSec = 60.f;
-		const auto rotationDelta = dt * glm::radians(degreesPerSec);
+		const auto rotationDelta = dt * degreesPerSec;
 
 		for (const auto& entity : _entities)
 		{
@@ -107,6 +104,21 @@ public:
 			rot.y += rotationDelta;
 			transform.SetRot(rot);
 		}
+	}
+
+	
+	void Draw(const float dt) const
+	{
+		std::vector<ModelResourceId> models(_entities.size());
+		std::vector<glm::mat4> transforms(_entities.size());
+		
+		for (size_t i = 0; i < _entities.size(); i++)
+		{
+			models[i] = _entities[i]->Renderable.ModelResId;
+			transforms[i] = _entities[i]->Transform.GetMatrix();
+		}
+
+		_renderer->DrawFrame(dt, models, transforms, _camera.GetViewMatrix());
 	}
 
 
@@ -151,9 +163,8 @@ public:
 private:
 	// Dependencies
 	std::unique_ptr<Renderer> _renderer = nullptr;
-	std::unique_ptr<ResourceManager> _resourceManager;
+	std::unique_ptr<SceneManager> _sceneManager = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
-
 	
 	const glm::ivec2 _defaultWindowSize = { 800,600 };
 	GLFWwindow* _window = nullptr;
@@ -200,14 +211,14 @@ private:
 	bool _assetLoaded = false;
 	void LoadAssets() 
 	{
-		if (!_assetLoaded) { return; }
+		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 		
 		auto entity = std::make_unique<Entity>();
-		entity->Renderable = _resourceManager->LoadRenderableComponentFromFile(path);
+		entity->Renderable = _sceneManager->LoadRenderableComponentFromFile(path);
 		_entities.emplace_back(std::move(entity));
 	}
 

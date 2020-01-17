@@ -34,7 +34,7 @@ project "Renderer"
 		"Source/**.frag",
 		"Source/**.vert",
 		"External/stbi/src/stb_image.cpp",
-		"External/tinyfiledialogs/src/**",
+		"External/tinyfiledialogs/**",
 		"External/imgui/**",
 		"External/imgui-filebrowser/**",
 	}

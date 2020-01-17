@@ -1,14 +1,19 @@
 #include "App.h"
 #include "AssImpModelLoaderService.h"
 
+
+
 int main()
 {
+	
 	// Bootstrap and go
+
 	
 	try
 	{
-		std::unique_ptr<IModelLoaderService> modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+		
 
+		
 		AppOptions options;
 		options.ShaderDir = R"(../Bin/)";
 		options.AssetsDir = R"(../Source/Assets/)";
@@ -20,7 +25,7 @@ int main()
 		#endif
 
 		
-		App app{ options, std::move(modelLoaderService) };
+		App app{ options };
 		app.Run();
 	}
 	catch (const std::exception & e)

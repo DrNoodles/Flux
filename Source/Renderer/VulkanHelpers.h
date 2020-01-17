@@ -1386,7 +1386,7 @@ public:
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 					vkCmdBindIndexBuffer(commandBuffer, model->Mesh->IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-						&model->Infos[frameIndex].DescriptorSet, 0, nullptr);
+						&model->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 					/*const void* pValues;
 					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
 					vkCmdDrawIndexed(commandBuffer, (uint32_t)model->Mesh->IndexCount, 1, 0, 0, 0);

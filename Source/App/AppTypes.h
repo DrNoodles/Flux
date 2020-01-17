@@ -2,6 +2,7 @@
 
 #include "Shared/CommonTypes.h"
 #include "Shared/Transform.h"
+#include "Renderer/GpuTypes.h" // ModelResourceId - TODO Factor this out
 
 #include <string>
 #include <vector>
@@ -27,12 +28,13 @@ struct AppOptions
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct RenderableComponent
 {
+	ModelResourceId ModelResId;
 	//std::vector<RenderableMesh> Meshes; // TODO Support N submeshes
-	u32 ModelId = u32_max;
+	//u32 ModelId = u32_max;
 
-	// Material
-	u32 BasecolorMapId = u32_max;
-	u32 NormalMapId = u32_max;
+	//// Material
+	//u32 BasecolorMapId = u32_max;
+	//u32 NormalMapId = u32_max;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

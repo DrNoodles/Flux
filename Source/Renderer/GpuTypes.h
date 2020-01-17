@@ -12,6 +12,27 @@
 #include <optional>
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template <typename T>
+struct ResourceId
+{
+	u32 Id = u32_max;
+	ResourceId() = default;
+	ResourceId(u32 id) : Id{ id } {}
+	bool IsValid() const { return Id != u32_max; }
+	// TODO equality checks
+};
+
+struct ModelIdType;
+struct MeshIdType;
+struct TextureIdType;
+//struct ShaderIdType;
+typedef ResourceId<ModelIdType> ModelResourceId;
+typedef ResourceId<MeshIdType> MeshResourceId;
+typedef ResourceId<TextureIdType> TextureResourceId;
+//typedef ResourceId<ShaderIdType> ShaderResourceId;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniformBufferObject
 {
@@ -121,6 +142,13 @@ struct TextureResource
 	uint32_t MipLevels;
 };
 
+struct CreateModelResourceInfo
+{
+	MeshResourceId Mesh;
+	TextureResourceId BasecolorMap;
+	TextureResourceId NormalMap;
+};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct MeshResource
 {
@@ -134,7 +162,7 @@ struct MeshResource
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ModelInfoResource // for lack of a better name...
+struct ModelResourceFrame // for lack of a better name...
 {
 	VkDescriptorSet DescriptorSet;
 	VkBuffer UniformBuffer;
@@ -150,7 +178,7 @@ struct ModelResource
 
 	// Array containing one per frame in flight
 	// TODO Eventually make these Infos auto generate in an unordered map, has would be the unique combination of mesh and texture resources
-	std::vector<ModelInfoResource> Infos{};
+	std::vector<ModelResourceFrame> FrameResources{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

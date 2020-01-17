@@ -3,8 +3,6 @@
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
 
-#include "App/Camera.h" // TODO Factor this out
-
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
@@ -35,12 +33,10 @@ public:
 class Renderer
 {
 public:
-
-	std::string ShaderDir{};
-	std::string AssetsDir{};
 	bool FramebufferResized = false;
 	
-	explicit Renderer(bool enableValidationLayers, IRendererDelegate& delegate) : _delegate(delegate)
+	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, IRendererDelegate& delegate)
+		: _delegate(delegate), _shaderDir(shaderDir)
 	{
 		_enableValidationLayers = enableValidationLayers;
 		InitVulkan();
@@ -48,10 +44,12 @@ public:
 
 	
 	void DrawFrame(float dt, 
-		const std::vector<std::unique_ptr<Entity>>& entities,
-		const std::vector<std::unique_ptr<ModelResource>>& modelResources,
-		const Camera& camera)
+		const std::vector<ModelResourceId>& modelResourceIds,
+		const std::vector<glm::mat4>& transforms,
+		const glm::mat4& view)
 	{
+		assert(modelResourceIds.size() == transforms.size());
+		
 		// Sync CPU-GPU
 		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
 
@@ -93,19 +91,20 @@ public:
 		projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 
 		// Update Model
-		for (const auto& entity : entities) // TODO pass in entities from outside
+		for (size_t i = 0; i < modelResourceIds.size(); i++)
 		{
+
 			UpdateUniformBuffer(
-				modelResources[entity->Renderable.ModelId]->Infos[imageIndex].UniformBufferMemory, // eww
-				entity->Transform.GetMatrix(),
-				camera.GetViewMatrix(), 
+				_models[modelResourceIds[i].Id]->FrameResources[imageIndex].UniformBufferMemory,
+				transforms[i],
+				view, 
 				projection, 
 				_device);
 		}
 
 		vkh::RecordCommandBuffer(
 			_commandBuffers[imageIndex],
-			modelResources,
+			_models,
 			imageIndex,
 			_swapchainExtent,
 			_swapchainFramebuffers[imageIndex],
@@ -213,19 +212,82 @@ public:
 
 
 
+
+	TextureResourceId CreateTextureResource(const std::string& path)
+	{
+		auto tex = std::make_unique<TextureResource>();
+
+		// TODO Pull the teture library out of the CreateTextureImage, just work on an TextureDefinition struct that
+			// has an array of pixels and width, height, channels, etc
+
+		std::tie(tex->Image, tex->Memory, tex->MipLevels, tex->Width, tex->Height)
+			= vkh::CreateTextureImage(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
+
+		tex->View = vkh::CreateTextureImageView(tex->Image, tex->MipLevels, _device);
+
+		tex->Sampler = vkh::CreateTextureSampler(tex->MipLevels, _device);
+
+		const auto id = TextureResourceId(_textures.size());
+		_textures.emplace_back(std::move(tex));
+
+		return id;
+	}
+	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition)
+	{
+		auto mesh = std::make_unique<MeshResource>();
+
+		// Compute AABB
+		std::vector<glm::vec3> positions{ meshDefinition.Vertices.size() };
+		for (size_t i = 0; i < meshDefinition.Vertices.size(); i++)
+		{
+			positions[i] = meshDefinition.Vertices[i].Pos;
+		}
+		const AABB bounds{ positions };
+
+
+		// Load mesh resource
+		mesh->IndexCount = meshDefinition.Indices.size();
+		mesh->VertexCount = meshDefinition.Vertices.size();
+		mesh->Bounds = bounds;
+
+		std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
+			= vkh::CreateVertexBuffer(meshDefinition.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
+			= vkh::CreateIndexBuffer(meshDefinition.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+
+		
+		const auto id = (MeshResourceId)_meshes.size();
+		_meshes.emplace_back(std::move(mesh));
+		
+		return id;
+	}
+	ModelResourceId CreateModelResource(const CreateModelResourceInfo& createModelResourceInfo)
+	{
+		auto model = std::make_unique<ModelResource>();
+
+		model->Mesh = _meshes[createModelResourceInfo.Mesh.Id].get();
+		model->BasecolorMap = _textures[createModelResourceInfo.BasecolorMap.Id].get();
+		model->NormalMap = _textures[createModelResourceInfo.NormalMap.Id].get();
+		model->FrameResources = CreateModelFrameResources(*model);
+
+		const auto id = (ModelResourceId)_models.size();
+		_models.emplace_back(std::move(model));
+		
+		return id;
+	}
+
+
 private:
 	// Dependencies
 	IRendererDelegate& _delegate;
 
-
 	const size_t _maxFramesInFlight = 2;
-
+	std::string _shaderDir{};
 	bool _enableValidationLayers = false;
-
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
 	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-	
 	VkInstance _instance = nullptr;
 	VkSurfaceKHR _surface = nullptr;
 	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
@@ -270,6 +332,11 @@ private:
 	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
 	VkDescriptorPool _descriptorPool = nullptr;
 
+	// Resources
+	std::vector<std::unique_ptr<ModelResource>> _models{};
+	std::vector<std::unique_ptr<MeshResource>> _meshes{};
+	std::vector<std::unique_ptr<TextureResource>> _textures{};
+
 
 	void InitVulkan()
 	{
@@ -291,7 +358,6 @@ private:
 
 		_descriptorSetLayout = vkh::CreateDescriptorSetLayout(_device);
 
-		
 		const auto size = _delegate.GetFramebufferSize();
 		CreateSwapchainAndDependents(size.width, size.height);
 		
@@ -331,7 +397,7 @@ private:
 
 		for (auto& model : _models)
 		{
-			for (auto& info : model->Infos)
+			for (auto& info : model->FrameResources)
 			{
 				vkDestroyBuffer(_device, info.UniformBuffer, nullptr);
 				vkFreeMemory(_device, info.UniformBufferMemory, nullptr); 
@@ -369,7 +435,7 @@ private:
 		_renderPass = vkh::CreateRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
 		std::tie(_pipeline, _pipelineLayout)
-			= vkh::CreateGraphicsPipeline(ShaderDir, _descriptorSetLayout, _msaaSamples, _renderPass, _device,
+			= vkh::CreateGraphicsPipeline(_shaderDir, _descriptorSetLayout, _msaaSamples, _renderPass, _device,
 				_swapchainExtent);
 
 		_swapchainFramebuffers
@@ -398,7 +464,7 @@ private:
 				_device);
 
 			
-			auto& modelInfos = model->Infos;
+			auto& modelInfos = model->FrameResources;
 			modelInfos.resize(numImagesInFlight);
 
 			for (auto i = 0; i < numImagesInFlight; i++)
@@ -430,4 +496,32 @@ private:
 		CreateSwapchainAndDependents(size.width, size.height);
 	}
 
+
+	std::vector<ModelResourceFrame> CreateModelFrameResources(const ModelResource& model) const
+	{
+		std::vector<ModelResourceFrame> modelInfos{};
+
+		std::vector<VkBuffer> uniformBuffers;
+		std::vector<VkDeviceMemory> uniformBuffersMemory;
+		std::vector<VkDescriptorSet> descriptorSets;
+		const auto numThingsToMake = _swapchainImages.size();
+
+
+		std::tie(uniformBuffers, uniformBuffersMemory) = vkh::CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+
+
+		descriptorSets = vkh::CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool,
+			uniformBuffers, *model.BasecolorMap, *model.NormalMap, _device);
+
+
+		modelInfos.resize(numThingsToMake);
+		for (auto i = 0; i < numThingsToMake; i++)
+		{
+			modelInfos[i].UniformBuffer = uniformBuffers[i];
+			modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
+			modelInfos[i].DescriptorSet = descriptorSets[i];
+		}
+
+		return modelInfos;
+	}
 };
