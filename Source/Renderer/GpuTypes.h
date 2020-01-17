@@ -12,7 +12,6 @@
 #include <optional>
 
 
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename T>
 struct ResourceId
@@ -44,11 +43,11 @@ struct UniformBufferObject
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Vertex
 {
-	alignas(16) glm::vec3 Pos;
-	alignas(16) glm::vec3 Normal;
-	alignas(16) glm::vec3 Color;
-	alignas(16) glm::vec2 TexCoord;
-	alignas(16) glm::vec3 Tangent;
+	glm::vec3 Pos;
+	glm::vec3 Normal;
+	glm::vec3 Color;
+	glm::vec2 TexCoord;
+	glm::vec3 Tangent;
 
 	bool operator==(const Vertex& other) const
 	{

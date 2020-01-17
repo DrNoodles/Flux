@@ -1380,16 +1380,18 @@ public:
 
 				for (const auto& model : models)
 				{
+					const auto& mesh = *model->Mesh;
+					
 					// Draw mesh
-					VkBuffer vertexBuffers[] = { model->Mesh->VertexBuffer };
+					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, model->Mesh->IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
 						&model->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 					/*const void* pValues;
 					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-					vkCmdDrawIndexed(commandBuffer, (uint32_t)model->Mesh->IndexCount, 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 				}
 			}
 			vkCmdEndRenderPass(commandBuffer);

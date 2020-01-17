@@ -9,7 +9,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <iostream>
 #include <vector>
 #include <set>
 #include <array>
@@ -35,8 +34,8 @@ class Renderer
 public:
 	bool FramebufferResized = false;
 	
-	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, IRendererDelegate& delegate)
-		: _delegate(delegate), _shaderDir(shaderDir)
+	explicit Renderer(bool enableValidationLayers, std::string shaderDir, IRendererDelegate& delegate)
+		: _delegate(delegate), _shaderDir(std::move(shaderDir))
 	{
 		_enableValidationLayers = enableValidationLayers;
 		InitVulkan();
@@ -209,8 +208,6 @@ public:
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkDestroyInstance(_instance, nullptr);
 	}
-
-
 
 
 	TextureResourceId CreateTextureResource(const std::string& path)

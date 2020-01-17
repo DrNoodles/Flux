@@ -211,13 +211,14 @@ private:
 	bool _assetLoaded = false;
 	void LoadAssets() 
 	{
-		if (_assetLoaded) { return; }
-		_assetLoaded = true;
+		//if (_assetLoaded) { return; }
+		//_assetLoaded = true;
 
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 		
 		auto entity = std::make_unique<Entity>();
+		entity->Transform.SetPos(glm::vec3{ _entities.size(), 0, 0 });
 		entity->Renderable = _sceneManager->LoadRenderableComponentFromFile(path);
 		_entities.emplace_back(std::move(entity));
 	}

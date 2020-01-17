@@ -5,15 +5,9 @@
 
 int main()
 {
-	
-	// Bootstrap and go
-
-	
 	try
 	{
-		
-
-		
+		// Config options
 		AppOptions options;
 		options.ShaderDir = R"(../Bin/)";
 		options.AssetsDir = R"(../Source/Assets/)";
@@ -24,7 +18,8 @@ int main()
 			options.EnabledVulkanValidationLayers = false;
 		#endif
 
-		
+
+		// Run it
 		App app{ options };
 		app.Run();
 	}
