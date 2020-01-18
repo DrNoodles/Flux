@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Shared/Transform.h"
+#include "App/Entity/TransformComponent.h"
 
 #include <glm/vec3.hpp>
 
@@ -13,7 +13,7 @@ public:
 	bool UniformScale = true;
 	
 	TransformVm() = default;
-	explicit TransformVm(Transform* target)
+	explicit TransformVm(TransformComponent* target)
 		: _target(target)
 	{
 		Refresh();
@@ -99,6 +99,6 @@ public:
 		}
 	}
 private:
-	Transform* _target = nullptr;
+	TransformComponent* _target = nullptr;
 };
 

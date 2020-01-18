@@ -28,7 +28,8 @@ void PropsView::DrawUI(int selectionCount,
 	std::optional<RenderableVm>& rvm,
 	std::optional<LightVm>& lvm) const
 {
-	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
+		| ImGuiWindowFlags_NoCollapse;
 	
 	if (ImGui::Begin("RightPanel", nullptr, paneFlags))
 	{
@@ -52,7 +53,7 @@ void PropsView::DrawUI(int selectionCount,
 		{
 			ImGui::Spacing();
 			ImGui::Spacing();
-			DrawRenderablePanel(rvm.value());
+			//DrawRenderablePanel(rvm.value());
 		}
 
 
@@ -105,7 +106,7 @@ void SubSectionSpacing()
 	ImGui::Spacing();
 	ImGui::Spacing();
 }
-
+/*
 void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 {
 	if (ImGui::CollapsingHeader("Model", headerFlags))
@@ -491,3 +492,4 @@ void PropsView::Normals(RenderableVm& rvm) const
 
 	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) rvm.CommitChanges();
 }
+*/

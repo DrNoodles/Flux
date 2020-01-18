@@ -2,6 +2,8 @@
 
 #include "AppTypes.h"
 #include "IModelLoaderService.h"
+#include "Entity/RenderableComponent.h"
+
 #include "Renderer/Renderer.h"
 
 #include <unordered_map>

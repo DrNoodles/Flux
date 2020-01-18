@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "AppTypes.h"
 #include "SceneManager.h"
+#include "Entity/Entity.h"
 
 #include "Shared/AABB.h"
 #include "Renderer/Renderer.h"

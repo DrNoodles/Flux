@@ -3,11 +3,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-class Transform
+class TransformComponent
 {
 public:
-	Transform() = default;
-	Transform(glm::vec3 pos, glm::vec3 rot, glm::vec3 scale)
+	TransformComponent() = default;
+	TransformComponent(glm::vec3 pos, glm::vec3 rot, glm::vec3 scale)
 	{
 		_position = pos;
 		_rotation = rot;

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../../Renderer/Entity/Entity.h"
-#include "../../Renderer/GpuResources/ResourceManager.h"
 #include "PropsView.h"
 #include "TransformVm.h"
 #include "RenderableVm.h"
 #include "LightVm.h"
+
+#include "App/Entity.h"
 
 
 // Purpose of the class is to take app state, prepare it for view, create view and inject the view data.
@@ -18,7 +18,7 @@ public:
 	// Precondition: selection must NOT be null if selectionCount = 1
 	void Draw(int selectionCount, Entity* selection, 
 		const std::vector<TextureResource*>& textures, 
-		const std::vector<IMeshResource*>& models,
+		const std::vector<MeshResource*>& models,
 		ResourceManager* res)
 	{
 		if (selectionCount != 1)

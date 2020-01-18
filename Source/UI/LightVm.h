@@ -1,19 +1,19 @@
 #pragma once
 
-#include "../../Renderer/GpuResources/ResourceManager.h"
-#include "../../Renderer/Entity/Light.h"
+#include "App/Entity/LightComponent.h"
 #include <algorithm>
+
 
 class LightVm
 {
 public:
 	LightVm() = delete;
-	explicit LightVm(Light* target) : _target(target)
+	explicit LightVm(LightComponent* target) : _target(target)
 	{
 		Update();
 	}
 
-	Light::Types Type{};
+	LightComponent::Types Type{};
 	glm::vec3 Color{};
 	float Intensity = 1;
 
@@ -31,5 +31,5 @@ public:
 
 	
 private:
-	Light* _target = nullptr;
+	LightComponent* _target = nullptr;
 };
