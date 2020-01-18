@@ -25,7 +25,6 @@ public:
 
 	// Renderer stuff
 	virtual VkExtent2D GetFramebufferSize() = 0;
-	//virtual Camera UpdateState(float dt) = 0;
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
 };
 
@@ -110,9 +109,6 @@ public:
 			_renderPass,
 			_pipeline, _pipelineLayout);
 
-
-		//_delegate.DrawUI(_commandBuffers[imageIndex]);
-		
 
 		// Execute command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
@@ -298,11 +294,11 @@ private:
 	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkSwapchainKHR _swapchain = nullptr;
+	VkFormat _swapchainImageFormat{};
+	VkExtent2D _swapchainExtent{};
 	std::vector<VkFramebuffer> _swapchainFramebuffers{};
 	std::vector<VkImage> _swapchainImages{};
 	std::vector<VkImageView> _swapchainImageViews{};
-	VkFormat _swapchainImageFormat{};
-	VkExtent2D _swapchainExtent{};
 
 	// Color image
 	VkImage _colorImage = nullptr;
