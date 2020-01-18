@@ -14,10 +14,11 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) in vec3 inTangent;
 //layout(location = 5) in vec3 inBitangent;
 
-layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 fragTexCoord;
-layout(location = 2) out vec3 fragNormal;
-layout(location = 3) out mat3 fragTBN;
+layout(location = 0) out vec3 fragPos; // in world space
+layout(location = 1) out vec3 fragColor;
+layout(location = 2) out vec2 fragTexCoord;
+layout(location = 3) out vec3 fragNormal;
+layout(location = 4) out mat3 fragTBN;
 
 void main() 
 {
@@ -29,6 +30,7 @@ void main()
 	mat3 normalMatrix = transpose(inverse(mat3(ubo.model)));
 
 	// Outputs
+	fragPos = vec3(ubo.model * vec4(inPosition, 1.0));
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 	fragNormal = normalize(normalMatrix * inNormal);

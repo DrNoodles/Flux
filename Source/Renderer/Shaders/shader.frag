@@ -3,27 +3,28 @@
 layout(binding = 1) uniform sampler2D basecolorTexSampler;
 layout(binding = 2) uniform sampler2D normalTexSampler;
 
-layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in mat3 fragTBN;
+layout(location = 0) in vec3 fragPos;
+layout(location = 1) in vec3 fragColor;
+layout(location = 2) in vec2 fragTexCoord;
+layout(location = 3) in vec3 fragNormal;
+layout(location = 4) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 
 // Directional Light (no attenuation)
-const float dirLightStrength = 10;
-const vec3 dirLightColor = vec3(1,1,1);
-const vec3 dirLightDir = normalize(vec3(-1,1,1));
+const float dirLightStrength = 1;
+const vec3 dirLightColor = vec3(0.2,0.2,0.8);
+const vec3 dirLightDir = normalize(vec3(-1,-1,1));
 
 // Point Light (with attenuation)
-const float pointLightStrength = 10;
-const vec3 pointLightColor = vec3(1,1,1);
-const vec3 pointLightPos = normalize(vec3(-10,-10,-10));
+const float pointLightStrength = 40;
+const vec3 pointLightColor = vec3(10,0.7,0.6);
+const vec3 pointLightPos = vec3(20,5,0);
 
 const bool doDisplayDebugNormalMap = false;
 
 // Tonemapping
-const float exposureBias = 0.5;
+const float exposureBias = 1.0;
 
 
 vec3 GetNormalFromMap()
@@ -86,15 +87,24 @@ void main()
 		return;
 	}
 
+	vec3 ambientLight = vec3(0.1,0.1,0.1);
+	vec3 lightContribution = vec3(0,0,0);
+
 	// Directional light
 	float dirLightfactor = max(dot(dirLightDir, normal),0);
-	vec3 dirLightContribution = dirLightStrength * dirLightfactor * dirLightColor;
+	lightContribution += dirLightStrength * dirLightfactor * dirLightColor;
+
 
 	// Point light
+	vec3 pointLightDisplacement = pointLightPos - fragPos;
+	float pointLightDistance = length(pointLightDisplacement);
+	vec3 pointLightDir = pointLightDisplacement / pointLightDistance;
+	float pointLightAttenuation = 1 / (pointLightDistance * pointLightDistance);
+	float pointLightfactor = max(dot(pointLightDir, normal),0);
+	lightContribution += pointLightStrength * pointLightAttenuation * pointLightfactor * pointLightColor;
 
-	vec3 color = dirLightContribution * texture(basecolorTexSampler, fragTexCoord).rgb;
 
-
+	vec3 color = (ambientLight + lightContribution) * texture(basecolorTexSampler, fragTexCoord).rgb;
 
 	// Tonemap  
 	color *= exposureBias;
