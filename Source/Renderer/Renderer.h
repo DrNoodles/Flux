@@ -111,6 +111,8 @@ public:
 			_pipeline, _pipelineLayout);
 
 
+		//_delegate.DrawUI(_commandBuffers[imageIndex]);
+		
 
 		// Execute command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index

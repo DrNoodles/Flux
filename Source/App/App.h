@@ -1,31 +1,34 @@
 #pragma once
 
-#include "IModelLoaderService.h"
+#include "AppTypes.h"
 #include "AssImpModelLoaderService.h"
 #include "Camera.h"
-#include "AppTypes.h"
-#include "SceneManager.h"
 #include "Entity/Entity.h"
+#include "IModelLoaderService.h"
+#include "SceneManager.h"
+#include "UI/PropsView.h"
+#include "UI/ScenePane.h"
 
-#include "Shared/AABB.h"
-#include "Renderer/Renderer.h"
+#include <Renderer/Renderer.h>
 
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_vulkan.h>
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <stbi/stb_image.h>
+#include <vulkan/vulkan.h>
 
-#include <iostream>
-#include <utility>
-#include <vector>
 #include <algorithm>
 #include <chrono>
-#include <string>
 #include <iomanip>
+#include <iostream>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 
 class App;
@@ -157,6 +160,43 @@ public:
 
 		return { (u32)width, (u32)height };
 	}
+	//void DrawUI(VkCommandBuffer commandBuffer)
+	//{
+	//	// Start the Dear ImGui frame
+	//	ImGui_ImplVulkan_NewFrame();
+	//	ImGui_ImplGlfw_NewFrame();
+	//	ImGui::NewFrame();
+	//	{
+			/*
+			glViewport(0, 0, _windowWidth, _windowWidth);
+
+			// Scene Pane
+
+			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
+			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
+
+			auto& entsView = _sceneController.EntitiesView();
+			std::vector<Entity*> allEnts{ entsView.size() };
+			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
+				{
+					return pe.get();
+				});
+			IblVm iblVm{ &_sceneController, &_renderOptions };
+			_scenePane.DrawUI(allEnts, _selection, iblVm);
+
+
+			// Properties Pane
+			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
+			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
+
+			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+			_propsPresenter.Draw((int)_selection.size(), selection, _textures, _meshes, _gpuResourceService.get());
+			*/
+	/*	}
+		ImGui::EndFrame();
+		ImGui::Render();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+	}*/
 
 	#pragma endregion
 
@@ -205,6 +245,21 @@ private:
 		glfwSetCursorPosCallback(_window, CursorPosCallback);
 		glfwSetScrollCallback(_window, ScrollCallback);
 	}
+
+	
+	//void InitUI()
+	//{
+	//	IMGUI_CHECKVERSION();
+	//	ImGui::CreateContext();
+	//	
+	//	ImGui::StyleColorsLight();
+
+	//	// Setup Platform/Renderer bindings
+	//	ImGui_ImplGlfw_InitForVulkan(_window, true);
+	//	const char* glsl_version = "#version 330";
+	//	
+	//	ImGui_ImplVulkan_Init(glsl_version);
+	//}
 
 	
 	#pragma region Scene Management

@@ -2,7 +2,13 @@
 #include "App/SceneManager.h"
 
 #include <cassert>
-//
+
+class IblVm final
+{
+	
+};
+
+
 //class IblVm final
 //{
 //public:
