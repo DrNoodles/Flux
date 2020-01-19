@@ -1,12 +1,12 @@
 #version 450
 
-layout(binding = 0, std140) uniform UniversalUbo
+layout(std140, binding = 0) uniform UniversalUbo
 {
-	bool drawNormalMap;
-	float exposureBias;
 	mat4 model;
 	mat4 view;
 	mat4 projection;
+	float drawNormalMap;
+	float exposureBias;
 } ubo;
 
 layout(location = 0) in vec3 inPosition;

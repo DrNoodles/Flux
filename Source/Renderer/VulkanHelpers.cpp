@@ -1597,9 +1597,14 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 	VkDevice device, VkPhysicalDevice physicalDevice)
 {
 	// Input - TODO Pass this in
-	
 	VkDeviceSize uboSize;
 
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+	const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
+	const size_t maxUboRange = props.limits.maxUniformBufferRange;
+
+	
 	if (true)
 	{
 		uboSize = sizeof(UniversalUbo);

@@ -287,10 +287,16 @@ void Renderer::UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, const glm
 		ubo.Model = model;
 		ubo.View = view;
 		ubo.Projection = projection;
-		ubo.DrawNormalMap = false;
+		ubo.DrawNormalMap = 1;
 		ubo.ExposureBias = 3.0f;
 	}
 
+	auto odnm = offsetof(UniversalUbo, DrawNormalMap);
+	auto oeb = offsetof(UniversalUbo, ExposureBias);
+	auto om = offsetof(UniversalUbo, Model);
+	auto ov = offsetof(UniversalUbo, View);
+	auto op = offsetof(UniversalUbo, Projection);
+	
 	auto f = sizeof(ubo);
 	auto x = sizeof(i32);
 	auto z = sizeof(f32);
@@ -299,8 +305,8 @@ void Renderer::UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, const glm
 	auto a = sizeof(ubo.Model);
 	auto b = sizeof(ubo.View);
 	auto c = sizeof(ubo.Projection);
-	//auto d = sizeof(ubo.DrawNormalMap);
-	//auto e = sizeof(ubo.ExposureBias);
+	auto d = sizeof(ubo.DrawNormalMap);
+	auto e = sizeof(ubo.ExposureBias);
 
 	// Push ubo
 	void* data;

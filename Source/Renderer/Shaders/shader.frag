@@ -1,12 +1,12 @@
 #version 450
 
-layout(binding = 0, std140) uniform UniversalUbo
+layout(std140, binding = 0) uniform UniversalUbo
 {
-	bool drawNormalMap;
-	float exposureBias;
 	mat4 model;
 	mat4 view;
 	mat4 projection;
+	float drawNormalMap;
+	float exposureBias;
 } ubo;
 layout(binding = 1) uniform sampler2D basecolorTexSampler;
 layout(binding = 2) uniform sampler2D normalTexSampler;
@@ -81,7 +81,7 @@ void main()
 {
 	vec3 normal = GetNormalFromMap();
 	
-	if (ubo.drawNormalMap)
+	if (ubo.drawNormalMap > 0.001)
 	{
 		// map from [-1,1] > [0,1]
 		vec3 mappedNormal = (normal * 0.5) + 0.5;

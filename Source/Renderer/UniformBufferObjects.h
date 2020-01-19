@@ -9,10 +9,18 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniversalUbo
-{                                   // Offets
-	alignas(16) bool DrawNormalMap;  // 16
-	alignas(16) f32 ExposureBias;    // 0
-	alignas(16) glm::mat4 Model;     // 32
-	alignas(16) glm::mat4 View;      // 96
-	alignas(16) glm::mat4 Projection;// 160
+{                            // Size  Effective Size
+	 alignas(16) glm::mat4 Model;         // 64    (64 > 64)
+	 alignas(16) glm::mat4 View;          // 64    (64 > 64)
+	 alignas(16) glm::mat4 Projection;    // 64    (64 > 64)
+	 alignas(16) f32 ExposureBias;        // 4     ( 4 > 16)
+	 alignas(16) f32 DrawNormalMap;       // 4     ( 4 > 16)
+	 alignas(16) char Pad[32];
+
+private:
+	//alignas(16) glm::vec4 _padding{}; // 224   ( 16 > 16)
+	//alignas(16) glm::vec4 _padding2{};// 224   ( 16 > 16)
+	//alignas(16) glm::vec4 _padding3{};// 224   ( 16 > 16)
+	//alignas(16) glm::vec4 _padding4{};// 224   ( 16 > 16)
+												 // Total 256
 };
