@@ -5,8 +5,8 @@ layout(std140, binding = 0) uniform UniversalUbo
 	mat4 model;
 	mat4 view;
 	mat4 projection;
-	float drawNormalMap;
-	float exposureBias;
+	vec4 showNormalMap; // bool in  [0]
+	vec4 exposureBias;  // float in [0]
 } ubo;
 
 layout(location = 0) in vec3 inPosition;

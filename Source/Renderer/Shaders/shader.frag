@@ -5,8 +5,8 @@ layout(std140, binding = 0) uniform UniversalUbo
 	mat4 model;
 	mat4 view;
 	mat4 projection;
-	float drawNormalMap;
-	float exposureBias;
+	vec4 showNormalMap; // bool in  [0]
+	vec4 exposureBias;  // float in [0]
 } ubo;
 layout(binding = 1) uniform sampler2D basecolorTexSampler;
 layout(binding = 2) uniform sampler2D normalTexSampler;
@@ -79,9 +79,12 @@ vec3 ACESFitted(vec3 color)
 
 void main() 
 {
+	const bool drawNormalMap = bool(ubo.showNormalMap[0]);
+	const float exposureBias = ubo.exposureBias[0];
+
 	vec3 normal = GetNormalFromMap();
 	
-	if (ubo.drawNormalMap > 0.001)
+	if (drawNormalMap)
 	{
 		// map from [-1,1] > [0,1]
 		vec3 mappedNormal = (normal * 0.5) + 0.5;
@@ -109,7 +112,7 @@ void main()
 	vec3 color = (ambientLight + lightContribution) * texture(basecolorTexSampler, fragTexCoord).rgb;
 
 	// Tonemap  
-	color *= ubo.exposureBias;
+	color *= exposureBias;
 	color = ACESFitted(color);
 
 
