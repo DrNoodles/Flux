@@ -41,7 +41,7 @@ project "Renderer"
 	}
 
 	excludes { 
-		"External/imgui/imgui/main.cpp",
+		"External/imgui/imgui/main_vulkan.cpp",
 	}
 
 	filter "configurations:Debug"

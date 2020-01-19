@@ -1282,8 +1282,6 @@ public:
 	}
 
 
-
-
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		uint32_t numBuffersToCreate,
 
@@ -1454,7 +1452,7 @@ public:
 			uboLayoutBinding.binding = 0; // correlates to shader
 			uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			uboLayoutBinding.descriptorCount = 1;
-			uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+			uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; // TODO Is it more effecient to create a buffer per stage?
 			uboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
 		}
 		VkDescriptorSetLayoutBinding basecolorMapLayoutBinding = {};
@@ -1463,7 +1461,7 @@ public:
 			basecolorMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			basecolorMapLayoutBinding.descriptorCount = 1;
 			basecolorMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			basecolorMapLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+			basecolorMapLayoutBinding.pImmutableSamplers = nullptr;
 		}
 		VkDescriptorSetLayoutBinding normalMapLayoutBinding = {};
 		{
@@ -1471,10 +1469,12 @@ public:
 			normalMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			normalMapLayoutBinding.descriptorCount = 1;
 			normalMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			normalMapLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+			normalMapLayoutBinding.pImmutableSamplers = nullptr;
 		}
 
-		std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, basecolorMapLayoutBinding, normalMapLayoutBinding };
+		std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+			uboLayoutBinding, basecolorMapLayoutBinding, normalMapLayoutBinding
+		};
 
 
 		// Create descriptor set layout
@@ -1533,8 +1533,8 @@ public:
 
 	// Associates the UBO and texture to sets for use in shaders
 	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout,
-		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const TextureResource& basecolorMap, const TextureResource& normalMap,/*VkImageView imageView, VkSampler imageSampler, */
-		VkDevice device)
+		VkDescriptorPool pool, const std::vector<VkBuffer>& uniformBuffers, const TextureResource& basecolorMap, 
+		const TextureResource& normalMap, VkDevice device)
 	{
 		assert(count == uniformBuffers.size());
 
@@ -1567,7 +1567,7 @@ public:
 			{
 				bufferInfo.buffer = uniformBuffers[i];
 				bufferInfo.offset = 0;
-				bufferInfo.range = sizeof(UniformBufferObject);
+				bufferInfo.range = sizeof(UniversalUbo);
 			}
 			{
 				descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1580,7 +1580,6 @@ public:
 				descriptorWrites[0].pImageInfo = nullptr;
 				descriptorWrites[0].pTexelBufferView = nullptr;
 			}
-
 
 
 			// Basecolor Map  -  Texture image descriptor set
@@ -1632,8 +1631,20 @@ public:
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
 		CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
-		const VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+		// Input - TODO Pass this in
+		//const VkDeviceSize bufferSize = sizeof(UniversalUbo);
 
+		VkPhysicalDeviceProperties props;
+		vkGetPhysicalDeviceProperties(physicalDevice, &props);
+		
+		const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
+		auto dynamicAlignment = sizeof(UniversalUbo);
+		if (minUboAlignment > 0) {
+			dynamicAlignment = (dynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
+		}
+		size_t bufferSize = count * dynamicAlignment;
+		//uboDataDynamic.model = (glm::mat4*)alignedAlloc(bufferSize, dynamicAlignment);
+		
 		std::vector<VkBuffer> buffers{ count };
 		std::vector<VkDeviceMemory> buffersMemory{ count };
 

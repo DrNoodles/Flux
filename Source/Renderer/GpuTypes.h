@@ -13,6 +13,16 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct UniversalUbo
+{
+	alignas(16) float ExposureBias;
+	alignas(16) bool DrawNormalMap;
+	alignas(16) glm::mat4 Model;
+	alignas(16) glm::mat4 View;
+	alignas(16) glm::mat4 Projection;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <typename T>
 struct ResourceId
 {
@@ -33,15 +43,6 @@ typedef ResourceId<TextureIdType> TextureResourceId;
 //typedef ResourceId<ShaderIdType> ShaderResourceId;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct UniformBufferObject
-{
-	alignas(16) glm::mat4 Model;
-	alignas(16) glm::mat4 View;
-	alignas(16) glm::mat4 Projection;
-	//alignas(16) f32 ExposureBias;
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Vertex
 {
 	glm::vec3 Pos;
@@ -54,7 +55,7 @@ struct Vertex
 	{
 		return Pos == other.Pos && Color == other.Color && TexCoord == other.TexCoord;
 	}
-	
+
 	static VkVertexInputBindingDescription BindingDescription()
 	{
 		VkVertexInputBindingDescription bindingDesc = {};
@@ -117,14 +118,14 @@ namespace std
 			const size_t colorHash = hash<glm::vec3>()(vertex.Color);
 			const size_t texCoordHash = hash<glm::vec2>()(vertex.TexCoord);
 			const size_t tangentCoordHash = hash<glm::vec2>()(vertex.Tangent);
-		//	const size_t bitangentCoordHash = hash<glm::vec2>()(vertex.Bitangent);
+			//	const size_t bitangentCoordHash = hash<glm::vec2>()(vertex.Bitangent);
 
 			const size_t join1 = (posHash ^ (normalHash << 1)) >> 1;
 			const size_t join2 = (join1 ^ (colorHash << 1)) >> 1;
 			const size_t join3 = (join2 ^ (texCoordHash << 1)) >> 1;
 			const size_t join4 = (join3 ^ (tangentCoordHash << 1));// >> 1;
 		//	const size_t join5 = (join4 ^ (bitangentCoordHash << 1));
-			
+
 			return join4;
 		}
 	};

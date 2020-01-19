@@ -1,5 +1,13 @@
 #version 450
 
+layout(binding = 0, std140) uniform UniversalUbo
+{
+	float exposureBias;
+	bool drawNormalMap;
+	mat4 model;
+	mat4 view;
+	mat4 projection;
+} ubo;
 layout(binding = 1) uniform sampler2D basecolorTexSampler;
 layout(binding = 2) uniform sampler2D normalTexSampler;
 
@@ -11,6 +19,8 @@ layout(location = 4) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 
+const float PI = 3.14159265359;
+
 // Directional Light (no attenuation)
 const float dirLightStrength = 1;
 const vec3 dirLightColor = vec3(0.2,0.2,0.8);
@@ -21,10 +31,6 @@ const float pointLightStrength = 40;
 const vec3 pointLightColor = vec3(10,0.7,0.6);
 const vec3 pointLightPos = vec3(20,5,0);
 
-const bool doDisplayDebugNormalMap = false;
-
-// Tonemapping
-const float exposureBias = 1.0;
 
 
 vec3 GetNormalFromMap()
@@ -71,15 +77,11 @@ vec3 ACESFitted(vec3 color)
 
 
 
-
-
-
-
 void main() 
 {
 	vec3 normal = GetNormalFromMap();
 	
-	if (doDisplayDebugNormalMap)
+	if (ubo.drawNormalMap)
 	{
 		// map from [-1,1] > [0,1]
 		vec3 mappedNormal = (normal * 0.5) + 0.5;
@@ -107,7 +109,7 @@ void main()
 	vec3 color = (ambientLight + lightContribution) * texture(basecolorTexSampler, fragTexCoord).rgb;
 
 	// Tonemap  
-	color *= exposureBias;
+	color *= ubo.exposureBias;
 	color = ACESFitted(color);
 
 

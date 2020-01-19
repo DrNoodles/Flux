@@ -1,7 +1,9 @@
 #version 450
 
-layout(binding = 0) uniform UniformBufferObject
+layout(binding = 0, std140) uniform UniversalUbo
 {
+	float exposureBias;
+	bool drawNormalMap;
 	mat4 model;
 	mat4 view;
 	mat4 projection;
@@ -12,7 +14,6 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inColor;
 layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) in vec3 inTangent;
-//layout(location = 5) in vec3 inBitangent;
 
 layout(location = 0) out vec3 fragPos; // in world space
 layout(location = 1) out vec3 fragColor;
@@ -23,7 +24,6 @@ layout(location = 4) out mat3 fragTBN;
 void main() 
 {
 	vec3 T = normalize(vec3(ubo.model * vec4(inTangent, 0)));
-//	vec3 B = normalize(vec3(ubo.model * vec4(inBitangent, 0)));
 	vec3 N = normalize(vec3(ubo.model * vec4(inNormal, 0)));
 	vec3 B = normalize(cross(N,T));
 

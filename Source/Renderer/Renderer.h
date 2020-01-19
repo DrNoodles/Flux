@@ -222,7 +222,7 @@ public:
 
 		tex->Sampler = vkh::CreateTextureSampler(tex->MipLevels, _device);
 
-		const auto id = TextureResourceId(_textures.size());
+		const TextureResourceId id = (u32)_textures.size();
 		_textures.emplace_back(std::move(tex));
 
 		return id;
@@ -252,7 +252,7 @@ public:
 			= vkh::CreateIndexBuffer(meshDefinition.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
 
 		
-		const auto id = (MeshResourceId)_meshes.size();
+		const MeshResourceId id = (u32)_meshes.size();
 		_meshes.emplace_back(std::move(mesh));
 		
 		return id;
@@ -266,7 +266,7 @@ public:
 		model->NormalMap = _textures[createModelResourceInfo.NormalMap.Id].get();
 		model->FrameResources = CreateModelFrameResources(*model);
 
-		const auto id = (ModelResourceId)_models.size();
+		const ModelResourceId id = (u32)_models.size();
 		_models.emplace_back(std::move(model));
 		
 		return id;
@@ -365,13 +365,14 @@ private:
 		const glm::mat4& view, const glm::mat4& projection, VkDevice device)
 	{
 		// Create new ubo
-		UniformBufferObject ubo = {};
+		UniversalUbo ubo = {};
 		{
 			ubo.Model = model;
 			ubo.View = view;
 			ubo.Projection = projection;
+			ubo.DrawNormalMap = false;
+			ubo.ExposureBias = 1.0f;
 		}
-
 		// Push ubo
 		void* data;
 		vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
