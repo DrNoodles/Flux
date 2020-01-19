@@ -1,5 +1,4 @@
 #pragma once
-#include "App/SceneManager.h"
 
 #include <cassert>
 

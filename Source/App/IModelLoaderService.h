@@ -9,16 +9,6 @@
 #include <optional>
 
 
-enum class TextureType : char
-{
-	Undefined = 0,
-	BaseColor,
-	Metalness,
-	Roughness,
-	AmbientOcclusion,
-	Normals,
-};
-
 struct TextureDefinition
 {
 	TextureType Type{};

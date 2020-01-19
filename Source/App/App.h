@@ -1,11 +1,12 @@
 #pragma once
 
 #include "AppTypes.h"
-#include "AssImpModelLoaderService.h"
 #include "Camera.h"
 #include "Entity/Entity.h"
+#include "FpsCounter.h"
 #include "IModelLoaderService.h"
 #include "SceneManager.h"
+#include "AssImpModelLoaderService.h"
 #include "UI/PropsView.h"
 #include "UI/ScenePane.h"
 

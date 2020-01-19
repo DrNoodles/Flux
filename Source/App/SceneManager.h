@@ -1,13 +1,12 @@
 #pragma once
 
-#include "AppTypes.h"
 #include "IModelLoaderService.h"
-#include "Entity/RenderableComponent.h"
 
-#include "Renderer/Renderer.h"
+#include <Renderer/Renderer.h>
 
 #include <unordered_map>
 
+class RenderableComponent;
 
 // GPU loaded resources
 class SceneManager

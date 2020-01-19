@@ -1,7 +1,4 @@
 #include "App.h"
-#include "AssImpModelLoaderService.h"
-
-
 
 int main()
 {

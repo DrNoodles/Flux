@@ -2,8 +2,8 @@
 
 layout(binding = 0, std140) uniform UniversalUbo
 {
-	float exposureBias;
 	bool drawNormalMap;
+	float exposureBias;
 	mat4 model;
 	mat4 view;
 	mat4 projection;

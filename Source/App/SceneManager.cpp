@@ -1,15 +1,10 @@
 
 #include "SceneManager.h"
-
-#include "Renderer/VulkanHelpers.h"
+#include "Entity/RenderableComponent.h"
 
 #include <vector>
-#include <memory>
 #include <unordered_map>
 #include <iostream>
-
-using vkh = VulkanHelpers;
-
 
 RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
