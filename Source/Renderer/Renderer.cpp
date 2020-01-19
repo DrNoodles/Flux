@@ -24,7 +24,7 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir,
 }
 
 void Renderer::DrawFrame(float dt, const std::vector<ModelResourceId>& modelResourceIds,
-                         const std::vector<glm::mat4>& transforms, const glm::mat4& view)
+                         const std::vector<glm::mat4>& transforms, const glm::mat4& view, const glm::vec3& camPos)
 {
 	assert(modelResourceIds.size() == transforms.size());
 
@@ -71,11 +71,16 @@ void Renderer::DrawFrame(float dt, const std::vector<ModelResourceId>& modelReso
 	// Update Model
 	for (size_t i = 0; i < modelResourceIds.size(); i++)
 	{
-		UpdateUniformBuffer(
-			_models[modelResourceIds[i].Id]->FrameResources[imageIndex].UniformBufferMemory,
-			transforms[i],
-			view,
-			projection,
+		UniversalUboCreateInfo info = {};
+		info.Model = transforms[i];
+		info.View = view;
+		info.Projection = projection;
+		info.CamPos = camPos;
+		info.ExposureBias = 1.0f;
+		info.ShowNormalMap = false;
+		
+		UpdateUniformBuffer(_models[modelResourceIds[i].Id]->FrameResources[imageIndex].UniformBufferMemory,
+			UniversalUbo::CreatePacked(info),
 			_device);
 	}
 
@@ -278,35 +283,23 @@ void Renderer::InitVulkan()
 		= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
 }
 
-void Renderer::UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, const glm::mat4& model, const glm::mat4& view,
-                                   const glm::mat4& projection, VkDevice device)
+void Renderer::UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, UniversalUbo ubo, VkDevice device)
 {
-	// Create new ubo
-	UniversalUbo ubo = {};
-	{
-		ubo.Model = model;
-		ubo.View = view;
-		ubo.Projection = projection;
-		ubo.ShowNormalMap = float(false); // draw normal
-		ubo.ExposureBias = 1.0f; // exposure bias
-	}
-
-	auto odnm = offsetof(UniversalUbo, ShowNormalMap);
-	auto oeb = offsetof(UniversalUbo, ExposureBias);
-	auto om = offsetof(UniversalUbo, Model);
-	auto ov = offsetof(UniversalUbo, View);
-	auto op = offsetof(UniversalUbo, Projection);
-	
-	auto f = sizeof(ubo);
-	auto x = sizeof(i32);
-	auto z = sizeof(f32);
-	auto w = sizeof(bool);
-	auto y = sizeof(glm::vec4);
-	auto a = sizeof(ubo.Model);
-	auto b = sizeof(ubo.View);
-	auto c = sizeof(ubo.Projection);
-	auto d = sizeof(ubo.ShowNormalMap);
-	auto e = sizeof(ubo.ExposureBias);
+	//auto odnm = offsetof(UniversalUbo, ShowNormalMap);
+	//auto oeb = offsetof(UniversalUbo, ExposureBias);
+	//auto om = offsetof(UniversalUbo, Model);
+	//auto ov = offsetof(UniversalUbo, View);
+	//auto op = offsetof(UniversalUbo, Projection);
+	//
+	//auto f = sizeof(ubo);
+	//auto x = sizeof(i32);
+	//auto z = sizeof(f32);
+	//auto w = sizeof(bool);
+	//auto y = sizeof(glm::vec4);
+	//auto a = sizeof(ubo.Model);
+	//auto b = sizeof(ubo.View);
+	//auto c = sizeof(ubo.Projection);
+	//auto d = sizeof(ubo.ShowNormalMap);
 	//auto e = sizeof(ubo.ExposureBias);
 
 	// Push ubo

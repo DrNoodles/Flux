@@ -123,7 +123,7 @@ public:
 			transforms[i] = _entities[i]->Transform.GetMatrix();
 		}
 
-		_renderer->DrawFrame(dt, models, transforms, _camera.GetViewMatrix());
+		_renderer->DrawFrame(dt, models, transforms, _camera.GetViewMatrix(), _camera.Position);
 	}
 
 

@@ -4,6 +4,7 @@
 #include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
 #include <vector>
 
+struct UniversalUbo;
 struct CreateModelResourceInfo;
 
 class IRendererDelegate
@@ -26,7 +27,7 @@ public:
 	void DrawFrame(float dt,
 	               const std::vector<ModelResourceId>& modelResourceIds,
 	               const std::vector<glm::mat4>& transforms,
-	               const glm::mat4& view);
+	               const glm::mat4& view, const glm::vec3& camPos);
 	void CleanUp(); // TODO convert to RAII?
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
@@ -94,8 +95,7 @@ private:
 
 
 	void InitVulkan();
-	static void UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, const glm::mat4& model,
-	                                const glm::mat4& view, const glm::mat4& projection, VkDevice device);
+	static void UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, UniversalUbo ubo, VkDevice device);
 	void CleanupSwapchainAndDependents();
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
