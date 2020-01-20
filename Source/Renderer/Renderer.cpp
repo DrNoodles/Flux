@@ -22,6 +22,7 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir,
 {
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
+	_placeholderTexture = CreateTextureResource("../source/placeholder.png");
 }
 
 void Renderer::DrawFrame(float dt, 
@@ -382,17 +383,24 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	{
 		std::vector<VkBuffer> uniformBuffers;
 		std::vector<VkDeviceMemory> uniformBuffersMemory;
-
+		std::vector<VkDescriptorSet> descriptorSets;
+		
 		std::tie(uniformBuffers, uniformBuffersMemory)
 			= vkh::CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
-		std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
+		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
+		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
+		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
+		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
+		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
+
+		descriptorSets = vkh::CreateDescriptorSets(
 			(uint32_t)numImagesInFlight,
 			_descriptorSetLayout, _descriptorPool,
-			uniformBuffers, 
-			*_textures[renderable->Mat.BasecolorMap.value().Id],
-			*_textures[renderable->Mat.NormalMap.value().Id],
+			uniformBuffers,
+			*_textures[basecolorMapId], *_textures[normalMapId],
 			_device);
+		
 
 		auto& modelInfos = renderable->FrameResources;
 		modelInfos.resize(numImagesInFlight);
@@ -426,6 +434,7 @@ void Renderer::RecreateSwapchain()
 	CreateSwapchainAndDependents(size.width, size.height);
 }
 
+
 std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(const Renderable& renderable) const
 {
 	std::vector<ModelResourceFrame> modelInfos{};
@@ -440,13 +449,17 @@ std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(const Render
 	std::tie(uniformBuffers, uniformBuffersMemory) = vkh::
 		CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
-
+	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
+	const auto normalMapId = renderable.Mat.NormalMap.value_or(_placeholderTexture).Id;
+	const auto roughnessMapId = renderable.Mat.RoughnessMap.value_or(_placeholderTexture).Id;
+	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
+	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
+	
 	descriptorSets = vkh::CreateDescriptorSets(
 		(uint32_t)numImagesInFlight,
 		_descriptorSetLayout, _descriptorPool,
 		uniformBuffers,
-		*_textures[renderable.Mat.BasecolorMap.value().Id],
-		*_textures[renderable.Mat.NormalMap.value().Id],
+		*_textures[basecolorMapId], *_textures[normalMapId],
 		_device);
 	
 

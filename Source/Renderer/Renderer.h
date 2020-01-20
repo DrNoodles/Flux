@@ -95,6 +95,7 @@ private:
 	std::vector<std::unique_ptr<Renderable>> _renderables{};
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
+	TextureResourceId _placeholderTexture;
 
 
 	void InitVulkan();
