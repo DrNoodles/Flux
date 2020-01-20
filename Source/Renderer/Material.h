@@ -37,7 +37,6 @@ struct Material
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
-	float AmbientOcclusion = 1;
 
 	bool InvertNormalMapZ = false;
 	bool InvertAoMap = false;

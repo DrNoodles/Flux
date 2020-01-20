@@ -103,5 +103,5 @@ private:
 	void CleanupSwapchainAndDependents();
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<ModelResourceFrame> CreateModelFrameResources(const Renderable& renderable) const;
+	std::vector<ModelResourceFrame> CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const;
 };

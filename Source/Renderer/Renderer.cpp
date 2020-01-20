@@ -253,7 +253,7 @@ RenderableResourceId Renderer::CreateRenderable(const RenderableCreateInfo& crea
 	auto model = std::make_unique<Renderable>();
 	model->MeshId = createModelResourceInfo.Mesh;
 	model->Mat = createModelResourceInfo.Mat; // TODO Confirm the shit copied over
-	model->FrameResources = CreateModelFrameResources(*model);
+	model->FrameResources = CreateModelFrameResources(_swapchainImages.size(), *model);
 
 	const RenderableResourceId id = (u32)_renderables.size();
 	_renderables.emplace_back(std::move(model));
@@ -381,36 +381,7 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	// Create uniform buffers and descriptor sets per image in swapchain
 	for (auto& renderable : _renderables)
 	{
-		std::vector<VkBuffer> uniformBuffers;
-		std::vector<VkDeviceMemory> uniformBuffersMemory;
-		std::vector<VkDescriptorSet> descriptorSets;
-		
-		std::tie(uniformBuffers, uniformBuffersMemory)
-			= vkh::CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
-
-		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
-		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
-
-		descriptorSets = vkh::CreateDescriptorSets(
-			(uint32_t)numImagesInFlight,
-			_descriptorSetLayout, _descriptorPool,
-			uniformBuffers,
-			*_textures[basecolorMapId], *_textures[normalMapId],
-			_device);
-		
-
-		auto& modelInfos = renderable->FrameResources;
-		modelInfos.resize(numImagesInFlight);
-
-		for (auto i = 0; i < numImagesInFlight; i++)
-		{
-			modelInfos[i].UniformBuffer = uniformBuffers[i];
-			modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
-			modelInfos[i].DescriptorSet = descriptorSets[i];
-		}
+		renderable->FrameResources = CreateModelFrameResources(numImagesInFlight , *renderable);
 	}
 
 
@@ -435,36 +406,38 @@ void Renderer::RecreateSwapchain()
 }
 
 
-std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(const Renderable& renderable) const
+std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const
 {
-	std::vector<ModelResourceFrame> modelInfos{};
-
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::vector<VkDescriptorSet> descriptorSets;
-	
-	const auto numImagesInFlight = _swapchainImages.size();
+	std::tie(uniformBuffers, uniformBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
 
-	std::tie(uniformBuffers, uniformBuffersMemory) = vkh::
-		CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
-
+	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
 	const auto normalMapId = renderable.Mat.NormalMap.value_or(_placeholderTexture).Id;
 	const auto roughnessMapId = renderable.Mat.RoughnessMap.value_or(_placeholderTexture).Id;
 	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
+
 	
-	descriptorSets = vkh::CreateDescriptorSets(
+	std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
 		(uint32_t)numImagesInFlight,
 		_descriptorSetLayout, _descriptorPool,
 		uniformBuffers,
-		*_textures[basecolorMapId], *_textures[normalMapId],
+		*_textures[basecolorMapId],
+		*_textures[normalMapId],
+		*_textures[roughnessMapId],
+		*_textures[metalnessMapId],
+		*_textures[aoMapId],
 		_device);
 	
 
+	std::vector<ModelResourceFrame> modelInfos;
 	modelInfos.resize(numImagesInFlight);
-	for (auto i = 0; i < numImagesInFlight; i++)
+	
+	for (size_t i = 0; i < numImagesInFlight; i++)
 	{
 		modelInfos[i].UniformBuffer = uniformBuffers[i];
 		modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];

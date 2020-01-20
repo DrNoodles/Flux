@@ -44,9 +44,9 @@ layout(std140, binding = 0) uniform UniversalUbo
 } ubo;
 layout(binding = 1) uniform sampler2D BasecolorMap;
 layout(binding = 2) uniform sampler2D NormalMap;
-//layout(binding = 3) uniform sampler2D RoughnessMap;
-//layout(binding = 4) uniform sampler2D MetalnessMap;
-//layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
+layout(binding = 3) uniform sampler2D RoughnessMap;
+layout(binding = 4) uniform sampler2D MetalnessMap;
+layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
 
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
@@ -70,22 +70,22 @@ const Light lights[pointLightCount] = Light[](
 
 // Material
 vec3 uBasecolor;
-float uMetalness;         
 float uRoughness;        
+float uMetalness;         
 
 bool uUseBasecolorMap;  
 bool uUseNormalMap;		 
-bool uUseAoMap;				 
 bool uUseRoughnessMap;	 
 bool uUseMetalnessMap;		 
+bool uUseAoMap;				 
 
 bool uInvertNormalMapZ;	 
 bool uInvertAoMap;			 
 bool uInvertRoughnessMap; 
 bool uInvertMetalnessMap; 
 
-int uMetalnessMapChannel;
 int uRoughnessMapChannel;
+int uMetalnessMapChannel;
 int uAoMapChannel;       
 
 // Render Options
@@ -226,10 +226,10 @@ vec3 GetNormal()
 {
 	if (uUseNormalMap)
 	{
-		vec3 N = texture(NormalMap, fragTexCoord).xyz; 
-		N = normalize(N*2 - 1); // map [0,1] to [-1,1]
-		N = normalize(fragTBN*N); // transform from tangent to world space
-		return N;
+		vec3 n = texture(NormalMap, fragTexCoord).xyz; 
+		n = normalize(n*2 - 1); // map [0,1] to [-1,1]
+		n = normalize(fragTBN*n); // transform from tangent to world space
+		return n;
 	}
 	else
 	{
@@ -239,60 +239,48 @@ vec3 GetNormal()
 float GetRoughness()
 {
 	float roughness = uRoughness; 
-//	if (uUseRoughnessMap)
-//	{	
-//		if (uRoughnessMapChannel == 0)
-//			roughness = texture(RoughnessMap, fragTexCoord).r;
-//		else if (uRoughnessMapChannel == 1)
-//			roughness = texture(RoughnessMap, fragTexCoord).g;
-//		else if (uRoughnessMapChannel == 2)
-//			roughness = texture(RoughnessMap, fragTexCoord).b;
-//		else // assume == 3
-//			roughness = texture(RoughnessMap, fragTexCoord).a;
-//
-//		if (uInvertRoughnessMap)
-//			roughness = 1-roughness;
-//	}
+	if (uUseRoughnessMap)
+	{	
+		if (uRoughnessMapChannel == 0) roughness = texture(RoughnessMap, fragTexCoord).r;
+		else if (uRoughnessMapChannel == 1) roughness = texture(RoughnessMap, fragTexCoord).g;
+		else if (uRoughnessMapChannel == 2) roughness = texture(RoughnessMap, fragTexCoord).b;
+		else roughness = texture(RoughnessMap, fragTexCoord).a; // assume == 3
+
+		if (uInvertRoughnessMap)
+			roughness = 1-roughness;
+	}
 
 	return roughness;
 }
 float GetMetalness()
 {
 	float metalness = uMetalness; 
-//	if (uUseMetalnessMap)
-//	{	
-//		if (uMetalnessMapChannel == 0)
-//			metalness = texture(MetalnessMap, fragTexCoord).r;
-//		else if (uMetalnessMapChannel == 1)
-//			metalness = texture(MetalnessMap, fragTexCoord).g;
-//		else if (uMetalnessMapChannel == 2)
-//			metalness = texture(MetalnessMap, fragTexCoord).b;
-//		else // assume == 3
-//			metalness = texture(MetalnessMap, fragTexCoord).a;
-//
-//		if (uInvertMetalnessMap)
-//			metalness = 1-metalness;
-//	}
+	if (uUseMetalnessMap)
+	{	
+		if (uMetalnessMapChannel == 0) metalness = texture(MetalnessMap, fragTexCoord).r;
+		else if (uMetalnessMapChannel == 1) metalness = texture(MetalnessMap, fragTexCoord).g;
+		else if (uMetalnessMapChannel == 2) metalness = texture(MetalnessMap, fragTexCoord).b;
+		else metalness = texture(MetalnessMap, fragTexCoord).a; // assume == 3
+
+		if (uInvertMetalnessMap)
+			metalness = 1-metalness;
+	}
 
 	return metalness;
 }
 float GetAmbientOcclusion()
 {
 	float ao = 1;
-//	if (uUseAoMap)
-//	{	
-//		if (uAoMapChannel == 0)
-//			ao = texture(AmbientOcclusionMap, fragTexCoord).r;
-//		else if (uAoMapChannel == 1)
-//			ao = texture(AmbientOcclusionMap, fragTexCoord).g;
-//		else if (uAoMapChannel == 2)
-//			ao = texture(AmbientOcclusionMap, fragTexCoord).b;
-//		else // assume == 3
-//			ao = texture(AmbientOcclusionMap, fragTexCoord).a;
-//
-//		if (uInvertAoMap)
-//			ao = 1-ao;
-//	}
+	if (uUseAoMap)
+	{	
+		if (uAoMapChannel == 0) ao = texture(AmbientOcclusionMap, fragTexCoord).r;
+		else if (uAoMapChannel == 1) ao = texture(AmbientOcclusionMap, fragTexCoord).g;
+		else if (uAoMapChannel == 2) ao = texture(AmbientOcclusionMap, fragTexCoord).b;
+		else ao = texture(AmbientOcclusionMap, fragTexCoord).a; // assume == 3 
+
+		if (uInvertAoMap)
+			ao = 1-ao;
+	}
 
 	return ao;
 }

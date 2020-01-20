@@ -1442,9 +1442,38 @@ VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 		normalMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		normalMapLayoutBinding.pImmutableSamplers = nullptr;
 	}
+	VkDescriptorSetLayoutBinding roughnessMapLayoutBinding = {};
+	{
+		roughnessMapLayoutBinding.binding = 3; // correlates to shader
+		roughnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		roughnessMapLayoutBinding.descriptorCount = 1;
+		roughnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		roughnessMapLayoutBinding.pImmutableSamplers = nullptr;
+	}
+	VkDescriptorSetLayoutBinding metalnessMapLayoutBinding = {};
+	{
+		metalnessMapLayoutBinding.binding = 4; // correlates to shader
+		metalnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		metalnessMapLayoutBinding.descriptorCount = 1;
+		metalnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		metalnessMapLayoutBinding.pImmutableSamplers = nullptr;
+	}
+	VkDescriptorSetLayoutBinding aoMapLayoutBinding = {};
+	{
+		aoMapLayoutBinding.binding = 5; // correlates to shader
+		aoMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		aoMapLayoutBinding.descriptorCount = 1;
+		aoMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		aoMapLayoutBinding.pImmutableSamplers = nullptr;
+	}
 
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
-		uboLayoutBinding, basecolorMapLayoutBinding, normalMapLayoutBinding
+	std::array<VkDescriptorSetLayoutBinding, 6> bindings = {
+		uboLayoutBinding,
+		basecolorMapLayoutBinding,
+		normalMapLayoutBinding,
+		roughnessMapLayoutBinding,
+		metalnessMapLayoutBinding,
+		aoMapLayoutBinding
 	};
 
 
@@ -1470,7 +1499,7 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 	// count: max num of descriptor sets that may be allocated
 
 	// Define which descriptor types our descriptor sets contain
-	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 6> poolSizes = {};
 	{
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = count;
@@ -1478,6 +1507,12 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 		poolSizes[1].descriptorCount = count;
 		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[2].descriptorCount = count;
+		poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[3].descriptorCount = count;
+		poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[4].descriptorCount = count;
+		poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[5].descriptorCount = count;
 	}
 
 
@@ -1504,7 +1539,11 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 	VkDescriptorPool pool,
 	const std::vector<VkBuffer>& uniformBuffers,
 	const TextureResource& basecolorMap,
-	const TextureResource& normalMap, VkDevice device)
+	const TextureResource& normalMap,
+	const TextureResource& roughnessMap,
+	const TextureResource& metalnessMap,
+	const TextureResource& aoMap,
+	VkDevice device)
 {
 	assert(count == uniformBuffers.size());
 
@@ -1527,7 +1566,7 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 		throw std::runtime_error("Failed to create descriptor sets");
 	}
 
-	std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+	std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
 
 	// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
 	for (size_t i = 0; i < count; ++i)
@@ -1541,15 +1580,16 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 			bufferInfo.range = sizeof(UniversalUbo);//sadf use same size calc for other bit of code?
 		}
 		{
-			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[0].dstSet = descriptorSets[i];
-			descriptorWrites[0].dstBinding = 0; // correlates to shader binding
-			descriptorWrites[0].dstArrayElement = 0;
-			descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptorWrites[0].descriptorCount = 1;
-			descriptorWrites[0].pBufferInfo = &bufferInfo; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[0].pImageInfo = nullptr;
-			descriptorWrites[0].pTexelBufferView = nullptr;
+			const auto binding = 0;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = &bufferInfo; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = nullptr;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
@@ -1561,15 +1601,16 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 			baseColorInfo.sampler = basecolorMap.Sampler;
 		}
 		{
-			descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[1].dstSet = descriptorSets[i];
-			descriptorWrites[1].dstBinding = 1; // correlates to shader binding
-			descriptorWrites[1].dstArrayElement = 0;
-			descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[1].descriptorCount = 1;
-			descriptorWrites[1].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[1].pImageInfo = &baseColorInfo;
-			descriptorWrites[1].pTexelBufferView = nullptr;
+			const auto binding = 1;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &baseColorInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
@@ -1581,17 +1622,81 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 			normalMapInfo.sampler = normalMap.Sampler;
 		}
 		{
-			descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[2].dstSet = descriptorSets[i];
-			descriptorWrites[2].dstBinding = 2; // correlates to shader binding
-			descriptorWrites[2].dstArrayElement = 0;
-			descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[2].descriptorCount = 1;
-			descriptorWrites[2].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[2].pImageInfo = &normalMapInfo;
-			descriptorWrites[2].pTexelBufferView = nullptr;
+			const auto binding = 2;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &normalMapInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
+
+		// Roughness Map  -  Texture image descriptor set
+		VkDescriptorImageInfo roughnessMapInfo = {};
+		{
+			roughnessMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			roughnessMapInfo.imageView = roughnessMap.View;
+			roughnessMapInfo.sampler = roughnessMap.Sampler;
+		}
+		{
+			const auto binding = 3;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &roughnessMapInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
+		}
+
+
+		// Metalness Map  -  Texture image descriptor set
+		VkDescriptorImageInfo metalnessMapInfo = {};
+		{
+			metalnessMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			metalnessMapInfo.imageView = metalnessMap.View;
+			metalnessMapInfo.sampler = metalnessMap.Sampler;
+		}
+		{
+			const auto binding = 4;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &metalnessMapInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
+		}
+
+
+		// AO Map  -  Texture image descriptor set
+		VkDescriptorImageInfo aoMapInfo = {};
+		{
+			aoMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			aoMapInfo.imageView = aoMap.View;
+			aoMapInfo.sampler = aoMap.Sampler;
+		}
+		{
+			const auto binding = 5;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &aoMapInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
+		}
+		
 		vkUpdateDescriptorSets(device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
 

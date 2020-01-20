@@ -175,7 +175,11 @@ public:
 		VkDescriptorPool pool,
 		const std::vector<VkBuffer>& uniformBuffers,
 		const TextureResource& basecolorMap,
-		const TextureResource& normalMap, VkDevice device);
+		const TextureResource& normalMap,
+		const TextureResource& roughnessMap,
+		const TextureResource& metalnessMap,
+		const TextureResource& aoMap,
+		VkDevice device);
 
 
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>

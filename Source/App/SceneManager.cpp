@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <iostream>
 
-RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path) const
+RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
 	auto modelDefinition = _modelLoaderService.LoadModel(path);
 	if (!modelDefinition.has_value())
@@ -29,7 +29,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		auto& mat = renderableCreateInfo.Mat;
 		for (const auto& texDef : meshDef.Textures)
 		{
-			const auto texResId = _renderer.CreateTextureResource(texDef.Path);
+			const auto texResId = LoadTexture(texDef.Path);
 
 			switch (texDef.Type)
 			{
@@ -54,7 +54,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 				break;
 
 			case TextureType::AmbientOcclusion:
-				mat.UseAoMap = false;
+				mat.UseAoMap = true;
 				mat.AoMap = texResId;
 				break;
 
@@ -64,6 +64,15 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 			}
 		}
 
+		//// Hardcoded test data TODO Remove this, duh.
+		//mat.UseRoughnessMap = true;
+		//mat.RoughnessMapChannel = Material::Channel::Green;
+		//mat.RoughnessMap = mat.AoMap;
+		//
+		//mat.UseMetalnessMap = true;
+		//mat.MetalnessMapChannel = Material::Channel::Blue;
+		//mat.MetalnessMap = mat.AoMap;
+		
 		rc.RenderableId = _renderer.CreateRenderable(renderableCreateInfo);
 		
 		break; // TODO Only processing the first mesh for now!
@@ -73,41 +82,18 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 }
 
 
-//u32 ResourceManager::LoadTexture(const std::string& path)
-//{
-//	// Is teh tex already loaded?
-//	const auto it = _loadedTextures.find(path);
-//	if (it != _loadedTextures.end())
-//	{
-//		return it->second;
-//	}
-//
-//	// TODO safety check this actually exists :)
-//	const size_t idx = path.find_last_of("/\\");
-//	const auto directory = path.substr(0, idx + 1);
-//	const auto filename = path.substr(idx + 1);
-//
-//	auto texRes = TextureLoader::LoadTextureFromFileAndPushToGpu(filename, directory, false);
-//	auto id = StoreTextureResource(std::make_unique<TextureResource>(std::move(texRes)));
-//
-//	_loadedTextures.insert(std::make_pair(path, id));
-//
-//	return id;
-//}
+TextureResourceId SceneManager::LoadTexture(const std::string& path)
+{
+	// Is teh tex already loaded?
+	const auto it = _loadedTextures.find(path);
+	if (it != _loadedTextures.end())
+	{
+		return it->second;
+	}
 
+	auto texResId = _renderer.CreateTextureResource(path);
 
-//ModelResourceId ResourceManager::StoreModelResource(std::unique_ptr<ModelResource> model)
-//{
-//	_modelResources.emplace_back(std::move(model));
-//	return ModelResourceId(_modelResources.size() - 1);
-//}
-//MeshResourceId ResourceManager::StoreMeshResource(std::unique_ptr<MeshResource> mesh)
-//{
-//	_meshResources.emplace_back(std::move(mesh));
-//	return MeshResourceId(_meshResources.size() - 1);
-//}
-//TextureResourceId ResourceManager::StoreTextureResource(std::unique_ptr<TextureResource> texture)
-//{
-//	_textureResources.emplace_back(std::move(texture));
-//	return TextureResourceId(_textureResources.size() - 1);
-//}
+	_loadedTextures.emplace(path, texResId);
+
+	return texResId;
+}
