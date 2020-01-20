@@ -3,6 +3,7 @@
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
 #include "UniformBufferObjects.h"
+#include "Renderable.h"
 
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
@@ -23,10 +24,12 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir,
 	InitVulkan();
 }
 
-void Renderer::DrawFrame(float dt, const std::vector<ModelResourceId>& modelResourceIds,
-                         const std::vector<glm::mat4>& transforms, const glm::mat4& view, const glm::vec3& camPos)
+void Renderer::DrawFrame(float dt, 
+	const std::vector<RenderableResourceId>& renderableIds,
+	const std::vector<glm::mat4>& transforms,
+	const glm::mat4& view, const glm::vec3& camPos)
 {
-	assert(modelResourceIds.size() == transforms.size());
+	assert(renderableIds.size() == transforms.size());
 
 	// Sync CPU-GPU
 	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
@@ -69,7 +72,7 @@ void Renderer::DrawFrame(float dt, const std::vector<ModelResourceId>& modelReso
 	projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 
 	// Update Model
-	for (size_t i = 0; i < modelResourceIds.size(); i++)
+	for (size_t i = 0; i < renderableIds.size(); i++)
 	{
 		UniversalUboCreateInfo info = {};
 		info.Model = transforms[i];
@@ -78,15 +81,18 @@ void Renderer::DrawFrame(float dt, const std::vector<ModelResourceId>& modelReso
 		info.CamPos = camPos;
 		info.ExposureBias = 1.0f;
 		info.ShowNormalMap = false;
-		
-		UpdateUniformBuffer(_models[modelResourceIds[i].Id]->FrameResources[imageIndex].UniformBufferMemory,
-			UniversalUbo::CreatePacked(info),
+
+		const auto& renderable = _renderables[renderableIds[i].Id].get();
+		UpdateUniformBuffer(
+			renderable->FrameResources[imageIndex].UniformBufferMemory,
+			UniversalUbo::CreatePacked(info, renderable->Mat),
 			_device);
 	}
 
 	vkh::RecordCommandBuffer(
 		_commandBuffers[imageIndex],
-		_models,
+		_renderables,
+		_meshes,
 		imageIndex,
 		_swapchainExtent,
 		_swapchainFramebuffers[imageIndex],
@@ -241,17 +247,15 @@ MeshResourceId Renderer::CreateMeshResource(const MeshDefinition& meshDefinition
 	return id;
 }
 
-ModelResourceId Renderer::CreateModelResource(const CreateModelResourceInfo& createModelResourceInfo)
+RenderableResourceId Renderer::CreateRenderable(const RenderableCreateInfo& createModelResourceInfo)
 {
-	auto model = std::make_unique<ModelResource>();
-
-	model->Mesh = _meshes[createModelResourceInfo.Mesh.Id].get();
-	model->BasecolorMap = _textures[createModelResourceInfo.BasecolorMap.Id].get();
-	model->NormalMap = _textures[createModelResourceInfo.NormalMap.Id].get();
+	auto model = std::make_unique<Renderable>();
+	model->MeshId = createModelResourceInfo.Mesh;
+	model->Mat = createModelResourceInfo.Mat; // TODO Confirm the shit copied over
 	model->FrameResources = CreateModelFrameResources(*model);
 
-	const ModelResourceId id = (u32)_models.size();
-	_models.emplace_back(std::move(model));
+	const RenderableResourceId id = (u32)_renderables.size();
+	_renderables.emplace_back(std::move(model));
 
 	return id;
 }
@@ -319,9 +323,9 @@ void Renderer::CleanupSwapchainAndDependents()
 	vkDestroyImage(_device, _depthImage, nullptr);
 	vkFreeMemory(_device, _depthImageMemory, nullptr);
 
-	for (auto& model : _models)
+	for (auto& renderable : _renderables)
 	{
-		for (auto& info : model->FrameResources)
+		for (auto& info : renderable->FrameResources)
 		{
 			vkDestroyBuffer(_device, info.UniformBuffer, nullptr);
 			vkFreeMemory(_device, info.UniformBufferMemory, nullptr);
@@ -374,7 +378,7 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 
 
 	// Create uniform buffers and descriptor sets per image in swapchain
-	for (auto& model : _models)
+	for (auto& renderable : _renderables)
 	{
 		std::vector<VkBuffer> uniformBuffers;
 		std::vector<VkDeviceMemory> uniformBuffersMemory;
@@ -382,14 +386,15 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		std::tie(uniformBuffers, uniformBuffersMemory)
 			= vkh::CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
-		std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets((uint32_t)numImagesInFlight,
-		                                                                        _descriptorSetLayout, _descriptorPool,
-		                                                                        uniformBuffers, *model->BasecolorMap,
-		                                                                        *model->NormalMap,
-		                                                                        _device);
+		std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
+			(uint32_t)numImagesInFlight,
+			_descriptorSetLayout, _descriptorPool,
+			uniformBuffers, 
+			*_textures[renderable->Mat.BasecolorMap.value().Id],
+			*_textures[renderable->Mat.NormalMap.value().Id],
+			_device);
 
-
-		auto& modelInfos = model->FrameResources;
+		auto& modelInfos = renderable->FrameResources;
 		modelInfos.resize(numImagesInFlight);
 
 		for (auto i = 0; i < numImagesInFlight; i++)
@@ -403,7 +408,8 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 
 	_commandBuffers = vkh::CreateCommandBuffers(
 		(uint32_t)numImagesInFlight,
-		_models,
+		_renderables,
+		_meshes,
 		_swapchainExtent,
 		_swapchainFramebuffers,
 		_commandPool, _device, _renderPass,
@@ -420,26 +426,32 @@ void Renderer::RecreateSwapchain()
 	CreateSwapchainAndDependents(size.width, size.height);
 }
 
-std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(const ModelResource& model) const
+std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(const Renderable& renderable) const
 {
 	std::vector<ModelResourceFrame> modelInfos{};
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 	std::vector<VkDescriptorSet> descriptorSets;
-	const auto numThingsToMake = _swapchainImages.size();
+	
+	const auto numImagesInFlight = _swapchainImages.size();
 
 
 	std::tie(uniformBuffers, uniformBuffersMemory) = vkh::
-		CreateUniformBuffers(numThingsToMake, _device, _physicalDevice);
+		CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
 
 
-	descriptorSets = vkh::CreateDescriptorSets((uint32_t)numThingsToMake, _descriptorSetLayout, _descriptorPool,
-	                                           uniformBuffers, *model.BasecolorMap, *model.NormalMap, _device);
+	descriptorSets = vkh::CreateDescriptorSets(
+		(uint32_t)numImagesInFlight,
+		_descriptorSetLayout, _descriptorPool,
+		uniformBuffers,
+		*_textures[renderable.Mat.BasecolorMap.value().Id],
+		*_textures[renderable.Mat.NormalMap.value().Id],
+		_device);
+	
 
-
-	modelInfos.resize(numThingsToMake);
-	for (auto i = 0; i < numThingsToMake; i++)
+	modelInfos.resize(numImagesInFlight);
+	for (auto i = 0; i < numImagesInFlight; i++)
 	{
 		modelInfos[i].UniformBuffer = uniformBuffers[i];
 		modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];

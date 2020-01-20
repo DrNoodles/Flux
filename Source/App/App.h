@@ -114,16 +114,16 @@ public:
 	
 	void Draw(const float dt) const
 	{
-		std::vector<ModelResourceId> models(_entities.size());
+		std::vector<RenderableResourceId> renderables(_entities.size());
 		std::vector<glm::mat4> transforms(_entities.size());
 		
 		for (size_t i = 0; i < _entities.size(); i++)
 		{
-			models[i] = _entities[i]->Renderable.ModelResId;
+			renderables[i] = _entities[i]->Renderable.RenderableId;
 			transforms[i] = _entities[i]->Transform.GetMatrix();
 		}
 
-		_renderer->DrawFrame(dt, models, transforms, _camera.GetViewMatrix(), _camera.Position);
+		_renderer->DrawFrame(dt, renderables, transforms, _camera.GetViewMatrix(), _camera.Position);
 	}
 
 
@@ -271,6 +271,7 @@ private:
 		//if (_assetLoaded) { return; }
 		//_assetLoaded = true;
 
+		//const auto path = _options.AssetsDir + "stormtrooper_helmet.fbx";
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 		

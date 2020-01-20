@@ -112,11 +112,11 @@ private:
 		{
 			aiMaterial* aiMat = aiScene->mMaterials[mesh->mMaterialIndex];
 			
-			auto albedo = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
+			auto basecolor = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
 			auto normals = LoadMaterialTextures(aiMat, aiTextureType_NORMALS, directory);
 			auto ao = LoadMaterialTextures(aiMat, aiTextureType_LIGHTMAP, directory);
 
-			meshDefinition.Textures.insert(meshDefinition.Textures.end(), albedo.begin(), albedo.end());
+			meshDefinition.Textures.insert(meshDefinition.Textures.end(), basecolor.begin(), basecolor.end());
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), normals.begin(), normals.end());
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), ao.begin(), ao.end());
 		}
@@ -148,7 +148,7 @@ private:
 	{
 		switch (aiType)
 		{
-		case aiTextureType_DIFFUSE: return TextureType::BaseColor;
+		case aiTextureType_DIFFUSE: return TextureType::Basecolor;
 		case aiTextureType_NORMALS: return TextureType::Normals;
 		case aiTextureType_LIGHTMAP: return TextureType::AmbientOcclusion;
 

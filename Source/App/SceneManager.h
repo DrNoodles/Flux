@@ -17,7 +17,7 @@ public:
 	{
 	}
 	
-	RenderableComponent LoadRenderableComponentFromFile(const std::string& path);
+	RenderableComponent LoadRenderableComponentFromFile(const std::string& path) const;
 	//u32 LoadTexture(const std::string& path);
 
 private:

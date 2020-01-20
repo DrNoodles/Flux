@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <iostream>
 
-RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path)
+RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path) const
 {
 	auto modelDefinition = _modelLoaderService.LoadModel(path);
 	if (!modelDefinition.has_value())
@@ -15,100 +15,64 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 	}
 
 	RenderableComponent rc = {};
-	CreateModelResourceInfo createModelResourceInfo = {};
 
+	
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
+		RenderableCreateInfo renderableCreateInfo = {};
+
 		// Create the Mesh resource
-		createModelResourceInfo.Mesh = _renderer.CreateMeshResource(meshDef);
+		renderableCreateInfo.Mesh = _renderer.CreateMeshResource(meshDef);
 
 
-		// Create Texture resources
+		// Create Texture resources and config Material
+		auto& mat = renderableCreateInfo.Mat;
 		for (const auto& texDef : meshDef.Textures)
 		{
 			const auto texResId = _renderer.CreateTextureResource(texDef.Path);
 
 			switch (texDef.Type)
 			{
-			case TextureType::BaseColor: createModelResourceInfo.BasecolorMap = texResId; break;
-			case TextureType::Normals:   createModelResourceInfo.NormalMap    = texResId; break;
+			case TextureType::Basecolor:
+				mat.UseBasecolorMap = true;
+				mat.BasecolorMap = texResId;
+				break;
 
-				// Unhandled
-			case TextureType::Undefined:
-			case TextureType::Metalness:
+			case TextureType::Normals:
+				mat.UseNormalMap = true;
+				mat.NormalMap = texResId;
+				break;
+
 			case TextureType::Roughness:
+				mat.UseRoughnessMap = true;
+				mat.RoughnessMap = texResId;
+				break;
+
+			case TextureType::Metalness:
+				mat.UseMetalnessMap = true;
+				mat.MetalnessMap = texResId;
+				break;
+
 			case TextureType::AmbientOcclusion:
-				continue;
-			default:;
-				throw std::invalid_argument("Failed to load unhandled texture type");
+				mat.UseAoMap = false;
+				mat.AoMap = texResId;
+				break;
+
+			case TextureType::Undefined:
+			default:
+				std::cerr << "Discarding unknown texture type" << std::endl;
 			}
 		}
 
-		rc.ModelResId = _renderer.CreateModelResource(createModelResourceInfo);
-
-		// TODO Only processing the first mesh for now!
-		break;
+		rc.RenderableId = _renderer.CreateRenderable(renderableCreateInfo);
+		
+		break; // TODO Only processing the first mesh for now!
 	}
 
 	return rc;
 }
-	
-	//for (const auto& meshDef : modelDef->Meshes)
-	//{
-	//	RenderableMesh asset{};
-	// asset.MeshId = StoreMeshResource(std::make_unique<MeshResource>(meshDef.Name, meshDef.Vertices, meshDef.Indices));
 
-	//	for (const auto& texDef : meshDef.Textures)
-	//	{
 
-	//		
-	//		// Load texture resource to GPU
-	//		Texture texRes{};
-	//		texRes.ResourceId = LoadTexture(texDef.Path);
-	//		texRes.Type = texDef.Type;
-	//		texRes.Path = texDef.Path;
-	//		
-	//		
-	//		switch (texDef.Type)
-	//		{
-	//		case TextureType::BaseColor: 
-	//			asset.Mat.UseAlbedoMap = true;
-	//			asset.Mat.AlbedoMap = texRes;
-	//			break;
-	//			
-	//		case TextureType::Normals:
-	//			//asset.Mat.UseNormalMap = true;
-	//			asset.Mat.NormalMap = texRes;
-	//			break;
-
-	//		case TextureType::AmbientOcclusion:
-	//			//asset.Mat.UseAoMap = true;
-	//			asset.Mat.AoMap = texRes;
-	//			break;
-
-	//		case TextureType::Roughness:
-	//			asset.Mat.UseRoughnessMap = true;
-	//			asset.Mat.RoughnessMap = texRes;
-	//			break;
-
-	//		case TextureType::Metalness:
-	//			asset.Mat.UseMetallicMap = true;
-	//			asset.Mat.MetalnessMap = texRes;
-	//			break;
-
-	//		case TextureType::Undefined:
-	//		default:
-	//			std::cerr << "Discarding unknown texture type" << std::endl;
-	//		}
-	//	}
-	
-	//	renderableMeshes.emplace_back(asset);
-	//}
-
-	//return Renderable{ renderableMeshes };
-//}
-
-//
 //u32 ResourceManager::LoadTexture(const std::string& path)
 //{
 //	// Is teh tex already loaded?
@@ -132,8 +96,6 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 //}
 
 
-
-//
 //ModelResourceId ResourceManager::StoreModelResource(std::unique_ptr<ModelResource> model)
 //{
 //	_modelResources.emplace_back(std::move(model));

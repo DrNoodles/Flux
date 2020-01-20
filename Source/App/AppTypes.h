@@ -11,12 +11,13 @@ struct AppOptions
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TODO Move type to Renderer layer
 enum class TextureType : char
 {
 	Undefined = 0,
-	BaseColor,
-	Metalness,
-	Roughness,
-	AmbientOcclusion,
+	Basecolor,
 	Normals,
+	Roughness,
+	Metalness,
+	AmbientOcclusion,
 };

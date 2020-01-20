@@ -1,6 +1,7 @@
 #include "VulkanHelpers.h"
 #include "UniformBufferObjects.h"
 #include "App/IModelLoaderService.h"
+#include "Renderable.h"
 
 #include <Shared/FileService.h>
 
@@ -1266,8 +1267,9 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 }
 
 std::vector<VkCommandBuffer> VulkanHelpers::CreateCommandBuffers(uint32_t numBuffersToCreate,
-	const std::vector<std::unique_ptr<ModelResource>>&
-	models, VkExtent2D swapchainExtent,
+	const std::vector<std::unique_ptr<Renderable>>& renderables,
+	const std::vector<std::unique_ptr<MeshResource>>& meshes,
+	VkExtent2D swapchainExtent,
 	const std::vector<VkFramebuffer>&
 	swapchainFramebuffers, VkCommandPool commandPool,
 	VkDevice device,
@@ -1297,7 +1299,8 @@ std::vector<VkCommandBuffer> VulkanHelpers::CreateCommandBuffers(uint32_t numBuf
 	{
 		RecordCommandBuffer(
 			commandBuffers[i],
-			models,
+			renderables,
+			meshes,
 			i,
 			swapchainExtent,
 			swapchainFramebuffers[i],
@@ -1309,7 +1312,9 @@ std::vector<VkCommandBuffer> VulkanHelpers::CreateCommandBuffers(uint32_t numBuf
 }
 
 void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
-	const std::vector<std::unique_ptr<ModelResource>>& models, int frameIndex,
+	const std::vector<std::unique_ptr<Renderable>>& renderables,
+	const std::vector<std::unique_ptr<MeshResource>>& meshes,
+	int frameIndex,
 	VkExtent2D swapchainExtent,
 	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
 	VkPipeline pipeline, VkPipelineLayout pipelineLayout)
@@ -1346,9 +1351,9 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-			for (const auto& model : models)
+			for (const auto& renderable : renderables)
 			{
-				const auto& mesh = *model->Mesh;
+				const auto& mesh = *meshes[renderable->MeshId.Id];
 
 				// Draw mesh
 				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
@@ -1356,7 +1361,7 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-					&model->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+					&renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 				/*const void* pValues;
 				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
 				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);

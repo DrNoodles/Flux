@@ -1,13 +1,37 @@
 #version 450
 
+// TODO Optimise size via juicy packing
 layout(std140, binding = 0) uniform UniversalUbo
 {
 	mat4 model;
 	mat4 view;
 	mat4 projection;
+	// PBR
 	vec3 camPos;
-	vec4 showNormalMap; // bool in [0]
-	vec4 exposureBias;  // float in [0]
+
+	// Material
+	vec3 basecolor;
+	vec4 roughness;          // float in [0]
+	vec4 metalness;          // float in [0]
+
+	vec4 useBasecolorMap;    // bool in [0] 
+	vec4 useNormalMap;       // bool in [0]
+	vec4 useRoughnessMap;    // bool in [0]
+	vec4 useMetalnessMap;    // bool in [0]
+	vec4 useAoMap;           // bool in [0]
+
+	vec4 invertNormalMapZ;   // bool in [0]
+	vec4 invertRoughnessMap; // bool in [0]
+	vec4 invertMetalnessMap; // bool in [0]
+	vec4 invertAoMap;        // bool in [0]
+	 
+	vec4 roughnessMapChannel;// int in [0] R=0,G,B,A
+	vec4 metalnessMapChannel;// int in [0] R=0,G,B,A
+	vec4 aoMapChannel;       // int in [0] R=0,G,B,A
+
+	// Render options
+	vec4 showNormalMap;      // bool in [0]
+	vec4 exposureBias;       // float in [0]
 } ubo;
 
 layout(location = 0) in vec3 inPosition;

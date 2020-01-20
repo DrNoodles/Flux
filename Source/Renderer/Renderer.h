@@ -2,10 +2,13 @@
 
 #include "GpuTypes.h"
 #include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
+#include "Renderable.h"
+#include "Material.h"
+
 #include <vector>
 
 struct UniversalUbo;
-struct CreateModelResourceInfo;
+struct RenderableCreateInfo;
 
 class IRendererDelegate
 {
@@ -25,13 +28,13 @@ public:
 
 	explicit Renderer(bool enableValidationLayers, std::string shaderDir, IRendererDelegate& delegate);
 	void DrawFrame(float dt,
-	               const std::vector<ModelResourceId>& modelResourceIds,
-	               const std::vector<glm::mat4>& transforms,
-	               const glm::mat4& view, const glm::vec3& camPos);
+		const std::vector<RenderableResourceId>& renderables,
+		const std::vector<glm::mat4>& transforms,
+		const glm::mat4& view, const glm::vec3& camPos);
 	void CleanUp(); // TODO convert to RAII?
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-	ModelResourceId CreateModelResource(const CreateModelResourceInfo& createModelResourceInfo);
+	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
 
 
 private:
@@ -89,7 +92,7 @@ private:
 	VkDescriptorPool _descriptorPool = nullptr;
 
 	// Resources
-	std::vector<std::unique_ptr<ModelResource>> _models{};
+	std::vector<std::unique_ptr<Renderable>> _renderables{};
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
 
@@ -99,5 +102,5 @@ private:
 	void CleanupSwapchainAndDependents();
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<ModelResourceFrame> CreateModelFrameResources(const ModelResource& model) const;
+	std::vector<ModelResourceFrame> CreateModelFrameResources(const Renderable& renderable) const;
 };

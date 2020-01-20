@@ -9,7 +9,7 @@
 struct QueueFamilyIndices;
 struct GLFWwindow;
 struct Vertex;
-struct ModelResource;
+struct Renderable;
 struct TextureResource;
 struct MeshResource;
 struct SwapChainSupportDetails;
@@ -130,7 +130,8 @@ public:
 	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
 		uint32_t numBuffersToCreate,
 
-		const std::vector<std::unique_ptr<ModelResource>>& models,
+		const std::vector<std::unique_ptr<Renderable>>& renderables,
+		const std::vector<std::unique_ptr<MeshResource>>& meshes,
 		VkExtent2D swapchainExtent,
 		const std::vector<VkFramebuffer>& swapchainFramebuffers,
 
@@ -144,7 +145,8 @@ public:
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 
-		const std::vector<std::unique_ptr<ModelResource>>& models,
+		const std::vector<std::unique_ptr<Renderable>>& renderables,
+		const std::vector<std::unique_ptr<MeshResource>>& meshes,
 		int frameIndex,
 
 		VkExtent2D swapchainExtent,

@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "Renderer/GpuTypes.h"
+#include "Renderer/Renderable.h"
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,11 +20,7 @@
 class RenderableComponent
 {
 public:
-	ModelResourceId ModelResId;
-	//std::vector<RenderableMesh> Meshes; // TODO Support N submeshes
-	//u32 ModelId = u32_max;
+	RenderableResourceId RenderableId; // TODO Support N Renderables
 
-	//// Material
-	//u32 BasecolorMapId = u32_max;
-	//u32 NormalMapId = u32_max;
+	// TODO Use this space to add additional data used for the App/Ui layer
 };
