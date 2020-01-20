@@ -20,14 +20,7 @@ layout(location = 4) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 
-const int pointLightCount = 1;
-const vec3 lightPositions[1] = vec3[](vec3(20,5,0));
-const vec3 lightColors[1] = vec3[](vec3(1.0,0.6,0.4));
-const float lightIntensities[1] = float[](1000);
-
-
-// Unpack UniversalUbo  -  must match packing on CPU side
-
+// Unpack UniversalUbo - must match packing on CPU side
 bool showNormalMap;
 float exposureBias;
 void UnpackUbos()
@@ -36,18 +29,28 @@ void UnpackUbos()
 	exposureBias = ubo.exposureBias[0];
 }
 
+
+// Define lights
+struct Light
+{
+	vec3 pos;
+	vec3 color;
+	float intensity;
+};
+
+const int pointLightCount = 3;
+const Light lights[pointLightCount] = Light[](
+	Light(vec3(20,10,10), vec3(0.9,0.3,0.3), 2500)  // key
+	,Light(vec3(-20,-5,10), vec3(0.2,0.2,0.7), 700)  // fill
+	,Light(vec3(0,5,-20), vec3(1.0,1.0,1.0), 3000)  // rim
+);
+
 const float PI = 3.14159265359;
 
 //// Directional Light (no attenuation)
 //const float dirLightStrength = 1;
 //const vec3 dirLightColor = vec3(0.2,0.2,0.8);
 //const vec3 dirLightDir = normalize(vec3(-1,-1,1));
-
-//// Point Light (with attenuation)
-//const float pointLightStrength = 40;
-//const vec3 pointLightColor = vec3(1.0,0.7,0.6);
-//const vec3 pointLightPos = vec3(20,5,0);
-
 
 
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
@@ -131,14 +134,14 @@ void main()
 	
 	for(int i = 0; i < pointLightCount; i++)
 	{
-		vec3 L = normalize(lightPositions[i] - fragPos); // light direction
+		vec3 L = normalize(lights[i].pos - fragPos); // light direction
 		vec3 H = normalize(V + L);
 		
 
 		// Compute Radiance //
-		float dist = length(lightPositions[i] - fragPos);
+		float dist = length(lights[i].pos - fragPos);
 		float attenuation = 1.0 / (dist * dist);
-		vec3 radiance = lightColors[i] * lightIntensities[i] * attenuation;
+		vec3 radiance = lights[i].color * lights[i].intensity * attenuation;
 
 
 		// BRDF - Cook-Torrance//
@@ -158,12 +161,10 @@ void main()
 		// Outgoing radiance due to light hitting surface
 		float NdotL = max(dot(normal,L), 0.0);
 		Lo += (kD*albedo/PI + specular) * radiance * NdotL;
-
-		//Lo += albedo * radiance * NdotL;
 	}
 
 
-	vec3 ambient = vec3(0.0);
+	vec3 ambient = vec3(0.1);
 
 	vec3 color = ambient + Lo;
 	
