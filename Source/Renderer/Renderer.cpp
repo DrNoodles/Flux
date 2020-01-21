@@ -252,13 +252,83 @@ RenderableResourceId Renderer::CreateRenderable(const RenderableCreateInfo& crea
 {
 	auto model = std::make_unique<Renderable>();
 	model->MeshId = createModelResourceInfo.Mesh;
-	model->Mat = createModelResourceInfo.Mat; // TODO Confirm the shit copied over
+	model->Mat = createModelResourceInfo.Mat;
 	model->FrameResources = CreateModelFrameResources(_swapchainImages.size(), *model);
 
 	const RenderableResourceId id = (u32)_renderables.size();
 	_renderables.emplace_back(std::move(model));
 
 	return id;
+}
+
+void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
+{
+	auto& renderable = *_renderables[renderableResId.Id];
+	auto& oldMat = renderable.Mat;
+
+	// Existing ids
+	const auto currentBasecolorMapId = oldMat.BasecolorMap.value_or(_placeholderTexture).Id;
+	const auto currentNormalMapId = oldMat.NormalMap.value_or(_placeholderTexture).Id;
+	const auto currentRoughnessMapId = oldMat.RoughnessMap.value_or(_placeholderTexture).Id;
+	const auto currentMetalnessMapId = oldMat.MetalnessMap.value_or(_placeholderTexture).Id;
+	const auto currentAoMapId = oldMat.AoMap.value_or(_placeholderTexture).Id;
+
+	// New ids
+	const auto basecolorMapId = newMat.BasecolorMap.value_or(_placeholderTexture).Id;
+	const auto normalMapId = newMat.NormalMap.value_or(_placeholderTexture).Id;
+	const auto roughnessMapId = newMat.RoughnessMap.value_or(_placeholderTexture).Id;
+	const auto metalnessMapId = newMat.MetalnessMap.value_or(_placeholderTexture).Id;
+	const auto aoMapId = newMat.AoMap.value_or(_placeholderTexture).Id;
+
+
+	// Store new mat
+	renderable.Mat = newMat;
+
+
+	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
+	const bool descriptorSetsMatch =
+		currentBasecolorMapId == basecolorMapId &&
+		currentNormalMapId == normalMapId &&
+		currentRoughnessMapId == roughnessMapId &&
+		currentMetalnessMapId == metalnessMapId &&
+		currentAoMapId == aoMapId;
+
+	if (descriptorSetsMatch)
+	{
+		return;
+	}
+
+
+	// Update descriptor sets
+	auto size = renderable.FrameResources.size();
+
+	// Get uniform buffers
+	std::vector<VkBuffer> uniformBuffers{};
+	uniformBuffers.resize(size);
+	for (size_t i = 0; i < size; i++)
+	{
+		uniformBuffers[i] = renderable.FrameResources[i].UniformBuffer;
+	}
+
+
+	// Create new descriptor sets
+	std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
+		(uint32_t)size,
+		_descriptorSetLayout, _descriptorPool,
+		uniformBuffers,
+		*_textures[basecolorMapId],
+		*_textures[normalMapId],
+		*_textures[roughnessMapId],
+		*_textures[metalnessMapId],
+		*_textures[aoMapId],
+		_device);
+
+	
+	// Store new descriptor sets
+	for (size_t i = 0; i < size; i++)
+	{
+		renderable.FrameResources[i].DescriptorSet = descriptorSets[i];
+	}
 }
 
 void Renderer::InitVulkan()

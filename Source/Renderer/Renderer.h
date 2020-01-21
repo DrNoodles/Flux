@@ -35,6 +35,9 @@ public:
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
+	
+	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
+	void SetMaterial(const RenderableResourceId& renderableResId, const Material& material);
 
 
 private:

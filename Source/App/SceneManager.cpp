@@ -81,7 +81,6 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 	return rc;
 }
 
-
 TextureResourceId SceneManager::LoadTexture(const std::string& path)
 {
 	// Is teh tex already loaded?
@@ -96,4 +95,16 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 	_loadedTextures.emplace(path, texResId);
 
 	return texResId;
+}
+
+const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
+{
+	const Renderable& renderable = _renderer.GetRenderable(resourceId);
+	return renderable.Mat;
+}
+
+void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
+{
+	// TODO Undo redo
+	_renderer.SetMaterial(renderableResId, newMat);
 }

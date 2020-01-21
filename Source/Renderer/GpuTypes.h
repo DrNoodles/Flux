@@ -43,7 +43,11 @@ struct Vertex
 
 	bool operator==(const Vertex& other) const
 	{
-		return Pos == other.Pos && Color == other.Color && TexCoord == other.TexCoord;
+		return Pos == other.Pos &&
+			Normal == other.Normal &&
+			Color == other.Color &&
+			TexCoord == other.TexCoord &&
+			Tangent == other.Tangent;
 	}
 
 	static VkVertexInputBindingDescription BindingDescription()

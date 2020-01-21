@@ -226,8 +226,12 @@ vec3 GetNormal()
 {
 	if (uUseNormalMap)
 	{
-		vec3 n = texture(NormalMap, fragTexCoord).xyz; 
+		vec3 n = texture(NormalMap, fragTexCoord).xyz;
 		n = normalize(n*2 - 1); // map [0,1] to [-1,1]
+		
+		if (uInvertNormalMapZ)
+			n.z = -n.z;
+		
 		n = normalize(fragTBN*n); // transform from tangent to world space
 		return n;
 	}

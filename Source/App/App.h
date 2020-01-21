@@ -55,7 +55,7 @@ public:
 		// Services
 		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir, *this);
 		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
-		_sceneManager = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
+		_scene = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
 	}
 	~App()
 	{
@@ -101,8 +101,12 @@ public:
 		const auto degreesPerSec = 60.f;
 		const auto rotationDelta = dt * degreesPerSec;
 
-		for (const auto& entity : _entities)
+		for (auto& entity : _scene->GetEntities())
 		{
+			if (entity->Action)
+			{
+				entity->Action->Update(dt);
+			}
 			auto& transform = entity->Transform;
 
 			auto rot = transform.GetRot();
@@ -114,16 +118,18 @@ public:
 	
 	void Draw(const float dt) const
 	{
-		std::vector<RenderableResourceId> renderables(_entities.size());
-		std::vector<glm::mat4> transforms(_entities.size());
+		auto& entities = _scene->GetEntities();
+		std::vector<RenderableResourceId> renderables(entities.size());
+		std::vector<glm::mat4> transforms(entities.size());
 		
-		for (size_t i = 0; i < _entities.size(); i++)
+		for (size_t i = 0; i < entities.size(); i++)
 		{
-			renderables[i] = _entities[i]->Renderable.RenderableId;
-			transforms[i] = _entities[i]->Transform.GetMatrix();
+			renderables[i] = entities[i]->Renderable.RenderableId;
+			transforms[i] = entities[i]->Transform.GetMatrix();
 		}
 
-		_renderer->DrawFrame(dt, renderables, transforms, _camera.GetViewMatrix(), _camera.Position);
+		auto& camera = _scene->GetCamera();
+		_renderer->DrawFrame(dt, renderables, transforms, camera.GetViewMatrix(), camera.Position);
 	}
 
 
@@ -205,17 +211,14 @@ public:
 private:
 	// Dependencies
 	std::unique_ptr<Renderer> _renderer = nullptr;
-	std::unique_ptr<SceneManager> _sceneManager = nullptr;
+	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 	
 	const glm::ivec2 _defaultWindowSize = { 800,600 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _options;
 
-	
-	// Scene
-	Camera _camera;
-	std::vector<std::unique_ptr<Entity>> _entities{};
+
 
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
@@ -265,23 +268,100 @@ private:
 	
 	#pragma region Scene Management
 
-	bool _assetLoaded = false;
-	void LoadAssets() 
+	void LoadStormtrooperHelmet()
 	{
-		//if (_assetLoaded) { return; }
-		//_assetLoaded = true;
+		const auto path = _options.AssetsDir + "Stormtrooper/helmet/helmet.fbx";
+		std::cout << "Loading model:" << path << std::endl;
 
-		//const auto path = _options.AssetsDir + "stormtrooper_helmet.fbx";
+		auto& entities = _scene->GetEntities();
+
+		auto entity = std::make_unique<Entity>();
+		entity->Transform.SetPos(glm::vec3{ entities.size(), 0, 0 });
+		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
+
+		// Add more maps to the material
+		{
+			Material matCopy = _scene->GetMaterial(entity->Renderable.RenderableId);
+
+			// Load basecolor map
+			matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+			matCopy.UseBasecolorMap = true;
+			
+			// Load normal map
+			matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/normalsRGB.png");
+			matCopy.UseNormalMap = true;
+			matCopy.InvertNormalMapZ = true;
+
+			// Load roughness map
+			matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+			matCopy.UseRoughnessMap = true;
+			matCopy.InvertRoughnessMap = true; // gloss
+			matCopy.RoughnessMapChannel = Material::Channel::Alpha;
+
+			// Load metalness map
+			matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/metalnessB.png");
+			matCopy.UseMetalnessMap = true;
+			matCopy.MetalnessMapChannel = Material::Channel::Blue;
+
+			// Load ao map
+			matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/aoR.png");
+			matCopy.UseAoMap = true;
+			matCopy.AoMapChannel = Material::Channel::Red;
+
+			// Set material
+			_scene->SetMaterial(entity->Renderable.RenderableId, matCopy);
+		}
+
+
+		entities.emplace_back(std::move(entity));
+	}
+
+	void LoadRailgun()
+	{
 		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
-		
+
+		auto& entities = _scene->GetEntities();
+
 		auto entity = std::make_unique<Entity>();
-		entity->Transform.SetPos(glm::vec3{ _entities.size(), 0, 0 });
-		entity->Renderable = _sceneManager->LoadRenderableComponentFromFile(path);
-		_entities.emplace_back(std::move(entity));
+		entity->Transform.SetPos(glm::vec3{ entities.size(), 0, 0 });
+		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
+
+		// Add more maps to the material
+		{
+			Material matCopy = _scene->GetMaterial(entity->Renderable.RenderableId);
+
+			// Load roughness map
+			matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "railgun/ORM.png");
+			matCopy.UseRoughnessMap = true;
+			matCopy.RoughnessMapChannel = Material::Channel::Green;
+
+			// Load metalness map
+			matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "railgun/ORM.png");
+			matCopy.UseMetalnessMap = true;
+			matCopy.MetalnessMapChannel = Material::Channel::Blue;
+
+			// Set material
+			_scene->SetMaterial(entity->Renderable.RenderableId, matCopy);
+		}
+
+
+		entities.emplace_back(std::move(entity));
 	}
 
 	
+	bool _assetLoaded = false;
+	void LoadAssets() 
+	{
+		if (_assetLoaded) { return; }
+		_assetLoaded = true;
+
+		LoadStormtrooperHelmet();
+		LoadRailgun();
+	}
+
 	void FrameAll()
 	{
 		// TODO Fix this method!
@@ -363,7 +443,7 @@ private:
 	// Event handlers
 	void OnScrollChanged(double xOffset, double yOffset)
 	{
-		_camera.ProcessMouseScroll(float(yOffset));
+		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
@@ -398,13 +478,13 @@ private:
 		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
 		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
 
+		
 		// Camera control
+		auto& camera = _scene->GetCamera();
 		if (isLmb)
 		{
-			//_camera.ProcessMouseMovement(float(xDiff), float(yDiff));
-
 			const float arcSpeed = 3;
-			_camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
+			camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
 		}
 		if (isMmb || isRmb)
 		{
@@ -424,7 +504,7 @@ private:
 				{
 					speed = Speed::Fast;
 				}
-				_camera.Move(len, glm::normalize(dir), speed);
+				camera.Move(len, glm::normalize(dir), speed);
 			}
 		}
 	}
