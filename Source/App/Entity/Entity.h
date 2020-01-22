@@ -12,8 +12,8 @@ struct Entity
 {
 	int Id;
 	std::string Name;
-	RenderableComponent Renderable;
 	TransformComponent Transform;
+	std::optional<RenderableComponent> Renderable = std::nullopt;
 	std::optional<LightComponent> Light = std::nullopt;
 	std::unique_ptr<IActionComponent> Action = nullptr; // null means it isn't available. optional can't take abstract
 

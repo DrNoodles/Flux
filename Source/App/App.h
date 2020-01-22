@@ -124,8 +124,11 @@ public:
 		
 		for (size_t i = 0; i < entities.size(); i++)
 		{
-			renderables[i] = entities[i]->Renderable.RenderableId;
-			transforms[i] = entities[i]->Transform.GetMatrix();
+			if (entities[i]->Renderable.has_value())
+			{
+				renderables[i] = entities[i]->Renderable->RenderableId;
+				transforms[i] = entities[i]->Transform.GetMatrix();
+			}
 		}
 
 		auto& camera = _scene->GetCamera();
@@ -283,7 +286,7 @@ private:
 
 		// Add more maps to the material
 		{
-			Material matCopy = _scene->GetMaterial(entity->Renderable.RenderableId);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 
 			// Load basecolor map
 			matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
@@ -311,7 +314,7 @@ private:
 			matCopy.AoMapChannel = Material::Channel::Red;
 
 			// Set material
-			_scene->SetMaterial(entity->Renderable.RenderableId, matCopy);
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 		}
 
 
@@ -332,7 +335,7 @@ private:
 
 		// Add more maps to the material
 		{
-			Material matCopy = _scene->GetMaterial(entity->Renderable.RenderableId);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 
 			// Load roughness map
 			matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "railgun/ORM.png");
@@ -345,7 +348,7 @@ private:
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Set material
-			_scene->SetMaterial(entity->Renderable.RenderableId, matCopy);
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 		}
 
 
