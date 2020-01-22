@@ -25,9 +25,10 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir,
 	_placeholderTexture = CreateTextureResource("../source/placeholder.png");
 }
 
-void Renderer::DrawFrame(float dt, 
+void Renderer::DrawFrame(float dt,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
+	const std::vector<Light>& lights,
 	const glm::mat4& view, const glm::vec3& camPos)
 {
 	assert(renderableIds.size() == transforms.size());
@@ -72,6 +73,7 @@ void Renderer::DrawFrame(float dt,
 	auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
 	projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 
+	
 	// Update Model
 	for (size_t i = 0; i < renderableIds.size(); i++)
 	{
@@ -86,7 +88,7 @@ void Renderer::DrawFrame(float dt,
 		const auto& renderable = _renderables[renderableIds[i].Id].get();
 		UpdateUniformBuffer(
 			renderable->FrameResources[imageIndex].UniformBufferMemory,
-			UniversalUbo::CreatePacked(info, renderable->Mat),
+			UniversalUbo::CreatePacked(info, renderable->Mat, lights.empty() ? Light{} : lights[0]),
 			_device);
 	}
 

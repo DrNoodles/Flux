@@ -63,8 +63,8 @@ struct UniversalUbo
 
 	
 	// Create a UniversalUbo packed to match shader standards. MUST unpack in shader.
-	static UniversalUbo CreatePacked(const UniversalUboCreateInfo& info, const Material& material/*,
-		const Light& light*/)
+	static UniversalUbo CreatePacked(const UniversalUboCreateInfo& info, const Material& material,
+		const Light& light)
 	{
 		UniversalUbo ubo{};
 		
@@ -97,13 +97,6 @@ struct UniversalUbo
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
 		ubo.ExposureBias[0] = info.ExposureBias;
 
-		// HACK: Hardcoded for now
-		Light light;
-		light.Color = { 1,0,0 };
-		light.Intensity = 500;
-		light.Pos = { 0,10,5 };
-		light.Type = Light::LightType::Point;
-		
 		// Light
 		ubo.LightColorIntensity[0] = light.Color.r;
 		ubo.LightColorIntensity[1] = light.Color.g;

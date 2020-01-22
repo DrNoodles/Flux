@@ -28,8 +28,9 @@ public:
 
 	explicit Renderer(bool enableValidationLayers, std::string shaderDir, IRendererDelegate& delegate);
 	void DrawFrame(float dt,
-		const std::vector<RenderableResourceId>& renderables,
+		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
+		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::vec3& camPos);
 	void CleanUp(); // TODO convert to RAII?
 	TextureResourceId CreateTextureResource(const std::string& path);

@@ -107,11 +107,15 @@ public:
 			{
 				entity->Action->Update(dt);
 			}
-			auto& transform = entity->Transform;
 
-			auto rot = transform.GetRot();
-			rot.y += rotationDelta;
-			transform.SetRot(rot);
+			// TODO Temp rotation of all renderables. Convert  to turntable actions
+			if (entity->Renderable.has_value())
+			{
+				auto& transform = entity->Transform;
+				auto rot = transform.GetRot();
+				rot.y += rotationDelta;
+				transform.SetRot(rot);
+			}
 		}
 	}
 
@@ -119,20 +123,29 @@ public:
 	void Draw(const float dt) const
 	{
 		auto& entities = _scene->GetEntities();
-		std::vector<RenderableResourceId> renderables(entities.size());
-		std::vector<glm::mat4> transforms(entities.size());
+		std::vector<RenderableResourceId> renderables;
+		std::vector<Light> lights;
+		std::vector<glm::mat4> transforms;
 		
-		for (size_t i = 0; i < entities.size(); i++)
+		for (auto& entity : entities)
 		{
-			if (entities[i]->Renderable.has_value())
+			if (entity->Renderable.has_value())
 			{
-				renderables[i] = entities[i]->Renderable->RenderableId;
-				transforms[i] = entities[i]->Transform.GetMatrix();
+				renderables.emplace_back(entity->Renderable->RenderableId);
+				transforms.emplace_back(entity->Transform.GetMatrix());
+			}
+
+			if (entity->Light.has_value())
+			{
+				auto light = entity->Light->ToLight();
+				light.Pos = entity->Transform.GetPos();
+				lights.emplace_back(light);
 			}
 		}
 
+
 		auto& camera = _scene->GetCamera();
-		_renderer->DrawFrame(dt, renderables, transforms, camera.GetViewMatrix(), camera.Position);
+		_renderer->DrawFrame(dt, renderables, transforms, lights, camera.GetViewMatrix(), camera.Position);
 	}
 
 
@@ -279,6 +292,7 @@ private:
 		auto& entities = _scene->GetEntities();
 
 		auto entity = std::make_unique<Entity>();
+		entity->Name = "Stormtrooper Helmet";
 		entity->Transform.SetScale(glm::vec3{ 10 });
 		entity->Transform.SetPos(glm::vec3{ entities.size(), -15, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -329,6 +343,7 @@ private:
 		auto& entities = _scene->GetEntities();
 
 		auto entity = std::make_unique<Entity>();
+		entity->Name = "Railgun";
 		entity->Transform.SetPos(glm::vec3{ entities.size(), 0, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
@@ -355,6 +370,19 @@ private:
 		entities.emplace_back(std::move(entity));
 	}
 
+	void LoadLighting()
+	{
+		// Create entity with light component.
+		auto entity = std::make_unique<Entity>();
+		entity->Name = "PointLight";
+		entity->Transform.SetPos({ 0,10,5 });
+		entity->Light = LightComponent{};
+		entity->Light->Color = { 0,1,0 };
+		entity->Light->Intensity = 300;
+		entity->Light->Type = LightComponent::Types::point;
+
+		_scene->GetEntities().emplace_back(std::move(entity));
+	}
 	
 	bool _assetLoaded = false;
 	void LoadAssets() 
@@ -362,6 +390,7 @@ private:
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 
+	//	LoadLighting();
 		LoadStormtrooperHelmet();
 		//LoadRailgun();
 	}
