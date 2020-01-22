@@ -1523,6 +1523,7 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 		poolCI.poolSizeCount = (uint32_t)poolSizes.size();
 		poolCI.pPoolSizes = poolSizes.data();
 		poolCI.maxSets = count;
+		poolCI.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	}
 
 	VkDescriptorPool pool;
@@ -1566,12 +1567,28 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 		throw std::runtime_error("Failed to create descriptor sets");
 	}
 
+	WriteDescriptorSets(count, descriptorSets, uniformBuffers,
+		basecolorMap, normalMap, roughnessMap, metalnessMap, aoMap, device);
+
+	return descriptorSets;
+}
+void VulkanHelpers::WriteDescriptorSets(
+	uint32_t count,
+	const std::vector<VkDescriptorSet>& descriptorSets,
+	const std::vector<VkBuffer>& uniformBuffers,
+	const TextureResource& basecolorMap,
+	const TextureResource& normalMap,
+	const TextureResource& roughnessMap,
+	const TextureResource& metalnessMap,
+	const TextureResource& aoMap,
+	VkDevice device)
+{
 	std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
 
 	// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
 	for (size_t i = 0; i < count; ++i)
 	{
-		
+
 		// Uniform descriptor set
 		VkDescriptorBufferInfo bufferInfo = {};
 		{
@@ -1696,12 +1713,12 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 			descriptorWrites[binding].pImageInfo = &aoMapInfo;
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
-		
+
 		vkUpdateDescriptorSets(device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
-
-	return descriptorSets;
 }
+
+
 
 std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count,
 	VkDevice device, VkPhysicalDevice physicalDevice)

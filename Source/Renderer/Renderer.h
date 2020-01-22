@@ -36,6 +36,7 @@ public:
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
 	
+
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& material);
 
@@ -107,4 +108,5 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 	std::vector<ModelResourceFrame> CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const;
+	
 };

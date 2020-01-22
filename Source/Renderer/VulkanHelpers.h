@@ -180,7 +180,15 @@ public:
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
 		VkDevice device);
-
+	static void WriteDescriptorSets(uint32_t count,
+		const std::vector<VkDescriptorSet>& descriptorSets,
+		const std::vector<VkBuffer>& uniformBuffers,
+		const TextureResource& basecolorMap,
+		const TextureResource& normalMap,
+		const TextureResource& roughnessMap,
+		const TextureResource& metalnessMap,
+		const TextureResource& aoMap,
+		VkDevice device);
 
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
 		CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice);

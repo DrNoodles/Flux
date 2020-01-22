@@ -261,10 +261,12 @@ RenderableResourceId Renderer::CreateRenderable(const RenderableCreateInfo& crea
 	return id;
 }
 
+
+
 void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
 {
-	auto& renderable = *_renderables[renderableResId.Id];
-	auto& oldMat = renderable.Mat;
+	auto renderable = _renderables[renderableResId.Id].get();
+	auto& oldMat = renderable->Mat;
 
 	// Existing ids
 	const auto currentBasecolorMapId = oldMat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -282,7 +284,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 
 
 	// Store new mat
-	renderable.Mat = newMat;
+	renderable->Mat = newMat;
 
 
 	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
@@ -299,36 +301,27 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	}
 
 
-	// Update descriptor sets
-	auto size = renderable.FrameResources.size();
-
-	// Get uniform buffers
+	// Gather descriptor sets and uniform buffers
+	const auto count = renderable->FrameResources.size();
+	std::vector<VkDescriptorSet> descriptorSets{};
 	std::vector<VkBuffer> uniformBuffers{};
-	uniformBuffers.resize(size);
-	for (size_t i = 0; i < size; i++)
+	descriptorSets.resize(count);
+	uniformBuffers.resize(count);
+	for (size_t i = 0; i < count; i++)
 	{
-		uniformBuffers[i] = renderable.FrameResources[i].UniformBuffer;
+		descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
+		uniformBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 	}
 
-
-	// Create new descriptor sets
-	std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
-		(uint32_t)size,
-		_descriptorSetLayout, _descriptorPool,
-		uniformBuffers,
+	
+	// Write updated descriptor sets
+	vkh::WriteDescriptorSets(count, descriptorSets, uniformBuffers,
 		*_textures[basecolorMapId],
 		*_textures[normalMapId],
 		*_textures[roughnessMapId],
 		*_textures[metalnessMapId],
 		*_textures[aoMapId],
 		_device);
-
-	
-	// Store new descriptor sets
-	for (size_t i = 0; i < size; i++)
-	{
-		renderable.FrameResources[i].DescriptorSet = descriptorSets[i];
-	}
 }
 
 void Renderer::InitVulkan()

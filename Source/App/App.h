@@ -276,7 +276,8 @@ private:
 		auto& entities = _scene->GetEntities();
 
 		auto entity = std::make_unique<Entity>();
-		entity->Transform.SetPos(glm::vec3{ entities.size(), 0, 0 });
+		entity->Transform.SetScale(glm::vec3{ 10 });
+		entity->Transform.SetPos(glm::vec3{ entities.size(), -15, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
@@ -359,7 +360,7 @@ private:
 		_assetLoaded = true;
 
 		LoadStormtrooperHelmet();
-		LoadRailgun();
+		//LoadRailgun();
 	}
 
 	void FrameAll()
