@@ -420,7 +420,20 @@ private:
 			_scene->GetEntities().emplace_back(std::move(light));
 		}
 	}
-	
+
+
+	void RandomizeLights()
+	{
+		for (auto& element : _scene->GetEntities())
+		{
+			if (element->Light.has_value())
+			{
+				auto& lightComponent = element->Light.value();
+				lightComponent.Color = { float(rand())/RAND_MAX,float(rand()) / RAND_MAX,float(rand()) / RAND_MAX };
+			}
+		}
+	}
+
 	bool _assetLoaded = false;
 	void LoadAssets() 
 	{
@@ -515,6 +528,7 @@ private:
 	{
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
+
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		// ONLY on pressed is handled
@@ -523,6 +537,7 @@ private:
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_X)      { LoadAssets(); }
+		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
