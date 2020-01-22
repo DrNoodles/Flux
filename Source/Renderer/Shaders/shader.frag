@@ -6,6 +6,7 @@ struct Light
 	vec3 pos;
 	vec3 color;
 	float intensity;
+	int type; // Point=0, Directional=1
 };
 
 // TODO Optimise size via juicy packing
@@ -41,6 +42,10 @@ layout(std140, binding = 0) uniform UniversalUbo
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
 	vec4 exposureBias;       // float in [0]
+
+	// Light
+	vec4 lightColorIntensity;// floats [R,G,B,Intensity]
+	vec4 lightPosType;       // floats [X,Y,Z], int [Type]
 } ubo;
 layout(binding = 1) uniform sampler2D BasecolorMap;
 layout(binding = 2) uniform sampler2D NormalMap;
@@ -57,15 +62,7 @@ layout(location = 4) in mat3 fragTBN;
 layout(location = 0) out vec4 outColor;
 
 const float PI = 3.14159265359;
-
-const int pointLightCount = 3;
-const Light lights[pointLightCount] = Light[](
-	Light(vec3(20,10,10), vec3(0.9,0.3,0.3), 2500)  // key
-	,Light(vec3(-20,-5,10), vec3(0.2,0.2,0.7), 700)  // fill
-	,Light(vec3(0,5,-20), vec3(1.0,1.0,1.0), 3000)  // rim
-);
-
-
+const int MAX_LIGHT_COUNT = 4;
 
 
 // Material
@@ -91,6 +88,10 @@ int uAoMapChannel;
 // Render Options
 bool uShowNormalMap;
 float uExposureBias;
+
+// Lights
+int uLightCount = 0; // TODO Load from UBO
+Light uLights[MAX_LIGHT_COUNT];
 
 
 // UBOs - must match packing on CPU side
@@ -119,6 +120,13 @@ void UnpackUbos()
 	// Render options
 	uShowNormalMap = bool(ubo.showNormalMap[0]);
 	uExposureBias = ubo.exposureBias[0];
+
+	// Light
+	uLightCount = 1;
+	uLights[0].color = ubo.lightColorIntensity.rgb;
+	uLights[0].intensity = ubo.lightColorIntensity.a;
+	uLights[0].pos = ubo.lightPosType.xyz;
+	uLights[0].type = int(ubo.lightPosType.w);
 }
 
 
@@ -159,10 +167,8 @@ void main()
 		return;
 	}
 
-	
 
 	vec3 V = normalize(ubo.camPos - fragPos); // view vector
-
 
 	vec3 F0 = vec3(0.04); // good average value for common dielectrics
 	F0 = mix(F0, basecolor, metalness);
@@ -171,16 +177,16 @@ void main()
 	// Reflectance equation for direct lighting
 	vec3 Lo = vec3(0.0);
 	
-	for(int i = 0; i < pointLightCount; i++)
+	for(int i = 0; i < uLightCount; i++)
 	{
-		vec3 L = normalize(lights[i].pos - fragPos); // light direction
+		vec3 L = normalize(uLights[i].pos - fragPos); // light direction
 		vec3 H = normalize(V + L);
 		
 
 		// Compute Radiance //
-		float dist = length(lights[i].pos - fragPos);
+		float dist = length(uLights[i].pos - fragPos);
 		float attenuation = 1.0 / (dist * dist);
-		vec3 radiance = lights[i].color * lights[i].intensity * attenuation;
+		vec3 radiance = uLights[i].color * uLights[i].intensity * attenuation;
 
 
 		// BRDF - Cook-Torrance//
@@ -203,7 +209,7 @@ void main()
 	}
 
 
-	vec3 ambient = vec3(0.0);
+	vec3 ambient = vec3(0.1);
 
 	vec3 color = ambient + Lo;
 	

@@ -22,6 +22,8 @@ struct UniversalUboCreateInfo
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO use union to achieve packing data into vec4s
 struct UniversalUbo
 {
 	// Data types and alignment to match shader exactly.
@@ -54,9 +56,15 @@ struct UniversalUbo
 	alignas(16) glm::vec4 ShowNormalMap;
 	alignas(16) glm::vec4 ExposureBias;
 
+	// Light
+	alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
+	alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
+	
+
 	
 	// Create a UniversalUbo packed to match shader standards. MUST unpack in shader.
-	static UniversalUbo CreatePacked(const UniversalUboCreateInfo& info, const Material& material)
+	static UniversalUbo CreatePacked(const UniversalUboCreateInfo& info, const Material& material/*,
+		const Light& light*/)
 	{
 		UniversalUbo ubo{};
 		
@@ -88,6 +96,23 @@ struct UniversalUbo
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
 		ubo.ExposureBias[0] = info.ExposureBias;
+
+		// HACK: Hardcoded for now
+		Light light;
+		light.Color = { 1,0,0 };
+		light.Intensity = 500;
+		light.Pos = { 0,10,5 };
+		light.Type = Light::LightType::Point;
+		
+		// Light
+		ubo.LightColorIntensity[0] = light.Color.r;
+		ubo.LightColorIntensity[1] = light.Color.g;
+		ubo.LightColorIntensity[2] = light.Color.b;
+		ubo.LightColorIntensity[3] = light.Intensity;
+		ubo.LightPosType[0] = light.Pos.x;
+		ubo.LightPosType[1] = light.Pos.y;
+		ubo.LightPosType[2] = light.Pos.z;
+		ubo.LightPosType[3] = float(light.Type);
 		
 		return ubo;
 	}

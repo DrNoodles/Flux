@@ -32,6 +32,10 @@ layout(std140, binding = 0) uniform UniversalUbo
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
 	vec4 exposureBias;       // float in [0]
+
+	// Light
+	vec4 lightColorIntensity;// floats [R,G,B,Intensity]
+	vec4 lightPosType;       // floats [X,Y,Z], int [Type]
 } ubo;
 
 layout(location = 0) in vec3 inPosition;
