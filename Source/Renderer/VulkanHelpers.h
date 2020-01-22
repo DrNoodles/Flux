@@ -171,18 +171,23 @@ public:
 
 
 	// Associates the UBO and texture to sets for use in shaders
-	static std::vector<VkDescriptorSet> CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout,
+	static std::vector<VkDescriptorSet> CreateDescriptorSets(
+		uint32_t count, 
+		VkDescriptorSetLayout layout,
 		VkDescriptorPool pool,
-		const std::vector<VkBuffer>& uniformBuffers,
+		const std::vector<VkBuffer>& modelUbos,
+		const std::vector<VkBuffer>& lightUbos,
 		const TextureResource& basecolorMap,
 		const TextureResource& normalMap,
 		const TextureResource& roughnessMap,
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
 		VkDevice device);
-	static void WriteDescriptorSets(uint32_t count,
+	static void WriteDescriptorSets(
+		uint32_t count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& uniformBuffers,
+		const std::vector<VkBuffer>& modelUbos,
+		const std::vector<VkBuffer>& lightUbos,
 		const TextureResource& basecolorMap,
 		const TextureResource& normalMap,
 		const TextureResource& roughnessMap,
@@ -191,7 +196,7 @@ public:
 		VkDevice device);
 
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
-		CreateUniformBuffers(size_t count, VkDevice device, VkPhysicalDevice physicalDevice);
+		CreateUniformBuffers(size_t count, VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice);
 
 #pragma endregion
 

@@ -73,6 +73,18 @@ void Renderer::DrawFrame(float dt,
 	auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
 	projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
 
+
+	
+	// Update light buffers
+
+	// Single light support
+	auto lightUbo = LightUbo::Create(lights);
+	void* data;
+	auto size = sizeof(lightUbo);
+	vkMapMemory(_device, _lightBuffersMemory[imageIndex], 0, size, 0, &data);
+	memcpy(data, &lightUbo, size);
+	vkUnmapMemory(_device, _lightBuffersMemory[imageIndex]);
+	
 	
 	// Update Model
 	for (size_t i = 0; i < renderableIds.size(); i++)
@@ -86,10 +98,15 @@ void Renderer::DrawFrame(float dt,
 		info.ShowNormalMap = false;
 
 		const auto& renderable = _renderables[renderableIds[i].Id].get();
-		UpdateUniformBuffer(
-			renderable->FrameResources[imageIndex].UniformBufferMemory,
-			UniversalUbo::CreatePacked(info, renderable->Mat, lights.empty() ? Light{} : lights[0]),
-			_device);
+		
+		auto& modelBufferMemory = renderable->FrameResources[imageIndex].UniformBufferMemory;
+		auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
+
+		// Update model ubo
+		void* data;
+		vkMapMemory(_device, modelBufferMemory, 0, sizeof(modelUbo), 0, &data);
+		memcpy(data, &modelUbo, sizeof(modelUbo));
+		vkUnmapMemory(_device, modelBufferMemory);
 	}
 
 	vkh::RecordCommandBuffer(
@@ -306,18 +323,20 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	// Gather descriptor sets and uniform buffers
 	const auto count = renderable->FrameResources.size();
 	std::vector<VkDescriptorSet> descriptorSets{};
-	std::vector<VkBuffer> uniformBuffers{};
+	std::vector<VkBuffer> modelBuffers{};
 	descriptorSets.resize(count);
-	uniformBuffers.resize(count);
+	modelBuffers.resize(count);
 	for (size_t i = 0; i < count; i++)
 	{
 		descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
-		uniformBuffers[i] = renderable->FrameResources[i].UniformBuffer;
+		modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 	}
 
 	
 	// Write updated descriptor sets
-	vkh::WriteDescriptorSets(count, descriptorSets, uniformBuffers,
+	vkh::WriteDescriptorSets((u32)count, descriptorSets, 
+		modelBuffers,
+		_lightBuffers,
 		*_textures[basecolorMapId],
 		*_textures[normalMapId],
 		*_textures[roughnessMapId],
@@ -353,32 +372,6 @@ void Renderer::InitVulkan()
 		= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
 }
 
-void Renderer::UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, UniversalUbo ubo, VkDevice device)
-{
-	//auto odnm = offsetof(UniversalUbo, ShowNormalMap);
-	//auto oeb = offsetof(UniversalUbo, ExposureBias);
-	//auto om = offsetof(UniversalUbo, Model);
-	//auto ov = offsetof(UniversalUbo, View);
-	//auto op = offsetof(UniversalUbo, Projection);
-	//
-	//auto f = sizeof(ubo);
-	//auto x = sizeof(i32);
-	//auto z = sizeof(f32);
-	//auto w = sizeof(bool);
-	//auto y = sizeof(glm::vec4);
-	//auto a = sizeof(ubo.Model);
-	//auto b = sizeof(ubo.View);
-	//auto c = sizeof(ubo.Projection);
-	//auto d = sizeof(ubo.ShowNormalMap);
-	//auto e = sizeof(ubo.ExposureBias);
-
-	// Push ubo
-	void* data;
-	vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
-	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(device, uniformBufferMemory);
-}
-
 void Renderer::CleanupSwapchainAndDependents()
 {
 	vkDestroyImageView(_device, _colorImageView, nullptr);
@@ -388,7 +381,7 @@ void Renderer::CleanupSwapchainAndDependents()
 	vkDestroyImageView(_device, _depthImageView, nullptr);
 	vkDestroyImage(_device, _depthImage, nullptr);
 	vkFreeMemory(_device, _depthImageMemory, nullptr);
-
+	
 	for (auto& renderable : _renderables)
 	{
 		for (auto& info : renderable->FrameResources)
@@ -398,6 +391,9 @@ void Renderer::CleanupSwapchainAndDependents()
 			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
+
+	for (auto& x : _lightBuffers) { vkDestroyBuffer(_device, x, nullptr); }
+	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 
 	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 	for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
@@ -443,7 +439,11 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	_descriptorPool = vkh::CreateDescriptorPool((uint32_t)numImagesInFlight * numDescSetGroups, _device);
 
 
-	// Create uniform buffers and descriptor sets per image in swapchain
+	// Create light uniform buffersper swapchain image
+	std::tie(_lightBuffers, _lightBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _device, _physicalDevice);
+
+	// Create model uniform buffers and descriptor sets per swapchain image
 	for (auto& renderable : _renderables)
 	{
 		renderable->FrameResources = CreateModelFrameResources(numImagesInFlight , *renderable);
@@ -473,10 +473,10 @@ void Renderer::RecreateSwapchain()
 
 std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const
 {
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::tie(uniformBuffers, uniformBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, _device, _physicalDevice);
+	std::vector<VkBuffer> modelBuffers;
+	std::vector<VkDeviceMemory> modelBuffersMemory;
+	std::tie(modelBuffers, modelBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(UniversalUbo), _device, _physicalDevice);
 
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
@@ -490,7 +490,8 @@ std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numIm
 	std::vector<VkDescriptorSet> descriptorSets = vkh::CreateDescriptorSets(
 		(uint32_t)numImagesInFlight,
 		_descriptorSetLayout, _descriptorPool,
-		uniformBuffers,
+		modelBuffers,
+		_lightBuffers,
 		*_textures[basecolorMapId],
 		*_textures[normalMapId],
 		*_textures[roughnessMapId],
@@ -504,8 +505,8 @@ std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numIm
 	
 	for (size_t i = 0; i < numImagesInFlight; i++)
 	{
-		modelInfos[i].UniformBuffer = uniformBuffers[i];
-		modelInfos[i].UniformBufferMemory = uniformBuffersMemory[i];
+		modelInfos[i].UniformBuffer = modelBuffers[i];
+		modelInfos[i].UniformBufferMemory = modelBuffersMemory[i];
 		modelInfos[i].DescriptorSet = descriptorSets[i];
 	}
 

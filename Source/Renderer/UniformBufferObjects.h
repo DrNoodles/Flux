@@ -8,6 +8,45 @@
 #include <glm/gtx/hash.hpp>
 
 
+struct LightPacked
+{
+	alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
+	alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
+};
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct LightUbo
+{
+	alignas(16) glm::vec4 LightCount;           // int in [0]
+	alignas(16) LightPacked Lights[4];
+	//alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
+	//alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
+
+	static LightUbo Create(const std::vector<Light>& lights)
+	{
+		LightUbo ubo{};
+
+		ubo.LightCount[0] = (float)lights.size();
+
+		
+		for (size_t i = 0; i < lights.size(); i++)
+		{
+			auto light = lights[i];
+		
+			ubo.Lights[i].LightColorIntensity[0] = light.Color.r;
+			ubo.Lights[i].LightColorIntensity[1] = light.Color.g;
+			ubo.Lights[i].LightColorIntensity[2] = light.Color.b;
+			ubo.Lights[i].LightColorIntensity[3] = light.Intensity;
+			ubo.Lights[i].LightPosType[0] = light.Pos.x;
+			ubo.Lights[i].LightPosType[1] = light.Pos.y;
+			ubo.Lights[i].LightPosType[2] = light.Pos.z;
+			ubo.Lights[i].LightPosType[3] = float(light.Type);
+		}
+
+		return ubo;
+	}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UniversalUboCreateInfo
 {
 	glm::mat4 Model{};
@@ -18,11 +57,9 @@ struct UniversalUboCreateInfo
 	// Render options
 	bool ShowNormalMap = false;
 	float ExposureBias = 1.0f;
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 // TODO use union to achieve packing data into vec4s
 struct UniversalUbo
 {
@@ -56,15 +93,9 @@ struct UniversalUbo
 	alignas(16) glm::vec4 ShowNormalMap;
 	alignas(16) glm::vec4 ExposureBias;
 
-	// Light
-	alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
-	alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
-	
-
 	
 	// Create a UniversalUbo packed to match shader standards. MUST unpack in shader.
-	static UniversalUbo CreatePacked(const UniversalUboCreateInfo& info, const Material& material,
-		const Light& light)
+	static UniversalUbo Create(const UniversalUboCreateInfo& info, const Material& material)
 	{
 		UniversalUbo ubo{};
 		
@@ -96,16 +127,6 @@ struct UniversalUbo
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
 		ubo.ExposureBias[0] = info.ExposureBias;
-
-		// Light
-		ubo.LightColorIntensity[0] = light.Color.r;
-		ubo.LightColorIntensity[1] = light.Color.g;
-		ubo.LightColorIntensity[2] = light.Color.b;
-		ubo.LightColorIntensity[3] = light.Intensity;
-		ubo.LightPosType[0] = light.Pos.x;
-		ubo.LightPosType[1] = light.Pos.y;
-		ubo.LightPosType[2] = light.Pos.z;
-		ubo.LightPosType[3] = float(light.Type);
 		
 		return ubo;
 	}

@@ -1414,6 +1414,9 @@ std::tuple<std::vector<VkSemaphore>, std::vector<VkSemaphore>, std::vector<VkFen
 	return { renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, imagesInFlight };
 }
 
+
+const u32 g_maxLights = 1;
+
 VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 {
 	// Prepare layout bindings
@@ -1423,7 +1426,7 @@ VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		uboLayoutBinding.descriptorCount = 1;
 		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// TODO Is it more effecient to create a buffer per stage?
+		// TODO Separate out a buffer for vert and frag stages
 		uboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
 	}
 	VkDescriptorSetLayoutBinding basecolorMapLayoutBinding = {};
@@ -1466,14 +1469,23 @@ VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 		aoMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		aoMapLayoutBinding.pImmutableSamplers = nullptr;
 	}
+	VkDescriptorSetLayoutBinding lightUboLayoutBinding = {};
+	{
+		lightUboLayoutBinding.binding = 6; // correlates to shader
+		lightUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		lightUboLayoutBinding.descriptorCount = g_maxLights;
+		lightUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		lightUboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
+	}
 
-	std::array<VkDescriptorSetLayoutBinding, 6> bindings = {
+	std::array<VkDescriptorSetLayoutBinding, 7> bindings = {
 		uboLayoutBinding,
 		basecolorMapLayoutBinding,
 		normalMapLayoutBinding,
 		roughnessMapLayoutBinding,
 		metalnessMapLayoutBinding,
-		aoMapLayoutBinding
+		aoMapLayoutBinding,
+		lightUboLayoutBinding,
 	};
 
 
@@ -1499,7 +1511,7 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 	// count: max num of descriptor sets that may be allocated
 
 	// Define which descriptor types our descriptor sets contain
-	std::array<VkDescriptorPoolSize, 6> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 7> poolSizes = {};
 	{
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = count;
@@ -1513,6 +1525,8 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 		poolSizes[4].descriptorCount = count;
 		poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[5].descriptorCount = count;
+		poolSizes[6].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[6].descriptorCount = count * g_maxLights;
 	}
 
 
@@ -1523,7 +1537,7 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 		poolCI.poolSizeCount = (uint32_t)poolSizes.size();
 		poolCI.pPoolSizes = poolSizes.data();
 		poolCI.maxSets = count;
-		poolCI.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		//poolCI.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	}
 
 	VkDescriptorPool pool;
@@ -1536,9 +1550,12 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 	return pool;
 }
 
-std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count, VkDescriptorSetLayout layout,
+std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(
+	uint32_t count, 
+	VkDescriptorSetLayout layout,
 	VkDescriptorPool pool,
-	const std::vector<VkBuffer>& uniformBuffers,
+	const std::vector<VkBuffer>& modelUbos,
+	const std::vector<VkBuffer>& lightUbos,
 	const TextureResource& basecolorMap,
 	const TextureResource& normalMap,
 	const TextureResource& roughnessMap,
@@ -1546,7 +1563,8 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 	const TextureResource& aoMap,
 	VkDevice device)
 {
-	assert(count == uniformBuffers.size());
+	assert(count == modelUbos.size());// 1 per image in swapchain
+	assert(count == lightUbos.size());
 
 	// Need a copy of the layout per set as they'll be index matched arrays
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
@@ -1567,7 +1585,7 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 		throw std::runtime_error("Failed to create descriptor sets");
 	}
 
-	WriteDescriptorSets(count, descriptorSets, uniformBuffers,
+	WriteDescriptorSets(count, descriptorSets, modelUbos, lightUbos,
 		basecolorMap, normalMap, roughnessMap, metalnessMap, aoMap, device);
 
 	return descriptorSets;
@@ -1575,7 +1593,8 @@ std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(uint32_t count,
 void VulkanHelpers::WriteDescriptorSets(
 	uint32_t count,
 	const std::vector<VkDescriptorSet>& descriptorSets,
-	const std::vector<VkBuffer>& uniformBuffers,
+	const std::vector<VkBuffer>& modelUbos,
+	const std::vector<VkBuffer>& lightUbos,
 	const TextureResource& basecolorMap,
 	const TextureResource& normalMap,
 	const TextureResource& roughnessMap,
@@ -1583,7 +1602,10 @@ void VulkanHelpers::WriteDescriptorSets(
 	const TextureResource& aoMap,
 	VkDevice device)
 {
-	std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
+	assert(count == modelUbos.size());// 1 per image in swapchain
+	assert(count == lightUbos.size());
+	
+	std::array<VkWriteDescriptorSet, 7> descriptorWrites{};
 
 	// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
 	for (size_t i = 0; i < count; ++i)
@@ -1592,9 +1614,9 @@ void VulkanHelpers::WriteDescriptorSets(
 		// Uniform descriptor set
 		VkDescriptorBufferInfo bufferInfo = {};
 		{
-			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.buffer = modelUbos[i];
 			bufferInfo.offset = 0;
-			bufferInfo.range = sizeof(UniversalUbo);//sadf use same size calc for other bit of code?
+			bufferInfo.range = sizeof(UniversalUbo);
 		}
 		{
 			const auto binding = 0;
@@ -1714,40 +1736,50 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
+
+		// Light UBO descriptor set
+		VkDescriptorBufferInfo lightInfo = {};
+		{
+			lightInfo.buffer = lightUbos[i];
+			lightInfo.offset = 0;
+			lightInfo.range = sizeof(LightUbo);
+		}
+		{
+			const auto binding = 6;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSets[i];
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrites[binding].descriptorCount = g_maxLights;
+			descriptorWrites[binding].pBufferInfo = &lightInfo; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = nullptr;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
+		}
+		
 		vkUpdateDescriptorSets(device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
 
 
-std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count,
-	VkDevice device, VkPhysicalDevice physicalDevice)
+std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count, 
+	VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice)
 {
-	// Input - TODO Pass this in
-	VkDeviceSize uboSize;
-
-	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(physicalDevice, &props);
-	const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
-	const size_t maxUboRange = props.limits.maxUniformBufferRange;
-
-	
-	if (true)
-	{
-		uboSize = sizeof(UniversalUbo);
-	}
-	else
-
+	const auto doAlignMemory = false;
+	if (doAlignMemory)
 	{
 		VkPhysicalDeviceProperties props;
 		vkGetPhysicalDeviceProperties(physicalDevice, &props);
 		const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
-		auto dynamicAlignment = sizeof(UniversalUbo);
+		const size_t maxUboRange = props.limits.maxUniformBufferRange;
+		
+		auto dynamicAlignment = typeSize;
 		if (minUboAlignment > 0)
 		{
 			dynamicAlignment = (dynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
 		}
-		uboSize = dynamicAlignment;
+		typeSize = dynamicAlignment;
 		//uboDataDynamic.model = (glm::mat4*)alignedAlloc(bufferSize, dynamicAlignment);
 	}
 
@@ -1762,7 +1794,7 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 		const auto propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
 		std::tie(buffers[i], buffersMemory[i])
-			= CreateBuffer(uboSize, usageFlags, propertyFlags, device, physicalDevice);
+			= CreateBuffer(typeSize, usageFlags, propertyFlags, device, physicalDevice);
 	}
 
 	return { buffers, buffersMemory };

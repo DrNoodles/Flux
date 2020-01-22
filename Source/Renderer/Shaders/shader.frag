@@ -1,6 +1,11 @@
 #version 450
 
 // Types
+struct LightPacked
+{
+	vec4 lightColorIntensity;// floats [R,G,B,Intensity]
+	vec4 lightPosType;       // floats [X,Y,Z], int [Type]
+};
 struct Light
 {
 	vec3 pos;
@@ -42,16 +47,17 @@ layout(std140, binding = 0) uniform UniversalUbo
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
 	vec4 exposureBias;       // float in [0]
-
-	// Light
-	vec4 lightColorIntensity;// floats [R,G,B,Intensity]
-	vec4 lightPosType;       // floats [X,Y,Z], int [Type]
 } ubo;
 layout(binding = 1) uniform sampler2D BasecolorMap;
 layout(binding = 2) uniform sampler2D NormalMap;
 layout(binding = 3) uniform sampler2D RoughnessMap;
 layout(binding = 4) uniform sampler2D MetalnessMap;
 layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
+layout(std140, binding = 6) uniform LightUbo
+{
+	vec4 lightCount;           // int in [0]
+	LightPacked[4] lights;
+} lightUbo;
 
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
@@ -122,11 +128,14 @@ void UnpackUbos()
 	uExposureBias = ubo.exposureBias[0];
 
 	// Light
-	uLightCount = 1;
-	uLights[0].color = ubo.lightColorIntensity.rgb;
-	uLights[0].intensity = ubo.lightColorIntensity.a;
-	uLights[0].pos = ubo.lightPosType.xyz;
-	uLights[0].type = int(ubo.lightPosType.w);
+	uLightCount = int(lightUbo.lightCount[0]);
+	for (int i = 0; i < uLightCount; i++) // this loop has GOTTA be bad for perf. maybe even catastrophic?
+	{
+		uLights[i].color = lightUbo.lights[i].lightColorIntensity.rgb;
+		uLights[i].intensity = lightUbo.lights[i].lightColorIntensity.a;
+		uLights[i].pos = lightUbo.lights[i].lightPosType.xyz;
+		uLights[i].type = int(lightUbo.lights[i].lightPosType.w);
+	}
 }
 
 

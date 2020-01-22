@@ -97,6 +97,9 @@ private:
 	VkDescriptorPool _descriptorPool = nullptr;
 
 	// Resources
+	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
+	std::vector<VkDeviceMemory> _lightBuffersMemory{};
+	
 	std::vector<std::unique_ptr<Renderable>> _renderables{};
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
@@ -104,7 +107,6 @@ private:
 
 
 	void InitVulkan();
-	static void UpdateUniformBuffer(VkDeviceMemory uniformBufferMemory, UniversalUbo ubo, VkDevice device);
 	void CleanupSwapchainAndDependents();
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();

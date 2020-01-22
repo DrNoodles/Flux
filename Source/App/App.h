@@ -373,15 +373,52 @@ private:
 	void LoadLighting()
 	{
 		// Create entity with light component.
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "PointLight";
-		entity->Transform.SetPos({ 0,10,5 });
-		entity->Light = LightComponent{};
-		entity->Light->Color = { 0,1,0 };
-		entity->Light->Intensity = 300;
-		entity->Light->Type = LightComponent::Types::point;
+		{
+			auto light = std::make_unique<Entity>();
+			light->Name = "PointLight";
+			light->Transform.SetPos({ 0,10,5 });
+			light->Light = LightComponent{};
+			light->Light->Color = { 1,1,1 };
+			light->Light->Intensity = 300;
+			light->Light->Type = LightComponent::Types::point;
+			_scene->GetEntities().emplace_back(std::move(light));
+		}
 
-		_scene->GetEntities().emplace_back(std::move(entity));
+		// Create entity with light component.
+		{
+			auto light = std::make_unique<Entity>();
+			light->Name = "PointLight2";
+			light->Transform.SetPos({ 10,0,5 });
+			light->Light = LightComponent{};
+			light->Light->Color = { 1,0,0 };
+			light->Light->Intensity = 300;
+			light->Light->Type = LightComponent::Types::point;
+			_scene->GetEntities().emplace_back(std::move(light));
+		}
+
+		// Create entity with light component.
+		{
+			auto light = std::make_unique<Entity>();
+			light->Name = "PointLight3";
+			light->Transform.SetPos({ -10,0,5 });
+			light->Light = LightComponent{};
+			light->Light->Color = { 0,1,0 };
+			light->Light->Intensity = 300;
+			light->Light->Type = LightComponent::Types::point;
+			_scene->GetEntities().emplace_back(std::move(light));
+		}
+
+		// Create entity with light component.
+		{
+			auto light = std::make_unique<Entity>();
+			light->Name = "PointLight4";
+			light->Transform.SetPos({ 0,-10,5 });
+			light->Light = LightComponent{};
+			light->Light->Color = { 0,0,1 };
+			light->Light->Intensity = 300;
+			light->Light->Type = LightComponent::Types::point;
+			_scene->GetEntities().emplace_back(std::move(light));
+		}
 	}
 	
 	bool _assetLoaded = false;
@@ -390,9 +427,9 @@ private:
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 
-	//	LoadLighting();
+		LoadLighting();
 		LoadStormtrooperHelmet();
-		//LoadRailgun();
+		LoadRailgun();
 	}
 
 	void FrameAll()
