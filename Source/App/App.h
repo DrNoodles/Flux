@@ -53,7 +53,8 @@ public:
 		InitWindow();
 
 		// Services
-		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir, *this);
+		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir,
+		                                       _options.AssetsDir, *this);
 		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 		_scene = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
 	}
@@ -98,7 +99,7 @@ public:
 
 	void Update(const float dt) const
 	{
-		const auto degreesPerSec = 60.f;
+		const auto degreesPerSec = 30.f;
 		const auto rotationDelta = dt * degreesPerSec;
 
 		for (auto& entity : _scene->GetEntities())
@@ -114,7 +115,7 @@ public:
 				auto& transform = entity->Transform;
 				auto rot = transform.GetRot();
 				rot.y += rotationDelta;
-				//transform.SetRot(rot);
+				transform.SetRot(rot);
 			}
 		}
 	}

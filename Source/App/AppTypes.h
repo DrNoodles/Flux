@@ -6,6 +6,7 @@
 struct AppOptions
 {
 	std::string ShaderDir{};
+	std::string DataDir{};
 	std::string AssetsDir{};
 	bool EnabledVulkanValidationLayers = false;
 };

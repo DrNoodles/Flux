@@ -17,12 +17,12 @@
 
 using vkh = VulkanHelpers;
 
-Renderer::Renderer(bool enableValidationLayers, std::string shaderDir,
-                   IRendererDelegate& delegate): _delegate(delegate), _shaderDir(std::move(shaderDir))
+Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, std::string assetsDir,
+	IRendererDelegate& delegate): _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
-	_placeholderTexture = CreateTextureResource("../source/placeholder.png");
+	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 }
 
 void Renderer::DrawFrame(float dt,

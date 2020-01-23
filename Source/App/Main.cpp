@@ -7,7 +7,8 @@ int main()
 		// Config options
 		AppOptions options;
 		options.ShaderDir = R"(../Bin/)";
-		options.AssetsDir = R"(../Source/Assets/)";
+		options.DataDir = R"(../Data/)";
+		options.AssetsDir = R"(../Data/Assets/)";
 
 		#ifdef DEBUG
 			options.EnabledVulkanValidationLayers = true;

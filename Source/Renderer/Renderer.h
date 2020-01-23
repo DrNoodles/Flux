@@ -26,7 +26,8 @@ class Renderer
 public:
 	bool FramebufferResized = false;
 
-	explicit Renderer(bool enableValidationLayers, std::string shaderDir, IRendererDelegate& delegate);
+	explicit Renderer(bool enableValidationLayers, std::string shaderDir, std::string assetsDir,
+		IRendererDelegate& delegate);
 	void DrawFrame(float dt,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,

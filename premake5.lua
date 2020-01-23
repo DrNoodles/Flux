@@ -9,7 +9,8 @@ project "Renderer"
 	location "Build"
 	kind "ConsoleApp"
 	language "C++"
-	targetdir "Bin/%{cfg.buildcfg}"
+	targetname "Flux_%{cfg.buildcfg}"
+	targetdir "Bin"
 	objdir "Build/Intermediate/%{cfg.buildcfg}"
 
 	includedirs {
