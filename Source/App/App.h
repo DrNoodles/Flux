@@ -294,7 +294,7 @@ private:
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Stormtrooper Helmet";
 		entity->Transform.SetScale(glm::vec3{ 10 });
-		entity->Transform.SetPos(glm::vec3{ entities.size(), -15, 0 });
+		entity->Transform.SetPos(glm::vec3{ -1, -15, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
@@ -344,7 +344,7 @@ private:
 
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Railgun";
-		entity->Transform.SetPos(glm::vec3{ entities.size(), 0, 0 });
+		entity->Transform.SetPos(glm::vec3{ 1, 0, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
@@ -370,66 +370,44 @@ private:
 		entities.emplace_back(std::move(entity));
 	}
 
+	// TODO Move to utils class
+	static float RandF(float min, float max)
+	{
+		const auto base = float(rand()) / RAND_MAX;
+		return min + base * (max - min);
+	}
+	
 	void LoadLighting()
 	{
-		// Create entity with light component.
+		auto RandF = [] (float min, float max)
+		{
+			const auto base = float(rand()) / RAND_MAX;
+			return min + base * (max - min);
+		};
+		
+		for (int i = 0; i < 8; i++)
 		{
 			auto light = std::make_unique<Entity>();
 			light->Name = "PointLight";
-			light->Transform.SetPos({ 0,10,5 });
+			light->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
 			light->Light = LightComponent{};
-			light->Light->Color = { 1,1,1 };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::point;
-			_scene->GetEntities().emplace_back(std::move(light));
-		}
-
-		// Create entity with light component.
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight2";
-			light->Transform.SetPos({ 10,0,5 });
-			light->Light = LightComponent{};
-			light->Light->Color = { 1,0,0 };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::point;
-			_scene->GetEntities().emplace_back(std::move(light));
-		}
-
-		// Create entity with light component.
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight3";
-			light->Transform.SetPos({ -10,0,5 });
-			light->Light = LightComponent{};
-			light->Light->Color = { 0,1,0 };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::point;
-			_scene->GetEntities().emplace_back(std::move(light));
-		}
-
-		// Create entity with light component.
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight4";
-			light->Transform.SetPos({ 0,-10,5 });
-			light->Light = LightComponent{};
-			light->Light->Color = { 0,0,1 };
+			light->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
 			light->Light->Intensity = 300;
 			light->Light->Type = LightComponent::Types::point;
 			_scene->GetEntities().emplace_back(std::move(light));
 		}
 	}
 
-
+	bool _intensityOn = true;
 	void RandomizeLights()
 	{
-		for (auto& element : _scene->GetEntities())
+		_intensityOn = !_intensityOn;
+		for (auto& entity : _scene->GetEntities())
 		{
-			if (element->Light.has_value())
+			if (entity->Light.has_value())
 			{
-				auto& lightComponent = element->Light.value();
-				lightComponent.Color = { float(rand())/RAND_MAX,float(rand()) / RAND_MAX,float(rand()) / RAND_MAX };
+				entity->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
+				entity->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
 			}
 		}
 	}
@@ -440,9 +418,9 @@ private:
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 
-		LoadLighting();
-		LoadStormtrooperHelmet();
+		//LoadStormtrooperHelmet();
 		LoadRailgun();
+		LoadLighting();
 	}
 
 	void FrameAll()

@@ -1766,14 +1766,14 @@ void VulkanHelpers::WriteDescriptorSets(
 std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count, 
 	VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice)
 {
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+	const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
+	const size_t maxUboRange = props.limits.maxUniformBufferRange;
+	
 	const auto doAlignMemory = false;
 	if (doAlignMemory)
 	{
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(physicalDevice, &props);
-		const size_t minUboAlignment = props.limits.minUniformBufferOffsetAlignment;
-		const size_t maxUboRange = props.limits.maxUniformBufferRange;
-		
 		auto dynamicAlignment = typeSize;
 		if (minUboAlignment > 0)
 		{

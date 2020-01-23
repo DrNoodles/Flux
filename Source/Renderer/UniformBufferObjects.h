@@ -16,22 +16,15 @@ struct LightPacked
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct LightUbo
 {
-	alignas(16) glm::vec4 LightCount;           // int in [0]
-	alignas(16) LightPacked Lights[4];
-	//alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
-	//alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
+	alignas(16)	LightPacked Lights[8];
 
 	static LightUbo Create(const std::vector<Light>& lights)
 	{
 		LightUbo ubo{};
-
-		ubo.LightCount[0] = (float)lights.size();
-
 		
 		for (size_t i = 0; i < lights.size(); i++)
 		{
-			auto light = lights[i];
-		
+			auto& light = lights[i];
 			ubo.Lights[i].LightColorIntensity[0] = light.Color.r;
 			ubo.Lights[i].LightColorIntensity[1] = light.Color.g;
 			ubo.Lights[i].LightColorIntensity[2] = light.Color.b;

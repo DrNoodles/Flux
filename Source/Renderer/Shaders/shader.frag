@@ -1,17 +1,14 @@
 #version 450
 
+// Constants
+const float PI = 3.14159265359;
+const int MAX_LIGHT_COUNT = 8;
+
 // Types
 struct LightPacked
 {
-	vec4 lightColorIntensity;// floats [R,G,B,Intensity]
-	vec4 lightPosType;       // floats [X,Y,Z], int [Type]
-};
-struct Light
-{
-	vec3 pos;
-	vec3 color;
-	float intensity;
-	int type; // Point=0, Directional=1
+	vec4 ColorIntensity;// floats [R,G,B,Intensity]
+	vec4 PosType;       // floats [X,Y,Z], int [Type]
 };
 
 // TODO Optimise size via juicy packing
@@ -55,8 +52,7 @@ layout(binding = 4) uniform sampler2D MetalnessMap;
 layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
 layout(std140, binding = 6) uniform LightUbo
 {
-	vec4 lightCount;           // int in [0]
-	LightPacked[4] lights;
+	LightPacked[MAX_LIGHT_COUNT] lights;
 } lightUbo;
 
 layout(location = 0) in vec3 fragPos;
@@ -66,9 +62,6 @@ layout(location = 3) in vec3 fragNormal;
 layout(location = 4) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
-
-const float PI = 3.14159265359;
-const int MAX_LIGHT_COUNT = 4;
 
 
 // Material
@@ -95,49 +88,9 @@ int uAoMapChannel;
 bool uShowNormalMap;
 float uExposureBias;
 
-// Lights
-int uLightCount = 0; // TODO Load from UBO
-Light uLights[MAX_LIGHT_COUNT];
 
 
-// UBOs - must match packing on CPU side
-void UnpackUbos()
-{
-	// Material
-	uBasecolor = ubo.basecolor;
-	uRoughness = float(ubo.roughness[0]);
-	uMetalness = float(ubo.metalness[0]);
-
-	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
-	uUseNormalMap = bool(ubo.useNormalMap[0]);
-	uUseRoughnessMap = bool(ubo.useRoughnessMap[0]);
-	uUseMetalnessMap = bool(ubo.useMetalnessMap[0]);
-	uUseAoMap = bool(ubo.useAoMap[0]);
-	
-	uInvertNormalMapZ = bool(ubo.invertNormalMapZ[0]);
-	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
-	uInvertMetalnessMap = bool(ubo.invertMetalnessMap[0]);
-	uInvertAoMap = bool(ubo.invertAoMap[0]);
-	
-	uRoughnessMapChannel = int(ubo.roughnessMapChannel[0]);
-	uMetalnessMapChannel = int(ubo.metalnessMapChannel[0]);
-	uAoMapChannel = int(ubo.aoMapChannel[0]);
-
-	// Render options
-	uShowNormalMap = bool(ubo.showNormalMap[0]);
-	uExposureBias = ubo.exposureBias[0];
-
-	// Light
-	uLightCount = int(lightUbo.lightCount[0]);
-	for (int i = 0; i < uLightCount; i++) // this loop has GOTTA be bad for perf. maybe even catastrophic?
-	{
-		uLights[i].color = lightUbo.lights[i].lightColorIntensity.rgb;
-		uLights[i].intensity = lightUbo.lights[i].lightColorIntensity.a;
-		uLights[i].pos = lightUbo.lights[i].lightPosType.xyz;
-		uLights[i].type = int(lightUbo.lights[i].lightPosType.w);
-	}
-}
-
+void UnpackUbos();
 
 // Tonemapping
 vec3 ACESFitted(vec3 color);
@@ -186,16 +139,25 @@ void main()
 	// Reflectance equation for direct lighting
 	vec3 Lo = vec3(0.0);
 	
-	for(int i = 0; i < uLightCount; i++)
+	// Always looping max light count even if there aren't any (it's faster...)
+	for(int i = 0; i < MAX_LIGHT_COUNT; i++)
 	{
-		vec3 L = normalize(uLights[i].pos - fragPos); // light direction
-		vec3 H = normalize(V + L);
+		// Unpack light values
+		vec3 lightPos = lightUbo.lights[i].PosType.xyz;
+		vec3 lightColor = lightUbo.lights[i].ColorIntensity.rgb; 
+		float lightIntensity = lightUbo.lights[i].ColorIntensity.w;
+
+		if (lightIntensity < 0.01) continue; // pretty good optimisation
+
 		
+		vec3 L = normalize(lightPos - fragPos); // light direction
+		vec3 H = normalize(V + L); // half vec
+
 
 		// Compute Radiance //
-		float dist = length(uLights[i].pos - fragPos);
+		float dist = length(lightPos - fragPos);
 		float attenuation = 1.0 / (dist * dist);
-		vec3 radiance = uLights[i].color * uLights[i].intensity * attenuation;
+		vec3 radiance = lightColor * lightIntensity * attenuation;
 
 
 		// BRDF - Cook-Torrance//
@@ -209,7 +171,7 @@ void main()
 
 		// Spec/Diff contributions 
 		vec3 kS = F; // fresnel already represents spec contribution
-		vec3 kD = vec3(1.0) - kS; // (kS + kD = 1)
+		vec3 kD = vec3(1.0) - kS; // ensure kS+kD=1
 		kD *= 1.0 - metalness; // remove diffuse contribution for metals
 
 		// Outgoing radiance due to light hitting surface
@@ -234,7 +196,7 @@ void main()
 vec3 GetBasecolor()
 {
 	vec3 basecolor = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).rgb : uBasecolor; 
-	basecolor = pow(basecolor, vec3(2.2)); // sRGB 2.2 > Linear
+	basecolor = pow(basecolor, vec3(2.2)); // sRGB 2.2 -> Linear
 	return basecolor;
 }
 vec3 GetNormal()
@@ -377,3 +339,32 @@ vec3 ACESFitted(vec3 color)
 	return color;
 }
 
+
+
+// UBOs - must match packing on CPU side
+void UnpackUbos()
+{
+	// Material
+	uBasecolor = ubo.basecolor;
+	uRoughness = float(ubo.roughness[0]);
+	uMetalness = float(ubo.metalness[0]);
+
+	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
+	uUseNormalMap = bool(ubo.useNormalMap[0]);
+	uUseRoughnessMap = bool(ubo.useRoughnessMap[0]);
+	uUseMetalnessMap = bool(ubo.useMetalnessMap[0]);
+	uUseAoMap = bool(ubo.useAoMap[0]);
+	
+	uInvertNormalMapZ = bool(ubo.invertNormalMapZ[0]);
+	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
+	uInvertMetalnessMap = bool(ubo.invertMetalnessMap[0]);
+	uInvertAoMap = bool(ubo.invertAoMap[0]);
+	
+	uRoughnessMapChannel = int(ubo.roughnessMapChannel[0]);
+	uMetalnessMapChannel = int(ubo.metalnessMapChannel[0]);
+	uAoMapChannel = int(ubo.aoMapChannel[0]);
+
+	// Render options
+	uShowNormalMap = bool(ubo.showNormalMap[0]);
+	uExposureBias = ubo.exposureBias[0];
+}
