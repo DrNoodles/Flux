@@ -8,7 +8,7 @@ const int MAX_LIGHT_COUNT = 8;
 struct LightPacked
 {
 	vec4 ColorIntensity;// floats [R,G,B,Intensity]
-	vec4 PosType;       // floats [X,Y,Z], int [Type]
+	vec4 PosType;       // floats [X,Y,Z], int [Type:Point=0,Directional=1]
 };
 
 // TODO Optimise size via juicy packing
@@ -53,6 +53,8 @@ layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
 layout(std140, binding = 6) uniform LightUbo
 {
 	LightPacked[MAX_LIGHT_COUNT] lights;
+	// TODO see this post about dealing with N number of lights
+	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
 
 layout(location = 0) in vec3 fragPos;
@@ -144,19 +146,24 @@ void main()
 	{
 		// Unpack light values
 		vec3 lightPos = lightUbo.lights[i].PosType.xyz;
+		int lightType = int(lightUbo.lights[i].PosType.w);
 		vec3 lightColor = lightUbo.lights[i].ColorIntensity.rgb; 
 		float lightIntensity = lightUbo.lights[i].ColorIntensity.w;
 
 		if (lightIntensity < 0.01) continue; // pretty good optimisation
 
+
+		// Incoming light direction - point or directional
+		vec3 pointDir = lightPos - fragPos;
+		vec3 directionalDir = -lightPos;
+		vec3 L = normalize(mix(pointDir, directionalDir, lightType));
 		
-		vec3 L = normalize(lightPos - fragPos); // light direction
 		vec3 H = normalize(V + L); // half vec
 
 
 		// Compute Radiance //
 		float dist = length(lightPos - fragPos);
-		float attenuation = 1.0 / (dist * dist);
+		float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
 		vec3 radiance = lightColor * lightIntensity * attenuation;
 
 

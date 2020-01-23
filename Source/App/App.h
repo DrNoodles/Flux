@@ -114,7 +114,7 @@ public:
 				auto& transform = entity->Transform;
 				auto rot = transform.GetRot();
 				rot.y += rotationDelta;
-				transform.SetRot(rot);
+				//transform.SetRot(rot);
 			}
 		}
 	}
@@ -385,7 +385,20 @@ private:
 			return min + base * (max - min);
 		};
 		
-		for (int i = 0; i < 8; i++)
+		for (int i = 0; i < 1; i++)
+		{
+			auto light = std::make_unique<Entity>();
+			light->Name = "PointLight";
+			light->Transform.SetPos({ -1, -1, -1});
+			light->Light = LightComponent{};
+			light->Light->Color = { 1,1,1 };
+			light->Light->Intensity = 300;
+			light->Light->Type = LightComponent::Types::directional;
+			_scene->GetEntities().emplace_back(std::move(light));
+		}
+
+		// Max random lights
+		/*for (int i = 0; i < 8; i++)
 		{
 			auto light = std::make_unique<Entity>();
 			light->Name = "PointLight";
@@ -395,7 +408,7 @@ private:
 			light->Light->Intensity = 300;
 			light->Light->Type = LightComponent::Types::point;
 			_scene->GetEntities().emplace_back(std::move(light));
-		}
+		}*/
 	}
 
 	bool _intensityOn = true;
