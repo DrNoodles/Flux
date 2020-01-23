@@ -20,6 +20,9 @@ struct LightUbo
 
 	static LightUbo Create(const std::vector<Light>& lights)
 	{
+		const u32 maxLights = 8;
+		assert(lights.size() <= maxLights);
+		
 		LightUbo ubo{};
 		
 		for (size_t i = 0; i < lights.size(); i++)

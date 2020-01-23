@@ -385,20 +385,18 @@ private:
 			return min + base * (max - min);
 		};
 		
-		for (int i = 0; i < 1; i++)
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight";
-			light->Transform.SetPos({ -1, -1, -1});
-			light->Light = LightComponent{};
-			light->Light->Color = { 1,1,1 };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::directional;
-			_scene->GetEntities().emplace_back(std::move(light));
-		}
+		// Directional light
+		auto dirLight = std::make_unique<Entity>();
+		dirLight->Name = "PointLight";
+		dirLight->Transform.SetPos({ -1, -1, -1});
+		dirLight->Light = LightComponent{};
+		dirLight->Light->Color = { 1,1,1 };
+		dirLight->Light->Intensity = 20;
+		dirLight->Light->Type = LightComponent::Types::directional;
+		_scene->GetEntities().emplace_back(std::move(dirLight));
 
 		// Max random lights
-		/*for (int i = 0; i < 8; i++)
+		for (int i = 0; i < 7; i++)
 		{
 			auto light = std::make_unique<Entity>();
 			light->Name = "PointLight";
@@ -408,7 +406,7 @@ private:
 			light->Light->Intensity = 300;
 			light->Light->Type = LightComponent::Types::point;
 			_scene->GetEntities().emplace_back(std::move(light));
-		}*/
+		}
 	}
 
 	bool _intensityOn = true;

@@ -1415,8 +1415,6 @@ std::tuple<std::vector<VkSemaphore>, std::vector<VkSemaphore>, std::vector<VkFen
 }
 
 
-const u32 g_maxLights = 1;
-
 VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 {
 	// Prepare layout bindings
@@ -1473,7 +1471,7 @@ VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
 	{
 		lightUboLayoutBinding.binding = 6; // correlates to shader
 		lightUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		lightUboLayoutBinding.descriptorCount = g_maxLights;
+		lightUboLayoutBinding.descriptorCount = 1;
 		lightUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		lightUboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
 	}
@@ -1526,7 +1524,7 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 		poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[5].descriptorCount = count;
 		poolSizes[6].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSizes[6].descriptorCount = count * g_maxLights;
+		poolSizes[6].descriptorCount = count;
 	}
 
 
@@ -1751,7 +1749,7 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
 			descriptorWrites[binding].dstArrayElement = 0;
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptorWrites[binding].descriptorCount = g_maxLights;
+			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = &lightInfo; // descriptor is one of buffer, image or texelbufferview
 			descriptorWrites[binding].pImageInfo = nullptr;
 			descriptorWrites[binding].pTexelBufferView = nullptr;
