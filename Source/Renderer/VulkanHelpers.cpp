@@ -635,8 +635,8 @@ std::tuple<VkPipeline, VkPipelineLayout> VulkanHelpers::CreateGraphicsPipeline(c
 	const auto numShaders = 2;
 	std::array<VkPipelineShaderStageCreateInfo, numShaders> shaderStageCIs{};
 	{
-		const auto vertShaderCode = FileService::ReadFile(shaderDir + "shader.vert.spv");
-		const auto fragShaderCode = FileService::ReadFile(shaderDir + "shader.frag.spv");
+		const auto vertShaderCode = FileService::ReadFile(shaderDir + "PbrModel.vert.spv");
+		const auto fragShaderCode = FileService::ReadFile(shaderDir + "PbrModel.frag.spv");
 
 		vertShaderModule = CreateShaderModule(vertShaderCode, device);
 		fragShaderModule = CreateShaderModule(fragShaderCode, device);
@@ -1761,6 +1761,8 @@ void VulkanHelpers::WriteDescriptorSets(
 
 
 
+#pragma region Image Helpers
+
 std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count, 
 	VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice)
 {
@@ -1797,6 +1799,7 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 
 	return { buffers, buffersMemory };
 }
+
 
 std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels,
 	VkSampleCountFlagBits numSamples, VkFormat format,
@@ -2224,6 +2227,9 @@ VkFormat VulkanHelpers::FindSupportedFormat(const std::vector<VkFormat>& candida
 	throw std::runtime_error("Failed to find supported format");
 }
 
+#pragma endregion Image Helpers
+
+
 QueueFamilyIndices VulkanHelpers::FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
 	QueueFamilyIndices indices;
@@ -2308,3 +2314,4 @@ void VulkanHelpers::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUt
 		instance, "vkDestroyDebugUtilsMessengerEXT");
 	if (func) func(instance, messenger, pAllocator);
 }
+

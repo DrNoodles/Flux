@@ -9,6 +9,8 @@ int main()
 		options.ShaderDir = R"(../Bin/)";
 		options.DataDir = R"(../Data/)";
 		options.AssetsDir = R"(../Data/Assets/)";
+		options.ModelsDir = R"(../Data/Assets/Models/)";
+		options.CubemapsDir = R"(../Data/Assets/Cubemaps/)";
 
 		#ifdef DEBUG
 			options.EnabledVulkanValidationLayers = true;

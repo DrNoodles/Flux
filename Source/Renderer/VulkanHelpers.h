@@ -228,6 +228,7 @@ public:
 			VkPhysicalDevice physicalDevice);
 
 
+	// Returns Image, Memory, MipLevels, Width, Height
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t, uint32_t, uint32_t>
 		CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
 			VkPhysicalDevice physicalDevice, VkDevice device);

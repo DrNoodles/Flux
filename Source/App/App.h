@@ -277,7 +277,7 @@ private:
 
 	//	// Setup Platform/Renderer bindings
 	//	ImGui_ImplGlfw_InitForVulkan(_window, true);
-	//	const char* glsl_version = "#version 330";
+	//	const char* glsl_version = "#version 450"; ? which version
 	//	
 	//	ImGui_ImplVulkan_Init(glsl_version);
 	//}
@@ -287,7 +287,7 @@ private:
 
 	void LoadStormtrooperHelmet()
 	{
-		const auto path = _options.AssetsDir + "Stormtrooper/helmet/helmet.fbx";
+		const auto path = _options.ModelsDir + "Stormtrooper/helmet/helmet.fbx";
 		std::cout << "Loading model:" << path << std::endl;
 
 		auto& entities = _scene->GetEntities();
@@ -304,27 +304,27 @@ private:
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 
 			// Load basecolor map
-			matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+			matCopy.BasecolorMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
 			matCopy.UseBasecolorMap = true;
 			
 			// Load normal map
-			matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/normalsRGB.png");
+			matCopy.NormalMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/normalsRGB.png");
 			matCopy.UseNormalMap = true;
 			matCopy.InvertNormalMapZ = true;
 
 			// Load roughness map
-			matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+			matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
 			matCopy.UseRoughnessMap = true;
 			matCopy.InvertRoughnessMap = true; // gloss
 			matCopy.RoughnessMapChannel = Material::Channel::Alpha;
 
 			// Load metalness map
-			matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/metalnessB.png");
+			matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/metalnessB.png");
 			matCopy.UseMetalnessMap = true;
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Load ao map
-			matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Stormtrooper/helmet/aoR.png");
+			matCopy.AoMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/aoR.png");
 			matCopy.UseAoMap = true;
 			matCopy.AoMapChannel = Material::Channel::Red;
 
@@ -338,7 +338,7 @@ private:
 
 	void LoadRailgun()
 	{
-		const auto path = _options.AssetsDir + "railgun/q2railgun.gltf";
+		const auto path = _options.ModelsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 
 		auto& entities = _scene->GetEntities();
@@ -354,12 +354,12 @@ private:
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 
 			// Load roughness map
-			matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "railgun/ORM.png");
+			matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
 			matCopy.UseRoughnessMap = true;
 			matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "railgun/ORM.png");
+			matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
 			matCopy.UseMetalnessMap = true;
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 

@@ -17,8 +17,8 @@
 
 using vkh = VulkanHelpers;
 
-Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, std::string assetsDir,
-	IRendererDelegate& delegate): _delegate(delegate), _shaderDir(std::move(shaderDir))
+Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir,
+	IRendererDelegate& delegate): _delegate(delegate), _shaderDir(shaderDir)
 {
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
@@ -216,11 +216,19 @@ void Renderer::CleanUp()
 	vkDestroyInstance(_instance, nullptr);
 }
 
+
+TextureResourceId Renderer::CreateIblResources(const std::string& equirectangularHdrPath)
+{
+	// All in one mega method!
+
+	throw;
+}
+
 TextureResourceId Renderer::CreateTextureResource(const std::string& path)
 {
 	auto tex = std::make_unique<TextureResource>();
 
-	// TODO Pull the teture library out of the CreateTextureImage, just work on an TextureDefinition struct that
+	// TODO Pull the texture library out of the CreateTextureImage, just work on an TextureDefinition struct that
 	// has an array of pixels and width, height, channels, etc
 
 	std::tie(tex->Image, tex->Memory, tex->MipLevels, tex->Width, tex->Height)
@@ -344,6 +352,8 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		*_textures[aoMapId],
 		_device);
 }
+
+
 
 void Renderer::InitVulkan()
 {

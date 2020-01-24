@@ -26,7 +26,7 @@ class Renderer
 public:
 	bool FramebufferResized = false;
 
-	explicit Renderer(bool enableValidationLayers, std::string shaderDir, std::string assetsDir,
+	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 		IRendererDelegate& delegate);
 	void DrawFrame(float dt,
 		const std::vector<RenderableResourceId>& renderableIds,
@@ -37,10 +37,14 @@ public:
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
-	
+	TextureResourceId CreateIblResources(const std::string& equirectangularHdrPath);
+
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& material);
+
+
+
 
 
 private:
