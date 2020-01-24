@@ -10,7 +10,7 @@ struct QueueFamilyIndices;
 struct GLFWwindow;
 struct Vertex;
 struct Renderable;
-struct TextureResource;
+class TextureResource;
 struct MeshResource;
 struct SwapChainSupportDetails;
 
@@ -73,7 +73,7 @@ public:
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	[[nodiscard]] static std::tuple<VkPipeline, VkPipelineLayout>
-		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout& descriptorSetLayout,
+		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout descriptorSetLayout,
 			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
 			const VkExtent2D& swapchainExtent);
 	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device);
@@ -218,27 +218,6 @@ public:
 	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
 		VkFormat format, VkImageAspectFlagBits aspectFlags,
 		uint32_t mipLevels, VkDevice device);
-
-
-	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
-	static void
-		GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight, uint32_t mipLevels,
-			VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device,
-			VkPhysicalDevice physicalDevice);
-
-
-	// Returns Image, Memory, MipLevels, Width, Height
-	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, uint32_t, uint32_t, uint32_t>
-		CreateTextureImage(const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue,
-			VkPhysicalDevice physicalDevice, VkDevice device);
-
-
-	[[nodiscard]] static VkImageView
-		CreateTextureImageView(VkImage textureImage, uint32_t mipLevels, VkDevice device);
-
-
-	[[nodiscard]] static VkSampler CreateTextureSampler(uint32_t mipLevels, VkDevice device);
 
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>

@@ -10,7 +10,7 @@ int main()
 		options.DataDir = R"(../Data/)";
 		options.AssetsDir = R"(../Data/Assets/)";
 		options.ModelsDir = R"(../Data/Assets/Models/)";
-		options.CubemapsDir = R"(../Data/Assets/Cubemaps/)";
+		options.CubemapsDir = R"(../Data/Assets/IBL/)";
 
 		#ifdef DEBUG
 			options.EnabledVulkanValidationLayers = true;

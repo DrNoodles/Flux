@@ -200,13 +200,14 @@ void Renderer::CleanUp()
 		vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
 	}
 
-	for (auto& texture : _textures)
+	_textures.clear(); // RAII will cleanup
+	/*for (auto& texture : _textures)
 	{
-		vkDestroySampler(_device, texture->Sampler, nullptr);
-		vkDestroyImageView(_device, texture->View, nullptr);
+		vkDestroySampler(_device, texture->DescriptorImageInfo.sampler, nullptr);
+		vkDestroyImageView(_device, texture->DescriptorImageInfo.imageView, nullptr);
 		vkDestroyImage(_device, texture->Image, nullptr);
 		vkFreeMemory(_device, texture->Memory, nullptr);
-	}
+	}*/
 
 	vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 	vkDestroyCommandPool(_device, _commandPool, nullptr);
@@ -217,30 +218,22 @@ void Renderer::CleanUp()
 }
 
 
-TextureResourceId Renderer::CreateIblResources(const std::string& equirectangularHdrPath)
+TextureResourceId Renderer::CreateEnvMapResource(const std::string& path)
 {
-	// All in one mega method!
+	const TextureResourceId id = (u32)_textures.size();
 
-	throw;
+	_textures.emplace_back(std::make_unique<TextureResource>(
+		EquirectangularTextureResourceLoader::LoadFromPath(
+			path, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+	
+	return id;
 }
 
 TextureResourceId Renderer::CreateTextureResource(const std::string& path)
 {
-	auto tex = std::make_unique<TextureResource>();
-
-	// TODO Pull the texture library out of the CreateTextureImage, just work on an TextureDefinition struct that
-	// has an array of pixels and width, height, channels, etc
-
-	std::tie(tex->Image, tex->Memory, tex->MipLevels, tex->Width, tex->Height)
-		= vkh::CreateTextureImage(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
-
-	tex->View = vkh::CreateTextureImageView(tex->Image, tex->MipLevels, _device);
-
-	tex->Sampler = vkh::CreateTextureSampler(tex->MipLevels, _device);
-
 	const TextureResourceId id = (u32)_textures.size();
-	_textures.emplace_back(std::move(tex));
-
+	auto texRes = TextureResourceHelpers::LoadTexture(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
 	return id;
 }
 
@@ -481,7 +474,8 @@ void Renderer::RecreateSwapchain()
 }
 
 
-std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const
+std::vector<ModelResourceFrame> Renderer::CreateModelFrameResources(size_t numImagesInFlight, 
+	const Renderable& renderable) const
 {
 	std::vector<VkBuffer> modelBuffers;
 	std::vector<VkDeviceMemory> modelBuffersMemory;

@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <set>
+#include "TextureResource.h"
 
 
 VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const std::vector<const char*>& validationLayers)
@@ -619,8 +620,7 @@ VkRenderPass VulkanHelpers::CreateRenderPass(VkSampleCountFlagBits msaaSamples, 
 }
 
 std::tuple<VkPipeline, VkPipelineLayout> VulkanHelpers::CreateGraphicsPipeline(const std::string& shaderDir,
-	VkDescriptorSetLayout&
-	descriptorSetLayout,
+	VkDescriptorSetLayout descriptorSetLayout,
 	VkSampleCountFlagBits msaaSamples,
 	VkRenderPass renderPass,
 	VkDevice device,
@@ -1631,12 +1631,6 @@ void VulkanHelpers::WriteDescriptorSets(
 
 
 		// Basecolor Map  -  Texture image descriptor set
-		VkDescriptorImageInfo baseColorInfo = {};
-		{
-			baseColorInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			baseColorInfo.imageView = basecolorMap.View;
-			baseColorInfo.sampler = basecolorMap.Sampler;
-		}
 		{
 			const auto binding = 1;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1646,18 +1640,12 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &baseColorInfo;
+			descriptorWrites[binding].pImageInfo = &basecolorMap.DescriptorImageInfo();
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
 		// Normal Map  -  Texture image descriptor set
-		VkDescriptorImageInfo normalMapInfo = {};
-		{
-			normalMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			normalMapInfo.imageView = normalMap.View;
-			normalMapInfo.sampler = normalMap.Sampler;
-		}
 		{
 			const auto binding = 2;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1667,18 +1655,12 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &normalMapInfo;
+			descriptorWrites[binding].pImageInfo = &normalMap.DescriptorImageInfo();
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
 		// Roughness Map  -  Texture image descriptor set
-		VkDescriptorImageInfo roughnessMapInfo = {};
-		{
-			roughnessMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			roughnessMapInfo.imageView = roughnessMap.View;
-			roughnessMapInfo.sampler = roughnessMap.Sampler;
-		}
 		{
 			const auto binding = 3;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1688,18 +1670,12 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &roughnessMapInfo;
+			descriptorWrites[binding].pImageInfo = &roughnessMap.DescriptorImageInfo();
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
 		// Metalness Map  -  Texture image descriptor set
-		VkDescriptorImageInfo metalnessMapInfo = {};
-		{
-			metalnessMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			metalnessMapInfo.imageView = metalnessMap.View;
-			metalnessMapInfo.sampler = metalnessMap.Sampler;
-		}
 		{
 			const auto binding = 4;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1709,18 +1685,12 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &metalnessMapInfo;
+			descriptorWrites[binding].pImageInfo = &metalnessMap.DescriptorImageInfo();
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
 
 		// AO Map  -  Texture image descriptor set
-		VkDescriptorImageInfo aoMapInfo = {};
-		{
-			aoMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			aoMapInfo.imageView = aoMap.View;
-			aoMapInfo.sampler = aoMap.Sampler;
-		}
 		{
 			const auto binding = 5;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1730,7 +1700,7 @@ void VulkanHelpers::WriteDescriptorSets(
 			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[binding].descriptorCount = 1;
 			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &aoMapInfo;
+			descriptorWrites[binding].pImageInfo = &aoMap.DescriptorImageInfo();
 			descriptorWrites[binding].pTexelBufferView = nullptr;
 		}
 
@@ -1898,233 +1868,6 @@ std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkIma
 	}
 
 	return imageViews;
-}
-
-void VulkanHelpers::GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight,
-	uint32_t mipLevels, VkCommandPool transferCommandPool, VkQueue transferQueue,
-	VkDevice device,
-	VkPhysicalDevice physicalDevice)
-{
-	// Check if device supports linear blitting
-	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
-	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
-	{
-		throw std::runtime_error("Texture image format does not support linear blitting!");
-	}
-
-
-	auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
-
-	VkImageMemoryBarrier barrier = {};
-	{
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.image = image;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barrier.subresourceRange.baseMipLevel = 0; // Defined later
-		barrier.subresourceRange.levelCount = 1;
-		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
-	}
-
-	auto srcMipWidth = (int32_t)texWidth;
-	auto srcMipHeight = (int32_t)texHeight;
-
-	for (uint32_t i = 1; i < mipLevels; i++)
-	{
-		const uint32_t srcMipLevel = i - 1;
-		const uint32_t dstMipLevel = i;
-		const int32_t dstMipWidth = srcMipWidth > 1 ? srcMipWidth / 2 : 1;
-		const int32_t dstMipHeight = srcMipHeight > 1 ? srcMipHeight / 2 : 1;
-
-
-		// Transition layout of src mip to TRANSFER_SRC_OPTIMAL (Note: dst mip is already TRANSFER_DST_OPTIMAL)
-		barrier.subresourceRange.baseMipLevel = srcMipLevel;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0,
-			0, nullptr, // mem barriers
-			0, nullptr, // buffer barriers
-			1, &barrier); // image barriers
-
-
-// Blit the smaller image to the dst 
-		VkImageBlit blit = {};
-		{
-			blit.srcOffsets[0] = { 0, 0, 0 };
-			blit.srcOffsets[1] = { srcMipWidth, srcMipHeight, 1 };
-			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blit.srcSubresource.mipLevel = srcMipLevel;
-			blit.srcSubresource.baseArrayLayer = 0;
-			blit.srcSubresource.layerCount = 1;
-
-			blit.dstOffsets[0] = { 0, 0, 0 };
-			blit.dstOffsets[1] = { dstMipWidth, dstMipHeight, 1 };
-			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blit.dstSubresource.mipLevel = dstMipLevel;
-			blit.dstSubresource.baseArrayLayer = 0;
-			blit.dstSubresource.layerCount = 1;
-		}
-		vkCmdBlitImage(commandBuffer,
-			image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &blit,
-			VK_FILTER_LINEAR);
-
-
-		// Transition layout of the src mip to optimal shader readible (we don't need to read it again)
-		barrier.subresourceRange.baseMipLevel = srcMipLevel;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0,
-			0, nullptr, // mem barriers
-			0, nullptr, // buffer barriers
-			1, &barrier); // image barriers
-
-
-// Halve mip dimensions in prep for next loop iteration 
-		if (srcMipWidth > 1) srcMipWidth /= 2;
-		if (srcMipHeight > 1) srcMipHeight /= 2;
-	}
-
-
-	// Transition the final mip to be optimal for reading by shader (wasn't processed in the loop)
-	barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // still dst from precondition
-	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	vkCmdPipelineBarrier(commandBuffer,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-		0,
-		0, nullptr, // mem barriers
-		0, nullptr, // buffer barriers
-		1, &barrier); // image barriers
-
-	EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
-}
-
-std::tuple<VkImage, VkDeviceMemory, uint32_t, uint32_t, uint32_t> VulkanHelpers::CreateTextureImage(
-	const std::string& path, VkCommandPool transferCommandPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
-	VkDevice device)
-{
-	// Load texture from file into system mem
-	int texWidth, texHeight, texChannels;
-	unsigned char* texels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	if (!texels)
-	{
-		stbi_image_free(texels);
-		throw std::runtime_error("Failed to load texture image: " + path);
-	}
-
-	const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
-	const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
-
-	// Create staging buffer
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(
-		imageSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
-		device, physicalDevice);
-
-
-	// Copy texels from system mem to GPU staging buffer
-	void* data;
-	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-	memcpy(data, texels, imageSize);
-	vkUnmapMemory(device, stagingBufferMemory);
-
-
-	// Free loaded image from system mem
-	stbi_image_free(texels);
-
-
-	// Create image buffer
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	std::tie(textureImage, textureImageMemory) = CreateImage(texWidth, texHeight,
-		mipLevels,
-		VK_SAMPLE_COUNT_1_BIT,
-		VK_FORMAT_R8G8B8A8_UNORM, // format
-		VK_IMAGE_TILING_OPTIMAL, // tiling
-		VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-		VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
-		physicalDevice, device);
-
-
-	// Transition image layout to optimal for copying to it from the staging buffer
-	TransitionImageLayout(textureImage,
-		VK_FORMAT_R8G8B8A8_UNORM,
-		VK_IMAGE_LAYOUT_UNDEFINED, // from
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-		mipLevels,
-		transferCommandPool, transferQueue, device);
-
-
-	// Copy texels from staging buffer to image buffer
-	CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight, transferCommandPool, transferQueue, device);
-
-
-	GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels,
-		transferCommandPool, transferQueue, device, physicalDevice);
-
-
-	// Destroy the staging buffer
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-
-	return { textureImage, textureImageMemory, mipLevels, texWidth, texHeight };
-}
-
-VkImageView VulkanHelpers::CreateTextureImageView(VkImage textureImage, uint32_t mipLevels, VkDevice device)
-{
-	return CreateImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
-}
-
-VkSampler VulkanHelpers::CreateTextureSampler(uint32_t mipLevels, VkDevice device)
-{
-	VkSamplerCreateInfo samplerCI = {};
-	{
-		samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerCI.magFilter = VK_FILTER_LINEAR;
-		samplerCI.minFilter = VK_FILTER_LINEAR;
-		samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerCI.anisotropyEnable = VK_TRUE;
-		samplerCI.maxAnisotropy = 16;
-		samplerCI.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // applied with addressMode is clamp
-		samplerCI.unnormalizedCoordinates = VK_FALSE; // false addresses tex coord via [0,1), true = [0,dimensionSize]
-		samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerCI.mipLodBias = 0;
-		samplerCI.minLod = 0;
-		samplerCI.maxLod = (float)mipLevels;
-	}
-
-	VkSampler textureSampler;
-	if (VK_SUCCESS != vkCreateSampler(device, &samplerCI, nullptr, &textureSampler))
-	{
-		throw std::runtime_error("Failed to create texture sampler");
-	}
-
-	return textureSampler;
 }
 
 std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResources(VkFormat format, VkExtent2D extent,

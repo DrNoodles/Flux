@@ -518,7 +518,6 @@ private:
 	{
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
-
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		// ONLY on pressed is handled
@@ -528,6 +527,7 @@ private:
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_X)      { LoadAssets(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
+		if (key == GLFW_KEY_C)      { _renderer->CreateEnvMapResource(_options.CubemapsDir + "ChiricahuaPath.hdr"); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{

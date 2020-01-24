@@ -6,6 +6,7 @@
 #include "Material.h"
 
 #include <vector>
+#include "TextureResource.h"
 
 struct UniversalUbo;
 struct RenderableCreateInfo;
@@ -37,7 +38,7 @@ public:
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
-	TextureResourceId CreateIblResources(const std::string& equirectangularHdrPath);
+	TextureResourceId CreateEnvMapResource(const std::string& equirectangularHdrPath);
 
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
