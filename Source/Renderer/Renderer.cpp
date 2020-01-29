@@ -4,6 +4,7 @@
 #include "VulkanHelpers.h"
 #include "UniformBufferObjects.h"
 #include "Renderable.h"
+#include "CubemapTextureLoader.h"
 
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
@@ -218,13 +219,13 @@ void Renderer::CleanUp()
 }
 
 
-TextureResourceId Renderer::CreateEnvMapResource(const std::string& path)
+TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths)
 {
 	const TextureResourceId id = (u32)_textures.size();
 
 	_textures.emplace_back(std::make_unique<TextureResource>(
-		EquirectangularTextureResourceLoader::LoadFromPath(
-			path, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+		CubemapTextureLoader::LoadFromPath(
+			sidePaths, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
 	
 	return id;
 }

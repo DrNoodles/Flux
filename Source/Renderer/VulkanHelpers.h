@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Shared/CommonTypes.h>
+
 #include <vulkan/vulkan.h>
 
 #include <vector>
@@ -118,7 +120,12 @@ public:
 		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device);
 
 
-	static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
+	static void TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
+		VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, 
+		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	
+	[[deprecated]] static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
 		uint32_t mipLevels, VkCommandPool transferCommandPool, VkQueue transferQueue,
 		VkDevice device);
 
@@ -207,7 +214,7 @@ public:
 		CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
 			VkFormat format,
 			VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
-			VkPhysicalDevice physicalDevice, VkDevice device);
+			VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers = 1, VkImageCreateFlags flags = 0);
 
 
 	[[nodiscard]] static VkImageView CreateImageView(VkImage image, VkFormat format,

@@ -527,7 +527,15 @@ private:
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_X)      { LoadAssets(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
-		if (key == GLFW_KEY_C)      { _renderer->CreateEnvMapResource(_options.CubemapsDir + "ChiricahuaPath.hdr"); }
+		if (key == GLFW_KEY_C)      { _renderer->CreateCubemapTextureResource({
+				_options.AssetsDir + "Skybox/right.jpg",
+				_options.AssetsDir + "Skybox/left.jpg",
+				_options.AssetsDir + "Skybox/top.jpg",
+				_options.AssetsDir + "Skybox/bottom.jpg",
+				_options.AssetsDir + "Skybox/front.jpg",
+				_options.AssetsDir + "Skybox/back.jpg",
+			});
+		}
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{

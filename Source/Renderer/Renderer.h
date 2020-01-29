@@ -38,7 +38,9 @@ public:
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
-	TextureResourceId CreateEnvMapResource(const std::string& equirectangularHdrPath);
+	//TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
+	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths);
+
 
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
