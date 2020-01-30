@@ -449,7 +449,7 @@ private:
 	{
 
 		//LoadStormtrooperHelmet();
-		//LoadRailgun();
+		LoadRailgun();
 
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;

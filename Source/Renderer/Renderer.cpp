@@ -29,7 +29,7 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 
 	// Load a cube
-	auto model = modelLoaderService.LoadModel(assetsDir + "cube.obj");
+	auto model = modelLoaderService.LoadModel(assetsDir + "skybox.obj");
 	auto& meshDefinition = model.value().Meshes[0];
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
@@ -102,8 +102,8 @@ void Renderer::DrawFrame(float dt,
 		// Populate ubo
 		auto skyUbo = SkyboxVertUbo{};
 		skyUbo.Projection = projection; // same as camera
-		skyUbo.Rotation = glm::mat3{ 1 }; // no rotation for now
-		skyUbo.View = view;
+		//skyUbo.Rotation = glm::mat3{ 1 }; // no rotation for now
+		skyUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
 
 		// Copy to gpu
 		void* data;
@@ -132,8 +132,9 @@ void Renderer::DrawFrame(float dt,
 
 		// Update model ubo
 		void* data;
-		vkMapMemory(_device, modelBufferMemory, 0, sizeof(modelUbo), 0, &data);
-		memcpy(data, &modelUbo, sizeof(modelUbo));
+		auto size = sizeof(modelUbo);
+		vkMapMemory(_device, modelBufferMemory, 0, size, 0, &data);
+		memcpy(data, &modelUbo, size);
 		vkUnmapMemory(_device, modelBufferMemory);
 	}
 
@@ -1267,7 +1268,7 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 		vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vertexInputCI.vertexBindingDescriptionCount = 1;
 		vertexInputCI.pVertexBindingDescriptions = &vertBindingDesc;
-		vertexInputCI.vertexAttributeDescriptionCount = (uint32_t)vertAttrDesc.size();
+		vertexInputCI.vertexAttributeDescriptionCount = (u32)vertAttrDesc.size();
 		vertexInputCI.pVertexAttributeDescriptions = vertAttrDesc.data();
 	}
 
@@ -1311,7 +1312,7 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	{
 		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterizationCI.cullMode = VK_CULL_MODE_FRONT_BIT; // SKYBOX: flipped from norm
 		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 		rasterizationCI.depthBiasEnable = VK_FALSE;
@@ -1340,9 +1341,9 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
 	{
 		depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilCI.depthTestEnable = true; // should compare new frags against depth to determine if discarding?
-		depthStencilCI.depthWriteEnable = true; // can new depth tests wrhite to buffer?
-		depthStencilCI.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencilCI.depthTestEnable = false; // SKYBOX: normally true
+		depthStencilCI.depthWriteEnable = false; // SKYBOX: normally true
+		depthStencilCI.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; // SKYBOX: normally VK_COMPARE_OP_LESS
 
 		depthStencilCI.depthBoundsTestEnable = false; // optional test to keep only frags within a set bounds
 		depthStencilCI.minDepthBounds = 0; // optional

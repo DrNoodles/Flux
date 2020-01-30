@@ -7,9 +7,9 @@ layout (location=0) out vec4 outColor;
 
 void main()
 {
-	outColor = vec4(0,1,0,1);
-	return;
-	vec3 color = textureLod(uCubemap, fragWorldPos, 1).rgb;
+	//outColor = vec4(0,1,0,1);
+	//return;
+	vec3 color = texture(uCubemap, fragWorldPos).rgb;
 
 	// TODO Support blurring 
 

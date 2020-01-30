@@ -14,7 +14,7 @@ struct SkyboxVertUbo
 {
 	alignas(16) glm::mat4 Projection;
 	alignas(16) glm::mat4 View;
-	alignas(16) glm::mat3 Rotation;
+	//alignas(16) glm::mat3 Rotation;
 };
 
 
