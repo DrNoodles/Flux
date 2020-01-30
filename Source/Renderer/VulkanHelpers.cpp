@@ -619,245 +619,6 @@ VkRenderPass VulkanHelpers::CreateRenderPass(VkSampleCountFlagBits msaaSamples, 
 	return renderPass;
 }
 
-std::tuple<VkPipeline, VkPipelineLayout> VulkanHelpers::CreateGraphicsPipeline(const std::string& shaderDir,
-	VkDescriptorSetLayout descriptorSetLayout,
-	VkSampleCountFlagBits msaaSamples,
-	VkRenderPass renderPass,
-	VkDevice device,
-	const VkExtent2D& swapchainExtent)
-{
-	//// SHADER MODULES ////
-
-
-	// Load shader stages
-	VkShaderModule vertShaderModule;
-	VkShaderModule fragShaderModule;
-	const auto numShaders = 2;
-	std::array<VkPipelineShaderStageCreateInfo, numShaders> shaderStageCIs{};
-	{
-		const auto vertShaderCode = FileService::ReadFile(shaderDir + "PbrModel.vert.spv");
-		const auto fragShaderCode = FileService::ReadFile(shaderDir + "PbrModel.frag.spv");
-
-		vertShaderModule = CreateShaderModule(vertShaderCode, device);
-		fragShaderModule = CreateShaderModule(fragShaderCode, device);
-
-		VkPipelineShaderStageCreateInfo vertCI = {};
-		vertCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertCI.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertCI.module = vertShaderModule;
-		vertCI.pName = "main";
-
-		VkPipelineShaderStageCreateInfo fragCI = {};
-		fragCI.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragCI.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragCI.module = fragShaderModule;
-		fragCI.pName = "main";
-
-		shaderStageCIs[0] = vertCI;
-		shaderStageCIs[1] = fragCI;
-	}
-
-
-	//// FIXED FUNCTIONS ////
-
-	// all of the structures that define the fixed - function stages of the pipeline, like input assembly,
-	// rasterizer, viewport and color blending
-
-
-	// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-	auto vertBindingDesc = Vertex::BindingDescription();
-	auto vertAttrDesc = Vertex::AttributeDescriptions();
-	VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
-	{
-		vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputCI.vertexBindingDescriptionCount = 1;
-		vertexInputCI.pVertexBindingDescriptions = &vertBindingDesc;
-		vertexInputCI.vertexAttributeDescriptionCount = (uint32_t)vertAttrDesc.size();
-		vertexInputCI.pVertexAttributeDescriptions = vertAttrDesc.data();
-	}
-
-
-	// Input Assembly  -  What kind of geo will be drawn from the verts and whether primitive restart is enabled
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyCI = {};
-	{
-		inputAssemblyCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		inputAssemblyCI.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		inputAssemblyCI.primitiveRestartEnable = VK_FALSE;
-	}
-
-
-	// Viewports and scissor  -  The region of the frambuffer we render output to
-	VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
-	{
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = (float)swapchainExtent.width;
-		viewport.height = (float)swapchainExtent.height;
-		viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
-		viewport.maxDepth = 1;
-	}
-	VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
-	{
-		scissor.offset = { 0, 0 };
-		scissor.extent = swapchainExtent;
-	}
-	VkPipelineViewportStateCreateInfo viewportCI = {};
-	{
-		viewportCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewportCI.viewportCount = 1;
-		viewportCI.pViewports = &viewport;
-		viewportCI.scissorCount = 1;
-		viewportCI.pScissors = &scissor;
-	}
-
-
-	// Rasterizer  -  Config how geometry turns into fragments
-	VkPipelineRasterizationStateCreateInfo rasterizationCI = {};
-	{
-		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
-		rasterizationCI.depthBiasEnable = VK_FALSE;
-		rasterizationCI.depthBiasConstantFactor = 0.0f; // optional
-		rasterizationCI.depthBiasClamp = 0.0f; // optional
-		rasterizationCI.depthBiasSlopeFactor = 0.0f; // optional
-		rasterizationCI.depthClampEnable = VK_FALSE; // clamp depth frags beyond the near/far clip planes?
-		rasterizationCI.rasterizerDiscardEnable = VK_FALSE; // stop geo from passing through the raster stage?
-	}
-
-
-	// Multisampling
-	VkPipelineMultisampleStateCreateInfo multisampleCI = {};
-	{
-		multisampleCI.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampleCI.rasterizationSamples = msaaSamples;
-		multisampleCI.sampleShadingEnable = VK_FALSE;
-		multisampleCI.minSampleShading = 1; // optional
-		multisampleCI.pSampleMask = nullptr; // optional
-		multisampleCI.alphaToCoverageEnable = VK_FALSE; // optional
-		multisampleCI.alphaToOneEnable = VK_FALSE; // optional
-	}
-
-
-	// Depth and Stencil testing
-	VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
-	{
-		depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilCI.depthTestEnable = true; // should compare new frags against depth to determine if discarding?
-		depthStencilCI.depthWriteEnable = true; // can new depth tests wrhite to buffer?
-		depthStencilCI.depthCompareOp = VK_COMPARE_OP_LESS;
-
-		depthStencilCI.depthBoundsTestEnable = false; // optional test to keep only frags within a set bounds
-		depthStencilCI.minDepthBounds = 0; // optional
-		depthStencilCI.maxDepthBounds = 0; // optional
-
-		depthStencilCI.stencilTestEnable = false;
-		depthStencilCI.front = {}; // optional
-		depthStencilCI.back = {}; // optional
-	}
-
-
-	// Color Blending  -  How colors output from frag shader are combined with existing colors
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {}; // Mix old with new to create a final color
-	{
-		colorBlendAttachment.blendEnable = VK_FALSE;
-		colorBlendAttachment.colorWriteMask =
-			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	}
-	VkPipelineColorBlendStateCreateInfo colorBlendCI = {}; // Combine old and new with a bitwise operation
-	{
-		colorBlendCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colorBlendCI.logicOpEnable = VK_FALSE;
-		colorBlendCI.logicOp = VK_LOGIC_OP_COPY; // Optional
-		colorBlendCI.attachmentCount = 1;
-		colorBlendCI.pAttachments = &colorBlendAttachment;
-		colorBlendCI.blendConstants[0] = 0.0f; // Optional
-		colorBlendCI.blendConstants[1] = 0.0f; // Optional
-		colorBlendCI.blendConstants[2] = 0.0f; // Optional
-		colorBlendCI.blendConstants[3] = 0.0f; // Optional
-	}
-
-
-	// Dynamic State  -  Set which states can be changed without recreating the pipeline. Must be set at draw time
-	//std::array<VkDynamicState,1> dynamicStates =
-	//{
-	//	VK_DYNAMIC_STATE_VIEWPORT,
-	//	//VK_DYNAMIC_STATE_LINE_WIDTH,
-	//};
-	//VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
-	//{
-	//	dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	//	dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
-	//	dynamicStateCI.pDynamicStates = dynamicStates.data();
-	//}
-
-
-	// Create Pipeline Layout  -  Used to pass uniforms to shaders at runtime
-	VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
-	{
-		pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCI.setLayoutCount = 1;
-		pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-		pipelineLayoutCI.pushConstantRangeCount = 0;
-		pipelineLayoutCI.pPushConstantRanges = nullptr;
-	}
-
-	VkPipelineLayout pipelineLayout = nullptr;
-	if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to Create Pipeline Layout!");
-	}
-
-
-	// Create the Pipeline  -  Finally!...
-	VkGraphicsPipelineCreateInfo graphicsPipelineCI = {};
-	{
-		graphicsPipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-
-		// Programmable
-		graphicsPipelineCI.stageCount = (uint32_t)shaderStageCIs.size();
-		graphicsPipelineCI.pStages = shaderStageCIs.data();
-
-		// Fixed function
-		graphicsPipelineCI.pVertexInputState = &vertexInputCI;
-		graphicsPipelineCI.pInputAssemblyState = &inputAssemblyCI;
-		graphicsPipelineCI.pViewportState = &viewportCI;
-		graphicsPipelineCI.pRasterizationState = &rasterizationCI;
-		graphicsPipelineCI.pMultisampleState = &multisampleCI;
-		graphicsPipelineCI.pDepthStencilState = &depthStencilCI;
-		graphicsPipelineCI.pColorBlendState = &colorBlendCI;
-		graphicsPipelineCI.pDynamicState = nullptr;
-
-		graphicsPipelineCI.layout = pipelineLayout;
-
-		graphicsPipelineCI.renderPass = renderPass;
-		graphicsPipelineCI.subpass = 0;
-
-		graphicsPipelineCI.basePipelineHandle = VK_NULL_HANDLE; // is our pipeline derived from another?
-		graphicsPipelineCI.basePipelineIndex = -1;
-	}
-	VkPipeline pipeline;
-	if (vkCreateGraphicsPipelines(device, nullptr, 1, &graphicsPipelineCI, nullptr, &pipeline) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create Pipeline");
-	}
-
-
-	// Cleanup
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
-
-	return { pipeline, pipelineLayout };
-}
-
 VkShaderModule VulkanHelpers::CreateShaderModule(const std::vector<char>& code, VkDevice device)
 {
 	VkShaderModuleCreateInfo ci = {};
@@ -1537,126 +1298,16 @@ std::tuple<std::vector<VkSemaphore>, std::vector<VkSemaphore>, std::vector<VkFen
 }
 
 
-VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device)
+VkDescriptorPool VulkanHelpers::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& poolSizes, u32 maxSets, 
+	VkDevice device)
 {
-	// Prepare layout bindings
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	{
-		uboLayoutBinding.binding = 0; // correlates to shader
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboLayoutBinding.descriptorCount = 1;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		// TODO Separate out a buffer for vert and frag stages
-		uboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
-	}
-	VkDescriptorSetLayoutBinding basecolorMapLayoutBinding = {};
-	{
-		basecolorMapLayoutBinding.binding = 1; // correlates to shader
-		basecolorMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		basecolorMapLayoutBinding.descriptorCount = 1;
-		basecolorMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		basecolorMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding normalMapLayoutBinding = {};
-	{
-		normalMapLayoutBinding.binding = 2; // correlates to shader
-		normalMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		normalMapLayoutBinding.descriptorCount = 1;
-		normalMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		normalMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding roughnessMapLayoutBinding = {};
-	{
-		roughnessMapLayoutBinding.binding = 3; // correlates to shader
-		roughnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		roughnessMapLayoutBinding.descriptorCount = 1;
-		roughnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		roughnessMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding metalnessMapLayoutBinding = {};
-	{
-		metalnessMapLayoutBinding.binding = 4; // correlates to shader
-		metalnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		metalnessMapLayoutBinding.descriptorCount = 1;
-		metalnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		metalnessMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding aoMapLayoutBinding = {};
-	{
-		aoMapLayoutBinding.binding = 5; // correlates to shader
-		aoMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		aoMapLayoutBinding.descriptorCount = 1;
-		aoMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		aoMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding lightUboLayoutBinding = {};
-	{
-		lightUboLayoutBinding.binding = 6; // correlates to shader
-		lightUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		lightUboLayoutBinding.descriptorCount = 1;
-		lightUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		lightUboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
-	}
-
-	std::array<VkDescriptorSetLayoutBinding, 7> bindings = {
-		uboLayoutBinding,
-		basecolorMapLayoutBinding,
-		normalMapLayoutBinding,
-		roughnessMapLayoutBinding,
-		metalnessMapLayoutBinding,
-		aoMapLayoutBinding,
-		lightUboLayoutBinding,
-	};
-
-
-	// Create descriptor set layout
-	VkDescriptorSetLayoutCreateInfo layoutCI = {};
-	{
-		layoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutCI.bindingCount = (uint32_t)bindings.size();
-		layoutCI.pBindings = bindings.data();
-	}
-
-	VkDescriptorSetLayout descriptorSetLayout;
-	if (vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &descriptorSetLayout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create descriptor set layout");
-	}
-
-	return descriptorSetLayout;
-}
-
-VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice device)
-{
-	// count: max num of descriptor sets that may be allocated
-
-	// Define which descriptor types our descriptor sets contain
-	std::array<VkDescriptorPoolSize, 7> poolSizes = {};
-	{
-		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSizes[0].descriptorCount = count;
-		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[1].descriptorCount = count;
-		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[2].descriptorCount = count;
-		poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[3].descriptorCount = count;
-		poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[4].descriptorCount = count;
-		poolSizes[5].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[5].descriptorCount = count;
-		poolSizes[6].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSizes[6].descriptorCount = count;
-	}
-
-
 	// Create descriptor pool
 	VkDescriptorPoolCreateInfo poolCI = {};
 	{
 		poolCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolCI.poolSizeCount = (uint32_t)poolSizes.size();
 		poolCI.pPoolSizes = poolSizes.data();
-		poolCI.maxSets = count;
+		poolCI.maxSets = maxSets;
 		//poolCI.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	}
 
@@ -1670,192 +1321,13 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(uint32_t count, VkDevice de
 	return pool;
 }
 
-std::vector<VkDescriptorSet> VulkanHelpers::CreateDescriptorSets(
-	uint32_t count, 
-	VkDescriptorSetLayout layout,
-	VkDescriptorPool pool,
-	const std::vector<VkBuffer>& modelUbos,
-	const std::vector<VkBuffer>& lightUbos,
-	const TextureResource& basecolorMap,
-	const TextureResource& normalMap,
-	const TextureResource& roughnessMap,
-	const TextureResource& metalnessMap,
-	const TextureResource& aoMap,
-	VkDevice device)
-{
-	assert(count == modelUbos.size());// 1 per image in swapchain
-	assert(count == lightUbos.size());
 
-	// Need a copy of the layout per set as they'll be index matched arrays
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
-
-
-	// Create descriptor sets
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	{
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = pool;
-		allocInfo.descriptorSetCount = count;
-		allocInfo.pSetLayouts = descriptorSetLayouts.data();
-	}
-
-	std::vector<VkDescriptorSet> descriptorSets{ count };
-	if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()))
-	{
-		throw std::runtime_error("Failed to create descriptor sets");
-	}
-
-	WriteDescriptorSets(count, descriptorSets, modelUbos, lightUbos,
-		basecolorMap, normalMap, roughnessMap, metalnessMap, aoMap, device);
-
-	return descriptorSets;
-}
-void VulkanHelpers::WriteDescriptorSets(
-	uint32_t count,
-	const std::vector<VkDescriptorSet>& descriptorSets,
-	const std::vector<VkBuffer>& modelUbos,
-	const std::vector<VkBuffer>& lightUbos,
-	const TextureResource& basecolorMap,
-	const TextureResource& normalMap,
-	const TextureResource& roughnessMap,
-	const TextureResource& metalnessMap,
-	const TextureResource& aoMap,
-	VkDevice device)
-{
-	assert(count == modelUbos.size());// 1 per image in swapchain
-	assert(count == lightUbos.size());
-	
-	std::array<VkWriteDescriptorSet, 7> descriptorWrites{};
-
-	// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
-	for (size_t i = 0; i < count; ++i)
-	{
-
-		// Uniform descriptor set
-		VkDescriptorBufferInfo bufferInfo = {};
-		{
-			bufferInfo.buffer = modelUbos[i];
-			bufferInfo.offset = 0;
-			bufferInfo.range = sizeof(UniversalUbo);
-		}
-		{
-			const auto binding = 0;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = &bufferInfo; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = nullptr;
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// Basecolor Map  -  Texture image descriptor set
-		{
-			const auto binding = 1;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &basecolorMap.DescriptorImageInfo();
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// Normal Map  -  Texture image descriptor set
-		{
-			const auto binding = 2;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &normalMap.DescriptorImageInfo();
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// Roughness Map  -  Texture image descriptor set
-		{
-			const auto binding = 3;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &roughnessMap.DescriptorImageInfo();
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// Metalness Map  -  Texture image descriptor set
-		{
-			const auto binding = 4;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &metalnessMap.DescriptorImageInfo();
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// AO Map  -  Texture image descriptor set
-		{
-			const auto binding = 5;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &aoMap.DescriptorImageInfo();
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-
-
-		// Light UBO descriptor set
-		VkDescriptorBufferInfo lightInfo = {};
-		{
-			lightInfo.buffer = lightUbos[i];
-			lightInfo.offset = 0;
-			lightInfo.range = sizeof(LightUbo);
-		}
-		{
-			const auto binding = 6;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSets[i];
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = &lightInfo; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = nullptr;
-			descriptorWrites[binding].pTexelBufferView = nullptr;
-		}
-		
-		vkUpdateDescriptorSets(device, (uint32_t)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
-	}
-}
 
 
 
 #pragma region Image Helpers
 
-std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(size_t count, 
+std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::CreateUniformBuffers(u32 count, 
 	VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice)
 {
 	VkPhysicalDeviceProperties props;
@@ -1893,7 +1365,7 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 }
 
 
-std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels,
+std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(uint32_t width, uint32_t height, uint32_t mipLevels,
 	VkSampleCountFlagBits numSamples, VkFormat format,
 	VkImageTiling tiling, VkImageUsageFlags usageFlags,
 	VkMemoryPropertyFlags propertyFlags,
@@ -2009,7 +1481,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 	VkImage colorImage;
 	VkDeviceMemory colorImageMemory;
 
-	std::tie(colorImage, colorImageMemory) = CreateImage(
+	std::tie(colorImage, colorImageMemory) = CreateImage2D(
 		extent.width, extent.height,
 		mipLevels,
 		msaaSamples,
@@ -2040,7 +1512,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 	// Create depth image and memory
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
-	std::tie(depthImage, depthImageMemory) = CreateImage(
+	std::tie(depthImage, depthImageMemory) = CreateImage2D(
 		extent.width, extent.height,
 		mipLevels,
 		msaaSamples,

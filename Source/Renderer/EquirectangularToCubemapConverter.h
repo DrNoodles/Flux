@@ -128,7 +128,7 @@ private:
 		// Create image buffer
 		VkImage textureImage;
 		VkDeviceMemory textureImageMemory;
-		std::tie(textureImage, textureImageMemory) = vkh::CreateImage(
+		std::tie(textureImage, textureImageMemory) = vkh::CreateImage2D(
 			texels.Width, texels.Height,
 			texels.MipLevels,
 			VK_SAMPLE_COUNT_1_BIT,

@@ -427,11 +427,15 @@ private:
 	bool _assetLoaded = false;
 	void LoadAssets() 
 	{
-		if (_assetLoaded) { return; }
-		_assetLoaded = true;
+		/*if (_assetLoaded) { return; }
+		_assetLoaded = true;*/
 
 		//LoadStormtrooperHelmet();
 		LoadRailgun();
+
+		if (_assetLoaded) { return; }
+		_assetLoaded = true;
+		
 		LoadLighting();
 	}
 

@@ -72,12 +72,6 @@ public:
 		CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device,
 			VkPhysicalDevice physicalDevice);
 
-
-	// The uniform and push values referenced by the shader that can be updated at draw time
-	[[nodiscard]] static std::tuple<VkPipeline, VkPipelineLayout>
-		CreateGraphicsPipeline(const std::string& shaderDir, VkDescriptorSetLayout descriptorSetLayout,
-			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
-			const VkExtent2D& swapchainExtent);
 	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device);
 
 
@@ -170,40 +164,13 @@ public:
 		CreateSyncObjects(size_t numFramesInFlight, size_t numSwapchainImages, VkDevice device);
 
 
-	// Defines the layout of the data bound to the shaders
-	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device);
 
-
-	static VkDescriptorPool CreateDescriptorPool(uint32_t count, VkDevice device);
-
-
-	// Associates the UBO and texture to sets for use in shaders
-	static std::vector<VkDescriptorSet> CreateDescriptorSets(
-		uint32_t count, 
-		VkDescriptorSetLayout layout,
-		VkDescriptorPool pool,
-		const std::vector<VkBuffer>& modelUbos,
-		const std::vector<VkBuffer>& lightUbos,
-		const TextureResource& basecolorMap,
-		const TextureResource& normalMap,
-		const TextureResource& roughnessMap,
-		const TextureResource& metalnessMap,
-		const TextureResource& aoMap,
-		VkDevice device);
-	static void WriteDescriptorSets(
-		uint32_t count,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& modelUbos,
-		const std::vector<VkBuffer>& lightUbos,
-		const TextureResource& basecolorMap,
-		const TextureResource& normalMap,
-		const TextureResource& roughnessMap,
-		const TextureResource& metalnessMap,
-		const TextureResource& aoMap,
+	// count: max num of descriptor sets that may be allocated
+	static VkDescriptorPool CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& poolSizes, u32 maxSets,
 		VkDevice device);
 
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
-		CreateUniformBuffers(size_t count, VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice);
+		CreateUniformBuffers(u32 count, VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice);
 
 #pragma endregion
 
@@ -211,7 +178,7 @@ public:
 #pragma region Image, ImageView, ImageMemory, MipLevels, DepthImage, TextureImage, etc
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
-		CreateImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
+		CreateImage2D(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
 			VkFormat format,
 			VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers = 1, VkImageCreateFlags flags = 0);

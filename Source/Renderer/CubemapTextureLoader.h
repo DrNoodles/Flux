@@ -156,7 +156,7 @@ private:
 		// Create image buffer
 		VkImage cubemapTextureImage;
 		VkDeviceMemory cubemapTextureImageMemory;
-		std::tie(cubemapTextureImage, cubemapTextureImageMemory) = vkh::CreateImage(
+		std::tie(cubemapTextureImage, cubemapTextureImageMemory) = vkh::CreateImage2D(
 			faceTexelWidth, faceTexelHeight,
 			mipLevels, // no mips //texels.MipLevels,
 			VK_SAMPLE_COUNT_1_BIT,
@@ -190,7 +190,7 @@ private:
 		std::vector<VkBufferImageCopy> bufferCopyRegions;
 		for (u32 face = 0; face < 6; face++)
 		{
-			const u32 offset = face * faceTexelDataSize;
+			const VkDeviceSize offset = face * faceTexelDataSize;
 			//for (u32 level = 0; level < cubeMap.mipLevels; level++)
 			{
 				// Calculate offset into staging buffer for the current mip level and face

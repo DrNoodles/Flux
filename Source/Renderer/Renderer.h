@@ -101,7 +101,7 @@ private:
 	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
-	VkDescriptorSetLayout _descriptorSetLayout = nullptr;
+	VkDescriptorSetLayout _pbrDescriptorSetLayout = nullptr;
 	VkDescriptorPool _descriptorPool = nullptr;
 
 	// Resources
@@ -116,8 +116,65 @@ private:
 
 	void InitVulkan();
 	void CleanupSwapchainAndDependents();
+
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<ModelResourceFrame> CreateModelFrameResources(size_t numImagesInFlight, const Renderable& renderable) const;
+	std::vector<ModelResourceFrame> CreateModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
+
+
+
+
+
+	#pragma region Shared
+
+	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
+
+	// Defines the layout of the data bound to the shaders
+	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device);
+
+	// Associates the UBO and texture to sets for use in shaders
+	static std::vector<VkDescriptorSet> CreateDescriptorSets(
+		uint32_t count,
+		VkDescriptorSetLayout layout,
+		VkDescriptorPool pool,
+		const std::vector<VkBuffer>& modelUbos,
+		const std::vector<VkBuffer>& lightUbos,
+		const TextureResource& basecolorMap,
+		const TextureResource& normalMap,
+		const TextureResource& roughnessMap,
+		const TextureResource& metalnessMap,
+		const TextureResource& aoMap,
+		VkDevice device);
+
+	static void WriteDescriptorSets(
+		uint32_t count,
+		const std::vector<VkDescriptorSet>& descriptorSets,
+		const std::vector<VkBuffer>& modelUbos,
+		const std::vector<VkBuffer>& lightUbos,
+		const TextureResource& basecolorMap,
+		const TextureResource& normalMap,
+		const TextureResource& roughnessMap,
+		const TextureResource& metalnessMap,
+		const TextureResource& aoMap,
+		VkDevice device);
+
+	#pragma endregion Shared
+
+
 	
+	#pragma region Pbr
+
+	// The uniform and push values referenced by the shader that can be updated at draw time
+	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
+			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
+			const VkExtent2D& swapchainExtent);
+
+	#pragma endregion Pbr
+
+
+	#pragma region Cubemap // Everything cubemap: resources, pipelines, etc and rendering
+
+
+
+	#pragma endregion Cubemap
 };
