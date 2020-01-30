@@ -17,6 +17,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include "IblLoader.h"
 
 using vkh = VulkanHelpers;
 
@@ -246,7 +247,39 @@ void Renderer::CleanUp()
 	vkDestroyInstance(_instance, nullptr);
 }
 
+IblTextureResourceIds
+Renderer::CreateIblTextureResources(const std::string& equirectangularHdrPath)
+{
+	IblTextureResources iblRes = IblLoader::LoadIblFromPath(equirectangularHdrPath,
+		_shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device);
 
+	IblTextureResourceIds ids = {};
+
+	ids.EnvironmentCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.EnvironmentCubemap)));
+		
+	ids.IrradianceCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.IrradianceCubemap)));
+
+	ids.PrefilterCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
+
+	ids.BrdfLutId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
+	
+	return ids;
+}
+
+TextureResourceId Renderer::CreateCubemapTextureResource(const std::string& equirectangularHdrPath)
+{
+	const TextureResourceId id = (u32)_textures.size();
+
+	_textures.emplace_back(std::make_unique<TextureResource>(
+		IblLoader::LoadCubemapFromPath(equirectangularHdrPath,
+			_shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+
+	return id;
+}
 TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths)
 {
 	const TextureResourceId id = (u32)_textures.size();

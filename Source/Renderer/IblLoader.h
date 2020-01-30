@@ -16,7 +16,16 @@
 using vkh = VulkanHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class EquirectangularTextureResourceLoader
+struct IblTextureResources
+{
+	TextureResource EnvironmentCubemap;
+	TextureResource IrradianceCubemap;
+	TextureResource PrefilterCubemap;
+	TextureResource BrdfLut;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class IblLoader
 {
 public:
 	// RAII container for pixel data
@@ -56,9 +65,8 @@ public:
 		}
 	};
 
-	
-
-	static TextureResource LoadFromPath(const std::string& path, const std::string& shaderDir,
+	// TODO Make private
+	static TextureResource LoadCubemapFromPath(const std::string& path, const std::string& shaderDir,
 		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
 		VkImage srcImage;
@@ -78,11 +86,11 @@ public:
 		//VkRenderPass renderPass = CreateRenderPass(device, physicalDevice, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R32G32B32A32_SFLOAT);
 		CreateOffscreenFramebuffer(device);
 
-		CreateDescriptorSetLayout(device);
 		CreateDescriptorPool(device);
+		CreateDescriptorSetLayout(device);
 
-		LoadShaders(shaderDir, device);
 		//CreatePipelineLayout(device);
+		LoadShaders(shaderDir, device);
 		//CreatePipeline(device);
 
 		Render(device);
@@ -95,16 +103,42 @@ public:
 		VkImage dstImage;
 		VkDeviceMemory dstMemory;
 		VkImageView dstView;
-		u32 dstMipLevels, dstWidth, dstHeight;
+		u32 dstWidth, dstHeight;
+		u32 dstMipLevels;
+		u32 dstLayerCount;
+
 		VkSampler dstSampler;
 		VkImageLayout dstLayout;
 
-		throw; // finish implementation!
-		
-		return TextureResource(device, dstWidth, dstHeight, dstMipLevels, dstImage, dstMemory, dstView, dstSampler, dstLayout);
+
+		return TextureResource(device, dstWidth, dstHeight, dstMipLevels, dstLayerCount, dstImage, dstMemory, dstView, dstSampler, dstLayout);
 	}
 
+	static IblTextureResources LoadIblFromPath(const std::string& equirectangularHdrPath, const std::string& shaderDir, 
+		VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDevice device)
+	{
+		auto environmentCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto irradianceCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateIrradianceFromEnvCubemap();
+		auto prefilterCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreatePrefilterFromEnvCubemap();
+		auto brdfLut = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateBrdfLutFromEnvCubemap();
+
+		IblTextureResources iblRes
+		{
+			std::move(environmentCubemap),
+			std::move(irradianceCubemap),
+			std::move(prefilterCubemap),
+			std::move(brdfLut),
+		};
+		return iblRes;
+	}
+
+
 private:
+
+#pragma region LoadCubemapFromPath
+
+	
+
 	static std::tuple<VkImage, VkDeviceMemory> CreateSrcImage(const Texels& texels,
 		VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, VkQueue transferQueue)
 	{
@@ -149,7 +183,7 @@ private:
 
 		// Copy texels from staging buffer to image buffer
 		vkh::CopyBufferToImage(stagingBuffer, textureImage, texels.Width, texels.Height, transferPool, transferQueue, device);
-		
+
 		return { textureImage, textureImageMemory };
 	}
 	static VkImageView CreateSrcImageView(VkImage image, VkDevice device)
@@ -335,5 +369,15 @@ private:
 	static void OptimiseImageForRead(VkDevice device) {}
 
 	static void CleanUp(VkDevice device) {}
+	
+	#pragma endregion
+
+
+	static TextureResource CreateIrradianceFromEnvCubemap() { throw; }
+
+	static TextureResource CreatePrefilterFromEnvCubemap() { throw; }
+
+	static TextureResource CreateBrdfLutFromEnvCubemap() { throw; }
+
 };
 

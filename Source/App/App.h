@@ -374,6 +374,8 @@ private:
 
 	void LoadSkybox()
 	{
+		//const auto id = _renderer->CreateCubemapTextureResource(_options.IblDir + "ChiricahuaPath.hdr");
+		
 		const auto id = _renderer->CreateCubemapTextureResource({
 				_options.AssetsDir + "Skybox/right.jpg",
 				_options.AssetsDir + "Skybox/left.jpg",
@@ -429,10 +431,8 @@ private:
 		}
 	}
 
-	bool _intensityOn = true;
 	void RandomizeLights()
 	{
-		_intensityOn = !_intensityOn;
 		for (auto& entity : _scene->GetEntities())
 		{
 			if (entity->Light.has_value())
@@ -447,7 +447,6 @@ private:
 
 	void LoadAssets() 
 	{
-
 		//LoadStormtrooperHelmet();
 		LoadRailgun();
 
@@ -455,7 +454,6 @@ private:
 		_assetLoaded = true;
 		
 		LoadLighting();
-		LoadSkybox();
 	}
 
 	void FrameAll()
@@ -550,15 +548,7 @@ private:
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_X)      { LoadAssets(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
-		/*if (key == GLFW_KEY_C)      { _renderer->CreateCubemapTextureResource({
-				_options.AssetsDir + "Skybox/right.jpg",
-				_options.AssetsDir + "Skybox/left.jpg",
-				_options.AssetsDir + "Skybox/top.jpg",
-				_options.AssetsDir + "Skybox/bottom.jpg",
-				_options.AssetsDir + "Skybox/front.jpg",
-				_options.AssetsDir + "Skybox/back.jpg",
-			});
-		}*/
+		if (key == GLFW_KEY_C)      { LoadSkybox(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{

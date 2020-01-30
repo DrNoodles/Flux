@@ -9,7 +9,7 @@ struct AppOptions
 	std::string DataDir{};
 	std::string AssetsDir{};
 	std::string ModelsDir{};
-	std::string CubemapsDir{};
+	std::string IblDir{};
 	bool EnabledVulkanValidationLayers = false;
 };
 

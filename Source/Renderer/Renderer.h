@@ -11,6 +11,18 @@
 struct UniversalUbo;
 struct RenderableCreateInfo;
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct IblTextureResourceIds
+{
+	TextureResourceId EnvironmentCubemapId;
+	TextureResourceId IrradianceCubemapId;
+	TextureResourceId PrefilterCubemapId;
+	TextureResourceId BrdfLutId;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class IRendererDelegate
 {
 public:
@@ -22,6 +34,7 @@ public:
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Renderer
 {
 public:
@@ -35,11 +48,19 @@ public:
 		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::vec3& camPos);
 	void CleanUp(); // TODO convert to RAII?
+
 	TextureResourceId CreateTextureResource(const std::string& path);
+
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
+
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
+
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createInfo);
-	//TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
+
+	IblTextureResourceIds CreateIblTextureResources(const std::string& equirectangularHdrPath);
+
+	TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
+	
 	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths);
 
 
