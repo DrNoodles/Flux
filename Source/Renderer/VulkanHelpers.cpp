@@ -1149,15 +1149,17 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 	vkFreeCommandBuffers(device, transferCommandPool, 1, &commandBuffer);
 }
 
-std::vector<VkCommandBuffer> VulkanHelpers::CreateCommandBuffers(uint32_t numBuffersToCreate,
+std::vector<VkCommandBuffer> VulkanHelpers::AllocateAndRecordCommandBuffers(uint32_t numBuffersToCreate,
+	const Skybox* skybox,
 	const std::vector<std::unique_ptr<Renderable>>& renderables,
 	const std::vector<std::unique_ptr<MeshResource>>& meshes,
 	VkExtent2D swapchainExtent,
 	const std::vector<VkFramebuffer>&
 	swapchainFramebuffers, VkCommandPool commandPool,
 	VkDevice device,
-	VkRenderPass renderPass, VkPipeline pipeline,
-	VkPipelineLayout pipelineLayout)
+	VkRenderPass renderPass, 
+	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
+	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
 {
 	assert(numBuffersToCreate == swapchainFramebuffers.size());
 	//assert(numBuffersToCreate == descriptorSets.size());
@@ -1178,29 +1180,33 @@ std::vector<VkCommandBuffer> VulkanHelpers::CreateCommandBuffers(uint32_t numBuf
 	}
 
 	// TODO Is recording necessary as part of the create? We're rebuilding this per frame anyways
-	for (uint32_t i = 0; i < commandBuffers.size(); ++i)
+	for (u32 i = 0; i < commandBuffers.size(); ++i)
 	{
 		RecordCommandBuffer(
 			commandBuffers[i],
+			skybox,
 			renderables,
 			meshes,
 			i,
 			swapchainExtent,
 			swapchainFramebuffers[i],
 			renderPass,
-			pipeline, pipelineLayout);
+			pbrPipeline, pbrPipelineLayout,
+			skyboxPipeline, skyboxPipelineLayout);
 	}
 
 	return commandBuffers;
 }
 
 void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
+	const Skybox* skybox,
 	const std::vector<std::unique_ptr<Renderable>>& renderables,
 	const std::vector<std::unique_ptr<MeshResource>>& meshes,
 	int frameIndex,
 	VkExtent2D swapchainExtent,
 	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
-	VkPipeline pipeline, VkPipelineLayout pipelineLayout)
+	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
+	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
 {
 	// Start recording command buffer
 	VkCommandBufferBeginInfo beginInfo = {};
@@ -1232,7 +1238,28 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			// Skybox
+			if (skybox)
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+
+				const auto& mesh = *meshes[skybox->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer, 
+					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout, 
+					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+		
+
+
+			// Objects
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
 
 			for (const auto& renderable : renderables)
 			{
@@ -1243,10 +1270,13 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-					&renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				vkCmdBindDescriptorSets(commandBuffer, 
+					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout, 
+					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				
 				/*const void* pValues;
 				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+				
 				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 			}
 		}

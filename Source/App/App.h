@@ -53,9 +53,10 @@ public:
 		InitWindow();
 
 		// Services
-		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir,
-		                                       _options.AssetsDir, *this);
 		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+
+		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir,
+		                                       _options.AssetsDir, *this, *_modelLoaderService);
 		_scene = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
 	}
 	~App()
@@ -371,12 +372,30 @@ private:
 		entities.emplace_back(std::move(entity));
 	}
 
+	void LoadSkybox()
+	{
+		const auto id = _renderer->CreateCubemapTextureResource({
+				_options.AssetsDir + "Skybox/right.jpg",
+				_options.AssetsDir + "Skybox/left.jpg",
+				_options.AssetsDir + "Skybox/top.jpg",
+				_options.AssetsDir + "Skybox/bottom.jpg",
+				_options.AssetsDir + "Skybox/front.jpg",
+				_options.AssetsDir + "Skybox/back.jpg"
+		});
+
+		SkyboxCreateInfo createInfo = {};
+		createInfo.TextureId = id;
+		_renderer->CreateSkybox(createInfo);
+	}
+	
 	// TODO Move to utils class
 	static float RandF(float min, float max)
 	{
 		const auto base = float(rand()) / RAND_MAX;
 		return min + base * (max - min);
 	}
+
+
 	
 	void LoadLighting()
 	{
@@ -425,18 +444,18 @@ private:
 	}
 
 	bool _assetLoaded = false;
+
 	void LoadAssets() 
 	{
-		/*if (_assetLoaded) { return; }
-		_assetLoaded = true;*/
 
 		//LoadStormtrooperHelmet();
-		LoadRailgun();
+		//LoadRailgun();
 
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 		
 		LoadLighting();
+		LoadSkybox();
 	}
 
 	void FrameAll()
@@ -531,7 +550,7 @@ private:
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_X)      { LoadAssets(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
-		if (key == GLFW_KEY_C)      { _renderer->CreateCubemapTextureResource({
+		/*if (key == GLFW_KEY_C)      { _renderer->CreateCubemapTextureResource({
 				_options.AssetsDir + "Skybox/right.jpg",
 				_options.AssetsDir + "Skybox/left.jpg",
 				_options.AssetsDir + "Skybox/top.jpg",
@@ -539,7 +558,7 @@ private:
 				_options.AssetsDir + "Skybox/front.jpg",
 				_options.AssetsDir + "Skybox/back.jpg",
 			});
-		}
+		}*/
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{

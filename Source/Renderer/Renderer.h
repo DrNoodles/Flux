@@ -28,7 +28,7 @@ public:
 	bool FramebufferResized = false;
 
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
-	                  IRendererDelegate& delegate);
+	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 	void DrawFrame(float dt,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
@@ -120,7 +120,10 @@ private:
 	
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
+
+	// Required resources
 	TextureResourceId _placeholderTexture;
+	MeshResourceId _skyboxMesh;
 
 
 	void InitVulkan();
@@ -154,20 +157,6 @@ private:
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
-	// Associates the UBO and texture to sets for use in shaders
-	/*static std::vector<VkDescriptorSet> CreatePbrDescriptorSets(
-		uint32_t count,
-		VkDescriptorSetLayout layout,
-		VkDescriptorPool pool,
-		const std::vector<VkBuffer>& modelUbos,
-		const std::vector<VkBuffer>& lightUbos,
-		const TextureResource& basecolorMap,
-		const TextureResource& normalMap,
-		const TextureResource& roughnessMap,
-		const TextureResource& metalnessMap,
-		const TextureResource& aoMap,
-		VkDevice device);*/
-
 	static void WritePbrDescriptorSets(
 		uint32_t count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
@@ -189,6 +178,8 @@ private:
 
 
 	#pragma region Skybox // Everything cubemap: resources, pipelines, etc and rendering
+
+	const Skybox* GetSkyboxOrNull() const { return _skyboxes.empty() ? nullptr : _skyboxes[0].get(); }
 
 	std::vector<SkyboxResourceFrame>
 	CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;

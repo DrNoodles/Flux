@@ -11,6 +11,7 @@
 struct QueueFamilyIndices;
 struct GLFWwindow;
 struct Vertex;
+struct Skybox;
 struct Renderable;
 class TextureResource;
 struct MeshResource;
@@ -128,24 +129,26 @@ public:
 		VkQueue transferQueue, VkDevice device);
 
 
-	[[nodiscard]] static std::vector<VkCommandBuffer> CreateCommandBuffers(
+	[[nodiscard]] static std::vector<VkCommandBuffer> AllocateAndRecordCommandBuffers(
 		uint32_t numBuffersToCreate,
 
+		const Skybox* skybox,
 		const std::vector<std::unique_ptr<Renderable>>& renderables,
 		const std::vector<std::unique_ptr<MeshResource>>& meshes,
-		VkExtent2D swapchainExtent,
-		const std::vector<VkFramebuffer>& swapchainFramebuffers,
+
+		VkExtent2D swapchainExtent, const std::vector<VkFramebuffer>& swapchainFramebuffers,
 
 		VkCommandPool commandPool,
 		VkDevice device,
 		VkRenderPass renderPass,
-		VkPipeline pipeline,
-		VkPipelineLayout pipelineLayout);
+		VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout, 
+		VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout);
 
 
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 
+		const Skybox* skybox,
 		const std::vector<std::unique_ptr<Renderable>>& renderables,
 		const std::vector<std::unique_ptr<MeshResource>>& meshes,
 		int frameIndex,
@@ -154,8 +157,8 @@ public:
 		VkFramebuffer swapchainFramebuffer,
 
 		VkRenderPass renderPass,
-		VkPipeline pipeline,
-		VkPipelineLayout pipelineLayout);
+		VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
+		VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout);
 
 
 	// Returns render finished semaphore and image available semaphore, in that order

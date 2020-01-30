@@ -21,11 +21,17 @@
 using vkh = VulkanHelpers;
 
 Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir,
-	IRendererDelegate& delegate): _delegate(delegate), _shaderDir(shaderDir)
+	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService): _delegate(delegate), _shaderDir(shaderDir)
 {
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
+	
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
+
+	// Load a cube
+	auto model = modelLoaderService.LoadModel(assetsDir + "cube.obj");
+	auto& meshDefinition = model.value().Meshes[0];
+	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
 void Renderer::DrawFrame(float dt,
@@ -79,14 +85,33 @@ void Renderer::DrawFrame(float dt,
 
 	
 	// Update light buffers
+	{
+		auto lightsUbo = LightUbo::Create(lights);
+		
+		void* data;
+		auto size = sizeof(lightsUbo);
+		vkMapMemory(_device, _lightBuffersMemory[imageIndex], 0, size, 0, &data);
+		memcpy(data, &lightsUbo, size);
+		vkUnmapMemory(_device, _lightBuffersMemory[imageIndex]);
+	}
 
-	// Single light support
-	auto lightUbo = LightUbo::Create(lights);
-	void* data;
-	auto size = sizeof(lightUbo);
-	vkMapMemory(_device, _lightBuffersMemory[imageIndex], 0, size, 0, &data);
-	memcpy(data, &lightUbo, size);
-	vkUnmapMemory(_device, _lightBuffersMemory[imageIndex]);
+	// Update skybox buffer
+	const Skybox* skybox = GetSkyboxOrNull(); // Hardcode first skybox for now
+	if (skybox)
+	{
+		// Populate ubo
+		auto skyUbo = SkyboxVertUbo{};
+		skyUbo.Projection = projection; // same as camera
+		skyUbo.Rotation = glm::mat3{ 1 }; // no rotation for now
+		skyUbo.View = view;
+
+		// Copy to gpu
+		void* data;
+		auto size = sizeof(skyUbo);
+		vkMapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory, 0, size, 0, &data);
+		memcpy(data, &skyUbo, size);
+		vkUnmapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory);
+	}
 	
 	
 	// Update Model
@@ -114,13 +139,15 @@ void Renderer::DrawFrame(float dt,
 
 	vkh::RecordCommandBuffer(
 		_commandBuffers[imageIndex],
+		skybox,
 		_renderables,
 		_meshes,
 		imageIndex,
 		_swapchainExtent,
 		_swapchainFramebuffers[imageIndex],
 		_renderPass,
-		_pbrPipeline, _pbrPipelineLayout);
+		_pbrPipeline, _pbrPipelineLayout,
+		_skyboxPipeline, _skyboxPipelineLayout);
 
 
 	// Execute command buffer with the image as an attachment in the framebuffer
@@ -272,7 +299,7 @@ MeshResourceId Renderer::CreateMeshResource(const MeshDefinition& meshDefinition
 SkyboxResourceId Renderer::CreateSkybox(const SkyboxCreateInfo& createInfo)
 {
 	auto skybox = std::make_unique<Skybox>();
-	skybox->MeshId = createInfo.MeshId;
+	skybox->MeshId = _skyboxMesh;
 	skybox->TextureId = createInfo.TextureId;
 	skybox->FrameResources = CreateSkyboxModelFrameResources((u32)_swapchainImages.size(), *skybox);
 
@@ -450,7 +477,10 @@ void Renderer::CleanupSwapchainAndDependents()
 	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 	for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
 	vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+	
 	vkDestroyPipeline(_device, _pbrPipeline, nullptr);
+	vkDestroyPipeline(_device, _skyboxPipeline, nullptr);
+	
 	vkDestroyRenderPass(_device, _renderPass, nullptr);
 	for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
 	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
@@ -477,8 +507,8 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
 		_swapchainExtent);
 
-	/*_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _msaaSamples, _renderPass, _device,
-		_swapchainExtent);*/
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _msaaSamples, _renderPass, _device,
+		_swapchainExtent);
 
 	_swapchainFramebuffers
 		= vkh::CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent,
@@ -500,17 +530,22 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight , *renderable);
 	}
 
-	// TODO Create frame resources for skybox
+	// Create frame resources for skybox
+	for (auto& skybox : _skyboxes)
+	{
+		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
+	}
 
-
-	_commandBuffers = vkh::CreateCommandBuffers(
+	_commandBuffers = vkh::AllocateAndRecordCommandBuffers(
 		numImagesInFlight,
+		GetSkyboxOrNull(),
 		_renderables,
 		_meshes,
 		_swapchainExtent,
 		_swapchainFramebuffers,
 		_commandPool, _device, _renderPass,
-		_pbrPipeline, _pbrPipelineLayout);
+		_pbrPipeline, _pbrPipelineLayout,
+		_skyboxPipeline, _skyboxPipelineLayout);
 	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 }
 
@@ -675,47 +710,6 @@ VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 		aoMapLayoutBinding,
 		lightUboLayoutBinding }, device);
 }
-//
-//std::vector<VkDescriptorSet> Renderer::CreatePbrDescriptorSets(
-//	uint32_t count,
-//	VkDescriptorSetLayout layout,
-//	VkDescriptorPool pool,
-//	const std::vector<VkBuffer>& modelUbos,
-//	const std::vector<VkBuffer>& lightUbos,
-//	const TextureResource& basecolorMap,
-//	const TextureResource& normalMap,
-//	const TextureResource& roughnessMap,
-//	const TextureResource& metalnessMap,
-//	const TextureResource& aoMap,
-//	VkDevice device)
-//{
-//	assert(count == modelUbos.size());// 1 per image in swapchain
-//	assert(count == lightUbos.size());
-//
-//	// Need a copy of the layout per set as they'll be index matched arrays
-//	std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
-//
-//
-//	// Create descriptor sets
-//	VkDescriptorSetAllocateInfo allocInfo = {};
-//	{
-//		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-//		allocInfo.descriptorPool = pool;
-//		allocInfo.descriptorSetCount = count;
-//		allocInfo.pSetLayouts = descriptorSetLayouts.data();
-//	}
-//
-//	std::vector<VkDescriptorSet> descriptorSets{ count };
-//	if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()))
-//	{
-//		throw std::runtime_error("Failed to create descriptor sets");
-//	}
-//
-//	WritePbrDescriptorSets(count, descriptorSets, modelUbos, lightUbos,
-//		basecolorMap, normalMap, roughnessMap, metalnessMap, aoMap, device);
-//
-//	return descriptorSets;
-//}
 
 void Renderer::WritePbrDescriptorSets(
 	uint32_t count,
@@ -1096,7 +1090,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 
 	// Create descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
-		= AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _descriptorPool, _device);
+		= AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
 
 	WriteSkyboxDescriptorSets(
 		numImagesInFlight, descriptorSets, skyboxVertBuffers, *_textures[skybox.TextureId.Id], _device);
@@ -1119,13 +1113,13 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 {
 	// Prepare layout bindings
-	VkDescriptorSetLayoutBinding pbrUboLayoutBinding = {};
+	VkDescriptorSetLayoutBinding skyboxUboLayoutBinding = {};
 	{
-		pbrUboLayoutBinding.binding = 0; // correlates to shader
-		pbrUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		pbrUboLayoutBinding.descriptorCount = 1;
-		pbrUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		pbrUboLayoutBinding.pImmutableSamplers = nullptr; 
+		skyboxUboLayoutBinding.binding = 0; // correlates to shader
+		skyboxUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		skyboxUboLayoutBinding.descriptorCount = 1;
+		skyboxUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		skyboxUboLayoutBinding.pImmutableSamplers = nullptr; 
 	}
 	VkDescriptorSetLayoutBinding skyboxMapLayoutBinding = {};
 	{
@@ -1136,7 +1130,7 @@ VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 		skyboxMapLayoutBinding.pImmutableSamplers = nullptr;
 	}
 
-	return vkh::CreateDescriptorSetLayout({ pbrUboLayoutBinding , skyboxMapLayoutBinding }, device);
+	return vkh::CreateDescriptorSetLayout({ skyboxUboLayoutBinding , skyboxMapLayoutBinding }, device);
 }
 
 std::vector<VkDescriptorSet> Renderer::AllocateDescriptorSets(
@@ -1202,7 +1196,7 @@ void Renderer::WriteSkyboxDescriptorSets(
 		}
 
 
-		// Basecolor Map  -  Texture image descriptor set
+		// CubeMap  -  Texture image descriptor set
 		{
 			const auto binding = 1;
 			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

@@ -19,7 +19,9 @@ public:
 
 		Assimp::Importer importer{};
 		const aiScene *scene = importer.ReadFile(path, 
-			aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace | aiProcess_GenBoundingBoxes);
+			aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace | aiProcess_GenBoundingBoxes 
+			// | aiProcess_OptimizeMeshes | aiProcess_JoinIdenticalVertices  // TODO Experiment with more flags to optimise things
+		);
 
 		if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
 		{
