@@ -22,7 +22,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		RenderableCreateInfo renderableCreateInfo = {};
 
 		// Create the Mesh resource
-		renderableCreateInfo.Mesh = _renderer.CreateMeshResource(meshDef);
+		renderableCreateInfo.MeshId = _renderer.CreateMeshResource(meshDef);
 
 
 		// Create Texture resources and config Material

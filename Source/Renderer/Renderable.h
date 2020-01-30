@@ -3,10 +3,34 @@
 #include "GpuTypes.h"
 #include "Material.h"
 
+
+// TODO Split Skybox into its own file
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct SkyboxCreateInfo
+{
+	MeshResourceId MeshId;
+	TextureResourceId TextureId;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct Skybox
+{
+	MeshResourceId MeshId;
+	TextureResourceId TextureId;
+
+	// Array containing one per frame in flight
+	std::vector<SkyboxResourceFrame> FrameResources{};
+};
+
+
+
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct RenderableCreateInfo
 {
-	MeshResourceId Mesh;
+	MeshResourceId MeshId;
 	Material Mat;
 };
 
@@ -18,5 +42,5 @@ struct Renderable
 
 	// Array containing one per frame in flight
 	// TODO Eventually auto generate Infos stored in an unordered map key would be the unique combination of mesh and texture resources
-	std::vector<ModelResourceFrame> FrameResources{};
+	std::vector<PbrModelResourceFrame> FrameResources{};
 };

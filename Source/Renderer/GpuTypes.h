@@ -23,10 +23,12 @@ struct ResourceId
 	// TODO equality checks
 };
 
+struct SkyboxIdType;
 struct RenderableIdType;
 struct MeshIdType;
 struct TextureIdType;
 //struct ShaderIdType;
+typedef ResourceId<SkyboxIdType> SkyboxResourceId;
 typedef ResourceId<RenderableIdType> RenderableResourceId;
 typedef ResourceId<MeshIdType> MeshResourceId;
 typedef ResourceId<TextureIdType> TextureResourceId;
@@ -151,7 +153,17 @@ struct MeshResource
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ModelResourceFrame // for lack of a better name...
+struct SkyboxResourceFrame // for lack of a better name...
+{
+	VkDescriptorSet DescriptorSet;
+	VkBuffer VertUniformBuffer;
+	VkDeviceMemory VertUniformBufferMemory;
+	//VkBuffer FragUniformBuffer;
+	//VkDeviceMemory VertUniformBufferMemory;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct PbrModelResourceFrame // for lack of a better name...
 {
 	VkDescriptorSet DescriptorSet;
 	VkBuffer UniformBuffer;

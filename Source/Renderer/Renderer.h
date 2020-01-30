@@ -28,7 +28,7 @@ public:
 	bool FramebufferResized = false;
 
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
-		IRendererDelegate& delegate);
+	                  IRendererDelegate& delegate);
 	void DrawFrame(float dt,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
@@ -37,7 +37,8 @@ public:
 	void CleanUp(); // TODO convert to RAII?
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createModelResourceInfo);
+	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
+	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createInfo);
 	//TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
 	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths);
 
@@ -88,9 +89,8 @@ private:
 	VkImageView _depthImageView = nullptr;
 	
 	VkRenderPass _renderPass = nullptr;
-	VkPipeline _pipeline = nullptr;
-	VkPipelineLayout _pipelineLayout = nullptr;
-
+	
+	VkDescriptorPool _descriptorPool = nullptr;
 	VkCommandPool _commandPool = nullptr;
 	std::vector<VkCommandBuffer> _commandBuffers{};
 	
@@ -101,14 +101,23 @@ private:
 	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
+	// PBR
+	VkPipeline _pbrPipeline = nullptr;
+	VkPipelineLayout _pbrPipelineLayout = nullptr;
 	VkDescriptorSetLayout _pbrDescriptorSetLayout = nullptr;
-	VkDescriptorPool _descriptorPool = nullptr;
 
+	// Skybox
+	VkPipeline _skyboxPipeline = nullptr;
+	VkPipelineLayout _skyboxPipelineLayout = nullptr;
+	VkDescriptorSetLayout _skyboxDescriptorSetLayout = nullptr;
+	
 	// Resources
 	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
 	std::vector<VkDeviceMemory> _lightBuffersMemory{};
 	
+	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<Renderable>> _renderables{};
+	
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
 	TextureResourceId _placeholderTexture;
@@ -119,7 +128,7 @@ private:
 
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<ModelResourceFrame> CreateModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
+	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
 
 
 
@@ -129,11 +138,24 @@ private:
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
 
+	// TODO Move to helpers - no app specific stuff in it
+	static std::vector<VkDescriptorSet> AllocateDescriptorSets(
+		u32 count,
+		VkDescriptorSetLayout layout,
+		VkDescriptorPool pool,
+		VkDevice device);
+
+	#pragma endregion Shared
+
+
+	
+	#pragma region Pbr
+
 	// Defines the layout of the data bound to the shaders
-	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device);
+	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
 	// Associates the UBO and texture to sets for use in shaders
-	static std::vector<VkDescriptorSet> CreateDescriptorSets(
+	/*static std::vector<VkDescriptorSet> CreatePbrDescriptorSets(
 		uint32_t count,
 		VkDescriptorSetLayout layout,
 		VkDescriptorPool pool,
@@ -144,9 +166,9 @@ private:
 		const TextureResource& roughnessMap,
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
-		VkDevice device);
+		VkDevice device);*/
 
-	static void WriteDescriptorSets(
+	static void WritePbrDescriptorSets(
 		uint32_t count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& modelUbos,
@@ -158,23 +180,34 @@ private:
 		const TextureResource& aoMap,
 		VkDevice device);
 
-	#pragma endregion Shared
-
-
-	
-	#pragma region Pbr
-
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
 			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
 			const VkExtent2D& swapchainExtent);
-
+	
 	#pragma endregion Pbr
 
 
-	#pragma region Cubemap // Everything cubemap: resources, pipelines, etc and rendering
+	#pragma region Skybox // Everything cubemap: resources, pipelines, etc and rendering
 
+	std::vector<SkyboxResourceFrame>
+	CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
+	
+	// Defines the layout of the data bound to the shaders
+	static VkDescriptorSetLayout CreateSkyboxDescriptorSetLayout(VkDevice device);
 
+	// Associates the UBO and texture to sets for use in shaders
+	static void WriteSkyboxDescriptorSets(
+		u32 count,
+		const std::vector<VkDescriptorSet>& descriptorSets,
+		const std::vector<VkBuffer>& skyboxVertUbo,
+		const TextureResource& skyboxMap,
+		VkDevice device);
 
-	#pragma endregion Cubemap
+	// The uniform and push values referenced by the shader that can be updated at draw time
+	static VkPipeline CreateSkyboxGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
+		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
+		const VkExtent2D& swapchainExtent);
+
+	#pragma endregion Skybox
 };

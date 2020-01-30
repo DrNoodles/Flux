@@ -1321,8 +1321,25 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(const std::vector<VkDescrip
 	return pool;
 }
 
+VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(
+	const std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDevice device)
+{
+	// Create descriptor set layout
+	VkDescriptorSetLayoutCreateInfo layoutCI = {};
+	{
+		layoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutCI.bindingCount = (u32)bindings.size();
+		layoutCI.pBindings = bindings.data();
+	}
 
+	VkDescriptorSetLayout descriptorSetLayout;
+	if (vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create descriptor set layout");
+	}
 
+	return descriptorSetLayout;
+}
 
 
 #pragma region Image Helpers

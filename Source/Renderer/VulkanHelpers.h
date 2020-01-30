@@ -169,6 +169,10 @@ public:
 	static VkDescriptorPool CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& poolSizes, u32 maxSets,
 		VkDevice device);
 
+	static VkDescriptorSetLayout CreateDescriptorSetLayout(
+		const std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDevice device);
+	
+	
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
 		CreateUniformBuffers(u32 count, VkDeviceSize typeSize, VkDevice device, VkPhysicalDevice physicalDevice);
 
