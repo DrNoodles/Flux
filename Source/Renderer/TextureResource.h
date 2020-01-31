@@ -21,11 +21,12 @@ public:
 		VkDeviceMemory memory, VkImageView view, VkSampler sampler, 
 		VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 	{
-		assert(device);
+		// TODO reenable asserts!
+		/*assert(device);
 		assert(image);
 		assert(memory);
 		assert(view);
-		assert(sampler);
+		assert(sampler);*/
 
 		_device = device;
 		_width = width;
@@ -134,7 +135,7 @@ public:
 		
 		std::tie(image, memory, mipLevels, width, height)
 			= CreateTextureImage(path, transferPool, transferQueue, physicalDevice, device);
-		const auto view = vkh::CreateImageView(image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
+		const auto view = vkh::CreateImage2DView(image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
 		const auto sampler = CreateTextureSampler(mipLevels, device);
 		const auto layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -143,6 +144,7 @@ public:
 
 private:
 
+	// TODO Move this to VulkanHelpers and add support for n layers, and pass in a command buffer for external management
 	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
 	static void GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight,
@@ -199,7 +201,7 @@ private:
 				1, &barrier); // image barriers
 
 
-	// Blit the smaller image to the dst 
+			// Blit the smaller image to the dst 
 			VkImageBlit blit = {};
 			{
 				blit.srcOffsets[0] = { 0, 0, 0 };
@@ -238,7 +240,7 @@ private:
 				1, &barrier); // image barriers
 
 
-	// Halve mip dimensions in prep for next loop iteration 
+		// Halve mip dimensions in prep for next loop iteration 
 			if (srcMipWidth > 1) srcMipWidth /= 2;
 			if (srcMipHeight > 1) srcMipHeight /= 2;
 		}

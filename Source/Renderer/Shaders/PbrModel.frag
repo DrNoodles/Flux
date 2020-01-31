@@ -191,10 +191,10 @@ void main()
 
 	vec3 color = ambient + Lo;
 	
-	// Tonemap  
-	color *= uExposureBias;
-	color = ACESFitted(color);
-
+	// Post-processing - TODO Move to post pass shader
+	color *= uExposureBias;	// Exposure
+	color = ACESFitted(color); // Tonemap  
+	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
 	outColor = vec4(color,1.0);
 }

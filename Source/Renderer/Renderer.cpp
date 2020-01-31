@@ -639,7 +639,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 
 
 	// Create descriptor sets
-	auto descriptorSets = AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _descriptorPool, _device);
+	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _descriptorPool, _device);
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -1124,7 +1124,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 
 	// Create descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
-		= AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
+		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
 
 	WriteSkyboxDescriptorSets(
 		numImagesInFlight, descriptorSets, skyboxVertBuffers, *_textures[skybox.TextureId.Id], _device);
@@ -1165,34 +1165,6 @@ VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 	}
 
 	return vkh::CreateDescriptorSetLayout({ skyboxUboLayoutBinding , skyboxMapLayoutBinding }, device);
-}
-
-std::vector<VkDescriptorSet> Renderer::AllocateDescriptorSets(
-	u32 count,
-	VkDescriptorSetLayout layout,
-	VkDescriptorPool pool,
-	VkDevice device)
-{
-	// Need a copy of the layout per set as they'll be index matched arrays
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
-
-
-	// Create descriptor sets
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	{
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = pool;
-		allocInfo.descriptorSetCount = count;
-		allocInfo.pSetLayouts = descriptorSetLayouts.data();
-	}
-
-	std::vector<VkDescriptorSet> descriptorSets{ count };
-	if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()))
-	{
-		throw std::runtime_error("Failed to create descriptor sets");
-	}
-
-	return descriptorSets;
 }
 
 void Renderer::WriteSkyboxDescriptorSets(

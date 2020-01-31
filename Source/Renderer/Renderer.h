@@ -162,13 +162,6 @@ private:
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
 
-	// TODO Move to helpers - no app specific stuff in it
-	static std::vector<VkDescriptorSet> AllocateDescriptorSets(
-		u32 count,
-		VkDescriptorSetLayout layout,
-		VkDescriptorPool pool,
-		VkDevice device);
-
 	#pragma endregion Shared
 
 

@@ -15,86 +15,137 @@
 using vkh = VulkanHelpers;
 
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// RAII container for pixel data
-class TexelsRgbaF16
+// Container for pixel data
+template <typename T>
+class Texels
 {
 public:
-	u32 Width{}, Height{}, /*Channels{},*/ MipLevels{};
-	std::vector<float> Data;
+	virtual ~Texels() = default;
 
+	inline u32 Width() const { return _width; }
+	inline u32 Height() const { return _height; }
+	inline u8 Channels() const { return _channels; }
+	inline u8 MipLevels() const { return _mipLevels; }
+	inline u8 BytesPerPixel() const { return _bytesPerPixel; }
+	inline u8 BytesPerChannel() const { return _bytesPerChannel; }
+	inline size_t DataSize() const { return _dataSize; }
+	inline const std::vector<T>& Data() const { return _data; }
+	
 	void Load(const std::string& path)
 	{
-		int texWidth, texHeight, texChannels;
-		float* pData = stbi_loadf(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		_data = LoadType(path, _dataSize, _width, _height, _channels, _bytesPerChannel);
+		
+		_mipLevels = (u8)std::floor(std::log2(std::max(_width, _height))) + 1;
+		_bytesPerPixel = _bytesPerChannel * _channels;
+	}
+
+protected:
+	virtual std::vector<T> LoadType(const std::string& path,
+		size_t& outDataSize,
+		u32& outWidth,
+		u32& outHeight,
+		u8& outChannels,
+		u8& outBytesPerChannel) = 0;
+
+private:
+	// Data
+	u32 _width{};
+	u32 _height{};
+	u8 _channels{};
+	u8 _mipLevels{};
+	u8 _bytesPerPixel = {};
+	u8 _bytesPerChannel = {};
+	
+	std::vector<T> _data = {};
+	size_t _dataSize = {}; // The total size of the buffer
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class TexelsRgbaF32 final : public Texels<f32>
+{
+protected:
+	std::vector<f32> LoadType(const std::string& path,
+		size_t& outDataSize,
+		u32& outWidth,
+		u32& outHeight,
+		u8& outChannels,
+		u8& outBytesPerChannel) override
+	{
+		int width, height, channels;
+		auto desiredChannels = STBI_rgb_alpha;
+		f32* pData = stbi_loadf(path.c_str(), &width, &height, &channels, desiredChannels);
 		if (!pData)
 		{
 			stbi_image_free(pData);
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
 
-		const auto dataSize = (size_t)texWidth * (size_t)texHeight * 4; // We requested RGBA = 4bytes
+		outBytesPerChannel = 4;
 
-		Data = std::vector<float>{ pData, pData + dataSize };
+		outWidth = (u32)width;
+		outHeight = (u32)height;
+		outChannels = (u8)desiredChannels;
+		const u8 bytesPerPixel = outChannels * outBytesPerChannel;
+		outDataSize = (size_t)width * (size_t)height * bytesPerPixel;
+
+		const u32 numElements = width * height * bytesPerPixel / sizeof(f32);
+		auto data = std::vector<f32>{ pData, pData + numElements };
+
+		// Cleanup
 		stbi_image_free(pData);
 
-		Width = (u32)texWidth;
-		Height = (u32)texHeight;
-		//Channels = (u32)texChannels;
-		MipLevels = (u32)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+		return data;
 	}
-	//TexelsRgbaF16() = default;
-	//// No copy, no move.
-	//TexelsRgbaF16(const TexelsRgbaF16&) = delete;
-	//TexelsRgbaF16(TexelsRgbaF16&&) = delete;
-	//TexelsRgbaF16& operator=(const TexelsRgbaF16&) = delete;
-	//TexelsRgbaF16& operator=(TexelsRgbaF16&&) = delete;
 };
 
-
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// RAII container for pixel data
-class TexelsRgbaU8
+class TexelsRgbaU8 final : public Texels<u8>
 {
-public:
-	u32 Width{}, Height{}, /*Channels{},*/ MipLevels{};
-	std::vector<u8> Data;
-
-	void Load(const std::string& path)
+protected:
+	std::vector<u8> LoadType(const std::string & path,
+		size_t & outDataSize,
+		u32 & outWidth,
+		u32 & outHeight,
+		u8 & outChannels,
+		u8 & outBytesPerChannel) override
 	{
-		int texWidth, texHeight, texChannels;
-		u8* pData = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		int width, height, channels;
+		auto desiredChannels = STBI_rgb_alpha;
+		u8* pData = stbi_load(path.c_str(), &width, &height, &channels, desiredChannels);
 		if (!pData)
 		{
 			stbi_image_free(pData);
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
+		
+		outBytesPerChannel = 1;
 
-		const auto dataSize = (size_t)texWidth * (size_t)texHeight * 4; // We requested RGBA = 4bytes
+		outWidth = (u32)width;
+		outHeight = (u32)height;
+		outChannels = (u8)desiredChannels;
+		const u8 bytesPerPixel = outChannels * outBytesPerChannel;
+		outDataSize = (size_t)width * (size_t)height * bytesPerPixel;
 
-		Data = std::vector<u8>{ pData, pData + dataSize };
+		
+		const u32 numElements = width * height * bytesPerPixel / sizeof(u8);
+		auto data = std::vector<u8>{ pData, pData + numElements };
+
+		// Cleanup
 		stbi_image_free(pData);
 
-		Width = (u32)texWidth;
-		Height = (u32)texHeight;
-		//Channels = (u32)texChannels;
-		MipLevels = (u32)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+		return data;
 	}
-	//TexelsRgbaU8() = default;
-	//// No copy, no move.
-	//TexelsRgbaU8(const TexelsRgbaU8&) = delete;
-	//TexelsRgbaU8(TexelsRgbaU8&&) = delete;
-	//TexelsRgbaU8& operator=(const TexelsRgbaU8&) = delete;
-	//TexelsRgbaU8& operator=(TexelsRgbaU8&&) = delete;
 };
-
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CubemapTextureLoader
 {
 public:
+	// Each map corresponds to the following cube faces +X, -X, +Y, -Y, +Z, -Z.
 	static TextureResource LoadFromPath(const std::array<std::string, 6>& sidePaths, const std::string& shaderDir,
 		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
@@ -103,34 +154,39 @@ public:
 		VkDeviceMemory memory;
 		const VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		std::array<TexelsRgbaU8, 6> texels{};
+		std::array<TexelsRgbaF32, 6> texels{};
 		for (size_t i = 0; i < 6; i++)
 		{
 			texels[i].Load(sidePaths[i]);
-			texels[i].MipLevels = 1; // override mips as we aren't using em for the cubemap
 		}
 
-		std::tie(image, memory) = CreateImage(texels, layout, device, physicalDevice, transferPool, transferQueue);
-		const auto view = CreateImageView(device, VK_FORMAT_R8G8B8A8_UNORM, image);
+		const auto texelFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const auto desiredFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+		
+		std::tie(image, memory) = CreateImage(texels, texelFormat, desiredFormat, layout, 
+			device, physicalDevice, transferPool, transferQueue);
+		const auto view = CreateImageView(device, desiredFormat, image);
 		const auto sampler = CreateSampler(device);
 
 		
-		return TextureResource(device, texels[0].Width, texels[0].Height, texels[0].MipLevels, 6, 
+		return TextureResource(device, texels[0].Width(), texels[0].Height(), 1/*miplevels*/, 6, 
 			image, memory, view, sampler, layout);
 	}
 
 private:
-	static std::tuple<VkImage, VkDeviceMemory> CreateImage(const std::array<TexelsRgbaU8, 6>& texels, 
+	static std::tuple<VkImage, VkDeviceMemory> CreateImage(const std::array<TexelsRgbaF32, 6>& texels, 
+		VkFormat texelFormat,
+		VkFormat desiredFormat,
 		VkImageLayout targetLayout, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, 
 		VkQueue transferQueue)
 	{
-		const auto format = VK_FORMAT_R8G8B8A8_UNORM;
 		const u32 mipLevels = 1;
 		const u32 cubeSides = 6;
-		const auto faceTexelDataSize = texels[0].Data.size();
-		const auto faceTexelWidth = texels[0].Width;
-		const auto faceTexelHeight = texels[0].Height;
+		const auto faceTexelDataSize = texels[0].DataSize();
+		const auto faceTexelWidth = texels[0].Width();
+		const auto faceTexelHeight = texels[0].Height();
 
+		
 		// Create staging buffer
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -146,31 +202,36 @@ private:
 		{
 			const VkDeviceSize offset = i * faceTexelDataSize;
 			void* data;
-			
 			vkMapMemory(device, stagingBufferMemory, offset, faceTexelDataSize, 0, &data);
-			memcpy(data, texels[i].Data.data(), faceTexelDataSize);
+			memcpy(data, texels[i].Data().data(), faceTexelDataSize);
 			vkUnmapMemory(device, stagingBufferMemory);
 		}
 
+		const bool needsFormatConversion = texelFormat != desiredFormat;
 
 		// Create image buffer
 		VkImage cubemapTextureImage;
 		VkDeviceMemory cubemapTextureImageMemory;
-		std::tie(cubemapTextureImage, cubemapTextureImageMemory) = vkh::CreateImage2D(
-			faceTexelWidth, faceTexelHeight,
-			mipLevels, // no mips //texels.MipLevels,
-			VK_SAMPLE_COUNT_1_BIT,
-			format, // format
-			VK_IMAGE_TILING_OPTIMAL, // tiling
-			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
-			physicalDevice, device,
-			cubeSides,// array layers for cubemap
-			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
+		{
+			const auto usageFlags = needsFormatConversion
+				? VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT // copy to, then from
+				: VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT; // copy to, then use in descSet
+			
+			std::tie(cubemapTextureImage, cubemapTextureImageMemory) = vkh::CreateImage2D(
+				faceTexelWidth, faceTexelHeight,
+				mipLevels,
+				VK_SAMPLE_COUNT_1_BIT,
+				texelFormat, // format
+				VK_IMAGE_TILING_OPTIMAL, // tiling
+				usageFlags, //usage flags
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
+				physicalDevice, device,
+				cubeSides,// array layers for cubemap
+				VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
+		}
 
-
-		// Transition image layout to optimal for copying to it from the staging buffer
 		const auto cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
+
 		VkImageSubresourceRange subresourceRange = {};
 		{
 			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -179,63 +240,130 @@ private:
 			subresourceRange.baseArrayLayer = 0;
 			subresourceRange.layerCount = cubeSides;
 		}
-		vkh::TransitionImageLayout(cmdBuffer, cubemapTextureImage,
-			VK_IMAGE_LAYOUT_UNDEFINED, // from
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-			subresourceRange);
 		
-
-		// Copy texels from staging buffer to image buffer		
-		// Setup buffer copy regions for each face including all of it's miplevels
-		std::vector<VkBufferImageCopy> bufferCopyRegions;
-		for (u32 face = 0; face < 6; face++)
+		// Transition image layout to optimal for copying to it from the staging buffer
 		{
-			const VkDeviceSize offset = face * faceTexelDataSize;
-			//for (u32 level = 0; level < cubeMap.mipLevels; level++)
-			{
-				// Calculate offset into staging buffer for the current mip level and face
-				VkBufferImageCopy bufferCopyRegion = {};
-				bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				bufferCopyRegion.imageSubresource.mipLevel = 0;
-				bufferCopyRegion.imageSubresource.baseArrayLayer = face;
-				bufferCopyRegion.imageSubresource.layerCount = 1;
-				bufferCopyRegion.imageExtent.width = faceTexelWidth;
-				bufferCopyRegion.imageExtent.height = faceTexelHeight;
-				bufferCopyRegion.imageExtent.depth = 1;
-				bufferCopyRegion.bufferOffset = offset;
-				bufferCopyRegions.push_back(bufferCopyRegion);
-			}
+			vkh::TransitionImageLayout(cmdBuffer, cubemapTextureImage,
+				VK_IMAGE_LAYOUT_UNDEFINED, // from
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
+				subresourceRange);
 		}
 
-		// Copy the cube map faces from the staging buffer to the optimal tiled image
-		vkCmdCopyBufferToImage(
-			cmdBuffer,
-			stagingBuffer,
-			cubemapTextureImage,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			u32(bufferCopyRegions.size()),
-			bufferCopyRegions.data()
-		);
+		
+		// Copy texels from staging buffer to image buffer		
+		// Setup buffer copy regions for each face including all of it's miplevels
+		{
+			std::vector<VkBufferImageCopy> bufferCopyRegions;
+			for (u32 face = 0; face < 6; face++)
+			{
+				const VkDeviceSize offset = face * faceTexelDataSize;
+				//for (u32 level = 0; level < cubeMap.mipLevels; level++)
+				{
+					// Calculate offset into staging buffer for the current mip level and face
+					VkBufferImageCopy bufferCopyRegion = {};
+					bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					bufferCopyRegion.imageSubresource.mipLevel = 0;
+					bufferCopyRegion.imageSubresource.baseArrayLayer = face;
+					bufferCopyRegion.imageSubresource.layerCount = 1;
+					bufferCopyRegion.imageExtent.width = faceTexelWidth;
+					bufferCopyRegion.imageExtent.height = faceTexelHeight;
+					bufferCopyRegion.imageExtent.depth = 1;
+					bufferCopyRegion.bufferOffset = offset;
+					bufferCopyRegions.push_back(bufferCopyRegion);
+				}
+			}
+
+			// Copy the cube map faces from the staging buffer to the optimal tiled image
+			vkCmdCopyBufferToImage(
+				cmdBuffer,
+				stagingBuffer,
+				cubemapTextureImage,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				u32(bufferCopyRegions.size()),
+				bufferCopyRegions.data()
+			);
+		}
+		
 
 		
-		// Change texture image layout to shader read after all faces have been copied
-		vkh::TransitionImageLayout(
-			cmdBuffer,
-			cubemapTextureImage,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			targetLayout,
-			subresourceRange);
-
-
-		// Execute commands
-		vkh::EndSingeTimeCommands(cmdBuffer, transferPool, transferQueue, device);
-
-
-		// Cleanup
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		// If we need to convert the format, we'll need another image buffer
 		
-		return { cubemapTextureImage, cubemapTextureImageMemory };
+		if (needsFormatConversion)
+		{
+			// Create another image buffer so we can convert to the desired format
+			VkImage newCubemapImage;
+			VkDeviceMemory newCubemapImageMemory;
+			{
+				std::tie(newCubemapImage, newCubemapImageMemory) = vkh::CreateImage2D(
+					faceTexelWidth, faceTexelHeight,
+					mipLevels,
+					VK_SAMPLE_COUNT_1_BIT,
+					desiredFormat, // format
+					VK_IMAGE_TILING_OPTIMAL, // tiling
+					VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
+					physicalDevice, device,
+					cubeSides,// array layers for cubemap
+					VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
+			}
+
+			{
+				vkh::TransitionImageLayout(cmdBuffer, cubemapTextureImage,
+					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // from
+					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to
+					subresourceRange);
+			}
+			{
+				vkh::TransitionImageLayout(cmdBuffer, newCubemapImage,
+					VK_IMAGE_LAYOUT_UNDEFINED, // from
+					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
+					subresourceRange);
+			}
+			vkh::ChangeFormat(cmdBuffer, cubemapTextureImage, newCubemapImage, faceTexelWidth, faceTexelHeight, subresourceRange);
+
+			
+			// Change texture image layout to shader read after all faces have been copied
+			vkh::TransitionImageLayout(
+				cmdBuffer,
+				newCubemapImage,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				targetLayout,
+				subresourceRange);
+
+
+			// Execute commands
+			vkh::EndSingeTimeCommands(cmdBuffer, transferPool, transferQueue, device);
+
+
+			// Cleanup unneeded resources - now buffer has executed!
+			vkDestroyImage(device, cubemapTextureImage, nullptr);
+			vkFreeMemory(device, cubemapTextureImageMemory, nullptr);
+			vkFreeMemory(device, stagingBufferMemory, nullptr);
+			vkDestroyBuffer(device, stagingBuffer, nullptr);
+
+			return { newCubemapImage, newCubemapImageMemory };
+		}
+		else
+		{
+			// Change texture image layout to shader read after all faces have been copied
+			vkh::TransitionImageLayout(
+				cmdBuffer,
+				cubemapTextureImage,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				targetLayout,
+				subresourceRange);
+
+
+			// Execute commands
+			vkh::EndSingeTimeCommands(cmdBuffer, transferPool, transferQueue, device);
+
+
+			// Cleanup unneeded resources - now buffer has executed!
+			vkFreeMemory(device, stagingBufferMemory, nullptr);
+			vkDestroyBuffer(device, stagingBuffer, nullptr);
+			
+			return { cubemapTextureImage, cubemapTextureImageMemory };
+		}
 	}
 	static VkImageView CreateImageView(VkDevice device, VkFormat format, VkImage image)
 	{

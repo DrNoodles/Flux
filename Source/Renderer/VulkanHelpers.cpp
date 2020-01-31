@@ -884,6 +884,28 @@ void VulkanHelpers::CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint
 	EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
 }
 
+void VulkanHelpers::CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkImage dstImage,
+	u32 width, u32 height)
+{
+	VkBufferImageCopy region = {};
+	{
+		// buffer params define any padding around the image. 0 is tightly packed.
+		region.bufferOffset = 0;
+		region.bufferRowLength = 0;
+		region.bufferImageHeight = 0;
+
+		// subresource, offset and extent indicate which part of the image we want to copy from
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = 1;
+		region.imageOffset = { 0, 0, 0 };
+		region.imageExtent = { width, height, 1 };
+	}
+	vkCmdCopyBufferToImage(cmdBuffer, srcBuffer, dstImage,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // assuming pixels are already in optimal layout
+		1, &region);
+}
 void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldImageLayout,
 	VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcStageMask,
 	VkPipelineStageFlags dstStageMask)
@@ -1125,7 +1147,7 @@ VkCommandBuffer VulkanHelpers::BeginSingleTimeCommands(VkCommandPool transferCom
 	return commandBuffer;
 }
 
-void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool transferCommandPool,
+void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool transferPool,
 	VkQueue transferQueue, VkDevice device)
 {
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -1146,7 +1168,7 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 
 
 	// Cleanup
-	vkFreeCommandBuffers(device, transferCommandPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
 }
 
 std::vector<VkCommandBuffer> VulkanHelpers::AllocateAndRecordCommandBuffers(uint32_t numBuffersToCreate,
@@ -1351,6 +1373,31 @@ VkDescriptorPool VulkanHelpers::CreateDescriptorPool(const std::vector<VkDescrip
 	return pool;
 }
 
+std::vector<VkDescriptorSet>
+VulkanHelpers::AllocateDescriptorSets(u32 count, VkDescriptorSetLayout layout, VkDescriptorPool pool, VkDevice device)
+{
+	// Need a copy of the layout per set as they'll be index matched arrays
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts{ count, layout };
+
+
+	// Create descriptor sets
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	{
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = pool;
+		allocInfo.descriptorSetCount = count;
+		allocInfo.pSetLayouts = descriptorSetLayouts.data();
+	}
+
+	std::vector<VkDescriptorSet> descriptorSets{ count };
+	if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()))
+	{
+		throw std::runtime_error("Failed to create descriptor sets");
+	}
+
+	return descriptorSets;
+}
+
 VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(
 	const std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDevice device)
 {
@@ -1473,7 +1520,7 @@ std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(uint32_t width,
 	return { textureImage, textureImageMemory };
 }
 
-VkImageView VulkanHelpers::CreateImageView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags,
+VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags,
 	uint32_t mipLevels, VkDevice device)
 {
 	VkImageView imageView;
@@ -1509,7 +1556,7 @@ std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkIma
 
 	for (size_t i = 0; i < images.size(); ++i)
 	{
-		imageViews[i] = CreateImageView(images[i], format, aspectFlags, mipLevels, device);
+		imageViews[i] = CreateImage2DView(images[i], format, aspectFlags, mipLevels, device);
 	}
 
 	return imageViews;
@@ -1541,7 +1588,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 
 	// Create image view
 	VkImageView colorImageView
-		= CreateImageView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
+		= CreateImage2DView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
 
 	return { colorImage, colorImageMemory, colorImageView };
 }
@@ -1572,7 +1619,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 
 	// Create image view
 	VkImageView depthImageView
-		= CreateImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, device);
+		= CreateImage2DView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, device);
 
 	return { depthImage, depthImageMemory, depthImageView };
 }

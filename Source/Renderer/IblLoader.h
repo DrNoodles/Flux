@@ -1,6 +1,7 @@
 #pragma once 
 
 
+#include "CubemapTextureLoader.h" // TexelsRgbaF16
 #include "VulkanHelpers.h"
 #include "TextureResource.h"
 
@@ -28,87 +29,103 @@ struct IblTextureResources
 class IblLoader
 {
 public:
-	// RAII container for pixel data
-	class Texels
-	{
-	public:
-		u32 Width{}, Height{}, /*Channels{},*/ MipLevels{};
-		std::vector<float> Data;
+	//// RAII container for pixel data
+	//class Texels
+	//{
+	//public:
+	//	u32 Width{}, Height{}, /*Channels{},*/ MipLevels{};
+	//	std::vector<float> Data;
 
-		explicit Texels(const std::string& path)
-		{
-			int texWidth, texHeight, texChannels;
-			float* data = stbi_loadf(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-			if (!data)
-			{
-				stbi_image_free(data);
-				throw std::runtime_error("Failed to load texture image: " + path);
-			}
+	//	explicit Texels(const std::string& path)
+	//	{
+	//		int texWidth, texHeight, texChannels;
+	//		float* data = stbi_loadf(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	//		if (!data)
+	//		{
+	//			stbi_image_free(data);
+	//			throw std::runtime_error("Failed to load texture image: " + path);
+	//		}
 
-			const auto dataSize = (size_t)texWidth * (size_t)texHeight * 4; // We requested RGBA = 4bytes
+	//		const auto dataSize = (size_t)texWidth * (size_t)texHeight * 4; // We requested RGBA = 4bytes
 
-			Data = std::vector<float>{ data, data + dataSize };
-			Width = (u32)texWidth;
-			Height = (u32)texHeight;
-			//Channels = (u32)texChannels;
-			MipLevels = (u32)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
-		}
-		Texels() = delete;
-		// No copy, no move.
-		Texels(const Texels&) = delete;
-		Texels(Texels&&) = delete;
-		Texels& operator=(const Texels&) = delete;
-		Texels& operator=(Texels&&) = delete;
-		~Texels()
-		{
-			stbi_image_free(Data.data());
-		}
-	};
+	//		Data = std::vector<float>{ data, data + dataSize };
+	//		Width = (u32)texWidth;
+	//		Height = (u32)texHeight;
+	//		//Channels = (u32)texChannels;
+	//		MipLevels = (u32)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+	//	}
+	//	Texels() = delete;
+	//	// No copy, no move.
+	//	Texels(const Texels&) = delete;
+	//	Texels(Texels&&) = delete;
+	//	Texels& operator=(const Texels&) = delete;
+	//	Texels& operator=(Texels&&) = delete;
+	//	~Texels()
+	//	{
+	//		stbi_image_free(Data.data());
+	//	}
+	//};
 
+	
 	// TODO Make private
 	static TextureResource LoadCubemapFromPath(const std::string& path, const std::string& shaderDir,
 		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
+		// Load source image to convert
+		TexelsRgbaF32 srcTexels = {};
+		srcTexels.Load(path);
+		
+		VkDescriptorImageInfo srcImageInfo = {};
+
 		VkImage srcImage;
 		VkDeviceMemory srcMemory;
-		VkImageView srcView;
-		VkSampler srcSampler;
-		//u32 srcMipLevels, srcWidth, srcHeight;
-		VkImageLayout srcLayout;
-		const auto srcTexels = Texels{ path };
-
 		std::tie(srcImage, srcMemory) = CreateSrcImage(srcTexels, device, physicalDevice, transferPool, transferQueue);
-		CreateSrcImageView(srcImage, device);
-		CreateSrcSampler(device);
 
+		srcImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		srcImageInfo.imageView = CreateSrcImageView(srcImage, device);
+		srcImageInfo.sampler = CreateSrcSampler(device);
+
+		TextureResource src = { device, srcTexels.Width(), srcTexels.Height(), srcTexels.MipLevels(), 1,
+			srcImage, srcMemory, srcImageInfo.imageView, srcImageInfo.sampler };
+		return src;
 		CreateColorAttachment(device);
 		CreateSubpassDependencies(device);
 		//VkRenderPass renderPass = CreateRenderPass(device, physicalDevice, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R32G32B32A32_SFLOAT);
 		CreateOffscreenFramebuffer(device);
 
-		CreateDescriptorPool(device);
-		CreateDescriptorSetLayout(device);
-
-		//CreatePipelineLayout(device);
-		LoadShaders(shaderDir, device);
-		//CreatePipeline(device);
+		auto descriptorPool = CreateDescriptorPool(device);
+		auto descriptorSetLayout = CreateDescriptorSetLayout(device);
+		auto descriptorSet = CreateDescriptorSets(srcImageInfo, device, descriptorPool, descriptorSetLayout);
+		
+		auto pipelineLayout = CreatePipelineLayout(device, descriptorSetLayout);
+		//auto shaders = LoadShaders(shaderDir, device);
+		//VkPipeline CreatePipeline(device, pipelineLayout, shaders);
 
 		Render(device);
 
 		OptimiseImageForRead(device);
 
 		// Cleanup
+		/*vkDestroySampler(device, srcImageInfo.sampler, nullptr);
+		vkDestroyImageView(device, srcImageInfo.imageView, nullptr);
+		vkDestroyImage(device, srcImage, nullptr);
+		vkFreeMemory(device, srcMemory, nullptr);*/
+		
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
+		
 
-		VkImage dstImage;
-		VkDeviceMemory dstMemory;
-		VkImageView dstView;
-		u32 dstWidth, dstHeight;
-		u32 dstMipLevels;
-		u32 dstLayerCount;
+		VkImage dstImage{};
+		VkDeviceMemory dstMemory{};
+		VkImageView dstView{};
+		u32 dstWidth{}, dstHeight{};
+		u32 dstMipLevels{};
+		u32 dstLayerCount{};
 
-		VkSampler dstSampler;
-		VkImageLayout dstLayout;
+		VkSampler dstSampler{};
+		VkImageLayout dstLayout{};
 
 
 		return TextureResource(device, dstWidth, dstHeight, dstMipLevels, dstLayerCount, dstImage, dstMemory, dstView, dstSampler, dstLayout);
@@ -137,16 +154,17 @@ private:
 
 #pragma region LoadCubemapFromPath
 
-	
-
-	static std::tuple<VkImage, VkDeviceMemory> CreateSrcImage(const Texels& texels,
+	static std::tuple<VkImage, VkDeviceMemory> CreateSrcImage(const TexelsRgbaF32& texels,
 		VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, VkQueue transferQueue)
 	{
 		// Create staging buffer
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
+		auto size = texels.Data().size() * sizeof(float);
+		auto size2 = texels.Width() * texels.Height() * 8; // Bpp
+		auto size3 = texels.DataSize(); // Bpp
 		std::tie(stagingBuffer, stagingBufferMemory) = vkh::CreateBuffer(
-			texels.Data.size(),
+			size,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
 			device, physicalDevice);
@@ -154,8 +172,8 @@ private:
 
 		// Copy texels from system mem to GPU staging buffer
 		void* data;
-		vkMapMemory(device, stagingBufferMemory, 0, texels.Data.size(), 0, &data);
-		memcpy(data, texels.Data.data(), texels.Data.size());
+		vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+		memcpy(data, texels.Data().data(), size);
 		vkUnmapMemory(device, stagingBufferMemory);
 
 
@@ -163,8 +181,8 @@ private:
 		VkImage textureImage;
 		VkDeviceMemory textureImageMemory;
 		std::tie(textureImage, textureImageMemory) = vkh::CreateImage2D(
-			texels.Width, texels.Height,
-			texels.MipLevels,
+			texels.Width(), texels.Height(),
+			1, // miplevels
 			VK_SAMPLE_COUNT_1_BIT,
 			VK_FORMAT_R16G16B16A16_SFLOAT, // format
 			VK_IMAGE_TILING_OPTIMAL, // tiling
@@ -172,27 +190,63 @@ private:
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
 			physicalDevice, device);
 
-
+		
+		const auto cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
+		
 		// Transition image layout to optimal for copying to it from the staging buffer
-		vkh::TransitionImageLayout(textureImage,
-			VK_FORMAT_R16G16B16A16_SFLOAT,
+		VkImageSubresourceRange subresourceRange = {};
+		{
+			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			subresourceRange.baseMipLevel = 0;
+			subresourceRange.levelCount = 1;
+			subresourceRange.baseArrayLayer = 0;
+			subresourceRange.layerCount = 1;
+		}
+		vkh::TransitionImageLayout(cmdBuffer, textureImage,
 			VK_IMAGE_LAYOUT_UNDEFINED, // from
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-			texels.MipLevels,
-			transferPool, transferQueue, device);
+			subresourceRange);
 
-		// Copy texels from staging buffer to image buffer
-		vkh::CopyBufferToImage(stagingBuffer, textureImage, texels.Width, texels.Height, transferPool, transferQueue, device);
+		vkh::CopyBufferToImage(cmdBuffer, stagingBuffer, textureImage, texels.Width(), texels.Height());
 
+		vkh::EndSingeTimeCommands(cmdBuffer, transferPool, transferQueue, device);
+
+		
 		return { textureImage, textureImageMemory };
 	}
+
+	
 	static VkImageView CreateSrcImageView(VkImage image, VkDevice device)
 	{
-		return vkh::CreateImageView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, device);
+		return vkh::CreateImage2DView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, device);
 	}
-	static void CreateSrcSampler(VkDevice device)
+	static VkSampler CreateSrcSampler(VkDevice device)
 	{
+		VkSamplerCreateInfo samplerCI = {};
+		{
+			samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCI.magFilter = VK_FILTER_LINEAR;
+			samplerCI.minFilter = VK_FILTER_LINEAR;
+			samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCI.anisotropyEnable = VK_TRUE; // TODO Test to see if anisotrophy is supported and it's max
+			samplerCI.maxAnisotropy = 16;         // TODO Test to see if anisotrophy is supported and it's max
+			samplerCI.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // applied with addressMode is clamp
+			samplerCI.unnormalizedCoordinates = VK_FALSE; // false addresses tex coord via [0,1), true = [0,dimensionSize]
+			samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerCI.mipLodBias = 0;
+			samplerCI.minLod = 0;
+			samplerCI.maxLod = 1;
+		}
 
+		VkSampler textureSampler;
+		if (VK_SUCCESS != vkCreateSampler(device, &samplerCI, nullptr, &textureSampler))
+		{
+			throw std::runtime_error("Failed to create texture sampler");
+		}
+
+		return textureSampler;
 	}
 
 	static void CreateColorAttachment(VkDevice device) {}
@@ -307,28 +361,77 @@ private:
 	//}
 	static void CreateOffscreenFramebuffer(VkDevice device) {}
 
-	static void CreateDescriptorSetLayout(VkDevice device) {}
-	static void CreateDescriptorPool(VkDevice device) {}
 
-	static void LoadShaders(const std::string& cs, VkDevice device) {}
+	static VkDescriptorPool CreateDescriptorPool(VkDevice device)
+	{
+		const std::vector<VkDescriptorPoolSize> poolSizes = { {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} };
+		return vkh::CreateDescriptorPool(poolSizes, 2, device);
+	}
+	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device)
+	{
+		std::vector<VkDescriptorSetLayoutBinding> bindings{ 1 };
+		bindings[0].binding = 0;
+		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings[0].descriptorCount = 1;
+		
+		return vkh::CreateDescriptorSetLayout(bindings, device);
+	}
+	static VkDescriptorSet CreateDescriptorSets(const VkDescriptorImageInfo& imageInfo, VkDevice device, 
+		VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
+	{
+		const auto descriptorSet = vkh::AllocateDescriptorSets(1, descriptorSetLayout, descriptorPool, device)[0]; // Note [0]
 
-	//static VkPipelineLayout CreatePipelineLayout(VkDevice device)
-	//{
-	//	VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
-	//	{
-	//		pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	//		pipelineLayoutCI.setLayoutCount = 1;
-	//		pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-	//		pipelineLayoutCI.pushConstantRangeCount = 0;
-	//		pipelineLayoutCI.pPushConstantRanges = nullptr;
-	//	}
+		std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
+		{
+			const auto binding = 0;
+			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[binding].dstSet = descriptorSet;
+			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+			descriptorWrites[binding].dstArrayElement = 0;
+			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[binding].descriptorCount = 1;
+			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+			descriptorWrites[binding].pImageInfo = &imageInfo;
+			descriptorWrites[binding].pTexelBufferView = nullptr;
+		}
 
-	//	VkPipelineLayout pipelineLayout = nullptr;
-	//	if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
-	//	{
-	//		throw std::runtime_error("Failed to Create Pipeline Layout!");
-	//	}
-	//}
+		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+		return descriptorSet;
+	}
+	
+	static VkPipelineLayout CreatePipelineLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
+		{
+			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
+			pipelineLayoutCI.setLayoutCount = 1;
+			pipelineLayoutCI.pushConstantRangeCount = 0;
+			pipelineLayoutCI.pPushConstantRanges = nullptr;
+		}
+
+		VkPipelineLayout pipelineLayout = nullptr;
+		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to Create Pipeline Layout!");
+		}
+
+		return pipelineLayout;
+	}
+
+	static void LoadShaders(const std::string& shaderDir, VkDevice device)
+	{
+		const auto vertShaderCode = FileService::ReadFile(shaderDir + "Cubemap.vert.vert.spv");
+		const auto fragShaderCode = FileService::ReadFile(shaderDir + "CubemapFromEquirectangular.frag.frag.spv");
+
+		VkShaderModule vertShaderModule = vkh::CreateShaderModule(vertShaderCode, device);
+		VkShaderModule fragShaderModule = vkh::CreateShaderModule(fragShaderCode, device);
+
+
+		
+	}
 	//static VkPipeline CreatePipeline(VkDevice device)
 	//{
 	//	// Create the Pipeline  -  Finally!...
@@ -367,8 +470,6 @@ private:
 	static void Render(VkDevice device) {}
 
 	static void OptimiseImageForRead(VkDevice device) {}
-
-	static void CleanUp(VkDevice device) {}
 	
 	#pragma endregion
 

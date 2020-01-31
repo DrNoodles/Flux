@@ -375,16 +375,27 @@ private:
 	void LoadSkybox()
 	{
 		//const auto id = _renderer->CreateCubemapTextureResource(_options.IblDir + "ChiricahuaPath.hdr");
-		
+
+		// +X, -X, +Y, -Y, +Z, -Z.
 		const auto id = _renderer->CreateCubemapTextureResource({
-				_options.AssetsDir + "Skybox/right.jpg",
-				_options.AssetsDir + "Skybox/left.jpg",
-				_options.AssetsDir + "Skybox/top.jpg",
-				_options.AssetsDir + "Skybox/bottom.jpg",
-				_options.AssetsDir + "Skybox/front.jpg",
-				_options.AssetsDir + "Skybox/back.jpg"
+				_options.AssetsDir + "Skybox/HDR/right.hdr",
+				_options.AssetsDir + "Skybox/HDR/left.hdr",
+				_options.AssetsDir + "Skybox/HDR/top.hdr",
+				_options.AssetsDir + "Skybox/HDR/bottom.hdr",
+				_options.AssetsDir + "Skybox/HDR/front.hdr",
+				_options.AssetsDir + "Skybox/HDR/back.hdr"
 		});
 
+		// SDR
+		/*const auto id = _renderer->CreateCubemapTextureResource({
+				_options.AssetsDir + "Skybox/SDR/right.jpg",
+				_options.AssetsDir + "Skybox/SDR/left.jpg",
+				_options.AssetsDir + "Skybox/SDR/top.jpg",
+				_options.AssetsDir + "Skybox/SDR/bottom.jpg",
+				_options.AssetsDir + "Skybox/SDR/front.jpg",
+				_options.AssetsDir + "Skybox/SDR/back.jpg"
+			});*/
+		
 		SkyboxCreateInfo createInfo = {};
 		createInfo.TextureId = id;
 		_renderer->CreateSkybox(createInfo);
