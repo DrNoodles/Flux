@@ -4,14 +4,13 @@
 #include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
 #include "Renderable.h"
 #include "Material.h"
+#include "TextureResource.h"
+#include "CubemapTextureLoader.h"
 
 #include <vector>
-#include "TextureResource.h"
 
 struct UniversalUbo;
 struct RenderableCreateInfo;
-
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct IblTextureResourceIds
@@ -61,7 +60,7 @@ public:
 
 	TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
 	
-	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths);
+	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
 
 
 

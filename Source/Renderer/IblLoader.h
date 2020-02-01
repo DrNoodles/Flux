@@ -1,7 +1,7 @@
 #pragma once 
 
 
-#include "CubemapTextureLoader.h" // TexelsRgbaF16
+//#include "CubemapTextureLoader.h" // TexelsRgbaF16
 #include "VulkanHelpers.h"
 #include "TextureResource.h"
 
@@ -85,7 +85,8 @@ public:
 		srcImageInfo.imageView = CreateSrcImageView(srcImage, device);
 		srcImageInfo.sampler = CreateSrcSampler(device);
 
-		TextureResource src = { device, srcTexels.Width(), srcTexels.Height(), srcTexels.MipLevels(), 1,
+		auto mipLevels = Texels::CalcMipLevels(srcTexels.Width(), srcTexels.Height());
+		TextureResource src = { device, srcTexels.Width(), srcTexels.Height(), mipLevels, 1,
 			srcImage, srcMemory, srcImageInfo.imageView, srcImageInfo.sampler };
 		return src;
 		CreateColorAttachment(device);

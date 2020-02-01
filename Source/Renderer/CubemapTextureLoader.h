@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 using vkh = VulkanHelpers;
 
@@ -18,7 +19,6 @@ using vkh = VulkanHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Container for pixel data
-template <typename T>
 class Texels
 {
 public:
@@ -27,74 +27,72 @@ public:
 	inline u32 Width() const { return _width; }
 	inline u32 Height() const { return _height; }
 	inline u8 Channels() const { return _channels; }
-	inline u8 MipLevels() const { return _mipLevels; }
-	inline u8 BytesPerPixel() const { return _bytesPerPixel; }
-	inline u8 BytesPerChannel() const { return _bytesPerChannel; }
+	//inline u8 BytesPerPixel() const { return _bytesPerPixel; }
+	//inline u8 BytesPerChannel() const { return _bytesPerChannel; }
 	inline size_t DataSize() const { return _dataSize; }
-	inline const std::vector<T>& Data() const { return _data; }
-	
+	inline const std::vector<u8>& Data() const { return _data; }
+
 	void Load(const std::string& path)
 	{
-		_data = LoadType(path, _dataSize, _width, _height, _channels, _bytesPerChannel);
+		_data = LoadType(path, _dataSize, _width, _height, _channels/*, _bytesPerChannel*/);
 		
-		_mipLevels = (u8)std::floor(std::log2(std::max(_width, _height))) + 1;
-		_bytesPerPixel = _bytesPerChannel * _channels;
+		//_mipLevels = (u8)std::floor(std::log2(std::max(_width, _height))) + 1;
+		//_bytesPerPixel = _bytesPerChannel * _channels;
 	}
 
+	inline static u8 CalcMipLevels(u32 width, u32 height) { return (u8)std::floor(std::log2(std::max(width, height))) + 1; }
+
 protected:
-	virtual std::vector<T> LoadType(const std::string& path,
+	virtual std::vector<u8> LoadType(const std::string& path,
 		size_t& outDataSize,
 		u32& outWidth,
 		u32& outHeight,
-		u8& outChannels,
-		u8& outBytesPerChannel) = 0;
+		u8& outChannels/*,
+		u8& outBytesPerChannel*/) = 0;
 
 private:
 	// Data
 	u32 _width{};
 	u32 _height{};
 	u8 _channels{};
-	u8 _mipLevels{};
-	u8 _bytesPerPixel = {};
-	u8 _bytesPerChannel = {};
+	//u8 _bytesPerPixel = {};
+	//u8 _bytesPerChannel = {};
 	
-	std::vector<T> _data = {};
+	std::vector<u8> _data = {};
 	size_t _dataSize = {}; // The total size of the buffer
 	
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class TexelsRgbaF32 final : public Texels<f32>
+class TexelsRgbaF32 final : public Texels
 {
 protected:
-	std::vector<f32> LoadType(const std::string& path,
+	std::vector<u8> LoadType(const std::string& path,
 		size_t& outDataSize,
 		u32& outWidth,
 		u32& outHeight,
-		u8& outChannels,
-		u8& outBytesPerChannel) override
+		u8& outChannels/*,
+		u8& outBytesPerChannel*/) override
 	{
-		int width, height, channels;
-		auto desiredChannels = STBI_rgb_alpha;
-		f32* pData = stbi_loadf(path.c_str(), &width, &height, &channels, desiredChannels);
+		int width, height, channelsInImage;
+		const auto desiredChannels = (u8)STBI_rgb_alpha;
+
+		const auto bytesPerChannel = sizeof(f32);
+		f32* pData = stbi_loadf(path.c_str(), &width, &height, &channelsInImage, desiredChannels);
+
 		if (!pData)
 		{
 			stbi_image_free(pData);
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
 
-		outBytesPerChannel = 4;
-
 		outWidth = (u32)width;
 		outHeight = (u32)height;
 		outChannels = (u8)desiredChannels;
-		const u8 bytesPerPixel = outChannels * outBytesPerChannel;
-		outDataSize = (size_t)width * (size_t)height * bytesPerPixel;
+		outDataSize = (size_t)width * (size_t)height * outChannels * bytesPerChannel;
+		
+		auto data = std::vector<u8>{ (u8*)pData, (u8*)pData + outDataSize };
 
-		const u32 numElements = width * height * bytesPerPixel / sizeof(f32);
-		auto data = std::vector<f32>{ pData, pData + numElements };
-
-		// Cleanup
 		stbi_image_free(pData);
 
 		return data;
@@ -102,79 +100,103 @@ protected:
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class TexelsRgbaU8 final : public Texels<u8>
+class TexelsRgbaU8 final : public Texels
 {
 protected:
-	std::vector<u8> LoadType(const std::string & path,
-		size_t & outDataSize,
-		u32 & outWidth,
-		u32 & outHeight,
-		u8 & outChannels,
-		u8 & outBytesPerChannel) override
+	std::vector<u8> LoadType(const std::string& path,
+		size_t& outDataSize,
+		u32& outWidth,
+		u32& outHeight,
+		u8& outChannels/*,
+		u8& outBytesPerChannel*/) override
 	{
-		int width, height, channels;
-		auto desiredChannels = STBI_rgb_alpha;
-		u8* pData = stbi_load(path.c_str(), &width, &height, &channels, desiredChannels);
+		int width, height, channelsInImage;
+		const auto desiredChannels = (u8)STBI_rgb_alpha;
+
+		const auto bytesPerChannel = sizeof(u8);
+		u8* pData = stbi_load(path.c_str(), &width, &height, &channelsInImage, desiredChannels);
+
 		if (!pData)
 		{
 			stbi_image_free(pData);
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
-		
-		outBytesPerChannel = 1;
 
 		outWidth = (u32)width;
 		outHeight = (u32)height;
 		outChannels = (u8)desiredChannels;
-		const u8 bytesPerPixel = outChannels * outBytesPerChannel;
-		outDataSize = (size_t)width * (size_t)height * bytesPerPixel;
+		outDataSize = (size_t)width * (size_t)height * outChannels * bytesPerChannel;
 
-		
-		const u32 numElements = width * height * bytesPerPixel / sizeof(u8);
-		auto data = std::vector<u8>{ pData, pData + numElements };
+		auto data = std::vector<u8>{ (u8*)pData, (u8*)pData + outDataSize };
 
-		// Cleanup
 		stbi_image_free(pData);
 
 		return data;
 	}
 };
 
-
+enum class CubemapFormat : u8
+{
+	RGBA_F32,
+	RGBA_U8,
+};
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CubemapTextureLoader
 {
+	
 public:
 	// Each map corresponds to the following cube faces +X, -X, +Y, -Y, +Z, -Z.
-	static TextureResource LoadFromPath(const std::array<std::string, 6>& sidePaths, const std::string& shaderDir,
-		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
+	static TextureResource LoadFromPath(const std::array<std::string, 6>& sidePaths, CubemapFormat sourceFormat, 
+		const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, 
+		VkDevice device)
 	{
+		VkFormat texelFormat;
+		std::array<std::unique_ptr<Texels>, 6> texels{};
+		
+		switch (sourceFormat)
+		{
+		case CubemapFormat::RGBA_F32:
+			texelFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+			for (size_t i = 0; i < 6; i++)
+			{
+				auto t = std::make_unique<TexelsRgbaF32>();
+				t->Load(sidePaths[i]);
+				texels[i] = std::move(t); 
+			}
+			break;
+		case CubemapFormat::RGBA_U8:
+			texelFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			for (size_t i = 0; i < 6; i++)
+			{
+				auto t = std::make_unique<TexelsRgbaU8>();
+				t->Load(sidePaths[i]);
+				texels[i] = std::move(t);
+			}
+			break;
+		default:
+			throw std::invalid_argument("Unsupported cubemap foramt");
+		}
+
+		
+		const auto finalFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
 
 		VkImage image;
 		VkDeviceMemory memory;
-		const VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		std::array<TexelsRgbaF32, 6> texels{};
-		for (size_t i = 0; i < 6; i++)
-		{
-			texels[i].Load(sidePaths[i]);
-		}
-
-		const auto texelFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
-		const auto desiredFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		
-		std::tie(image, memory) = CreateImage(texels, texelFormat, desiredFormat, layout, 
+		std::tie(image, memory) = CreateImage(texels, texelFormat, finalFormat, finalLayout, 
 			device, physicalDevice, transferPool, transferQueue);
-		const auto view = CreateImageView(device, desiredFormat, image);
+		const auto view = CreateImageView(device, finalFormat, image);
 		const auto sampler = CreateSampler(device);
 
-		
-		return TextureResource(device, texels[0].Width(), texels[0].Height(), 1/*miplevels*/, 6, 
-			image, memory, view, sampler, layout);
+		return TextureResource(device, texels[0]->Width(), texels[0]->Height(), 1/*miplevels*/, 6, 
+			image, memory, view, sampler, finalLayout);
 	}
 
 private:
-	static std::tuple<VkImage, VkDeviceMemory> CreateImage(const std::array<TexelsRgbaF32, 6>& texels, 
+	static std::tuple<VkImage, VkDeviceMemory> CreateImage(
+		const std::array<std::unique_ptr<Texels>, 6>& texels,
 		VkFormat texelFormat,
 		VkFormat desiredFormat,
 		VkImageLayout targetLayout, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, 
@@ -182,9 +204,9 @@ private:
 	{
 		const u32 mipLevels = 1;
 		const u32 cubeSides = 6;
-		const auto faceTexelDataSize = texels[0].DataSize();
-		const auto faceTexelWidth = texels[0].Width();
-		const auto faceTexelHeight = texels[0].Height();
+		const auto faceTexelDataSize = texels[0]->DataSize();
+		const auto faceTexelWidth = texels[0]->Width();
+		const auto faceTexelHeight = texels[0]->Height();
 
 		
 		// Create staging buffer
@@ -203,7 +225,7 @@ private:
 			const VkDeviceSize offset = i * faceTexelDataSize;
 			void* data;
 			vkMapMemory(device, stagingBufferMemory, offset, faceTexelDataSize, 0, &data);
-			memcpy(data, texels[i].Data().data(), faceTexelDataSize);
+			memcpy(data, texels[i]->Data().data(), faceTexelDataSize);
 			vkUnmapMemory(device, stagingBufferMemory);
 		}
 

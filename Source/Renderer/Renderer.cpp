@@ -280,13 +280,14 @@ TextureResourceId Renderer::CreateCubemapTextureResource(const std::string& equi
 
 	return id;
 }
-TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths)
+TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, 
+	CubemapFormat format)
 {
 	const TextureResourceId id = (u32)_textures.size();
 
 	_textures.emplace_back(std::make_unique<TextureResource>(
 		CubemapTextureLoader::LoadFromPath(
-			sidePaths, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+			sidePaths, format, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
 	
 	return id;
 }
