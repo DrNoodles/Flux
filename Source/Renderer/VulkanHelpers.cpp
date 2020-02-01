@@ -1521,7 +1521,7 @@ std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(uint32_t width,
 }
 
 VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags,
-	uint32_t mipLevels, VkDevice device)
+	u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	VkImageView imageView;
 
@@ -1538,7 +1538,7 @@ VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkI
 	createInfo.subresourceRange.baseMipLevel = 0;
 	createInfo.subresourceRange.levelCount = mipLevels;
 	createInfo.subresourceRange.baseArrayLayer = 0;
-	createInfo.subresourceRange.layerCount = 1;
+	createInfo.subresourceRange.layerCount = layerCount;
 
 	if (vkCreateImageView(device, &createInfo, nullptr, &imageView) != VK_SUCCESS)
 	{
@@ -1549,14 +1549,13 @@ VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkI
 }
 
 std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkImage>& images, VkFormat format,
-	VkImageAspectFlagBits aspectFlags, uint32_t mipLevels,
-	VkDevice device)
+	VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	std::vector<VkImageView> imageViews{ images.size() };
 
 	for (size_t i = 0; i < images.size(); ++i)
 	{
-		imageViews[i] = CreateImage2DView(images[i], format, aspectFlags, mipLevels, device);
+		imageViews[i] = CreateImage2DView(images[i], format, aspectFlags, mipLevels, layerCount, device);
 	}
 
 	return imageViews;
@@ -1569,7 +1568,8 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 	VkDevice device,
 	VkPhysicalDevice physicalDevice)
 {
-	const uint32_t mipLevels = 1;
+	const u32 mipLevels = 1;
+	const u32 layerCount = 1;
 
 	// Create color image and memory
 	VkImage colorImage;
@@ -1588,7 +1588,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 
 	// Create image view
 	VkImageView colorImageView
-		= CreateImage2DView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
+		= CreateImage2DView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
 
 	return { colorImage, colorImageMemory, colorImageView };
 }
@@ -1601,7 +1601,8 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 	VkPhysicalDevice physicalDevice)
 {
 	const VkFormat depthFormat = FindDepthFormat(physicalDevice);
-	const uint32_t mipLevels = 1;
+	const u32 mipLevels = 1;
+	const u32 arrayLayers = 1;
 
 	// Create depth image and memory
 	VkImage depthImage;
@@ -1619,7 +1620,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 
 	// Create image view
 	VkImageView depthImageView
-		= CreateImage2DView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, device);
+		= CreateImage2DView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, arrayLayers, device);
 
 	return { depthImage, depthImageMemory, depthImageView };
 }

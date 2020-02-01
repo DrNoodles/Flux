@@ -56,10 +56,8 @@ public:
 
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createInfo);
 
-	IblTextureResourceIds CreateIblTextureResources(const std::string& equirectangularHdrPath);
+	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
 
-	TextureResourceId CreateCubemapTextureResource(const std::string& equirectangularHdrPath);
-	
 	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
 
 

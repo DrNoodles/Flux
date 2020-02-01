@@ -17,9 +17,10 @@ class TextureResource final
 public:
 	// Lifetime
 	TextureResource() = delete;
+
 	TextureResource(VkDevice device, u32 width, u32 height, u32 mipLevels, u32 layerCount, VkImage image, 
-		VkDeviceMemory memory, VkImageView view, VkSampler sampler, 
-		VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	                VkDeviceMemory memory, VkImageView view, VkSampler sampler, VkFormat format,
+	                VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 	{
 		// TODO reenable asserts!
 		/*assert(device);
@@ -33,6 +34,8 @@ public:
 		_height = height;
 		_mipLevels = mipLevels;
 		_layerCount = layerCount;
+		_format = format;
+		
 		_image = image;
 		_memory = memory;
 		_descriptorImageInfo.imageView = view;
@@ -51,6 +54,7 @@ public:
 			_height = other._height;
 			_mipLevels = other._mipLevels;
 			_layerCount = other._layerCount;
+			_format = other._format;
 			
 			_device       = other._device;
 			_image        = other._image;
@@ -70,6 +74,7 @@ public:
 			_height = other._height;
 			_mipLevels = other._mipLevels;
 			_layerCount = other._layerCount;
+			_format = other._format;
 
 			_device = other._device;
 			_image = other._image;
@@ -109,6 +114,7 @@ private:
 	u32 _height{};
 	u32 _mipLevels{};
 	u32 _layerCount{};
+	VkFormat _format{};
 	VkImage _image{};
 	VkDeviceMemory _memory{};
 	VkDescriptorImageInfo _descriptorImageInfo{};
@@ -132,14 +138,15 @@ public:
 		VkImage image;
 		VkDeviceMemory memory;
 		u32 mipLevels, width, height;
-		
+		const auto format = VK_FORMAT_R8G8B8A8_UNORM;
+
 		std::tie(image, memory, mipLevels, width, height)
 			= CreateTextureImage(path, transferPool, transferQueue, physicalDevice, device);
-		const auto view = vkh::CreateImage2DView(image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, device);
+		const auto view = vkh::CreateImage2DView(image, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
 		const auto sampler = CreateTextureSampler(mipLevels, device);
 		const auto layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		return TextureResource(device, width, height, mipLevels, layerCount, image, memory, view, sampler, layout);
+		return TextureResource(device, width, height, mipLevels, layerCount, image, memory, view, sampler, format, layout);
 	}
 
 private:

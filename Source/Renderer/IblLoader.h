@@ -29,54 +29,59 @@ struct IblTextureResources
 class IblLoader
 {
 public:
-	//// RAII container for pixel data
-	//class Texels
+	static IblTextureResources LoadIblFromCubemapPath(const std::array<std::string, 6>& paths,
+		const std::string& shaderDir, VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice,
+		VkDevice device)
+	{
+		auto environmentCubemap = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto irradianceCubemap = CreateIrradianceFromEnvCubemap(environmentCubemap, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto prefilterCubemap = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto brdfLut = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+
+		IblTextureResources iblRes
+		{
+			std::move(environmentCubemap),
+			std::move(irradianceCubemap),
+			std::move(prefilterCubemap),
+			std::move(brdfLut),
+		};
+		return iblRes;
+	}
+
+	//static IblTextureResources LoadIblFromEquirectangularPath(const std::string& equirectangularHdrPath, const std::string& shaderDir, 
+	//	VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	//{
-	//public:
-	//	u32 Width{}, Height{}, /*Channels{},*/ MipLevels{};
-	//	std::vector<float> Data;
+	//	auto environmentCubemap = LoadCubemapFromEquirectangularPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+	//	auto irradianceCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateIrradianceFromEnvCubemap();
+	//	auto prefilterCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreatePrefilterFromEnvCubemap();
+	//	auto brdfLut = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateBrdfLutFromEnvCubemap();
 
-	//	explicit Texels(const std::string& path)
+	//	IblTextureResources iblRes
 	//	{
-	//		int texWidth, texHeight, texChannels;
-	//		float* data = stbi_loadf(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	//		if (!data)
-	//		{
-	//			stbi_image_free(data);
-	//			throw std::runtime_error("Failed to load texture image: " + path);
-	//		}
+	//		std::move(environmentCubemap),
+	//		std::move(irradianceCubemap),
+	//		std::move(prefilterCubemap),
+	//		std::move(brdfLut),
+	//	};
+	//	return iblRes;
+	//}
 
-	//		const auto dataSize = (size_t)texWidth * (size_t)texHeight * 4; // We requested RGBA = 4bytes
 
-	//		Data = std::vector<float>{ data, data + dataSize };
-	//		Width = (u32)texWidth;
-	//		Height = (u32)texHeight;
-	//		//Channels = (u32)texChannels;
-	//		MipLevels = (u32)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
-	//	}
-	//	Texels() = delete;
-	//	// No copy, no move.
-	//	Texels(const Texels&) = delete;
-	//	Texels(Texels&&) = delete;
-	//	Texels& operator=(const Texels&) = delete;
-	//	Texels& operator=(Texels&&) = delete;
-	//	~Texels()
-	//	{
-	//		stbi_image_free(Data.data());
-	//	}
-	//};
+private:
 
-	
-	// TODO Make private
-	static TextureResource LoadCubemapFromPath(const std::string& path, const std::string& shaderDir,
+#pragma region LoadCubemapFromEquirectangularPath
+
+	static TextureResource LoadCubemapFromEquirectangularPath(const std::string& path, const std::string& shaderDir,
 		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
 		// Load source image to convert
 		TexelsRgbaF32 srcTexels = {};
 		srcTexels.Load(path);
-		
-		VkDescriptorImageInfo srcImageInfo = {};
 
+		const VkFormat srcFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const VkFormat dstFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+
+		VkDescriptorImageInfo srcImageInfo = {};
 		VkImage srcImage;
 		VkDeviceMemory srcMemory;
 		std::tie(srcImage, srcMemory) = CreateSrcImage(srcTexels, device, physicalDevice, transferPool, transferQueue);
@@ -87,7 +92,7 @@ public:
 
 		auto mipLevels = Texels::CalcMipLevels(srcTexels.Width(), srcTexels.Height());
 		TextureResource src = { device, srcTexels.Width(), srcTexels.Height(), mipLevels, 1,
-			srcImage, srcMemory, srcImageInfo.imageView, srcImageInfo.sampler };
+			srcImage, srcMemory, srcImageInfo.imageView, srcImageInfo.sampler, srcFormat };
 		return src;
 		CreateColorAttachment(device);
 		CreateSubpassDependencies(device);
@@ -97,7 +102,7 @@ public:
 		auto descriptorPool = CreateDescriptorPool(device);
 		auto descriptorSetLayout = CreateDescriptorSetLayout(device);
 		auto descriptorSet = CreateDescriptorSets(srcImageInfo, device, descriptorPool, descriptorSetLayout);
-		
+
 		auto pipelineLayout = CreatePipelineLayout(device, descriptorSetLayout);
 		//auto shaders = LoadShaders(shaderDir, device);
 		//VkPipeline CreatePipeline(device, pipelineLayout, shaders);
@@ -111,12 +116,12 @@ public:
 		vkDestroyImageView(device, srcImageInfo.imageView, nullptr);
 		vkDestroyImage(device, srcImage, nullptr);
 		vkFreeMemory(device, srcMemory, nullptr);*/
-		
+
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
-		
+
 
 		VkImage dstImage{};
 		VkDeviceMemory dstMemory{};
@@ -129,31 +134,8 @@ public:
 		VkImageLayout dstLayout{};
 
 
-		return TextureResource(device, dstWidth, dstHeight, dstMipLevels, dstLayerCount, dstImage, dstMemory, dstView, dstSampler, dstLayout);
+		return TextureResource(device, dstWidth, dstHeight, dstMipLevels, dstLayerCount, dstImage, dstMemory, dstView, dstSampler, dstFormat, dstLayout);
 	}
-
-	static IblTextureResources LoadIblFromPath(const std::string& equirectangularHdrPath, const std::string& shaderDir, 
-		VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice, VkDevice device)
-	{
-		auto environmentCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
-		auto irradianceCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateIrradianceFromEnvCubemap();
-		auto prefilterCubemap = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreatePrefilterFromEnvCubemap();
-		auto brdfLut = LoadCubemapFromPath(equirectangularHdrPath, shaderDir, commandPool, graphicsQueue, physicalDevice, device); //CreateBrdfLutFromEnvCubemap();
-
-		IblTextureResources iblRes
-		{
-			std::move(environmentCubemap),
-			std::move(irradianceCubemap),
-			std::move(prefilterCubemap),
-			std::move(brdfLut),
-		};
-		return iblRes;
-	}
-
-
-private:
-
-#pragma region LoadCubemapFromPath
 
 	static std::tuple<VkImage, VkDeviceMemory> CreateSrcImage(const TexelsRgbaF32& texels,
 		VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, VkQueue transferQueue)
@@ -191,9 +173,9 @@ private:
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
 			physicalDevice, device);
 
-		
+
 		const auto cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
-		
+
 		// Transition image layout to optimal for copying to it from the staging buffer
 		VkImageSubresourceRange subresourceRange = {};
 		{
@@ -212,14 +194,14 @@ private:
 
 		vkh::EndSingeTimeCommands(cmdBuffer, transferPool, transferQueue, device);
 
-		
+
 		return { textureImage, textureImageMemory };
 	}
 
-	
+
 	static VkImageView CreateSrcImageView(VkImage image, VkDevice device)
 	{
-		return vkh::CreateImage2DView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, device);
+		return vkh::CreateImage2DView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
 	}
 	static VkSampler CreateSrcSampler(VkDevice device)
 	{
@@ -375,10 +357,10 @@ private:
 		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		bindings[0].descriptorCount = 1;
-		
+
 		return vkh::CreateDescriptorSetLayout(bindings, device);
 	}
-	static VkDescriptorSet CreateDescriptorSets(const VkDescriptorImageInfo& imageInfo, VkDevice device, 
+	static VkDescriptorSet CreateDescriptorSets(const VkDescriptorImageInfo& imageInfo, VkDevice device,
 		VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
 	{
 		const auto descriptorSet = vkh::AllocateDescriptorSets(1, descriptorSetLayout, descriptorPool, device)[0]; // Note [0]
@@ -401,7 +383,7 @@ private:
 
 		return descriptorSet;
 	}
-	
+
 	static VkPipelineLayout CreatePipelineLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
 	{
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
@@ -431,7 +413,7 @@ private:
 		VkShaderModule fragShaderModule = vkh::CreateShaderModule(fragShaderCode, device);
 
 
-		
+
 	}
 	//static VkPipeline CreatePipeline(VkDevice device)
 	//{
@@ -471,12 +453,153 @@ private:
 	static void Render(VkDevice device) {}
 
 	static void OptimiseImageForRead(VkDevice device) {}
+
+#pragma endregion
+
+
+#pragma region LoadIrradianceFromEnvCubemap
+
+	static TextureResource CreateIrradianceFromEnvCubemap(const TextureResource& texRes, const std::string& shaderDir,
+	                                                      VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
+	{
+		const auto tStart = std::chrono::high_resolution_clock::now();
+
+		
+		const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const i32 dim = 64;
+		const u32 numMips = (u32)(floor(log2(dim))) + 1;
+
+
+		// Create output texture resource
+		TextureResource irradianceTexRes = CreateCubeTextureResource(physicalDevice, device, format, dim, numMips);
+
+		
+		VkRenderPass renderPass = CreateRenderPass(device, format);
+
+		
+		// Benchmark
+		const auto tEnd = std::chrono::high_resolution_clock::now();
+		const auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		std::cout << "Generating irradiance cube with " << numMips << " mip levels took " << tDiff << " ms" << std::endl;
+
+		return irradianceTexRes;
+	}
+
+	static TextureResource CreateCubeTextureResource(VkPhysicalDevice physicalDevice, VkDevice device, const VkFormat format, const i32 dim, const u32 numMips)
+	{
+		VkImage image;
+		VkDeviceMemory memory;
+		VkImageView view;
+		VkSampler sampler;
+
+		const u32 arrayLayers = 6;
+		
+		// Create Image & Memory
+		std::tie(image, memory) = vkh::CreateImage2D(
+			dim, dim, 
+			numMips, 
+			VK_SAMPLE_COUNT_1_BIT, 
+			format, 
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			physicalDevice, device, arrayLayers, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+
+		
+		// Create View
+		view = vkh::CreateImage2DView(image, format, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
+
+
+		// Create Sampler
+		{
+			VkSamplerCreateInfo samplerCI = {};
+			samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCI.magFilter = VK_FILTER_LINEAR;
+			samplerCI.minFilter = VK_FILTER_LINEAR;
+			samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // applied with addressMode is clamp
+			samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerCI.mipLodBias = 0;
+			samplerCI.minLod = 0;
+			samplerCI.maxLod = (float)numMips;
+			samplerCI.anisotropyEnable = VK_FALSE;
+			samplerCI.maxAnisotropy = 1;
+
+			if (VK_SUCCESS != vkCreateSampler(device, &samplerCI, nullptr, &sampler))
+			{
+				throw std::runtime_error("Failed to create cubemap sampler");
+			}
+		}
+
+		return TextureResource(device, dim, dim, numMips, 6, image, memory, view, sampler, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+
+	static VkRenderPass CreateRenderPass(VkDevice device, VkFormat format)
+	{
+		// Use subpass dependencies for layout transitions
+		std::array<VkSubpassDependency, 2> dependencies{};
+		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[0].dstSubpass = 0;
+		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		dependencies[1].srcSubpass = 0;
+		dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+		dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		VkAttachmentDescription colorAttachmentDesc = {};
+		{
+			colorAttachmentDesc.format = format;
+			colorAttachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
+		VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+
+		VkSubpassDescription subpassDescription = {};
+		{
+			subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpassDescription.colorAttachmentCount = 1;
+			subpassDescription.pColorAttachments = &colorReference;
+		}
+		
+
+		// Renderpass
+		VkRenderPassCreateInfo renderPassCI = {};
+		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCI.attachmentCount = 1;
+		renderPassCI.pAttachments = &colorAttachmentDesc;
+		renderPassCI.subpassCount = 1;
+		renderPassCI.pSubpasses = &subpassDescription;
+		renderPassCI.dependencyCount = (u32)dependencies.size();
+		renderPassCI.pDependencies = dependencies.data();
+		
+		VkRenderPass renderPass;
+		if (VK_SUCCESS != vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass))
+		{
+			throw std::runtime_error("Failed to create RenderPass");
+		}
+
+		return renderPass;
+	}
 	
-	#pragma endregion
+	#pragma endregion 
 
-
-	static TextureResource CreateIrradianceFromEnvCubemap() { throw; }
-
+	
 	static TextureResource CreatePrefilterFromEnvCubemap() { throw; }
 
 	static TextureResource CreateBrdfLutFromEnvCubemap() { throw; }

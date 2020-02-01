@@ -248,9 +248,9 @@ void Renderer::CleanUp()
 }
 
 IblTextureResourceIds
-Renderer::CreateIblTextureResources(const std::string& equirectangularHdrPath)
+Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 {
-	IblTextureResources iblRes = IblLoader::LoadIblFromPath(equirectangularHdrPath,
+	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, 
 		_shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device);
 
 	IblTextureResourceIds ids = {};
@@ -270,16 +270,6 @@ Renderer::CreateIblTextureResources(const std::string& equirectangularHdrPath)
 	return ids;
 }
 
-TextureResourceId Renderer::CreateCubemapTextureResource(const std::string& equirectangularHdrPath)
-{
-	const TextureResourceId id = (u32)_textures.size();
-
-	_textures.emplace_back(std::make_unique<TextureResource>(
-		IblLoader::LoadCubemapFromPath(equirectangularHdrPath,
-			_shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
-
-	return id;
-}
 TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, 
 	CubemapFormat format)
 {
@@ -527,7 +517,7 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	                                  _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
 	_swapchainImageViews
-		= vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, _device);
+		= vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
 	std::tie(_colorImage, _colorImageMemory, _colorImageView)
 		= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,

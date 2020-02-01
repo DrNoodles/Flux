@@ -18,7 +18,6 @@ using vkh = VulkanHelpers;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Container for pixel data
 class Texels
 {
 public:
@@ -40,7 +39,7 @@ public:
 		//_bytesPerPixel = _bytesPerChannel * _channels;
 	}
 
-	inline static u8 CalcMipLevels(u32 width, u32 height) { return (u8)std::floor(std::log2(std::max(width, height))) + 1; }
+	inline static u8 CalcMipLevels(u32 width, u32 height) {return (u8)std::floor(std::log2(std::max(width, height)))+1;}
 
 protected:
 	virtual std::vector<u8> LoadType(const std::string& path,
@@ -135,6 +134,7 @@ protected:
 	}
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 enum class CubemapFormat : u8
 {
 	RGBA_F32,
@@ -185,17 +185,17 @@ public:
 		VkImage image;
 		VkDeviceMemory memory;
 		
-		std::tie(image, memory) = CreateImage(texels, texelFormat, finalFormat, finalLayout, 
+		std::tie(image, memory) = CreateAndLoadCubemapImage(texels, texelFormat, finalFormat, finalLayout, 
 			device, physicalDevice, transferPool, transferQueue);
 		const auto view = CreateImageView(device, finalFormat, image);
 		const auto sampler = CreateSampler(device);
 
 		return TextureResource(device, texels[0]->Width(), texels[0]->Height(), 1/*miplevels*/, 6, 
-			image, memory, view, sampler, finalLayout);
+			image, memory, view, sampler, finalFormat, finalLayout);
 	}
 
 private:
-	static std::tuple<VkImage, VkDeviceMemory> CreateImage(
+	static std::tuple<VkImage, VkDeviceMemory> CreateAndLoadCubemapImage(
 		const std::array<std::unique_ptr<Texels>, 6>& texels,
 		VkFormat texelFormat,
 		VkFormat desiredFormat,
