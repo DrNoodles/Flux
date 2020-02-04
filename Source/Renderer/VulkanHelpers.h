@@ -432,4 +432,33 @@ public:
 	static void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 		VkDebugUtilsMessengerEXT messenger,
 		const VkAllocationCallbacks* pAllocator);
+
+};
+
+
+class VulkanInitHelpers
+{
+public:
+	static VkWriteDescriptorSet WriteDescriptorSet(
+		VkDescriptorSet dstSet,
+		u32 dstBinding,
+		VkDescriptorType descriptorType,
+		u32 descriptorCount,
+		u32 dstArrayElement,
+		const VkDescriptorImageInfo* pImageInfo = nullptr,
+		const VkDescriptorBufferInfo* pBufferInfo = nullptr,
+		const VkBufferView* pTexelBufferView = nullptr)
+	{
+		VkWriteDescriptorSet x = {};
+		x.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		x.dstSet = dstSet;
+		x.dstBinding = dstBinding; // correlates to shader binding
+		x.dstArrayElement = dstArrayElement;
+		x.descriptorType = descriptorType;
+		x.descriptorCount = descriptorCount;
+		x.pBufferInfo = pBufferInfo; // descriptor is one of buffer, image or texelbufferview
+		x.pImageInfo = pImageInfo;
+		x.pTexelBufferView = pTexelBufferView;
+		return x;
+	}
 };

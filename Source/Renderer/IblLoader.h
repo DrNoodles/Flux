@@ -15,6 +15,7 @@
 #include <cmath>
 
 using vkh = VulkanHelpers;
+using vki = VulkanInitHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct IblTextureResources
@@ -397,25 +398,16 @@ private:
 	static VkDescriptorSet CreateDescriptorSets(const VkDescriptorImageInfo& imageInfo, VkDevice device,
 		VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
 	{
-		const auto descriptorSet = vkh::AllocateDescriptorSets(1, descriptorSetLayout, descriptorPool, device)[0]; // Note [0]
+		const auto set = vkh::AllocateDescriptorSets(1, descriptorSetLayout, descriptorPool, device)[0]; // Note [0]
 
 		std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 		{
-			const auto binding = 0;
-			descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrites[binding].dstSet = descriptorSet;
-			descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-			descriptorWrites[binding].dstArrayElement = 0;
-			descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			descriptorWrites[binding].descriptorCount = 1;
-			descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-			descriptorWrites[binding].pImageInfo = &imageInfo;
-			descriptorWrites[binding].pTexelBufferView = nullptr;
+			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &imageInfo);
 		}
 
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
-		return descriptorSet;
+		return set;
 	}
 
 	static void LoadShaders(const std::string& shaderDir, VkDevice device)
@@ -518,16 +510,7 @@ private:
 		{
 			std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 			{
-				const auto binding = 0;
-				descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[binding].dstSet = descSet;
-				descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
-				descriptorWrites[binding].dstArrayElement = 0;
-				descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptorWrites[binding].descriptorCount = 1;
-				descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
-				descriptorWrites[binding].pImageInfo = &envMap.DescriptorImageInfo();
-				descriptorWrites[binding].pTexelBufferView = nullptr;
+				vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo());
 			}
 
 			vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
@@ -831,8 +814,8 @@ private:
 	}
 
 	static void RenderIrradianceMap(VkDevice device, VkRenderPass renderPass, VkPipeline pipeline, 
-		VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, u32 irrMips, TextureResource irrCubemap, 
-		RenderTarget renderTarget)
+		VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, u32 irrMips, TextureResource& irrCubemap, 
+		RenderTarget& renderTarget)
 	{
 		
 	}
