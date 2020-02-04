@@ -635,32 +635,42 @@ VkShaderModule VulkanHelpers::CreateShaderModule(const std::vector<char>& code, 
 	return shaderModule;
 }
 
-std::vector<VkFramebuffer> VulkanHelpers::CreateFramebuffer(VkImageView colorImageView, VkImageView depthImageView,
-	VkDevice device, VkRenderPass renderPass,
-	const VkExtent2D& swapchainExtent,
-	const std::vector<VkImageView>& swapchainImageViews)
+
+VkFramebuffer VulkanHelpers::CreateFramebuffer(VkDevice device, u32 width, 
+	u32 height, const std::vector<VkImageView>& attachments, VkRenderPass renderPass, u32 layers)
+{
+	VkFramebufferCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	info.pNext = nullptr;
+	info.renderPass = renderPass;
+	info.attachmentCount = (u32)attachments.size();
+	info.pAttachments = attachments.data();
+	info.width = width;
+	info.height = height;
+	info.layers = layers;
+	info.flags = 0;
+
+	VkFramebuffer framebuffer;
+	if (vkCreateFramebuffer(device, &info, nullptr, &framebuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to reate Framebuffer");
+	}
+
+	return framebuffer;
+}
+
+std::vector<VkFramebuffer> VulkanHelpers::CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImageView,
+	VkImageView depthImageView, const std::vector<VkImageView>& swapchainImageViews, const VkExtent2D& swapchainExtent,
+	VkRenderPass renderPass)
 {
 	std::vector<VkFramebuffer> swapchainFramebuffers{ swapchainImageViews.size() };
 
 	for (size_t i = 0; i < swapchainImageViews.size(); ++i)
 	{
-		std::array<VkImageView, 3> attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
+		std::vector<VkImageView> attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
 
-		VkFramebufferCreateInfo framebufferCI = {};
-		{
-			framebufferCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferCI.renderPass = renderPass;
-			framebufferCI.attachmentCount = (uint32_t)attachments.size();
-			framebufferCI.pAttachments = attachments.data();
-			framebufferCI.width = swapchainExtent.width;
-			framebufferCI.height = swapchainExtent.height;
-			framebufferCI.layers = 1;
-
-			if (vkCreateFramebuffer(device, &framebufferCI, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS)
-			{
-				throw std::runtime_error("Failed to reate Framebuffer");
-			}
-		}
+		swapchainFramebuffers[i]
+			= CreateFramebuffer(device, swapchainExtent.width, swapchainExtent.height, attachments, renderPass);
 	}
 
 	return swapchainFramebuffers;
@@ -1520,15 +1530,15 @@ std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(uint32_t width,
 	return { textureImage, textureImageMemory };
 }
 
-VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkImageAspectFlagBits aspectFlags,
-	u32 mipLevels, u32 layerCount, VkDevice device)
+VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkImageViewType viewType,
+	VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	VkImageView imageView;
 
 	VkImageViewCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	createInfo.image = image;
-	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	createInfo.viewType = viewType;
 	createInfo.format = format;
 	createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 	createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -1549,13 +1559,13 @@ VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkI
 }
 
 std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkImage>& images, VkFormat format,
-	VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
+	VkImageViewType viewType, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	std::vector<VkImageView> imageViews{ images.size() };
 
 	for (size_t i = 0; i < images.size(); ++i)
 	{
-		imageViews[i] = CreateImage2DView(images[i], format, aspectFlags, mipLevels, layerCount, device);
+		imageViews[i] = CreateImage2DView(images[i], format, viewType, aspectFlags, mipLevels, layerCount, device);
 	}
 
 	return imageViews;
@@ -1588,7 +1598,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 
 	// Create image view
 	VkImageView colorImageView
-		= CreateImage2DView(colorImage, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
+		= CreateImage2DView(colorImage, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
 
 	return { colorImage, colorImageMemory, colorImageView };
 }
@@ -1620,7 +1630,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 
 	// Create image view
 	VkImageView depthImageView
-		= CreateImage2DView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, arrayLayers, device);
+		= CreateImage2DView(depthImage, depthFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, arrayLayers, device);
 
 	return { depthImage, depthImageMemory, depthImageView };
 }

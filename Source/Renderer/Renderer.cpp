@@ -429,34 +429,13 @@ void Renderer::InitVulkan()
 	_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
 
 
-	// Create Pipeline Layouts  -  Used to pass uniforms to shaders at runtime
-	auto CreatePipelineLayout = [](VkDevice device, const std::vector<VkDescriptorSetLayout>& setLayouts)
-	{
-		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
-		{
-			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			pipelineLayoutCI.setLayoutCount = (u32)setLayouts.size();
-			pipelineLayoutCI.pSetLayouts = setLayouts.data();
-			pipelineLayoutCI.pushConstantRangeCount = 0;
-			pipelineLayoutCI.pPushConstantRanges = nullptr;
-		}
-
-		VkPipelineLayout pipelineLayout = nullptr;
-		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to Create Pipeline Layout!");
-		}
-
-		return pipelineLayout;
-	};
-
 	// PBR pipe
 	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_device);
-	_pbrPipelineLayout = CreatePipelineLayout(_device, { _pbrDescriptorSetLayout });
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_device, { _pbrDescriptorSetLayout });
 
 	// Skybox pipe
 	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_device);
-	_skyboxPipelineLayout = CreatePipelineLayout(_device, { _skyboxDescriptorSetLayout });
+	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_device, { _skyboxDescriptorSetLayout });
 
 	
 	const auto size = _delegate.GetFramebufferSize();
@@ -516,8 +495,8 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 	_swapchain = vkh::CreateSwapchain({(uint32_t)width, (uint32_t)height}, _physicalDevice, _surface, _device,
 	                                  _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
-	_swapchainImageViews
-		= vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
+	_swapchainImageViews= vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D, 
+		VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
 	std::tie(_colorImage, _colorImageMemory, _colorImageView)
 		= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
@@ -536,8 +515,8 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		_swapchainExtent);
 
 	_swapchainFramebuffers
-		= vkh::CreateFramebuffer(_colorImageView, _depthImageView, _device, _renderPass, _swapchainExtent,
-		                         _swapchainImageViews);
+		= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews, 
+			_swapchainExtent, _renderPass);
 
 
 	const u32 numImagesInFlight = (u32)_swapchainImages.size();

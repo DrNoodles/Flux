@@ -142,7 +142,7 @@ public:
 
 		std::tie(image, memory, mipLevels, width, height)
 			= CreateTextureImage(path, transferPool, transferQueue, physicalDevice, device);
-		const auto view = vkh::CreateImage2DView(image, format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
+		const auto view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
 		const auto sampler = CreateTextureSampler(mipLevels, device);
 		const auto layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

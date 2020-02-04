@@ -75,16 +75,42 @@ public:
 		CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device,
 			VkPhysicalDevice physicalDevice);
 
+	
+	static VkPipelineLayout CreatePipelineLayout(VkDevice device, 
+		const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
+		const std::vector<VkPushConstantRange>& pushConstantRanges = {})
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
+		{
+			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			pipelineLayoutCI.setLayoutCount = (u32)descriptorSetLayouts.size();
+			pipelineLayoutCI.pSetLayouts = descriptorSetLayouts.data();
+			pipelineLayoutCI.pushConstantRangeCount = (u32)pushConstantRanges.size();;
+			pipelineLayoutCI.pPushConstantRanges = pushConstantRanges.data();
+		}
+
+		VkPipelineLayout pipelineLayout = nullptr;
+		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to Create Pipeline Layout!");
+		}
+
+		return pipelineLayout;
+	}
+
+	
 	static VkShaderModule CreateShaderModule(const std::vector<char>& code, VkDevice device);
 
+	static VkFramebuffer CreateFramebuffer(VkDevice device, u32 width, u32 height, 
+		const std::vector<VkImageView>& attachments, VkRenderPass renderPass, u32 layers = 1);
 
-	[[nodiscard]] static std::vector<VkFramebuffer> CreateFramebuffer(
+	[[nodiscard]] static std::vector<VkFramebuffer> CreateSwapchainFramebuffer(
+		VkDevice device,
 		VkImageView colorImageView,
 		VkImageView depthImageView,
-		VkDevice device,
-		VkRenderPass renderPass,
+		const std::vector<VkImageView>& swapchainImageViews,
 		const VkExtent2D& swapchainExtent,
-		const std::vector<VkImageView>& swapchainImageViews);
+		VkRenderPass renderPass);
 
 
 	[[nodiscard]] static VkCommandPool CreateCommandPool(QueueFamilyIndices queueFamilyIndices, VkDevice device);
@@ -201,13 +227,12 @@ public:
 			VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers = 1, VkImageCreateFlags flags = 0);
 
 
-	[[nodiscard]] static VkImageView CreateImage2DView(VkImage image, VkFormat format,
-		VkImageAspectFlagBits aspectFlags,
-		u32 mipLevels, u32 layerCount, VkDevice device);
+	[[nodiscard]] static VkImageView CreateImage2DView(VkImage image, VkFormat format, VkImageViewType viewType,
+		VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
 
 
 	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
-		VkFormat format, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
+		VkFormat format, VkImageViewType viewType, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
 
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>

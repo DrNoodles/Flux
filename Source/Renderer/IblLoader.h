@@ -33,17 +33,19 @@ public:
 		const std::string& shaderDir, VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice,
 		VkDevice device)
 	{
-		auto environmentCubemap = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
-		auto irradianceCubemap = CreateIrradianceFromEnvCubemap(environmentCubemap, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
-		auto prefilterCubemap = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
-		auto brdfLut = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto env = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool,
+			graphicsQueue, physicalDevice, device);
+		auto irradiance = CreateIrradianceFromEnvCubemap(env, shaderDir, commandPool, graphicsQueue, physicalDevice, 
+			device);
+		auto prefilter = CreatePrefilterFromEnvCubemap();
+		auto brdf = CreateBrdfLutFromEnvCubemap();
 
 		IblTextureResources iblRes
 		{
-			std::move(environmentCubemap),
-			std::move(irradianceCubemap),
-			std::move(prefilterCubemap),
-			std::move(brdfLut),
+			std::move(env),
+			std::move(irradiance),
+			std::move(prefilter),
+			std::move(brdf),
 		};
 		return iblRes;
 	}
@@ -68,7 +70,38 @@ public:
 
 
 private:
+	static constexpr f64 PI = 3.1415926535897932384626433;
+	
+	struct RenderTarget
+	{
+		VkImage Image;
+		VkImageView View;
+		VkDeviceMemory Memory;
+		VkFramebuffer Framebuffer;
 
+		void Destroy(VkDevice device)
+		{
+			vkDestroyImage(device, Image, nullptr);
+			vkFreeMemory(device, Memory, nullptr);
+			vkDestroyImageView(device, View, nullptr);
+			vkDestroyFramebuffer(device, Framebuffer, nullptr);
+			
+			Image = nullptr;
+			View = nullptr;
+			Memory = nullptr;
+			Framebuffer = nullptr;
+		}
+	};
+
+	struct IrradiancePushConstants
+	{
+		glm::mat4 Mvp{};
+
+		// Sampling deltas
+		float DeltaPhi = (2.0f * (f32)PI) / 180.0f;
+		float DeltaTheta = (0.5f * (f32)PI) / 64.0f;
+	} ;
+	
 #pragma region LoadCubemapFromEquirectangularPath
 
 	static TextureResource LoadCubemapFromEquirectangularPath(const std::string& path, const std::string& shaderDir,
@@ -103,11 +136,11 @@ private:
 		auto descriptorSetLayout = CreateDescriptorSetLayout(device);
 		auto descriptorSet = CreateDescriptorSets(srcImageInfo, device, descriptorPool, descriptorSetLayout);
 
-		auto pipelineLayout = CreatePipelineLayout(device, descriptorSetLayout);
+		auto pipelineLayout = vkh::CreatePipelineLayout(device, { descriptorSetLayout });
 		//auto shaders = LoadShaders(shaderDir, device);
 		//VkPipeline CreatePipeline(device, pipelineLayout, shaders);
 
-		Render(device);
+		//Render(device);
 
 		OptimiseImageForRead(device);
 
@@ -201,7 +234,8 @@ private:
 
 	static VkImageView CreateSrcImageView(VkImage image, VkDevice device)
 	{
-		return vkh::CreateImage2DView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
+		return vkh::CreateImage2DView(image, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_VIEW_TYPE_2D, 
+			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
 	}
 	static VkSampler CreateSrcSampler(VkDevice device)
 	{
@@ -384,26 +418,6 @@ private:
 		return descriptorSet;
 	}
 
-	static VkPipelineLayout CreatePipelineLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
-	{
-		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
-		{
-			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
-			pipelineLayoutCI.setLayoutCount = 1;
-			pipelineLayoutCI.pushConstantRangeCount = 0;
-			pipelineLayoutCI.pPushConstantRanges = nullptr;
-		}
-
-		VkPipelineLayout pipelineLayout = nullptr;
-		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to Create Pipeline Layout!");
-		}
-
-		return pipelineLayout;
-	}
-
 	static void LoadShaders(const std::string& shaderDir, VkDevice device)
 	{
 		const auto vertShaderCode = FileService::ReadFile(shaderDir + "Cubemap.vert.vert.spv");
@@ -450,7 +464,6 @@ private:
 	//		throw std::runtime_error("Failed to create Pipeline");
 	//	}
 	//}
-	static void Render(VkDevice device) {}
 
 	static void OptimiseImageForRead(VkDevice device) {}
 
@@ -459,33 +472,96 @@ private:
 
 #pragma region LoadIrradianceFromEnvCubemap
 
-	static TextureResource CreateIrradianceFromEnvCubemap(const TextureResource& texRes, const std::string& shaderDir,
+	static TextureResource CreateIrradianceFromEnvCubemap(const TextureResource& envMap, const std::string& shaderDir,
 	                                                      VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
-		const auto tStart = std::chrono::high_resolution_clock::now();
+		const auto benchStart = std::chrono::high_resolution_clock::now();
 
-		
-		const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		const i32 dim = 64;
-		const u32 numMips = (u32)(floor(log2(dim))) + 1;
+		const VkFormat irrFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const i32 irrDim = 64;
+		const u32 irrMips = (u32)(floor(log2(irrDim))) + 1;
 
 
-		// Create output texture resource
-		TextureResource irradianceTexRes = CreateCubeTextureResource(physicalDevice, device, format, dim, numMips);
+		// Do werk
+		TextureResource irrCubemap = CreateCubeTextureResource(physicalDevice, device, irrFormat, irrDim, irrMips);
 
-		
-		VkRenderPass renderPass = CreateRenderPass(device, format);
+
+		const VkRenderPass renderPass = CreateRenderPass(device, irrFormat);
+
+
+		RenderTarget renderTarget = CreateRenderTarget(device, physicalDevice, transferPool, transferQueue, renderPass, irrFormat, 
+			irrDim);
+
+
+		// Create descriptor set layout
+		VkDescriptorSetLayout descSetLayout = {};
+		{
+			VkDescriptorSetLayoutBinding binding = {};
+			binding.binding = 0;
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			binding.descriptorCount = 1;
+			binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			descSetLayout = vkh::CreateDescriptorSetLayout({ binding }, device);;
+		}
+
+
+		VkDescriptorPool descPool;
+		{
+			VkDescriptorPoolSize poolSize = {};
+			poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			poolSize.descriptorCount = 1;
+			descPool = vkh::CreateDescriptorPool({ poolSize }, 1, device);
+		}
+
+
+		const VkDescriptorSet descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		{
+			std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
+			{
+				const auto binding = 0;
+				descriptorWrites[binding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWrites[binding].dstSet = descSet;
+				descriptorWrites[binding].dstBinding = binding; // correlates to shader binding
+				descriptorWrites[binding].dstArrayElement = 0;
+				descriptorWrites[binding].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWrites[binding].descriptorCount = 1;
+				descriptorWrites[binding].pBufferInfo = nullptr; // descriptor is one of buffer, image or texelbufferview
+				descriptorWrites[binding].pImageInfo = &envMap.DescriptorImageInfo();
+				descriptorWrites[binding].pTexelBufferView = nullptr;
+			}
+
+			vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+		}
+
+
+		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
+
+
+		const VkPipeline pipeline = CreatePipeline(device, pipelineLayout, renderPass, shaderDir);
+
+
+		RenderIrradianceMap(device, renderPass, pipeline, pipelineLayout, descSet, irrMips, irrCubemap, renderTarget);
+
+
+		// Cleanup
+		renderTarget.Destroy(device);
+		vkDestroyRenderPass(device, renderPass, nullptr);
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyDescriptorPool(device, descPool, nullptr);
+		vkDestroyDescriptorSetLayout(device, descSetLayout, nullptr);
 
 		
 		// Benchmark
-		const auto tEnd = std::chrono::high_resolution_clock::now();
-		const auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		std::cout << "Generating irradiance cube with " << numMips << " mip levels took " << tDiff << " ms" << std::endl;
+		const auto benchEnd = std::chrono::high_resolution_clock::now();
+		const auto benchDiff = std::chrono::duration<double, std::milli>(benchEnd - benchStart).count();
+		std::cout << "Generating irradiance cube with " << irrMips << " mip levels took " << benchDiff << " ms\n";
 
-		return irradianceTexRes;
+		return irrCubemap;
 	}
 
-	static TextureResource CreateCubeTextureResource(VkPhysicalDevice physicalDevice, VkDevice device, const VkFormat format, const i32 dim, const u32 numMips)
+	static TextureResource CreateCubeTextureResource(VkPhysicalDevice physicalDevice, VkDevice device, 
+		const VkFormat format, const i32 dim, const u32 numMips)
 	{
 		VkImage image;
 		VkDeviceMemory memory;
@@ -507,7 +583,7 @@ private:
 
 		
 		// Create View
-		view = vkh::CreateImage2DView(image, format, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
+		view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
 
 
 		// Create Sampler
@@ -596,13 +672,184 @@ private:
 
 		return renderPass;
 	}
-	
-	#pragma endregion 
+
+	static RenderTarget CreateRenderTarget(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool,
+		VkQueue transferQueue, VkRenderPass renderPass, VkFormat format, i32 dim)
+	{
+		RenderTarget rt{};
+		
+		std::tie(rt.Image, rt.Memory) = vkh::CreateImage2D(dim, dim, 1, 
+			VK_SAMPLE_COUNT_1_BIT, 
+			format, 
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			physicalDevice, device);
+
+
+		// Transition image layout
+		{
+			const auto cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
+			
+			VkImageSubresourceRange subresourceRange = {};
+			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			subresourceRange.baseArrayLayer = 0;
+			subresourceRange.layerCount = 1;
+			subresourceRange.baseMipLevel = 0;
+			subresourceRange.levelCount = 1;
+			
+			vkh::TransitionImageLayout(cmdBuf, rt.Image,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, subresourceRange);
+
+			vkh::EndSingeTimeCommands(cmdBuf, transferPool, transferQueue, device);
+		}
+
+		
+		rt.View = vkh::CreateImage2DView(rt.Image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
+
+		rt.Framebuffer = vkh::CreateFramebuffer(device, dim, dim, { rt.View }, renderPass);
+
+		return rt;
+	}
+
+	static VkPipeline CreatePipeline(VkDevice device, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& shaderDir)
+	{
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
+		inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		inputAssemblyState.flags = 0;
+		inputAssemblyState.primitiveRestartEnable = VK_FALSE;
+
+		VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+		rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationState.cullMode = VK_CULL_MODE_NONE;
+		rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationState.flags = 0;
+		rasterizationState.depthClampEnable = VK_FALSE;
+		rasterizationState.lineWidth = 1.0f;
+
+		VkPipelineColorBlendAttachmentState blendAttachmentState = {};
+		blendAttachmentState.colorWriteMask = 0xf;
+		blendAttachmentState.blendEnable = VK_FALSE;
+
+		VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+		colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlendState.attachmentCount = 1;
+		colorBlendState.pAttachments = &blendAttachmentState;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
+		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencilState.depthTestEnable = VK_FALSE;
+		depthStencilState.depthWriteEnable = VK_FALSE;
+		depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		depthStencilState.back.compareOp = VK_COMPARE_OP_ALWAYS;
+
+		VkPipelineViewportStateCreateInfo viewportState = {};
+		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		viewportState.viewportCount = 1;
+		viewportState.scissorCount = 1;
+		viewportState.flags = 0;
+
+		VkPipelineMultisampleStateCreateInfo multisampleState = {};
+		multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		multisampleState.flags = 0;
+
+		std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+		VkPipelineDynamicStateCreateInfo dynamicState = {};
+		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicState.pDynamicStates = dynamicStateEnables.data();
+		dynamicState.dynamicStateCount = (u32)dynamicStateEnables.size();
+		dynamicState.flags = 0;
+
+		
+		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
+		auto vertBindingDesc = Vertex::BindingDescription();
+		//std::array<VkVertexInputAttributeDescription, 1> vertAttrDesc = {};
+		//{
+		//	// Pos
+		//	vertAttrDesc[0].binding = 0;
+		//	vertAttrDesc[0].location = 0;
+		//	vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		//	vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+		//}
+		auto vertAttrDesc = Vertex::AttributeDescriptions();
+		
+		VkPipelineVertexInputStateCreateInfo vertexInputState = {};
+		vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputState.vertexBindingDescriptionCount = 1;
+		vertexInputState.pVertexBindingDescriptions = &vertBindingDesc;
+		vertexInputState.vertexAttributeDescriptionCount = (u32)vertAttrDesc.size();
+		vertexInputState.pVertexAttributeDescriptions = vertAttrDesc.data();
+
+		// Shaders
+		VkPipelineShaderStageCreateInfo vertShaderStage = {};
+		vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(shaderDir + "Cubemap.vert.spv"), device);
+		vertShaderStage.pName = "main";
+
+		VkPipelineShaderStageCreateInfo fragShaderStage = {};
+		fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(shaderDir + "CubemapFromIrradianceConvolution.frag.spv"), device);
+		fragShaderStage.pName = "main";
+		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{ vertShaderStage, fragShaderStage };
+		
+
+		// Create the pipeline
+		VkGraphicsPipelineCreateInfo pipelineCI = {};
+		pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineCI.pInputAssemblyState = &inputAssemblyState;
+		pipelineCI.pRasterizationState = &rasterizationState;
+		pipelineCI.pColorBlendState = &colorBlendState;
+		pipelineCI.pMultisampleState = &multisampleState;
+		pipelineCI.pViewportState = &viewportState;
+		pipelineCI.pDepthStencilState = &depthStencilState;
+		pipelineCI.pDynamicState = &dynamicState;
+		pipelineCI.pVertexInputState = &vertexInputState;
+		pipelineCI.stageCount = (u32)shaderStages.size();
+		pipelineCI.pStages = shaderStages.data();
+		pipelineCI.renderPass = renderPass;
+		pipelineCI.layout = pipelineLayout;
+
+		VkPipeline pipeline;
+		if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
+		{
+			throw std::runtime_error("Failed to create pipeline");
+		}
+
+		
+		// Cleanup
+		vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
+		vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
+
+		
+		return pipeline;
+	}
+
+	static void RenderIrradianceMap(VkDevice device, VkRenderPass renderPass, VkPipeline pipeline, 
+		VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, u32 irrMips, TextureResource irrCubemap, 
+		RenderTarget renderTarget)
+	{
+		
+	}
+#pragma endregion 
 
 	
-	static TextureResource CreatePrefilterFromEnvCubemap() { throw; }
+	static TextureResource CreatePrefilterFromEnvCubemap()
+	{
+		TextureResource tr{ nullptr, 1,1,1,1,nullptr,nullptr,nullptr,nullptr,VkFormat{} };
+		return tr;
+	}
 
-	static TextureResource CreateBrdfLutFromEnvCubemap() { throw; }
+	static TextureResource CreateBrdfLutFromEnvCubemap()
+	{
+		TextureResource tr{ nullptr, 1,1,1,1,nullptr,nullptr,nullptr,nullptr,VkFormat{} };
+		return tr;
+	}
 
 };
 

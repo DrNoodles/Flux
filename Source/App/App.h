@@ -378,14 +378,13 @@ private:
 		//const auto id = _renderer->CreateCubemapTextureResource(_options.IblDir + "ChiricahuaPath.hdr");
 
 		// +X, -X, +Y, -Y, +Z, -Z.
-		const auto id = _renderer->CreateCubemapTextureResource({
+		const auto ids = _renderer->CreateIblTextureResources({
 				_options.AssetsDir + "Skybox/HDR/right.hdr",
 				_options.AssetsDir + "Skybox/HDR/left.hdr",
 				_options.AssetsDir + "Skybox/HDR/top.hdr",
 				_options.AssetsDir + "Skybox/HDR/bottom.hdr",
 				_options.AssetsDir + "Skybox/HDR/front.hdr",
-				_options.AssetsDir + "Skybox/HDR/back.hdr"
-		}, CubemapFormat::RGBA_F32);
+				_options.AssetsDir + "Skybox/HDR/back.hdr"});
 
 		// SDR
 		/*const auto id = _renderer->CreateCubemapTextureResource({
@@ -398,7 +397,7 @@ private:
 			}, CubemapFormat::RGBA_U8);*/
 		
 		SkyboxCreateInfo createInfo = {};
-		createInfo.TextureId = id;
+		createInfo.TextureId = ids.IrradianceCubemapId;
 		_renderer->CreateSkybox(createInfo);
 	}
 	

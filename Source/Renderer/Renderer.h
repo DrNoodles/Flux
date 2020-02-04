@@ -52,21 +52,21 @@ public:
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 
-	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
-
 	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createInfo);
 
-	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
 
+
+	
+	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
+	
 	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
 
+	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& material);
-
-
-
+	
 
 
 private:
