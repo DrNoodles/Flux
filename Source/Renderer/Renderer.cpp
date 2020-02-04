@@ -5,6 +5,7 @@
 #include "UniformBufferObjects.h"
 #include "Renderable.h"
 #include "CubemapTextureLoader.h"
+#include "IblLoader.h"
 
 #include <Shared/FileService.h>
 
@@ -17,7 +18,6 @@
 #include <vector>
 #include <string>
 #include <chrono>
-#include "IblLoader.h"
 
 using vkh = VulkanHelpers;
 using vki = VulkanInitHelpers;
@@ -649,71 +649,22 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 
 VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 {
-	// Prepare layout bindings
-	VkDescriptorSetLayoutBinding pbrUboLayoutBinding = {};
-	{
-		pbrUboLayoutBinding.binding = 0; // correlates to shader
-		pbrUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		pbrUboLayoutBinding.descriptorCount = 1;
-		pbrUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT; // TODO Separate out a buffer for vert and frag stages
-		pbrUboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
-	}
-	VkDescriptorSetLayoutBinding basecolorMapLayoutBinding = {};
-	{
-		basecolorMapLayoutBinding.binding = 1; // correlates to shader
-		basecolorMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		basecolorMapLayoutBinding.descriptorCount = 1;
-		basecolorMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		basecolorMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding normalMapLayoutBinding = {};
-	{
-		normalMapLayoutBinding.binding = 2; // correlates to shader
-		normalMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		normalMapLayoutBinding.descriptorCount = 1;
-		normalMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		normalMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding roughnessMapLayoutBinding = {};
-	{
-		roughnessMapLayoutBinding.binding = 3; // correlates to shader
-		roughnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		roughnessMapLayoutBinding.descriptorCount = 1;
-		roughnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		roughnessMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding metalnessMapLayoutBinding = {};
-	{
-		metalnessMapLayoutBinding.binding = 4; // correlates to shader
-		metalnessMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		metalnessMapLayoutBinding.descriptorCount = 1;
-		metalnessMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		metalnessMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding aoMapLayoutBinding = {};
-	{
-		aoMapLayoutBinding.binding = 5; // correlates to shader
-		aoMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		aoMapLayoutBinding.descriptorCount = 1;
-		aoMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		aoMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-	VkDescriptorSetLayoutBinding lightUboLayoutBinding = {};
-	{
-		lightUboLayoutBinding.binding = 6; // correlates to shader
-		lightUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		lightUboLayoutBinding.descriptorCount = 1;
-		lightUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		lightUboLayoutBinding.pImmutableSamplers = nullptr; // not used, only useful for image descriptors
-	}
-
-	return vkh::CreateDescriptorSetLayout({ pbrUboLayoutBinding,
-		basecolorMapLayoutBinding,
-		normalMapLayoutBinding,
-		roughnessMapLayoutBinding,
-		metalnessMapLayoutBinding,
-		aoMapLayoutBinding,
-		lightUboLayoutBinding }, device);
+	return vkh::CreateDescriptorSetLayout(device, {
+		// pbr ubo
+		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT),
+		// basecolor
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// normalMap
+		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// roughnessMap
+		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// metalnessMap
+		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// aoMap
+		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// light ubo
+		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT),
+	});
 }
 
 void Renderer::WritePbrDescriptorSets(
@@ -1023,27 +974,16 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 	return modelInfos;
 }
 
+
+
 VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 {
-	// Prepare layout bindings
-	VkDescriptorSetLayoutBinding skyboxUboLayoutBinding = {};
-	{
-		skyboxUboLayoutBinding.binding = 0; // correlates to shader
-		skyboxUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		skyboxUboLayoutBinding.descriptorCount = 1;
-		skyboxUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		skyboxUboLayoutBinding.pImmutableSamplers = nullptr; 
-	}
-	VkDescriptorSetLayoutBinding skyboxMapLayoutBinding = {};
-	{
-		skyboxMapLayoutBinding.binding = 1; // correlates to shader
-		skyboxMapLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		skyboxMapLayoutBinding.descriptorCount = 1;
-		skyboxMapLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		skyboxMapLayoutBinding.pImmutableSamplers = nullptr;
-	}
-
-	return vkh::CreateDescriptorSetLayout({ skyboxUboLayoutBinding , skyboxMapLayoutBinding }, device);
+	return vkh::CreateDescriptorSetLayout(device, {
+		// mesh ubo
+		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+		// skybox map
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+	});
 }
 
 void Renderer::WriteSkyboxDescriptorSets(

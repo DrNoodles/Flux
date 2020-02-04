@@ -194,7 +194,7 @@ private:
 
 	std::vector<SkyboxResourceFrame>
 	CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
-	
+
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreateSkyboxDescriptorSetLayout(VkDevice device);
 

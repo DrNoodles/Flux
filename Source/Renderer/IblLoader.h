@@ -6,6 +6,7 @@
 #include "TextureResource.h"
 
 #include <Shared/CommonTypes.h>
+#include <Shared/FileService.h>
 
 #include <vulkan/vulkan.h>
 #include <stbi/stb_image.h>
@@ -13,6 +14,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 
 using vkh = VulkanHelpers;
 using vki = VulkanInitHelpers;
@@ -387,13 +389,9 @@ private:
 	}
 	static VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice device)
 	{
-		std::vector<VkDescriptorSetLayoutBinding> bindings{ 1 };
-		bindings[0].binding = 0;
-		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		bindings[0].descriptorCount = 1;
-
-		return vkh::CreateDescriptorSetLayout(bindings, device);
+		return vkh::CreateDescriptorSetLayout(device, {
+			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+		});
 	}
 	static VkDescriptorSet CreateDescriptorSets(const VkDescriptorImageInfo& imageInfo, VkDevice device,
 		VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
@@ -474,48 +472,29 @@ private:
 		const u32 irrMips = (u32)(floor(log2(irrDim))) + 1;
 
 
-		// Do werk
 		TextureResource irrCubemap = CreateCubeTextureResource(physicalDevice, device, irrFormat, irrDim, irrMips);
 
 
-		const VkRenderPass renderPass = CreateRenderPass(device, irrFormat);
+		auto renderPass = CreateRenderPass(device, irrFormat);
 
 
-		RenderTarget renderTarget = CreateRenderTarget(device, physicalDevice, transferPool, transferQueue, renderPass, irrFormat, 
+		auto renderTarget = CreateRenderTarget(device, physicalDevice, transferPool, transferQueue, renderPass, irrFormat, 
 			irrDim);
 
 
-		// Create descriptor set layout
-		VkDescriptorSetLayout descSetLayout = {};
-		{
-			VkDescriptorSetLayoutBinding binding = {};
-			binding.binding = 0;
-			binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			binding.descriptorCount = 1;
-			binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			descSetLayout = vkh::CreateDescriptorSetLayout({ binding }, device);;
-		}
+		auto descSetLayout = vkh::CreateDescriptorSetLayout(device, {
+			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+		});
+
+		
+		auto descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
 
 
-		VkDescriptorPool descPool;
-		{
-			VkDescriptorPoolSize poolSize = {};
-			poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			poolSize.descriptorCount = 1;
-			descPool = vkh::CreateDescriptorPool({ poolSize }, 1, device);
-		}
-
-
-		const VkDescriptorSet descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
-		{
-			std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
-			{
-				vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo());
-			}
-
-			vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
-		}
-
+		// Allocate and Update Descriptor Sets
+		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		vkh::UpdateDescriptorSets(device, { 
+			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo())
+		});
 
 		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
 
@@ -817,8 +796,9 @@ private:
 		VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, u32 irrMips, TextureResource& irrCubemap, 
 		RenderTarget& renderTarget)
 	{
-		
+	
 	}
+	
 #pragma endregion 
 
 	

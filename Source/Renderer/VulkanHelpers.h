@@ -6,7 +6,6 @@
 
 #include <array>
 #include <vector>
-#include <string>
 #include <memory>
 #include <cassert>
 
@@ -209,7 +208,7 @@ public:
 		VkDevice device);
 	
 	static VkDescriptorSetLayout CreateDescriptorSetLayout(
-		const std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDevice device);
+		VkDevice device, const std::vector<VkDescriptorSetLayoutBinding>& bindings);
 	
 	
 	static std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>>
@@ -433,6 +432,15 @@ public:
 		VkDebugUtilsMessengerEXT messenger,
 		const VkAllocationCallbacks* pAllocator);
 
+	inline static void UpdateDescriptorSets(VkDevice device, 
+		const std::vector<VkWriteDescriptorSet>& descriptorWrites, 
+		i32 descriptorCopyCount = 0, 
+		VkCopyDescriptorSet* pCopyDescriptorSet = nullptr)
+	{
+		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 
+			descriptorCopyCount, 
+			pCopyDescriptorSet);
+	}
 };
 
 
@@ -459,6 +467,20 @@ public:
 		x.pBufferInfo = pBufferInfo; // descriptor is one of buffer, image or texelbufferview
 		x.pImageInfo = pImageInfo;
 		x.pTexelBufferView = pTexelBufferView;
+		return x;
+	}
+
+	static VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(u32 binding,
+		VkDescriptorType descriptorType, 
+		VkFlags stageFlags, 
+		u32 descriptorCount = 1, const VkSampler* pImmutableSamplers = nullptr)
+	{
+		VkDescriptorSetLayoutBinding x = {};
+		x.binding = binding; // correlates to shader
+		x.descriptorType = descriptorType;
+		x.descriptorCount = descriptorCount;
+		x.stageFlags = stageFlags;
+		x.pImmutableSamplers = pImmutableSamplers;
 		return x;
 	}
 };

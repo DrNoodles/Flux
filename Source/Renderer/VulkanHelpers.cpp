@@ -12,7 +12,6 @@
 
 #include <iostream>
 #include <set>
-#include "TextureResource.h"
 
 
 VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const std::vector<const char*>& validationLayers)
@@ -1408,8 +1407,8 @@ VulkanHelpers::AllocateDescriptorSets(u32 count, VkDescriptorSetLayout layout, V
 	return descriptorSets;
 }
 
-VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(
-	const std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDevice device)
+VkDescriptorSetLayout VulkanHelpers::CreateDescriptorSetLayout(VkDevice device, 
+	const std::vector<VkDescriptorSetLayoutBinding>& bindings)
 {
 	// Create descriptor set layout
 	VkDescriptorSetLayoutCreateInfo layoutCI = {};
