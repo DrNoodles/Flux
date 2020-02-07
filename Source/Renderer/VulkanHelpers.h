@@ -80,13 +80,13 @@ public:
 		const std::vector<VkPushConstantRange>& pushConstantRanges = {})
 	{
 		VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
-		{
-			pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-			pipelineLayoutCI.setLayoutCount = (u32)descriptorSetLayouts.size();
-			pipelineLayoutCI.pSetLayouts = descriptorSetLayouts.data();
-			pipelineLayoutCI.pushConstantRangeCount = (u32)pushConstantRanges.size();;
-			pipelineLayoutCI.pPushConstantRanges = pushConstantRanges.data();
-		}
+		pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutCI.pNext = nullptr;
+		pipelineLayoutCI.setLayoutCount = (u32)descriptorSetLayouts.size();
+		pipelineLayoutCI.pSetLayouts = descriptorSetLayouts.data();
+		pipelineLayoutCI.pushConstantRangeCount = (u32)pushConstantRanges.size();;
+		pipelineLayoutCI.pPushConstantRanges = pushConstantRanges.data();
+		pipelineLayoutCI.flags = 0;
 
 		VkPipelineLayout pipelineLayout = nullptr;
 		if (vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout) != VK_SUCCESS)
@@ -440,47 +440,5 @@ public:
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 
 			descriptorCopyCount, 
 			pCopyDescriptorSet);
-	}
-};
-
-
-class VulkanInitHelpers
-{
-public:
-	static VkWriteDescriptorSet WriteDescriptorSet(
-		VkDescriptorSet dstSet,
-		u32 dstBinding,
-		VkDescriptorType descriptorType,
-		u32 descriptorCount,
-		u32 dstArrayElement,
-		const VkDescriptorImageInfo* pImageInfo = nullptr,
-		const VkDescriptorBufferInfo* pBufferInfo = nullptr,
-		const VkBufferView* pTexelBufferView = nullptr)
-	{
-		VkWriteDescriptorSet x = {};
-		x.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		x.dstSet = dstSet;
-		x.dstBinding = dstBinding; // correlates to shader binding
-		x.dstArrayElement = dstArrayElement;
-		x.descriptorType = descriptorType;
-		x.descriptorCount = descriptorCount;
-		x.pBufferInfo = pBufferInfo; // descriptor is one of buffer, image or texelbufferview
-		x.pImageInfo = pImageInfo;
-		x.pTexelBufferView = pTexelBufferView;
-		return x;
-	}
-
-	static VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(u32 binding,
-		VkDescriptorType descriptorType, 
-		VkFlags stageFlags, 
-		u32 descriptorCount = 1, const VkSampler* pImmutableSamplers = nullptr)
-	{
-		VkDescriptorSetLayoutBinding x = {};
-		x.binding = binding; // correlates to shader
-		x.descriptorType = descriptorType;
-		x.descriptorCount = descriptorCount;
-		x.stageFlags = stageFlags;
-		x.pImmutableSamplers = pImmutableSamplers;
-		return x;
 	}
 };

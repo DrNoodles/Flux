@@ -2,6 +2,7 @@
 #include "Renderer.h"
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
+#include "VulkanInitializers.h"
 #include "UniformBufferObjects.h"
 #include "Renderable.h"
 #include "CubemapTextureLoader.h"
@@ -20,7 +21,6 @@
 #include <chrono>
 
 using vkh = VulkanHelpers;
-using vki = VulkanInitHelpers;
 
 Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir,
 	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService): _delegate(delegate), _shaderDir(shaderDir)
@@ -251,8 +251,8 @@ void Renderer::CleanUp()
 IblTextureResourceIds
 Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 {
-	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, 
-		_shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device);
+	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, *_meshes[_skyboxMesh.Id], _shaderDir, 
+		_commandPool, _graphicsQueue, _physicalDevice, _device);
 
 	IblTextureResourceIds ids = {};
 

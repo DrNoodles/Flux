@@ -1,4 +1,5 @@
 #include "VulkanHelpers.h"
+#include "VulkanInitializers.h"
 #include "UniformBufferObjects.h"
 #include "App/IModelLoaderService.h"
 #include "Renderable.h"
@@ -1172,8 +1173,22 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffer;
 	}
-	vkQueueSubmit(transferQueue, 1, &submitInfo, nullptr);
-	vkQueueWaitIdle(transferQueue);
+	
+	// Create fence to ensure that the command buffer has finished executing
+	VkFenceCreateInfo fenceInfo = {};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = 0;
+	VkFence fence;
+	if (VK_SUCCESS != vkCreateFence(device, &fenceInfo, nullptr, &fence))
+	{
+		throw std::runtime_error("Failed to create fence");
+	}
+	
+	vkQueueSubmit(transferQueue, 1, &submitInfo, fence);
+
+	vkWaitForFences(device, 1, &fence, true, u64_max);
+	vkDestroyFence(device, fence, nullptr);
+	//vkQueueWaitIdle(transferQueue);
 
 
 	// Cleanup
@@ -1239,33 +1254,17 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
 	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
 {
-	// Start recording command buffer
-	VkCommandBufferBeginInfo beginInfo = {};
-	{
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0;
-		beginInfo.pInheritanceInfo = nullptr;
-	}
-
 	// Start command buffer
+	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
 	{
 		// Record renderpass
-		std::array<VkClearValue, 2> clearColors = {};
+		std::vector<VkClearValue> clearColors(2);
 		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 }; //depth, stencil
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-		VkRenderPassBeginInfo renderPassBeginInfo = {};
-		{
-			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = renderPass;
-			renderPassBeginInfo.framebuffer = swapchainFramebuffer;
-			renderPassBeginInfo.renderArea.offset = { 0, 0 };
-			renderPassBeginInfo.renderArea.extent = swapchainExtent;
-
-			renderPassBeginInfo.clearValueCount = (uint32_t)clearColors.size();
-			renderPassBeginInfo.pClearValues = clearColors.data();
-		}
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
+			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
@@ -1281,12 +1280,12 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer, 
-					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout, 
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
 					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 			}
-		
+
 
 
 			// Objects
@@ -1301,13 +1300,13 @@ void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer, 
-					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout, 
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
 					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-				
+
 				/*const void* pValues;
 				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-				
+
 				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 			}
 		}

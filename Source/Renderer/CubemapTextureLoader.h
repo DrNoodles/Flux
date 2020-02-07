@@ -1,6 +1,7 @@
 #pragma once 
 
 #include "VulkanHelpers.h"
+#include "VulkanInitializers.h"
 #include "TextureResource.h"
 
 #include <Shared/CommonTypes.h>
@@ -253,15 +254,7 @@ private:
 		}
 
 		const auto cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
-
-		VkImageSubresourceRange subresourceRange = {};
-		{
-			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			subresourceRange.baseMipLevel = 0;
-			subresourceRange.levelCount = mipLevels;
-			subresourceRange.baseArrayLayer = 0;
-			subresourceRange.layerCount = cubeSides;
-		}
+		const auto subresourceRange = vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, cubeSides);
 		
 		// Transition image layout to optimal for copying to it from the staging buffer
 		{
@@ -278,19 +271,15 @@ private:
 			std::vector<VkBufferImageCopy> bufferCopyRegions;
 			for (u32 face = 0; face < 6; face++)
 			{
-				const VkDeviceSize offset = face * faceTexelDataSize;
+				const VkDeviceSize bufferOffset = face * faceTexelDataSize;
 				//for (u32 level = 0; level < cubeMap.mipLevels; level++)
 				{
 					// Calculate offset into staging buffer for the current mip level and face
-					VkBufferImageCopy bufferCopyRegion = {};
-					bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-					bufferCopyRegion.imageSubresource.mipLevel = 0;
-					bufferCopyRegion.imageSubresource.baseArrayLayer = face;
-					bufferCopyRegion.imageSubresource.layerCount = 1;
-					bufferCopyRegion.imageExtent.width = faceTexelWidth;
-					bufferCopyRegion.imageExtent.height = faceTexelHeight;
-					bufferCopyRegion.imageExtent.depth = 1;
-					bufferCopyRegion.bufferOffset = offset;
+					auto bufferCopyRegion = vki::BufferImageCopy(bufferOffset, 0, 0,
+						vki::ImageSubresourceLayers(VK_IMAGE_ASPECT_COLOR_BIT, 0, face, 1),
+						vki::Offset3D(0, 0, 0), 
+						vki::Extent3D(faceTexelWidth, faceTexelHeight, 1));
+					
 					bufferCopyRegions.push_back(bufferCopyRegion);
 				}
 			}

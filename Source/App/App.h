@@ -397,7 +397,7 @@ private:
 			}, CubemapFormat::RGBA_U8);*/
 		
 		SkyboxCreateInfo createInfo = {};
-		createInfo.TextureId = ids.EnvironmentCubemapId;
+		createInfo.TextureId = ids.IrradianceCubemapId;
 		_renderer->CreateSkybox(createInfo);
 	}
 	

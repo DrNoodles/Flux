@@ -3,6 +3,7 @@
 
 //#include "CubemapTextureLoader.h" // TexelsRgbaF16
 #include "VulkanHelpers.h"
+#include "VulkanInitializers.h"
 #include "TextureResource.h"
 
 #include <Shared/CommonTypes.h>
@@ -17,7 +18,6 @@
 #include <chrono>
 
 using vkh = VulkanHelpers;
-using vki = VulkanInitHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct IblTextureResources
@@ -32,13 +32,13 @@ struct IblTextureResources
 class IblLoader
 {
 public:
-	static IblTextureResources LoadIblFromCubemapPath(const std::array<std::string, 6>& paths,
-		const std::string& shaderDir, VkCommandPool commandPool, VkQueue graphicsQueue, VkPhysicalDevice physicalDevice,
-		VkDevice device)
+	static IblTextureResources LoadIblFromCubemapPath(const std::array<std::string, 6>& paths, 
+		const MeshResource& skyboxMesh, const std::string& shaderDir, VkCommandPool commandPool, VkQueue graphicsQueue, 
+		VkPhysicalDevice physicalDevice, VkDevice device)
 	{
 		auto env = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool,
 			graphicsQueue, physicalDevice, device);
-		auto irradiance = CreateIrradianceFromEnvCubemap(env, shaderDir, commandPool, graphicsQueue, physicalDevice, 
+		auto irradiance = CreateIrradianceFromEnvCubemap(env, skyboxMesh, shaderDir, commandPool, graphicsQueue, physicalDevice,
 			device);
 		auto prefilter = CreatePrefilterFromEnvCubemap();
 		auto brdf = CreateBrdfLutFromEnvCubemap();
@@ -84,10 +84,10 @@ private:
 
 		void Destroy(VkDevice device)
 		{
-			vkDestroyImage(device, Image, nullptr);
+			vkDestroyFramebuffer(device, Framebuffer, nullptr);
 			vkFreeMemory(device, Memory, nullptr);
 			vkDestroyImageView(device, View, nullptr);
-			vkDestroyFramebuffer(device, Framebuffer, nullptr);
+			vkDestroyImage(device, Image, nullptr);
 			
 			Image = nullptr;
 			View = nullptr;
@@ -101,9 +101,9 @@ private:
 		glm::mat4 Mvp{};
 
 		// Sampling deltas
-		float DeltaPhi = (2.0f * (f32)PI) / 180.0f;
-		float DeltaTheta = (0.5f * (f32)PI) / 64.0f;
-	} ;
+		//f32 DeltaPhi = (2.0f * (f32)PI) / 180.0f;
+		//f32 DeltaTheta = (0.5f * (f32)PI) / 64.0f;
+	};
 	
 #pragma region LoadCubemapFromEquirectangularPath
 
@@ -462,8 +462,9 @@ private:
 
 #pragma region LoadIrradianceFromEnvCubemap
 
-	static TextureResource CreateIrradianceFromEnvCubemap(const TextureResource& envMap, const std::string& shaderDir,
-	                                                      VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
+	static TextureResource CreateIrradianceFromEnvCubemap(const TextureResource& envMap, const MeshResource& skyboxMesh,
+		const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
+		VkDevice device)
 	{
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
@@ -482,36 +483,44 @@ private:
 			irrDim);
 
 
+		auto descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
+
+
 		auto descSetLayout = vkh::CreateDescriptorSetLayout(device, {
 			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 		});
 
-		
-		auto descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
 
-
-		// Allocate and Update Descriptor Sets
-		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
-		vkh::UpdateDescriptorSets(device, { 
-			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo())
-		});
-
-		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
+		// Create pipeline layout
+		VkPushConstantRange pushConstantRange = {};
+		pushConstantRange.size = sizeof(IrradiancePushConstants);
+		pushConstantRange.offset = 0;
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout }, { pushConstantRange });
 
 
 		const VkPipeline pipeline = CreatePipeline(device, pipelineLayout, renderPass, shaderDir);
 
 
-		RenderIrradianceMap(device, renderPass, pipeline, pipelineLayout, descSet, irrMips, irrCubemap, renderTarget);
+		// Allocate and Update Descriptor Sets
+		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		vkh::UpdateDescriptorSets(device, {
+			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo())
+			});
+
+
+		RenderIrradianceMap(device, transferPool, transferQueue, renderPass, pipeline, pipelineLayout, descSet, 
+			irrCubemap, skyboxMesh, renderTarget);
 
 
 		// Cleanup
-		renderTarget.Destroy(device);
 		vkDestroyRenderPass(device, renderPass, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		renderTarget.Destroy(device);
 		vkDestroyDescriptorPool(device, descPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descSetLayout, nullptr);
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+
 
 		
 		// Benchmark
@@ -729,15 +738,15 @@ private:
 		
 		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
 		auto vertBindingDesc = Vertex::BindingDescription();
-		//std::array<VkVertexInputAttributeDescription, 1> vertAttrDesc = {};
-		//{
-		//	// Pos
-		//	vertAttrDesc[0].binding = 0;
-		//	vertAttrDesc[0].location = 0;
-		//	vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		//	vertAttrDesc[0].offset = offsetof(Vertex, Pos);
-		//}
-		auto vertAttrDesc = Vertex::AttributeDescriptions();
+		std::array<VkVertexInputAttributeDescription, 1> vertAttrDesc = {};
+		{
+			// Pos
+			vertAttrDesc[0].binding = 0;
+			vertAttrDesc[0].location = 0;
+			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+		}
+		//auto vertAttrDesc = Vertex::AttributeDescriptions();
 		
 		VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 		vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -792,11 +801,126 @@ private:
 		return pipeline;
 	}
 
-	static void RenderIrradianceMap(VkDevice device, VkRenderPass renderPass, VkPipeline pipeline, 
-		VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, u32 irrMips, TextureResource& irrCubemap, 
-		RenderTarget& renderTarget)
+	static void RenderIrradianceMap(VkDevice device, VkCommandPool transferPool, VkQueue transferQueue, 
+		VkRenderPass renderPass, VkPipeline pipeline, VkPipelineLayout pipelineLayout, VkDescriptorSet descSet, 
+		TextureResource& irrTex, const MeshResource& skyboxMesh, RenderTarget& renderTarget)
 	{
-	
+		std::vector<VkClearValue> clearValues(1);
+		clearValues[0].color = { 0.0f, 0.0f, 0.2f, 0.0f };
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, renderTarget.Framebuffer,
+			vki::Rect2D(0, 0, irrTex.Width(), irrTex.Height()),
+			clearValues);
+
+
+		std::array<glm::mat4, 6> matrices = 
+		{
+			// POSITIVE_X
+			glm::rotate(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+			// NEGATIVE_X
+			glm::rotate(glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+			// POSITIVE_Y
+			glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+			// NEGATIVE_Y
+			glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+			// POSITIVE_Z
+			glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+			// NEGATIVE_Z
+			glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+		};
+
+		
+		auto cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
+
+		VkViewport viewport = vki::Viewport(0, 0, (float)irrTex.Width(), (float)irrTex.Height(), 0.0f, 1.0f);
+		VkRect2D scissor = vki::Rect2D(0, 0, irrTex.Width(), irrTex.Height());
+
+		vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+		vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
+
+		const auto irrCubeSubresRange = vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, irrTex.MipLevels(), 0, 6);
+		const auto renderTargetSubresRange = vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+		
+		// Change image layout for all cubemap faces to transfer destination
+		vkh::TransitionImageLayout(cmdBuf,
+			irrTex.Image(),
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			irrCubeSubresRange);
+
+		IrradiancePushConstants pushBlock{};
+		
+		for (u32 mip = 0; mip < irrTex.MipLevels(); mip++) 
+		{
+			for (u32 face = 0; face < 6; face++) 
+			{
+				viewport.width = f32(irrTex.Width() * std::pow(0.5f, mip));
+				viewport.height = f32(irrTex.Height() * std::pow(0.5f, mip));
+				vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+
+				
+				// Render scene from cube face's point of view
+				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				{
+					// Update shader push constant block
+					pushBlock.Mvp = glm::perspective(f32(PI / 2.0), 1.0f, 0.1f, 512.0f) * matrices[face];
+
+					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+						sizeof(IrradiancePushConstants), &pushBlock);
+
+					vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+					vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSet, 0, nullptr);
+
+					VkDeviceSize offsets[1] = { 0 };
+					vkCmdBindVertexBuffers(cmdBuf, 0, 1, &skyboxMesh.VertexBuffer, offsets);
+					vkCmdBindIndexBuffer(cmdBuf, skyboxMesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdDrawIndexed(cmdBuf, (u32)skyboxMesh.IndexCount, 1, 0, 0, 0);
+				}
+				vkCmdEndRenderPass(cmdBuf);
+
+				
+				vkh::TransitionImageLayout(cmdBuf,
+					renderTarget.Image,
+					VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderTargetSubresRange);
+
+				
+				// Copy image from the framebuffers to cube face
+				{
+					VkImageCopy copyRegion = {};
+					copyRegion.srcSubresource = vki::ImageSubresourceLayers(VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1);
+					copyRegion.srcOffset = vki::Offset3D(0, 0, 0);
+					copyRegion.dstSubresource = vki::ImageSubresourceLayers(VK_IMAGE_ASPECT_COLOR_BIT, mip, face, 1);
+					copyRegion.dstOffset = vki::Offset3D(0, 0, 0);
+					copyRegion.extent = vki::Extent3D(u32(viewport.width), u32(viewport.height), 1);
+
+					vkCmdCopyImage(cmdBuf,
+						renderTarget.Image,
+						VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+						irrTex.Image(),
+						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						1,
+						&copyRegion);
+				}
+
+				
+				// Transform framebuffer color attachment back 
+				vkh::TransitionImageLayout(
+					cmdBuf,
+					renderTarget.Image,
+					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+					VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, renderTargetSubresRange);
+			}
+		}
+
+		vkh::TransitionImageLayout(
+			cmdBuf,
+			irrTex.Image(),
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			irrCubeSubresRange);
+
+		vkh::EndSingeTimeCommands(cmdBuf, transferPool, transferQueue, device);
 	}
 	
 #pragma endregion 

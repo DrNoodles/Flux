@@ -100,12 +100,12 @@ public:
 	}
 
 	// Getters
-	u32 Width() const { return _width; }
-	u32 Height() const { return _height; }
-	u32 MipLevels() const { return _mipLevels; }
-	const VkImage& Image() const { return _image; }
-	const VkDeviceMemory& Memory() const { return _memory; }
-	const VkDescriptorImageInfo& DescriptorImageInfo() const { return _descriptorImageInfo; }
+	inline u32 Width() const { return _width; }
+	inline u32 Height() const { return _height; }
+	inline u32 MipLevels() const { return _mipLevels; }
+	inline const VkImage& Image() const { return _image; }
+	inline const VkDeviceMemory& Memory() const { return _memory; }
+	inline const VkDescriptorImageInfo& DescriptorImageInfo() const { return _descriptorImageInfo; }
 	
 private:
 	VkDevice _device;

@@ -6,6 +6,10 @@ layout(binding = 0) uniform samplerCube uEnvironmentMap;
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 0) out vec4 outColor;
 
+//layout(std140, push_constant) uniform PushConsts {
+//	layout (offset = 64) float deltaPhi;
+//	layout (offset = 68) float deltaTheta;
+//} consts;
 
 // Computes the irradiance in a hemisphere about a view direction
 void main()
@@ -17,12 +21,15 @@ void main()
 	vec3 right = normalize(cross(up, normal));
 	up = normalize(cross(normal, right));
 
+
 	// Riemann sum adding radiance at fixed intervals on a hemisphere oriented about the normal.
-	float sampleDelta = 0.025;
+	float deltaPhi = 0.025;
+	float deltaTheta = 0.025;
 	float nrSamples = 0.0; 
-	for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+
+	for(float phi = 0.0; phi < 2.0 * PI; phi += deltaPhi)
 	{
-		for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+		for(float theta = 0.0; theta < 0.5 * PI; theta += deltaTheta)
 		{
 			// spherical to cartesian (in tangent space)
 			vec3 tangentSample = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));
