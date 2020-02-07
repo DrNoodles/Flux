@@ -13,13 +13,13 @@ struct UniversalUbo;
 struct RenderableCreateInfo;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct IblTextureResourceIds
-{
-	TextureResourceId EnvironmentCubemapId;
-	TextureResourceId IrradianceCubemapId;
-	TextureResourceId PrefilterCubemapId;
-	TextureResourceId BrdfLutId;
-};
+//struct IblTextureResourceIds
+//{
+//	TextureResourceId EnvironmentCubemapId;
+//	TextureResourceId IrradianceCubemapId;
+//	TextureResourceId PrefilterCubemapId;
+//	TextureResourceId BrdfLutId;
+//};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class IRendererDelegate
@@ -132,7 +132,7 @@ private:
 	// Resources
 	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
 	std::vector<VkDeviceMemory> _lightBuffersMemory{};
-	
+
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<Renderable>> _renderables{};
 	
@@ -178,6 +178,7 @@ private:
 		const TextureResource& roughnessMap,
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
+		const TextureResource& irradianceMap,
 		VkDevice device);
 
 	// The uniform and push values referenced by the shader that can be updated at draw time

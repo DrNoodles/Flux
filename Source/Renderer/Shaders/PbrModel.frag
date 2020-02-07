@@ -57,6 +57,14 @@ layout(std140, binding = 6) uniform LightUbo
 	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
 
+// IBL //
+//uniform mat3 cubemapRotation;
+const mat3 cubemapRotation = mat3(1);
+layout(binding = 7) uniform samplerCube IrradianceMap; // diffuse
+//uniform samplerCube prefilterMap; // spec
+//uniform sampler2D brdfLUT; // spec
+
+
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
 layout(location = 2) in vec2 fragTexCoord;
@@ -187,9 +195,46 @@ void main()
 	}
 
 
-	vec3 ambient = vec3(0.0);
+	vec3 iblAmbient = vec3(0);
 
-	vec3 color = ambient + Lo;
+	const bool useIbl = true;
+	if (useIbl)
+	{
+		float NdotV = max(dot(normal,V),0.0);
+
+		//// Compute ratio of diffuse/specular for IBL
+		vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+		vec3 kS = F;
+		vec3 kD = 1.0 - kS;
+		kD *= 1.0 - metalness;	
+
+
+		//// Compute diffuse IBL ////
+		vec3 irradiance = texture(IrradianceMap, cubemapRotation*normal).rgb;
+		vec3 diffuse    = irradiance * basecolor;
+
+
+//		//// Compute specular IBL ////
+//		// Sample the reflection color from the prefiltered map 
+//		vec3 R = reflect(-V, normal); // reflection vector
+//		const float MAX_REFLECTION_LOD = 4.0; // 5 mip levels when generating prefilter map
+//		vec3 prefilteredColor = textureLod(prefilterMap, cubemapRotation*R, roughness*MAX_REFLECTION_LOD).rgb;
+//
+//		// Sample BRDF LUT
+//		vec2 envBRDF = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+//
+//		// Final specular by combining prefilter color and BRDF LUT
+//		vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
+
+		vec3 specular = vec3(0);
+
+		// Compute ambient term
+		iblAmbient = (kD * diffuse + specular) * ao; 
+	}
+
+
+
+	vec3 color = iblAmbient + Lo;
 	
 	// Post-processing - TODO Move to post pass shader
 	color *= uExposureBias;	// Exposure

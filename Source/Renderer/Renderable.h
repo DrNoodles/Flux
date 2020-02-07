@@ -7,17 +7,27 @@
 // TODO Split Skybox into its own file
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct IblTextureResourceIds
+{
+	TextureResourceId EnvironmentCubemapId;
+	TextureResourceId IrradianceCubemapId;
+	TextureResourceId PrefilterCubemapId;
+	TextureResourceId BrdfLutId;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SkyboxCreateInfo
 {
 	//MeshResourceId MeshId;
-	TextureResourceId TextureId;
+	//TextureResourceId TextureId;
+	IblTextureResourceIds IblIds;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Skybox
 {
 	MeshResourceId MeshId;
-	TextureResourceId TextureId;
+	IblTextureResourceIds TextureId;
 
 	// Array containing one per frame in flight
 	std::vector<SkyboxResourceFrame> FrameResources{};

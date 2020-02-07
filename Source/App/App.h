@@ -397,7 +397,7 @@ private:
 			}, CubemapFormat::RGBA_U8);*/
 		
 		SkyboxCreateInfo createInfo = {};
-		createInfo.TextureId = ids.IrradianceCubemapId;
+		createInfo.IblIds = ids;// = ids.IrradianceCubemapId;
 		_renderer->CreateSkybox(createInfo);
 	}
 	
@@ -458,13 +458,14 @@ private:
 
 	void LoadAssets() 
 	{
-		//LoadStormtrooperHelmet();
+		LoadSkybox();
+		LoadStormtrooperHelmet();
 		LoadRailgun();
 
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;
 		
-		LoadLighting();
+		//LoadLighting();
 	}
 
 	void FrameAll()
