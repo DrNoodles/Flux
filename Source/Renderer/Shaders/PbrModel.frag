@@ -61,8 +61,8 @@ layout(std140, binding = 6) uniform LightUbo
 //uniform mat3 cubemapRotation;
 const mat3 cubemapRotation = mat3(1);
 layout(binding = 7) uniform samplerCube IrradianceMap; // diffuse
-layout(binding = 8) uniform samplerCube prefilterMap; // spec
-layout(binding = 9) uniform sampler2D brdfLUT; // spec
+layout(binding = 8) uniform samplerCube PrefilterMap; // spec
+layout(binding = 9) uniform sampler2D BrdfLUT; // spec
 
 
 layout(location = 0) in vec3 fragPos;
@@ -218,10 +218,10 @@ void main()
 		// Sample the reflection color from the prefiltered map 
 		vec3 R = reflect(-V, normal); // reflection vector
 		const float MAX_REFLECTION_LOD = 5.0; // 6 mip levels when generating prefilter map - must match external mip gen
-		vec3 prefilteredColor = textureLod(prefilterMap, cubemapRotation*R, roughness*MAX_REFLECTION_LOD).rgb;
+		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotation*R, roughness*MAX_REFLECTION_LOD).rgb;
 
 		// Sample BRDF LUT
-		vec2 envBRDF = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, roughness)).rg;
 
 		// Final specular by combining prefilter color and BRDF LUT
 		vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);

@@ -265,8 +265,8 @@ Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 	ids.PrefilterCubemapId = (u32)_textures.size();
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
 
-	ids.BrdfLutId = _placeholderTexture;//(u32)_textures.size(); TODO Use the real one
-	//_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
+	ids.BrdfLutId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
 
 	return ids;
 }
@@ -573,10 +573,13 @@ void Renderer::RecreateSwapchain()
 VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
 	const u32 maxPbrObjects = 1000; // Max scene objects! This is gross, but it'll do for now.
-	const auto numPbrUniformBuffers = 2;
-	const auto numPbrCombinedImageSamplers = 5;
-
 	const u32 maxSkyboxObjects = 1;
+
+	// Match these to CreatePbrDescriptorSetLayout
+	const auto numPbrUniformBuffers = 2;
+	const auto numPbrCombinedImageSamplers = 8;
+
+	// Match these to CreateSkyboxDescriptorSetLayout
 	const auto numSkyboxUniformBuffers = 1;
 	const auto numSkyboxCombinedImageSamplers = 1;
 	
@@ -991,8 +994,6 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 
 	return modelInfos;
 }
-
-
 
 VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 {

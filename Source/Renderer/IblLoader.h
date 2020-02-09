@@ -32,18 +32,18 @@ class IblLoader
 {
 public:
 	static IblTextureResources LoadIblFromCubemapPath(const std::array<std::string, 6>& paths, 
-		const MeshResource& skyboxMesh, const std::string& shaderDir, VkCommandPool commandPool, VkQueue graphicsQueue, 
+		const MeshResource& skyboxMesh, const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, 
 		VkPhysicalDevice physicalDevice, VkDevice device)
 	{
-		auto env = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, commandPool,
-			graphicsQueue, physicalDevice, device);
+		auto env = CubemapTextureLoader::LoadFromPath(paths, CubemapFormat::RGBA_F32, shaderDir, transferPool,
+			transferQueue, physicalDevice, device);
 
-		auto irradiance = CreateIrradianceFromEnvCubemap(env, skyboxMesh, shaderDir, commandPool, graphicsQueue, physicalDevice, device);
+		auto irradiance = CreateIrradianceFromEnvCubemap(env, skyboxMesh, shaderDir, transferPool, transferQueue, physicalDevice, device);
 
-		auto prefilter = CreatePrefilterFromEnvCubemap(env, skyboxMesh, shaderDir, commandPool, graphicsQueue, 
+		auto prefilter = CreatePrefilterFromEnvCubemap(env, skyboxMesh, shaderDir, transferPool, transferQueue, 
 			physicalDevice, device);
 
-		auto brdf = CreateBrdfLutFromEnvCubemap();
+		auto brdf = CreateBrdfLutFromEnvCubemap(env, shaderDir, transferPool, transferQueue, physicalDevice, device);
 
 		IblTextureResources iblRes
 		{
@@ -116,6 +116,10 @@ private:
 		f32 EnvMapResPerFace = 0;
 		f32 Roughness = 0;
 	};
+
+	/*struct BrdfPushConstants
+	{
+	};*/
 	
 #pragma region LoadCubemapFromEquirectangularPath
 
@@ -478,11 +482,12 @@ private:
 		const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
 		VkDevice device)
 	{
+		std::cout << "Generating irradianc cubemap\n";
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
-		const VkFormat irrFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const VkFormat irrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		const i32 irrDim = 64;
-		const u32 irrMips = (u32)(floor(log2(irrDim))) + 1;
+		const u32 irrMips = 1;
 
 
 		TextureResource irrCubemap = Shared_CreateCubeTextureResource(physicalDevice, device, irrFormat, irrDim, irrMips);
@@ -513,7 +518,15 @@ private:
 
 		const auto vertPath = shaderDir + "Cubemap.vert.spv";
 		const auto fragPath = shaderDir + "CubemapFromIrradianceConvolution.frag.spv";
-		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath);
+		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
+		{
+			// Pos
+			vertAttrDesc[0].binding = 0;
+			vertAttrDesc[0].location = 0;
+			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+		}
+		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath, vertAttrDesc);
 
 
 		// Allocate and Update Descriptor Sets
@@ -675,12 +688,15 @@ private:
 		const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
 		VkDevice device)
 	{
+		std::cout << "Generating prefilter convolution cubemap\n";
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
-		const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT; 
 		const u32 numMips = 6;
 		const i32 dim = 512; // Note: 512 and 6 mips results in a smallest mip of 16x16 per face
 
+
+		// TODO Sampler: GL_LINEAR_MIPMAP_LINEAR min filter!
 		TextureResource prefilterCubemap = Shared_CreateCubeTextureResource(physicalDevice, device, format, dim, numMips);
 
 
@@ -710,7 +726,15 @@ private:
 		// Create Pipeline
 		const auto vertPath = shaderDir + "Cubemap.vert.spv";
 		const auto fragPath = shaderDir + "CubemapFromPreFilterConvolution.frag.spv";
-		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath);
+		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
+		{
+			// Pos
+			vertAttrDesc[0].binding = 0;
+			vertAttrDesc[0].location = 0;
+			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+		}
+		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath, vertAttrDesc);
 
 
 		// Allocate and Update Descriptor Sets
@@ -736,7 +760,7 @@ private:
 		// Benchmark
 		const auto benchEnd = std::chrono::high_resolution_clock::now();
 		const auto benchDiff = std::chrono::duration<double, std::milli>(benchEnd - benchStart).count();
-		std::cout << "Generating prefilter convolution cube with " << numMips << " mip levels took " << benchDiff << " ms\n";
+		std::cout << "Generating prefilter convolution cubemap with " << numMips << " mip levels took " << benchDiff << " ms\n";
 
 		return prefilterCubemap;
 	}
@@ -869,17 +893,230 @@ private:
 
 #pragma endregion 
 
+	
+#pragma region CreateBdrfLutFromEnvCubemap
 
-	static TextureResource CreateBrdfLutFromEnvCubemap()
+	static TextureResource CreateBrdfLutFromEnvCubemap(const TextureResource & envMap, const std::string & shaderDir,
+		VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice, VkDevice device)
 	{
-		TextureResource tr{ nullptr, 1,1,1,1,nullptr,nullptr,nullptr,nullptr,VkFormat{} };
-		return tr;
+		std::cout << "Generating brdf\n";
+		const auto benchStart = std::chrono::high_resolution_clock::now();
+
+		const VkFormat format = VK_FORMAT_R16G16_SFLOAT;
+		const i32 dim = 512;
+		const u32 numMips = 1;
+		const u32 arrayLayers = 1;
+
+
+		VkImage image;
+		VkDeviceMemory memory;
+		VkImageView view;
+		VkSampler sampler;
+
+		// Create Image & Memory
+		std::tie(image, memory) = vkh::CreateImage2D(
+			dim, dim,
+			numMips,
+			VK_SAMPLE_COUNT_1_BIT,
+			format,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			physicalDevice, device, arrayLayers);
+
+
+		// Create View
+		view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
+
+
+		// Create Sampler
+		{
+			VkSamplerCreateInfo samplerCI = {};
+			samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCI.magFilter = VK_FILTER_LINEAR;
+			samplerCI.minFilter = VK_FILTER_LINEAR;
+			samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCI.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // applied with addressMode is clamp
+			samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerCI.mipLodBias = 0;
+			samplerCI.minLod = 0;
+			samplerCI.maxLod = (float)numMips;
+			samplerCI.anisotropyEnable = VK_FALSE;
+			samplerCI.maxAnisotropy = 1;
+
+			if (VK_SUCCESS != vkCreateSampler(device, &samplerCI, nullptr, &sampler))
+			{
+				throw std::runtime_error("Failed to create cubemap sampler");
+			}
+		}
+
+		
+		
+		auto renderPass = Shared_CreateRenderPass(device, format);
+
+		
+		// Create Render Target
+		RenderTarget renderTarget = {};
+		{
+			renderTarget.Image = image;
+			renderTarget.Memory = memory;
+			renderTarget.View = view;
+			renderTarget.Framebuffer = vkh::CreateFramebuffer(device, dim, dim, { view }, renderPass);
+		}
+
+
+		auto descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
+
+
+		auto descSetLayout = vkh::CreateDescriptorSetLayout(device, {
+			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			});
+
+
+		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
+
+
+		// Create Pipeline
+		const auto vertPath = shaderDir + "BrdfIntegration.vert.spv";
+		const auto fragPath = shaderDir + "BrdfIntegration.frag.spv";
+		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(2);
+		{
+			// Pos
+			vertAttrDesc[0].binding = 0;
+			vertAttrDesc[0].location = 0;
+			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+			// UVW
+			vertAttrDesc[1].binding = 0;
+			vertAttrDesc[1].location = 1;
+			vertAttrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
+			vertAttrDesc[1].offset = offsetof(Vertex, TexCoord);
+		}
+		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath, vertAttrDesc);
+
+
+		// Allocate and Update Descriptor Sets
+		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		vkh::UpdateDescriptorSets(device, {
+			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo())
+			});
+
+
+		RenderBrdLut(device, physicalDevice, transferPool, transferQueue, renderPass, pipeline, pipelineLayout, descSet,
+			renderTarget, dim);
+
+
+		// Cleanup
+		vkDestroyRenderPass(device, renderPass, nullptr);
+		vkDestroyFramebuffer(device, renderTarget.Framebuffer, nullptr);
+		//renderTarget.Destroy(device);
+		vkDestroyDescriptorPool(device, descPool, nullptr);
+		vkDestroyDescriptorSetLayout(device, descSetLayout, nullptr);
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+
+
+		// Benchmark
+		const auto benchEnd = std::chrono::high_resolution_clock::now();
+		const auto benchDiff = std::chrono::duration<double, std::milli>(benchEnd - benchStart).count();
+		std::cout << "Generating brdf lut took " << benchDiff << " ms\n";
+
+
+		return TextureResource(device, dim, dim, numMips, arrayLayers, image, memory, view, sampler, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
+	static void RenderBrdLut(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool, VkQueue transferQueue,
+		VkRenderPass renderPass, VkPipeline pipeline, VkPipelineLayout pipelineLayout, VkDescriptorSet descSet,
+		RenderTarget & renderTarget, u32 dim)
+	{
+		std::vector<VkClearValue> clearValues(1);
+		clearValues[0].color = { 0.2f, 0.0f, 0.0f, 0.0f };
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+			renderPass, 
+			renderTarget.Framebuffer, 
+			vki::Rect2D(0, 0, dim, dim), 
+			clearValues);
+
+
+		// Create a temporary quad to render to
+		MeshDefinition meshDefinition = {};
+		{
+			Vertex v0 = {};
+			Vertex v1 = {};
+			Vertex v2 = {};
+			Vertex v3 = {};
+			v0.Pos = { -1,-1, 0 };
+			v1.Pos = { -1, 1, 0 };
+			v2.Pos = {  1,-1, 0 };
+			v3.Pos = {  1, 1, 0 };
+			v0.TexCoord = { 0,1 };
+			v1.TexCoord = { 0,0 };
+			v2.TexCoord = { 1,1 };
+			v3.TexCoord = { 1,0 };
+			meshDefinition.Vertices.push_back(v0);
+			meshDefinition.Vertices.push_back(v1);
+			meshDefinition.Vertices.push_back(v2);
+			meshDefinition.Vertices.push_back(v3);
+
+			meshDefinition.Indices.push_back(0);
+			meshDefinition.Indices.push_back(1);
+			meshDefinition.Indices.push_back(2);
+			meshDefinition.Indices.push_back(2);
+			meshDefinition.Indices.push_back(1);
+			meshDefinition.Indices.push_back(3);
+		}
+		
+		MeshResource mesh{};
+		std::tie(mesh.VertexBuffer, mesh.VertexBufferMemory)
+			= vkh::CreateVertexBuffer(meshDefinition.Vertices, transferQueue, transferPool, physicalDevice, device);
+		std::tie(mesh.IndexBuffer, mesh.IndexBufferMemory)
+			= vkh::CreateIndexBuffer(meshDefinition.Indices, transferQueue, transferPool, physicalDevice, device);
+		mesh.IndexCount = 6;
+		mesh.VertexCount = 4;
+		
+		auto cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
+
+		VkViewport viewport = vki::Viewport(0, 0, (f32)dim, (f32)dim, 0.0f, 1.0f);
+		VkRect2D scissor = vki::Rect2D(0, 0, dim, dim);
+
+		
+		// Render scene from cube face's point of view
+		vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+			vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
+			
+			vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSet, 0, nullptr);
+			VkDeviceSize offsets[1] = { 0 };
+			vkCmdBindVertexBuffers(cmdBuf, 0, 1, &mesh.VertexBuffer, offsets);
+			vkCmdBindIndexBuffer(cmdBuf, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(cmdBuf, (u32)mesh.IndexCount, 1, 0, 0, 0);
+		}
+		vkCmdEndRenderPass(cmdBuf);
+
+		vkh::TransitionImageLayout(cmdBuf,
+			renderTarget.Image,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+			vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1));
+		
+		vkh::EndSingeTimeCommands(cmdBuf, transferPool, transferQueue, device);
+
+		// Cleanup
+		vkDestroyBuffer(device, mesh.VertexBuffer, nullptr);
+		vkDestroyBuffer(device, mesh.IndexBuffer, nullptr);
+		vkFreeMemory(device, mesh.VertexBufferMemory, nullptr);
+		vkFreeMemory(device, mesh.IndexBufferMemory, nullptr);
+	}
+
+#pragma endregion 
 
 
 #pragma region Shared
-
 
 	static TextureResource Shared_CreateCubeTextureResource(VkPhysicalDevice physicalDevice, VkDevice device,
 		const VkFormat format, const i32 dim, const u32 numMips)
@@ -930,7 +1167,7 @@ private:
 			}
 		}
 
-		return TextureResource(device, dim, dim, numMips, 6, image, memory, view, sampler, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		return TextureResource(device, dim, dim, numMips, arrayLayers, image, memory, view, sampler, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
 	static VkRenderPass Shared_CreateRenderPass(VkDevice device, VkFormat format)
@@ -994,8 +1231,8 @@ private:
 		return renderPass;
 	}
 
-	static RenderTarget Shared_CreateRenderTarget(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool transferPool,
-		VkQueue transferQueue, VkRenderPass renderPass, VkFormat format, i32 dim)
+	static RenderTarget Shared_CreateRenderTarget(VkDevice device, VkPhysicalDevice physicalDevice, 
+		VkCommandPool transferPool, VkQueue transferQueue, VkRenderPass renderPass, VkFormat format, i32 dim)
 	{
 		RenderTarget rt{};
 
@@ -1033,7 +1270,8 @@ private:
 		return rt;
 	}
 
-	static VkPipeline Shared_CreatePipeline(VkDevice device, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& vertPath, const std::string& fragPath)
+	static VkPipeline Shared_CreatePipeline(VkDevice device, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, const std::string& vertPath, const std::string& fragPath, 
+		const std::vector<VkVertexInputAttributeDescription>& vertAttrDesc)
 	{
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
 		inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1087,16 +1325,7 @@ private:
 
 
 		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-		auto vertBindingDesc = Vertex::BindingDescription();
-		std::array<VkVertexInputAttributeDescription, 1> vertAttrDesc = {};
-		{
-			// Pos
-			vertAttrDesc[0].binding = 0;
-			vertAttrDesc[0].location = 0;
-			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
-		}
-		//auto vertAttrDesc = Vertex::AttributeDescriptions();
+		VkVertexInputBindingDescription vertBindingDesc = Vertex::BindingDescription();
 
 		VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 		vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1150,7 +1379,6 @@ private:
 
 		return pipeline;
 	}
-
 	
 #pragma endregion 
 };

@@ -1175,20 +1175,20 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 	}
 	
 	// Create fence to ensure that the command buffer has finished executing
-	VkFenceCreateInfo fenceInfo = {};
+	/*VkFenceCreateInfo fenceInfo = {};
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = 0;
 	VkFence fence;
 	if (VK_SUCCESS != vkCreateFence(device, &fenceInfo, nullptr, &fence))
 	{
 		throw std::runtime_error("Failed to create fence");
-	}
+	}*/
 	
-	vkQueueSubmit(transferQueue, 1, &submitInfo, fence);
+	vkQueueSubmit(transferQueue, 1, &submitInfo, nullptr);
 
-	vkWaitForFences(device, 1, &fence, true, u64_max);
-	vkDestroyFence(device, fence, nullptr);
-	//vkQueueWaitIdle(transferQueue);
+	//vkWaitForFences(device, 1, &fence, true, u64_max);
+	//vkDestroyFence(device, fence, nullptr);
+	vkQueueWaitIdle(transferQueue);
 
 
 	// Cleanup
