@@ -4,16 +4,17 @@
 const float PI = 3.14159265359;
 const uint SAMPLE_COUNT = 4096u;
 
-layout(std140, binding = 0) uniform PreFilterUbo
+
+layout(push_constant) uniform PushConsts
 {
-	float envMapResPerFace;
-	float roughness;
+	//layout (offset = 0) mat4 mvp; // not used in frag
+	layout (offset = 64) float envMapResPerFace;
+	layout (offset = 68) float roughness;
 } u;
-layout(binding = 1) uniform samplerCube uEnvironmentMap;
-
+layout(binding = 0) uniform samplerCube uEnvironmentMap;
 layout(location = 0) in vec3 fragWorldPos;
-
 layout(location = 0) out vec4 outColor;
+
 
 float RadicalInverse_VdC(uint bits);
 vec2 Hammersley(uint i, uint N);

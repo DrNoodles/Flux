@@ -1,12 +1,5 @@
 #version 450 core 
 
-//layout(std140, binding = 0) uniform CubemapVertUbo
-//{
-//	mat4 projection;
-//	mat4 view;
-//} u;
-
-
 layout(push_constant) uniform PushConsts 
 {
 	layout (offset = 0) mat4 mvp;

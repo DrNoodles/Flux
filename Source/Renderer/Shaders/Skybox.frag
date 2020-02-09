@@ -12,9 +12,8 @@ vec3 ACESFitted(vec3 color);
 
 void main()
 {
-	//outColor = vec4(0,1,0,1);
-	//return;
 	vec3 color = texture(uCubemap, fragWorldPos).rgb;
+
 	// TODO Support blurring 
 
 	float exposureBias = 1;

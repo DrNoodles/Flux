@@ -179,19 +179,45 @@ private:
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
 		const TextureResource& irradianceMap,
+		const TextureResource& prefilterMap,
+		const TextureResource& brdfMap,
 		VkDevice device);
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
 			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
 			const VkExtent2D& swapchainExtent);
-	
+
+	const TextureResource& GetIrradianceTextureResource() const
+	{
+		const auto* skybox = GetSkyboxOrNull();
+		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
+	}
+
+	const TextureResource& GetPrefilterTextureResource() const
+	{
+		const auto* skybox = GetSkyboxOrNull();
+		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Id : _placeholderTexture.Id];
+	}
+
+	const TextureResource& GetBrdfTextureResource() const
+	{
+		const auto* skybox = GetSkyboxOrNull();
+		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
+	}
+
 	#pragma endregion Pbr
 
 
 	#pragma region Skybox // Everything cubemap: resources, pipelines, etc and rendering
 
 	const Skybox* GetSkyboxOrNull() const { return _skyboxes.empty() ? nullptr : _skyboxes[0].get(); }
+
+	const TextureResource& GetSkyboxTextureResource() const
+	{
+		const auto* skybox = GetSkyboxOrNull();
+		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
+	}
 
 	std::vector<SkyboxResourceFrame>
 	CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;

@@ -6,11 +6,6 @@ layout(binding = 0) uniform samplerCube uEnvironmentMap;
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 0) out vec4 outColor;
 
-//layout(std140, push_constant) uniform PushConsts {
-//	layout (offset = 64) float deltaPhi;
-//	layout (offset = 68) float deltaTheta;
-//} consts;
-
 // Computes the irradiance in a hemisphere about a view direction
 void main()
 {

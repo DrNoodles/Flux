@@ -385,20 +385,10 @@ private:
 				_options.AssetsDir + "Skybox/HDR/bottom.hdr",
 				_options.AssetsDir + "Skybox/HDR/front.hdr",
 				_options.AssetsDir + "Skybox/HDR/back.hdr"});
-
-		// SDR
-		/*const auto id = _renderer->CreateCubemapTextureResource({
-				_options.AssetsDir + "Skybox/SDR/right.jpg",
-				_options.AssetsDir + "Skybox/SDR/left.jpg",
-				_options.AssetsDir + "Skybox/SDR/top.jpg",
-				_options.AssetsDir + "Skybox/SDR/bottom.jpg",
-				_options.AssetsDir + "Skybox/SDR/front.jpg",
-				_options.AssetsDir + "Skybox/SDR/back.jpg"
-			}, CubemapFormat::RGBA_U8);*/
 		
 		SkyboxCreateInfo createInfo = {};
-		createInfo.IblIds = ids;// = ids.IrradianceCubemapId;
-		_renderer->CreateSkybox(createInfo);
+		createInfo.IblTextureIds = ids;
+		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
 	}
 	
 	// TODO Move to utils class

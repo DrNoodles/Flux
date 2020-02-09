@@ -265,8 +265,8 @@ Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 	ids.PrefilterCubemapId = (u32)_textures.size();
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
 
-	ids.BrdfLutId = (u32)_textures.size();
-	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
+	ids.BrdfLutId = _placeholderTexture;//(u32)_textures.size(); TODO Use the real one
+	//_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
 
 	return ids;
 }
@@ -326,7 +326,7 @@ SkyboxResourceId Renderer::CreateSkybox(const SkyboxCreateInfo& createInfo)
 {
 	auto skybox = std::make_unique<Skybox>();
 	skybox->MeshId = _skyboxMesh;
-	skybox->TextureId = createInfo.IblIds;
+	skybox->IblTextureIds = createInfo.IblTextureIds;
 	skybox->FrameResources = CreateSkyboxModelFrameResources((u32)_swapchainImages.size(), *skybox);
 
 	const SkyboxResourceId id = (u32)_skyboxes.size();
@@ -398,9 +398,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 	}
 
-	const auto skybox = GetSkyboxOrNull();
-	
-	
+
 	// Write updated descriptor sets
 	WritePbrDescriptorSets((u32)count, descriptorSets, 
 		modelBuffers,
@@ -410,7 +408,9 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		*_textures[roughnessMapId],
 		*_textures[metalnessMapId],
 		*_textures[aoMapId],
-		*_textures[skybox ? skybox->TextureId.IrradianceCubemapId.Id : _placeholderTexture.Id],
+		GetIrradianceTextureResource(),
+		GetPrefilterTextureResource(),
+		GetBrdfTextureResource(),
 		_device);
 }
 
@@ -622,8 +622,6 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
 
-	const auto skybox = GetSkyboxOrNull();
-
 	WritePbrDescriptorSets(
 		numImagesInFlight,
 		descriptorSets,
@@ -634,7 +632,9 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		*_textures[roughnessMapId],
 		*_textures[metalnessMapId],
 		*_textures[aoMapId],
-		*_textures[skybox ? skybox->TextureId.IrradianceCubemapId.Id : _placeholderTexture.Id],
+		GetIrradianceTextureResource(),
+		GetPrefilterTextureResource(),
+		GetBrdfTextureResource(),
 		_device
 	);
 
@@ -672,6 +672,10 @@ VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT),
 		// irradiance map
 		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// prefilter map
+		vki::DescriptorSetLayoutBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// brdf map
+		vki::DescriptorSetLayoutBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
 }
 
@@ -686,6 +690,8 @@ void Renderer::WritePbrDescriptorSets(
 	const TextureResource& metalnessMap,
 	const TextureResource& aoMap,
 	const TextureResource& irradianceMap,
+	const TextureResource& prefilterMap,
+	const TextureResource& brdfMap,
 	VkDevice device)
 {
 	assert(count == modelUbos.size());// 1 per image in swapchain
@@ -720,6 +726,8 @@ void Renderer::WritePbrDescriptorSets(
 			vki::WriteDescriptorSet(set, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
 			vki::WriteDescriptorSet(set, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.DescriptorImageInfo()),
 		};
 
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
@@ -967,7 +975,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
 
 	WriteSkyboxDescriptorSets(
-		numImagesInFlight, descriptorSets, skyboxVertBuffers, *_textures[skybox.TextureId.IrradianceCubemapId.Id], _device);
+		numImagesInFlight, descriptorSets, skyboxVertBuffers, *_textures[skybox.IblTextureIds.EnvironmentCubemapId.Id], _device);
 
 
 	// Group data for return

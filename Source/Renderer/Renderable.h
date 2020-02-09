@@ -18,16 +18,14 @@ struct IblTextureResourceIds
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SkyboxCreateInfo
 {
-	//MeshResourceId MeshId;
-	//TextureResourceId TextureId;
-	IblTextureResourceIds IblIds;
+	IblTextureResourceIds IblTextureIds;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Skybox
 {
 	MeshResourceId MeshId;
-	IblTextureResourceIds TextureId;
+	IblTextureResourceIds IblTextureIds;
 
 	// Array containing one per frame in flight
 	std::vector<SkyboxResourceFrame> FrameResources{};
