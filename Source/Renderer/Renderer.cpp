@@ -271,14 +271,42 @@ Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 	return ids;
 }
 
+IblTextureResourceIds
+Renderer::CreateIblTextureResources(const std::string& path)
+{
+	IblTextureResources iblRes = IblLoader::LoadIblFromEquirectangularPath(path, *_meshes[_skyboxMesh.Id], _shaderDir,
+		_commandPool, _graphicsQueue, _physicalDevice, _device);
+
+	IblTextureResourceIds ids = {};
+
+	ids.EnvironmentCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.EnvironmentCubemap)));
+
+	ids.IrradianceCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.IrradianceCubemap)));
+
+	ids.PrefilterCubemapId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
+
+	ids.BrdfLutId = (u32)_textures.size();
+	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
+
+	return ids;
+}
+
+
+
+
+
+
 TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, 
 	CubemapFormat format)
 {
 	const TextureResourceId id = (u32)_textures.size();
 
 	_textures.emplace_back(std::make_unique<TextureResource>(
-		CubemapTextureLoader::LoadFromPath(
-			sidePaths, format, _shaderDir, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+		CubemapTextureLoader::LoadFromFacePaths(
+			sidePaths, format, _commandPool, _graphicsQueue, _physicalDevice, _device)));
 	
 	return id;
 }
@@ -510,7 +538,7 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
 		                            _physicalDevice);
 
-	_renderPass = vkh::CreateRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
+	_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
 	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
 		_swapchainExtent);

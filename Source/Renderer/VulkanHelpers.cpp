@@ -509,7 +509,8 @@ VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const V
 	return e;
 }
 
-VkRenderPass VulkanHelpers::CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
+// TODO Move to Renderer - it isn't a helper.
+VkRenderPass VulkanHelpers::CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
 	VkDevice device, VkPhysicalDevice physicalDevice)
 {
 	// Color attachment
@@ -916,8 +917,18 @@ void VulkanHelpers::CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer srcBuf
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // assuming pixels are already in optimal layout
 		1, &region);
 }
-void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldImageLayout,
-	VkImageLayout newImageLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcStageMask,
+
+void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
+	VkImageLayout newLayout, VkImageAspectFlagBits aspect, u32 baseMipLevel, u32 levelCount, u32 baseArrayLayer, 
+	u32 layerCount, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
+{
+	TransitionImageLayout(cmdBuffer, image, oldLayout, newLayout,
+		vki::ImageSubresourceRange(aspect, baseMipLevel, levelCount, baseArrayLayer, layerCount), 
+		srcStageMask, dstStageMask);
+}
+
+void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
+	VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, VkPipelineStageFlags srcStageMask,
 	VkPipelineStageFlags dstStageMask)
 {
 	// Method modified from https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanTools.h
@@ -927,15 +938,15 @@ void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage ima
 	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	imageMemoryBarrier.oldLayout = oldImageLayout;
-	imageMemoryBarrier.newLayout = newImageLayout;
+	imageMemoryBarrier.oldLayout = oldLayout;
+	imageMemoryBarrier.newLayout = newLayout;
 	imageMemoryBarrier.image = image;
 	imageMemoryBarrier.subresourceRange = subresourceRange;
 
 	// Source layouts (old)
 	// Source access mask controls actions that have to be finished on the old layout
 	// before it will be transitioned to the new layout
-	switch (oldImageLayout)
+	switch (oldLayout)
 	{
 	case VK_IMAGE_LAYOUT_UNDEFINED:
 		// Image layout is undefined (or does not matter)
@@ -987,7 +998,7 @@ void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage ima
 
 	// Target layouts (new)
 	// Destination access mask controls the dependency for the new image layout
-	switch (newImageLayout)
+	switch (newLayout)
 	{
 	case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 		// Image will be used as a transfer destination
@@ -1467,7 +1478,7 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 }
 
 
-std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(uint32_t width, uint32_t height, uint32_t mipLevels,
+std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(u32 width, u32 height, u32 mipLevels,
 	VkSampleCountFlagBits numSamples, VkFormat format,
 	VkImageTiling tiling, VkImageUsageFlags usageFlags,
 	VkMemoryPropertyFlags propertyFlags,

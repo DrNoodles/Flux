@@ -71,7 +71,7 @@ public:
 
 	// The attachments referenced by the pipeline stages and their usage
 	[[nodiscard]] static VkRenderPass
-		CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device,
+		CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device,
 			VkPhysicalDevice physicalDevice);
 
 	
@@ -144,6 +144,12 @@ public:
 	static void CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkImage dstImage, 
 		u32 width, u32 height);
 
+	static void TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
+		VkImageLayout newLayout, VkImageAspectFlagBits aspect, 
+		u32 baseMipLevel = 0, u32 levelCount = 1, u32 baseArrayLayer = 0, u32 layerCount = 1,
+		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	
 	static void TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageLayout oldLayout,
 		VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, 
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -220,7 +226,7 @@ public:
 #pragma region Image, ImageView, ImageMemory, MipLevels, DepthImage, TextureImage, etc
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
-		CreateImage2D(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples,
+		CreateImage2D(u32 width, u32 height, u32 mipLevels, VkSampleCountFlagBits numSamples,
 			VkFormat format,
 			VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers = 1, VkImageCreateFlags flags = 0);
@@ -234,6 +240,92 @@ public:
 		VkFormat format, VkImageViewType viewType, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
 
 
+	/**
+	Creates a configured VkSampler
+	@param device vulkan device
+	@param minFilter is a VkFilter value specifying the minification filter to apply to lookups.
+	@param magFilter is a VkFilter value specifying the magnification filter to apply to lookups.
+	@param addressModeU is a VkSamplerAddressMode value specifying the addressing mode for outside [0..1] range for U coordinate.
+	@param addressModeV is a VkSamplerAddressMode value specifying the addressing mode for outside [0..1] range for V coordinate.
+	@param addressModeW is a VkSamplerAddressMode value specifying the addressing mode for outside [0..1] range for W coordinate.
+	@param anisotropyEnable is VK_TRUE to enable anisotropic filtering, as described in the Texel Anisotropic Filtering section, or VK_FALSE otherwise.
+	@param maxAnisotropy is the anisotropy value clamp used by the sampler when anisotropyEnable is VK_TRUE. If anisotropyEnable is VK_FALSE, maxAnisotropy is ignored.
+	@param minLod and maxLod are the values used to clamp the computed LOD value, as described in the Level-of-Detail Operation section.
+	@param maxLod and minLod are the values used to clamp the computed LOD value, as described in the Level-of-Detail Operation section.
+	@param mipmapMode is a VkSamplerMipmapMode value specifying the mipmap filter to apply to lookups.
+	@param mipLodBias is the bias to be added to mipmap LOD (level-of-detail) calculation and bias provided by image sampling functions in SPIR-V, as described in the Level-of-Detail Operation section.
+	@param borderColor is a VkBorderColor value specifying the predefined border color to use.
+	@param unnormalizedCoordinates controls whether to use unnormalized or normalized texel coordinates to address texels of the image. When set to VK_TRUE, the range of the image coordinates used to lookup the texel is in the range of zero to the image dimensions for x, y and z. When set to VK_FALSE the range of image coordinates is zero to one.
+	 When unnormalizedCoordinates is VK_TRUE, images the sampler is used with in the shader have the following requirements:
+	     The viewType must be either VK_IMAGE_VIEW_TYPE_1D or VK_IMAGE_VIEW_TYPE_2D.
+	     The image view must have a single layer and a single mip level.
+	 When unnormalizedCoordinates is VK_TRUE, image built-in functions in the shader that use the sampler have the following requirements:
+	     The functions must not use projection.
+	     The functions must not use offsets.
+	@param compareEnable is VK_TRUE to enable comparison against a reference value during lookups, or VK_FALSE otherwise.
+	     Note: Some implementations will default to shader state if this member does not match.
+	@param compareOp is a VkCompareOp value specifying the comparison function to apply to fetched data before filtering as described in the Depth Compare Operation section.
+	@param flags is a bitmask of VkSamplerCreateFlagBits describing additional parameters of the sampler.
+	 */
+	
+	[[nodiscard]] inline static VkSampler CreateSampler(VkDevice device,
+		VkFilter minFilter = VK_FILTER_LINEAR,
+		VkFilter magFilter = VK_FILTER_LINEAR,
+		VkSamplerAddressMode addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VkSamplerAddressMode addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VkSamplerAddressMode addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		bool anisotropyEnable = false,
+		f32 maxAnisotropy = 0,
+		f32 minLod = 0.f,
+		f32 maxLod = 1.f,
+		VkSamplerMipmapMode mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		f32 mipLodBias = 0.f,
+		VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+		bool unnormalizedCoordinates = false,
+		bool compareEnable = false,
+		VkCompareOp compareOp = VK_COMPARE_OP_NEVER,
+		VkSamplerCreateFlags flags = 0
+	)
+	{
+		// TODO Query device to find max if anisotrophy is supported
+		/*if (device.features.samplerAnisotropy)
+		{
+		  sampler.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+		  sampler.anisotropyEnable = VK_TRUE;
+		}*/
+
+
+		VkSamplerCreateInfo s = {};
+		s.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		s.pNext = nullptr;
+
+		s.minFilter = minFilter;
+		s.magFilter = magFilter;
+		s.addressModeU = addressModeU;
+		s.addressModeV = addressModeV;
+		s.addressModeW = addressModeW;
+		s.anisotropyEnable = anisotropyEnable;
+		s.maxAnisotropy = maxAnisotropy;
+		s.minLod = minLod;
+		s.maxLod = maxLod;
+		s.mipmapMode = mipmapMode;
+		s.mipLodBias = mipLodBias;
+		s.borderColor = borderColor; // applied with addressMode is clamp
+		s.unnormalizedCoordinates = unnormalizedCoordinates; // false addresses tex coord via [0,1), true = [0,dimensionSize]
+		s.compareEnable = compareEnable;
+		s.compareOp = compareOp;
+		s.flags = flags;
+
+		VkSampler sampler;
+		if (VK_SUCCESS != vkCreateSampler(device, &s, nullptr, &sampler))
+		{
+			throw std::runtime_error("Failed to create cubemap sampler");
+		}
+
+		return sampler;
+	}
+
+	
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>
 		CreateColorResources(VkFormat format, VkExtent2D extent, VkSampleCountFlagBits msaaSamples,
 			VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device,
@@ -255,14 +347,9 @@ public:
 		VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice);
 
 
-	// TODO Move this to VulkanHelpers and add support for n layers, and pass in a command buffer for external management
 	// Preconditions: srcImage/dstImage layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL/DST_OPTIMAL, respectively.
-	static void ChangeFormat(VkCommandBuffer commandBuffer, VkImage srcImage, VkImage dstImage, u32 width, u32 height, 
-		VkImageSubresourceRange subresourceRange)
+	static void BlitSrcToDstImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImage dstImage, u32 width, u32 height, VkImageSubresourceRange subresourceRange)
 	{
-		auto mipWidth = (i32)width;
-		auto mipHeight = (i32)height;
-
 		VkImageBlit blit = {};
 		blit.srcOffsets[0] = { 0, 0, 0 };
 		blit.srcSubresource.aspectMask = subresourceRange.aspectMask;
@@ -273,7 +360,9 @@ public:
 		blit.dstSubresource.aspectMask = subresourceRange.aspectMask;
 		blit.dstSubresource.baseArrayLayer = 0;
 		blit.dstSubresource.layerCount = subresourceRange.layerCount;
-		
+
+		auto mipWidth = (i32)width;
+		auto mipHeight = (i32)height;
 		for (u32 mip = 0; mip < subresourceRange.levelCount; mip++)
 		{
 			// Blit the smaller image to the dst 
@@ -418,6 +507,31 @@ public:
 	
 #pragma endregion
 
+	static inline VkRenderPass CreateRenderPass(VkDevice device, 
+		const std::vector<VkAttachmentDescription>& attachments,
+		const std::vector<VkSubpassDescription>& subpasses,
+		const std::vector<VkSubpassDependency>& dependencies)
+	{
+		// Renderpass
+		VkRenderPassCreateInfo renderPassCI = {};
+		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCI.pNext = nullptr;
+		renderPassCI.attachmentCount = (u32)attachments.size();
+		renderPassCI.pAttachments = attachments.data();
+		renderPassCI.subpassCount = (u32)subpasses.size();
+		renderPassCI.pSubpasses = subpasses.data();
+		renderPassCI.dependencyCount = (u32)dependencies.size();
+		renderPassCI.pDependencies = dependencies.data();
+		renderPassCI.flags = 0;
+
+		VkRenderPass renderPass;
+		if (VK_SUCCESS != vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass))
+		{
+			throw std::runtime_error("Failed to create RenderPass");
+		}
+
+		return renderPass;
+	}
 
 	static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 

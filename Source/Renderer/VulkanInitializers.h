@@ -140,6 +140,7 @@ namespace vki
     @param aspectMask is a combination of VkImageAspectFlagBits, selecting the color, depth and/or stencil aspects to be copied.
     @param mipLevel is the mipmap level to copy from.
     @param baseArrayLayer and layerCount are the starting layer and number of layers to copy.
+	 @param layerCount is the number of array layers (starting from baseArrayLayer) accessible to the view.
 	**/
 	inline VkImageSubresourceLayers ImageSubresourceLayers(VkImageAspectFlagBits aspectMask, u32 mipLevel, u32 baseArrayLayer, u32 layerCount)
 	{

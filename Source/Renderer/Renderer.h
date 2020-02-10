@@ -56,8 +56,16 @@ public:
 
 
 
-	
+	/**
+	 * Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel.
+	 * Ordered +X -X +Y -Y +Z -Z
+	 */
 	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
+
+	/**
+	 * Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
+	 */
+	IblTextureResourceIds CreateIblTextureResources(const std::string& path);
 	
 	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
 
