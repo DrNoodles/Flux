@@ -85,7 +85,7 @@ public:
 				VK_FILTER_LINEAR, VK_FILTER_LINEAR,
 				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 			
-			return TextureResource(in.Device, texels.Width(), texels.Height(), mipLevels, layerCount,
+			return TextureResource(in.Device, cubemapRes, cubemapRes, mipLevels, layerCount,
 				image, memory, view, sampler, targetFormat, finalLayout);
 		}();
 		
@@ -197,7 +197,6 @@ private:
 		VkDevice Device{};
 		MeshResource SkyboxMesh{};
 	};
-
 	struct RenderTarget
 	{
 		VkImage Image;

@@ -375,9 +375,9 @@ private:
 
 	void LoadSkybox()
 	{
-		const auto ids = _renderer->CreateIblTextureResources(_options.IblDir + "ChiricahuaPath.hdr");
+		//const auto ids = _renderer->CreateIblTextureResources(_options.IblDir + "ChiricahuaPath.hdr");
 
-		const auto ids2 = _renderer->CreateIblTextureResources({
+		const auto ids = _renderer->CreateIblTextureResources({
 				_options.AssetsDir + "Skybox/HDR/right.hdr",
 				_options.AssetsDir + "Skybox/HDR/left.hdr",
 				_options.AssetsDir + "Skybox/HDR/top.hdr",
@@ -386,8 +386,8 @@ private:
 				_options.AssetsDir + "Skybox/HDR/back.hdr"});
 		
 		SkyboxCreateInfo createInfo = {};
-		createInfo.IblTextureIds = ids2;
-		//auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
+		createInfo.IblTextureIds = ids;
+		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
 	}
 	
 	// TODO Move to utils class
