@@ -45,7 +45,7 @@ public:
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
 		const std::vector<Light>& lights,
-		const glm::mat4& view, const glm::vec3& camPos);
+		glm::mat4 view, glm::vec3 camPos);
 	void CleanUp(); // TODO convert to RAII?
 
 	TextureResourceId CreateTextureResource(const std::string& path);
@@ -60,6 +60,7 @@ public:
 	 * Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel.
 	 * Ordered +X -X +Y -Y +Z -Z
 	 */
+	[[deprecated]] // the cubemaps will appear mirrored (text is backwards)
 	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
 
 	/**

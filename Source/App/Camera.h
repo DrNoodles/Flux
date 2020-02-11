@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include <iostream>
 
 // Defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
 enum class Speed {
@@ -46,6 +47,12 @@ public:
 	// Returns the view matrix calculated using Euler Angles and the LookAt Matrix
 	glm::mat4 GetViewMatrix() const
 	{
+		/*std::cout
+			<< "Pos(" << Position.x << Position.y << Position.z << ")"
+			<< "Target(" << Target.x << Target.y << Target.z << ")"
+			<< "_worldUp(" << _worldUp.x << _worldUp.y << _worldUp.z << ")"
+			<< std::endl;*/
+		
 		return glm::lookAt(Position, Target, _worldUp);
 	}
 	

@@ -516,6 +516,7 @@ private:
 
 
 		const auto perspective = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 512.0f);
+		
 		/*glm::mat4 captureViews[] = // From Ogl code
 		{
 			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
@@ -525,9 +526,10 @@ private:
 			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
 			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
 		};*/
+		
+		// +X -X +Y -Y +Z -Z | right, left, up, down, front, back
 		std::array<glm::mat4, 6> matrices =
 		{
-			// +X -X +Y -Y +Z -Z
 			glm::rotate(glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
 			glm::rotate(glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
 			glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
@@ -535,8 +537,12 @@ private:
 			glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
 			glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
 		};
-
-
+		for (auto& m : matrices)
+		{
+			m = glm::scale(m, { 1,-1,1 });
+			m = glm::rotate(m, glm::radians(90.f), { 0,1,0 });
+		}
+		
 		const auto cmdBuf = vkh::BeginSingleTimeCommands(in.TransferPool, in.Device);
 
 

@@ -101,6 +101,7 @@ public:
 
 	void Update(const float dt) const
 	{
+		return;
 		const auto degreesPerSec = 30.f;
 		const auto rotationDelta = dt * degreesPerSec;
 
@@ -148,7 +149,8 @@ public:
 
 
 		auto& camera = _scene->GetCamera();
-		_renderer->DrawFrame(dt, renderables, transforms, lights, camera.GetViewMatrix(), camera.Position);
+		auto view = camera.GetViewMatrix();
+		_renderer->DrawFrame(dt, renderables, transforms, lights, view, camera.Position);
 	}
 
 
@@ -338,6 +340,69 @@ private:
 		entities.emplace_back(std::move(entity));
 	}
 
+	void LoadSphereArray()
+	{
+		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		std::cout << "Loading model:" << path << std::endl;
+
+		glm::vec3 center = { 0,2,0 };
+		auto numRows = 2;
+		auto numColumns = 5;
+		auto rowSpacing = 2.2f;
+		auto colSpacing = 2.2f;
+		
+		for (int row = 0; row < numRows; row++)
+		{
+			f32 metalness = row / f32(numRows - 1);
+
+			f32 height = f32(numRows - 1) * rowSpacing;
+			f32 hStart = -height / 2.f;
+			f32 y = center.y + hStart + rowSpacing * row;
+
+			for (int col = 0; col < numColumns; col++)
+			{
+				f32 roughness = col / f32(numColumns - 1);
+
+				f32 width = f32(numColumns - 1) * colSpacing;
+				f32 wStart = -width / 2.f;
+				f32 x = center.x + wStart + colSpacing * col;
+
+				auto entity = std::make_unique<Entity>();
+				entity->Name = "Sphere_" + std::to_string(row) + "_" + std::to_string(col);
+				entity->Transform.SetPos({ x,y,0.f });
+				entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
+				// config mat
+				Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+				matCopy.Roughness = roughness;
+				matCopy.Metalness = metalness;
+				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+
+				_scene->GetEntities().emplace_back(std::move(entity));
+			}
+		}
+
+	}
+	
+	void LoadSphere()
+	{
+		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		std::cout << "Loading model:" << path << std::endl;
+
+		auto entity = std::make_unique<Entity>();
+		entity->Name = "Sphere";
+		entity->Transform.SetPos(glm::vec3{ 0, 2, 0 });
+		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
+		// config mat
+		Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+		matCopy.Roughness = 0;
+		matCopy.Metalness = 1;
+		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+
+		_scene->GetEntities().emplace_back(std::move(entity));
+	}
+	
 	void LoadRailgun()
 	{
 		const auto path = _options.ModelsDir + "railgun/q2railgun.gltf";
@@ -347,44 +412,102 @@ private:
 
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Railgun";
-		entity->Transform.SetPos(glm::vec3{ 1, 0, 0 });
+		entity->Transform.SetPos(glm::vec3{ 0, -10, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
-		// Add more maps to the material
-		{
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+		//// Add more maps to the material
+		//{
+		//	Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 
-			// Load roughness map
-			matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
-			matCopy.UseRoughnessMap = true;
-			matCopy.RoughnessMapChannel = Material::Channel::Green;
+		//	// Load roughness map
+		//	matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
+		//	matCopy.UseRoughnessMap = true;
+		//	matCopy.RoughnessMapChannel = Material::Channel::Green;
 
-			// Load metalness map
-			matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
-			matCopy.UseMetalnessMap = true;
-			matCopy.MetalnessMapChannel = Material::Channel::Blue;
+		//	// Load metalness map
+		//	matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
+		//	matCopy.UseMetalnessMap = true;
+		//	matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
-			// Set material
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-		}
+		//	// Set material
+		//	_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+		//}
 
 
 		entities.emplace_back(std::move(entity));
 	}
 
+	void LoadAxis()
+	{
+		std::cout << "Loading axis" << std::endl;
+
+		auto scale = glm::vec3{ 0.5f };
+		f32 dist = 1;
+		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+
+		// Pivot
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "X";
+			entity->Transform.SetScale(scale*0.5f);
+			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
+			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			matCopy.Basecolor = { 1,1,1 };
+			matCopy.Roughness = 0.1;
+			matCopy.Metalness = 1;
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->GetEntities().emplace_back(std::move(entity));
+		}
+		
+		// X
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "X";
+			entity->Transform.SetScale(scale);
+			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
+			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			matCopy.Basecolor = { 1,0,0 };
+			matCopy.Roughness = 0;
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->GetEntities().emplace_back(std::move(entity));
+		}
+		
+		// Y
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "Y";
+			entity->Transform.SetScale(scale);
+			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
+			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			matCopy.Basecolor = { 0,1,0 };
+			matCopy.Roughness = 0;
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->GetEntities().emplace_back(std::move(entity));
+		}
+		
+		// Z
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "Z";
+			entity->Transform.SetScale(scale);
+			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
+			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			matCopy.Basecolor = { 0,0,1 };
+			matCopy.Roughness = 0;
+			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->GetEntities().emplace_back(std::move(entity));
+		}
+	}
+	
 	void LoadSkybox()
 	{
-		//const auto ids = _renderer->CreateIblTextureResources(_options.IblDir + "ChiricahuaPath.hdr");
-
-		const auto ids = _renderer->CreateIblTextureResources({
-				_options.AssetsDir + "Skybox/HDR/right.hdr",
-				_options.AssetsDir + "Skybox/HDR/left.hdr",
-				_options.AssetsDir + "Skybox/HDR/top.hdr",
-				_options.AssetsDir + "Skybox/HDR/bottom.hdr",
-				_options.AssetsDir + "Skybox/HDR/front.hdr",
-				_options.AssetsDir + "Skybox/HDR/back.hdr"});
-		
+		//auto ids = _renderer->CreateIblTextureResources(_options.AssetsDir + "Skybox/Debug/equirectangular.hdr");
+		auto ids = _renderer->CreateIblTextureResources(_options.IblDir + "ChiricahuaPath.hdr");
 		SkyboxCreateInfo createInfo = {};
 		createInfo.IblTextureIds = ids;
 		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
@@ -448,8 +571,10 @@ private:
 	void LoadAssets() 
 	{
 		LoadSkybox();
-		LoadStormtrooperHelmet();
-		LoadRailgun();
+		LoadAxis();
+		//LoadSphereArray();
+		//LoadStormtrooperHelmet();
+		//LoadRailgun();
 
 		if (_assetLoaded) { return; }
 		_assetLoaded = true;

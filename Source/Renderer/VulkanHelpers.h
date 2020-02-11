@@ -180,6 +180,7 @@ public:
 		VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout);
 
 
+	// TODO Move to Renderer (this is not a helper)
 	static void RecordCommandBuffer(
 		VkCommandBuffer commandBuffer,
 

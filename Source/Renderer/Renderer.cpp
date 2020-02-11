@@ -22,6 +22,9 @@
 
 using vkh = VulkanHelpers;
 
+
+bool flip = true;
+
 Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir,
 	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService): _delegate(delegate), _shaderDir(shaderDir)
 {
@@ -40,7 +43,7 @@ void Renderer::DrawFrame(float dt,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
 	const std::vector<Light>& lights,
-	const glm::mat4& view, const glm::vec3& camPos)
+	glm::mat4 view, glm::vec3 camPos)
 {
 	assert(renderableIds.size() == transforms.size());
 
@@ -75,15 +78,16 @@ void Renderer::DrawFrame(float dt,
 
 	auto startBench = std::chrono::steady_clock::now();
 
-	//auto camera = _surfaceBuilder.UpdateState(dt);
-
 
 	// Calc Projection
 	const auto vfov = 45.f;
 	const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
 	auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
-	projection[1][1] *= -1; // flip Y to convert glm from OpenGL coord system to Vulkan
-
+	if (flip)
+	{
+		// flip Y to convert glm from OpenGL coord system to Vulkan
+		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
+	}
 
 	
 	// Update light buffers
@@ -293,11 +297,6 @@ Renderer::CreateIblTextureResources(const std::string& path)
 
 	return ids;
 }
-
-
-
-
-
 
 TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, 
 	CubemapFormat format)
@@ -839,6 +838,12 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 		viewport.y = 0;
 		viewport.width = (float)swapchainExtent.width;
 		viewport.height = (float)swapchainExtent.height;
+		
+	/*	viewport.x = 0;
+		viewport.y = (float)swapchainExtent.height;
+		viewport.width = (float)swapchainExtent.width;
+		viewport.height = -(float)swapchainExtent.height;*/
+		
 		viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
 		viewport.maxDepth = 1;
 	}
@@ -862,7 +867,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	{
 		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterizationCI.cullMode = flip ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_FRONT_BIT;
 		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 		rasterizationCI.depthBiasEnable = VK_FALSE;
@@ -1136,6 +1141,12 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 		viewport.y = 0;
 		viewport.width = (float)swapchainExtent.width;
 		viewport.height = (float)swapchainExtent.height;
+		
+		/*viewport.x = 0;
+		viewport.y = (float)swapchainExtent.height;
+		viewport.width = (float)swapchainExtent.width;
+		viewport.height = -(float)swapchainExtent.height;*/
+		
 		viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
 		viewport.maxDepth = 1;
 	}
@@ -1159,7 +1170,7 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	{
 		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = VK_CULL_MODE_FRONT_BIT; // SKYBOX: flipped from norm
+		rasterizationCI.cullMode = flip ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_BACK_BIT; // SKYBOX: flipped from norm
 		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 		rasterizationCI.depthBiasEnable = VK_FALSE;
