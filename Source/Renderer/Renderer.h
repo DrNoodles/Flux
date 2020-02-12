@@ -74,6 +74,7 @@ public:
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	void UpdateRenderableDescriptorSets();
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
 
@@ -147,6 +148,8 @@ private:
 	
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
+
+	bool _refreshRenderableDescriptorSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;

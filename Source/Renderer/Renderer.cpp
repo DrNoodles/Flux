@@ -101,6 +101,14 @@ void Renderer::DrawFrame(float dt,
 		vkUnmapMemory(_device, _lightBuffersMemory[imageIndex]);
 	}
 
+
+	if (_refreshRenderableDescriptorSets)
+	{
+		_refreshRenderableDescriptorSets = false;
+		UpdateRenderableDescriptorSets();
+	}
+
+	
 	// Update skybox buffer
 	const Skybox* skybox = GetCurrentSkyboxOrNull(); // Hardcode first skybox for now
 	if (skybox)
@@ -407,45 +415,14 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		currentMetalnessMapId == metalnessMapId &&
 		currentAoMapId == aoMapId;
 
-	if (descriptorSetsMatch)
+	if (!descriptorSetsMatch)
 	{
-		return;
+		_refreshRenderableDescriptorSets = true;
 	}
-
-
-	// Gather descriptor sets and uniform buffers
-	const auto count = renderable->FrameResources.size();
-	std::vector<VkDescriptorSet> descriptorSets{};
-	std::vector<VkBuffer> modelBuffers{};
-	descriptorSets.resize(count);
-	modelBuffers.resize(count);
-	for (size_t i = 0; i < count; i++)
-	{
-		descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
-		modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
-	}
-
-
-	// Write updated descriptor sets
-	WritePbrDescriptorSets((u32)count, descriptorSets, 
-		modelBuffers,
-		_lightBuffers,
-		*_textures[basecolorMapId],
-		*_textures[normalMapId],
-		*_textures[roughnessMapId],
-		*_textures[metalnessMapId],
-		*_textures[aoMapId],
-		GetIrradianceTextureResource(),
-		GetPrefilterTextureResource(),
-		GetBrdfTextureResource(),
-		_device);
 }
 
-void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
+void Renderer::UpdateRenderableDescriptorSets()
 {
-	// Set skybox
-	_activeSkybox = resourceId;
-
 	// Rebuild all objects dependent on skybox
 	for (auto& renderable : _renderables)
 	{
@@ -460,7 +437,6 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
 			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 		}
-
 		
 		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
 		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
@@ -483,14 +459,13 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 			GetBrdfTextureResource(),
 			_device);
 	}
+}
 
-
-
-	
-
-
-
-	
+void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
+{
+	// Set skybox
+	_activeSkybox = resourceId;
+	_refreshRenderableDescriptorSets = true;	
 }
 
 void Renderer::InitVulkan()

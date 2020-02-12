@@ -101,7 +101,6 @@ public:
 
 	void Update(const float dt) const
 	{
-		return;
 		const auto degreesPerSec = 30.f;
 		const auto rotationDelta = dt * degreesPerSec;
 
@@ -239,6 +238,19 @@ private:
 	GLFWwindow* _window = nullptr;
 	AppOptions _options;
 
+	// Skybox management
+	u32 _currentSkybox = 0;
+	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxes = {};
+	std::vector<std::string> _skyboxPaths =
+	{
+		"ChiricahuaPath.hdr",
+		"DitchRiver.hdr",
+		"HamarikyuBridge.hdr",
+		"PaperMill.hdr",
+		"TropicalBeach.hdr",
+		"WinterForest.hdr",
+		"debug/equirectangular.hdr",
+	};
 
 
 	// Time
@@ -345,7 +357,7 @@ private:
 		const auto path = _options.ModelsDir + "sphere/sphere.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
-		glm::vec3 center = { 0,2,0 };
+		glm::vec3 center = { 0,4,0 };
 		auto numRows = 2;
 		auto numColumns = 5;
 		auto rowSpacing = 2.2f;
@@ -412,7 +424,7 @@ private:
 
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Railgun";
-		entity->Transform.SetPos(glm::vec3{ 0, -10, 0 });
+		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
@@ -453,11 +465,29 @@ private:
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-			matCopy.Basecolor = { 1,1,1 };
-			matCopy.Roughness = 0.1f;
-			matCopy.Metalness = 1;
+			{
+				matCopy.UseBasecolorMap = true;
+				matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
+
+				matCopy.UseNormalMap = true;
+				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
+				
+				matCopy.UseAoMap = true;
+				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.AoMapChannel = Material::Channel::Red;
+				
+				matCopy.UseRoughnessMap = true;
+				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.RoughnessMapChannel = Material::Channel::Green;
+
+				matCopy.UseMetalnessMap = true;
+				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.MetalnessMapChannel = Material::Channel::Blue;
+			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+
 			_scene->GetEntities().emplace_back(std::move(entity));
 		}
 		
@@ -468,10 +498,28 @@ private:
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-			matCopy.Basecolor = { 1,0,0 };
-			matCopy.Roughness = 0;
+			{
+				matCopy.Basecolor = { 1,0,0 };
+
+				matCopy.UseNormalMap = true;
+				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/Normal.png");
+
+				matCopy.UseAoMap = true;
+				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.AoMapChannel = Material::Channel::Red;
+
+				matCopy.UseRoughnessMap = true;
+				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.RoughnessMapChannel = Material::Channel::Green;
+
+				matCopy.UseMetalnessMap = true;
+				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.MetalnessMapChannel = Material::Channel::Blue;
+			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+
 			_scene->GetEntities().emplace_back(std::move(entity));
 		}
 		
@@ -511,40 +559,43 @@ private:
 		return min + base * (max - min);
 	}
 
-	u32 _currentSkybox = 0;
-	std::vector<std::string> _skyboxPaths =
-	{
-		"ChiricahuaPath.hdr",
-		"DitchRiver.hdr",
-		"FactoryCatwalk.hdr",
-		"HamarikyuBridge.hdr",
-		"PaperMill.hdr",
-		"studio_small_02_4k.hdr",
-		"TropicalBeach.hdr",
-		"WinterForest.hdr",
-		"debug/equirectangular.hdr",
-	};
-
 	void NextSkybox()
 	{
 		_currentSkybox = ++_currentSkybox % _skyboxPaths.size();
 		LoadSkybox(_skyboxPaths[_currentSkybox]);
 	}
-
-	void LoadSkybox(const std::string& path)
+	
+	void LoadSkybox(const std::string& filename)
 	{
-		// TODO Cache skybox ids to prevent reloading
-		
-		std::cout << "Loading skybox: " << path << std::endl;
-		auto ids = _renderer->CreateIblTextureResources(_options.IblDir + path);
-		SkyboxCreateInfo createInfo = {};
-		createInfo.IblTextureIds = ids;
-		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
+		std::string path = _options.IblDir + filename;
 
+		std::cout << "Loading skybox: " << path << std::endl;
+
+		SkyboxResourceId skyboxResourceId;
+		
+		// See if skybox is already loaded
+		const auto it = _loadedSkyboxes.find(path);
+		if (it != _loadedSkyboxes.end())
+		{
+			// Use existing resource
+			skyboxResourceId = it->second;
+		}
+		else
+		{
+			std::cout << "  Creating skybox\n";
+
+			// Create new resource
+			const auto ids = _renderer->CreateIblTextureResources(path);
+			SkyboxCreateInfo createInfo = {};
+			createInfo.IblTextureIds = ids;
+			skyboxResourceId = _renderer->CreateSkybox(createInfo);
+
+			_loadedSkyboxes.emplace(path, skyboxResourceId);
+		}
+		
 
 		_renderer->SetSkybox(skyboxResourceId);
 	}
-	
 	
 	void LoadLighting()
 	{
@@ -600,9 +651,9 @@ private:
 		std::cout << "Loading scene\n";
 		LoadSkybox(_skyboxPaths[_currentSkybox]);
 		LoadAxis();
-		//LoadSphereArray();
+		LoadSphereArray();
 		//LoadStormtrooperHelmet();
-		//LoadRailgun();
+		LoadRailgun();
 		//LoadLighting();
 	}
 
