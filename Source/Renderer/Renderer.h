@@ -72,10 +72,9 @@ public:
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
-
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& material);
-	
+	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	void SetSkybox(const SkyboxResourceId& resourceId);
 
 
 private:
@@ -142,6 +141,7 @@ private:
 	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
 	std::vector<VkDeviceMemory> _lightBuffersMemory{};
 
+	SkyboxResourceId _activeSkybox = {};
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<Renderable>> _renderables{};
 	
@@ -159,8 +159,6 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
-
-
 
 
 
@@ -199,32 +197,36 @@ private:
 
 	const TextureResource& GetIrradianceTextureResource() const
 	{
-		const auto* skybox = GetSkyboxOrNull();
+		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
 	}
 
 	const TextureResource& GetPrefilterTextureResource() const
 	{
-		const auto* skybox = GetSkyboxOrNull();
+		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Id : _placeholderTexture.Id];
 	}
 
 	const TextureResource& GetBrdfTextureResource() const
 	{
-		const auto* skybox = GetSkyboxOrNull();
+		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
 	}
 
 	#pragma endregion Pbr
 
 
-	#pragma region Skybox // Everything cubemap: resources, pipelines, etc and rendering
+	
+	#pragma region Skybox - Everything cubemap: resources, pipelines, etc and rendering
 
-	const Skybox* GetSkyboxOrNull() const { return _skyboxes.empty() ? nullptr : _skyboxes[0].get(); }
+	const Skybox* GetCurrentSkyboxOrNull() const
+	{
+		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Id].get();
+	}
 
 	const TextureResource& GetSkyboxTextureResource() const
 	{
-		const auto* skybox = GetSkyboxOrNull();
+		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
 	}
 

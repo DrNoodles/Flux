@@ -455,7 +455,7 @@ private:
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 			matCopy.Basecolor = { 1,1,1 };
-			matCopy.Roughness = 0.1;
+			matCopy.Roughness = 0.1f;
 			matCopy.Metalness = 1;
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 			_scene->GetEntities().emplace_back(std::move(entity));
@@ -503,16 +503,7 @@ private:
 			_scene->GetEntities().emplace_back(std::move(entity));
 		}
 	}
-	
-	void LoadSkybox()
-	{
-		//auto ids = _renderer->CreateIblTextureResources(_options.AssetsDir + "Skybox/Debug/equirectangular.hdr");
-		auto ids = _renderer->CreateIblTextureResources(_options.IblDir + "ChiricahuaPath.hdr");
-		SkyboxCreateInfo createInfo = {};
-		createInfo.IblTextureIds = ids;
-		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
-	}
-	
+
 	// TODO Move to utils class
 	static float RandF(float min, float max)
 	{
@@ -520,7 +511,40 @@ private:
 		return min + base * (max - min);
 	}
 
+	u32 _currentSkybox = 0;
+	std::vector<std::string> _skyboxPaths =
+	{
+		"ChiricahuaPath.hdr",
+		"DitchRiver.hdr",
+		"FactoryCatwalk.hdr",
+		"HamarikyuBridge.hdr",
+		"PaperMill.hdr",
+		"studio_small_02_4k.hdr",
+		"TropicalBeach.hdr",
+		"WinterForest.hdr",
+		"debug/equirectangular.hdr",
+	};
 
+	void NextSkybox()
+	{
+		_currentSkybox = ++_currentSkybox % _skyboxPaths.size();
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
+	}
+
+	void LoadSkybox(const std::string& path)
+	{
+		// TODO Cache skybox ids to prevent reloading
+		
+		std::cout << "Loading skybox: " << path << std::endl;
+		auto ids = _renderer->CreateIblTextureResources(_options.IblDir + path);
+		SkyboxCreateInfo createInfo = {};
+		createInfo.IblTextureIds = ids;
+		auto skyboxResourceId = _renderer->CreateSkybox(createInfo);
+
+
+		_renderer->SetSkybox(skyboxResourceId);
+	}
+	
 	
 	void LoadLighting()
 	{
@@ -566,19 +590,19 @@ private:
 		}
 	}
 
-	bool _assetLoaded = false;
+	bool _sceneLoaded = false;
 
-	void LoadAssets() 
+	void LoadScene() 
 	{
-		LoadSkybox();
+		if (_sceneLoaded) { return; }
+		_sceneLoaded = true;
+
+		std::cout << "Loading scene\n";
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
 		LoadAxis();
 		//LoadSphereArray();
 		//LoadStormtrooperHelmet();
 		//LoadRailgun();
-
-		if (_assetLoaded) { return; }
-		_assetLoaded = true;
-		
 		//LoadLighting();
 	}
 
@@ -665,6 +689,8 @@ private:
 	{
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
+
+
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		// ONLY on pressed is handled
@@ -672,9 +698,9 @@ private:
 
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
-		if (key == GLFW_KEY_X)      { LoadAssets(); }
+		if (key == GLFW_KEY_X)      { LoadScene(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
-		if (key == GLFW_KEY_C)      { LoadSkybox(); }
+		if (key == GLFW_KEY_C)      { NextSkybox(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{

@@ -19,16 +19,10 @@ layout (location = 0) out vec3 fragUVW;
 
 void main()
 {
-	fragUVW = inPosition;
-	//fragUVW.x *= -1.0;
-	gl_Position = ubo.projection * ubo.view * vec4(inPosition.xyz, 1.0);
-
 	// The position in the cube also works out to be the UV coordinate. Cubemap magic!
-	//fragUVW = inPosition; 
-	//fragUVW.y *= -1.0;
-	//fragUVW.z *= -1.0;
+	fragUVW = inPosition; 
 
-	//vec4 pos = u.projection * u.view * vec4(inPosition.xyz, 1.0f);//vec4(inverse(u.rotation)*inPosition, 1.0f);
-	//gl_Position = pos.xyww; // Setting z = w means the perspective division (z/w) into NDC will make z=1 always, at max depth.
+	vec4 pos = ubo.projection * ubo.view * vec4(inPosition.xyz, 1.0f);//vec4(inverse(u.rotation)*inPosition, 1.0f);
+	gl_Position = pos.xyww; // Setting z = w means the perspective division (z/w) into NDC will make z=1 always, at max depth.
 }
 

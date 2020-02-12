@@ -102,7 +102,7 @@ void Renderer::DrawFrame(float dt,
 	}
 
 	// Update skybox buffer
-	const Skybox* skybox = GetSkyboxOrNull(); // Hardcode first skybox for now
+	const Skybox* skybox = GetCurrentSkyboxOrNull(); // Hardcode first skybox for now
 	if (skybox)
 	{
 		// Populate ubo
@@ -441,6 +441,58 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		_device);
 }
 
+void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
+{
+	// Set skybox
+	_activeSkybox = resourceId;
+
+	// Rebuild all objects dependent on skybox
+	for (auto& renderable : _renderables)
+	{
+		// Gather descriptor sets and uniform buffers
+		const auto count = renderable->FrameResources.size();
+		std::vector<VkDescriptorSet> descriptorSets{};
+		std::vector<VkBuffer> modelBuffers{};
+		descriptorSets.resize(count);
+		modelBuffers.resize(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
+			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
+		}
+
+		
+		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
+		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
+		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
+		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
+		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
+
+		
+		// Write updated descriptor sets
+		WritePbrDescriptorSets((u32)count, descriptorSets,
+			modelBuffers,
+			_lightBuffers,
+			*_textures[basecolorMapId],
+			*_textures[normalMapId],
+			*_textures[roughnessMapId],
+			*_textures[metalnessMapId],
+			*_textures[aoMapId],
+			GetIrradianceTextureResource(),
+			GetPrefilterTextureResource(),
+			GetBrdfTextureResource(),
+			_device);
+	}
+
+
+
+	
+
+
+
+	
+}
+
 void Renderer::InitVulkan()
 {
 	_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
@@ -573,7 +625,7 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 
 	_commandBuffers = vkh::AllocateAndRecordCommandBuffers(
 		numImagesInFlight,
-		GetSkyboxOrNull(),
+		GetCurrentSkyboxOrNull(),
 		_renderables,
 		_meshes,
 		_swapchainExtent,
