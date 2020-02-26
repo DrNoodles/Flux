@@ -245,10 +245,6 @@ private:
 	{
 		"ChiricahuaPath.hdr",
 		"DitchRiver.hdr",
-		"HamarikyuBridge.hdr",
-		"PaperMill.hdr",
-		"TropicalBeach.hdr",
-		"WinterForest.hdr",
 		"debug/equirectangular.hdr",
 	};
 
@@ -301,56 +297,56 @@ private:
 	
 	#pragma region Scene Management
 
-	void LoadStormtrooperHelmet()
-	{
-		const auto path = _options.ModelsDir + "Stormtrooper/helmet/helmet.fbx";
-		std::cout << "Loading model:" << path << std::endl;
+	//void LoadStormtrooperHelmet()
+	//{
+	//	const auto path = _options.ModelsDir + "Stormtrooper/helmet/helmet.fbx";
+	//	std::cout << "Loading model:" << path << std::endl;
 
-		auto& entities = _scene->GetEntities();
+	//	auto& entities = _scene->GetEntities();
 
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "Stormtrooper Helmet";
-		entity->Transform.SetScale(glm::vec3{ 10 });
-		entity->Transform.SetPos(glm::vec3{ -1, -15, 0 });
-		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
-
-
-		// Add more maps to the material
-		{
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-
-			// Load basecolor map
-			matCopy.BasecolorMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
-			matCopy.UseBasecolorMap = true;
-			
-			// Load normal map
-			matCopy.NormalMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/normalsRGB.png");
-			matCopy.UseNormalMap = true;
-			matCopy.InvertNormalMapZ = true;
-
-			// Load roughness map
-			matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
-			matCopy.UseRoughnessMap = true;
-			matCopy.InvertRoughnessMap = true; // gloss
-			matCopy.RoughnessMapChannel = Material::Channel::Alpha;
-
-			// Load metalness map
-			matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/metalnessB.png");
-			matCopy.UseMetalnessMap = true;
-			matCopy.MetalnessMapChannel = Material::Channel::Blue;
-
-			// Load ao map
-			matCopy.AoMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/aoR.png");
-			matCopy.UseAoMap = true;
-			matCopy.AoMapChannel = Material::Channel::Red;
-
-			// Set material
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-		}
+	//	auto entity = std::make_unique<Entity>();
+	//	entity->Name = "Stormtrooper Helmet";
+	//	entity->Transform.SetScale(glm::vec3{ 10 });
+	//	entity->Transform.SetPos(glm::vec3{ -1, -15, 0 });
+	//	entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 
-		entities.emplace_back(std::move(entity));
-	}
+	//	// Add more maps to the material
+	//	{
+	//		Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+
+	//		// Load basecolor map
+	//		matCopy.BasecolorMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+	//		matCopy.UseBasecolorMap = true;
+	//		
+	//		// Load normal map
+	//		matCopy.NormalMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/normalsRGB.png");
+	//		matCopy.UseNormalMap = true;
+	//		matCopy.InvertNormalMapZ = true;
+
+	//		// Load roughness map
+	//		matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
+	//		matCopy.UseRoughnessMap = true;
+	//		matCopy.InvertRoughnessMap = true; // gloss
+	//		matCopy.RoughnessMapChannel = Material::Channel::Alpha;
+
+	//		// Load metalness map
+	//		matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/metalnessB.png");
+	//		matCopy.UseMetalnessMap = true;
+	//		matCopy.MetalnessMapChannel = Material::Channel::Blue;
+
+	//		// Load ao map
+	//		matCopy.AoMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/aoR.png");
+	//		matCopy.UseAoMap = true;
+	//		matCopy.AoMapChannel = Material::Channel::Red;
+
+	//		// Set material
+	//		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+	//	}
+
+
+	//	entities.emplace_back(std::move(entity));
+	//}
 
 	void LoadSphereArray()
 	{

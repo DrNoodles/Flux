@@ -456,17 +456,17 @@ private:
 
 		for (u32 mip = 0; mip < targetTex.MipLevels(); mip++)
 		{
+			const auto mipDim = f32(targetTex.Width() * std::pow(0.5f, mip));
+
+			viewport.width = mipDim;
+			viewport.height = mipDim;
+			vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+
+			pushBlock.EnvMapResPerFace = mipDim;
+			pushBlock.Roughness = mip / f32(targetTex.MipLevels() - 1); // mip 0 = 0, max mip = 1
+
 			for (u32 face = 0; face < 6; face++)
 			{
-				const auto mipDim = f32(targetTex.Width() * std::pow(0.5f, mip));
-
-				viewport.width = mipDim;
-				viewport.height = mipDim;
-				vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
-
-				pushBlock.EnvMapResPerFace = mipDim;
-				pushBlock.Roughness = mip / f32(targetTex.MipLevels() - 1); // mip 0 = 0, max mip = 1
-				
 				// Render scene from cube face's point of view
 				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 				{
