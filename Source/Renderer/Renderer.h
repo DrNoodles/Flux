@@ -31,6 +31,8 @@ public:
 	// Renderer stuff
 	virtual VkExtent2D GetFramebufferSize() = 0;
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
+
+	virtual void InitImguiWithGlfwVulkan() = 0; // TODO remove this temp crap;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +157,6 @@ private:
 	TextureResourceId _placeholderTexture;
 	MeshResourceId _skyboxMesh;
 
-
 	void InitVulkan();
 	void CleanupSwapchainAndDependents();
 
@@ -165,6 +166,7 @@ private:
 
 
 
+	
 	#pragma region Shared
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
@@ -253,4 +255,14 @@ private:
 		const VkExtent2D& swapchainExtent);
 
 	#pragma endregion Skybox
+
+
+	
+	#pragma region ImGui
+	
+	VkDescriptorPool _imguiDescriptorPool = nullptr;
+	void InitImgui();
+	void CleanupImgui();
+
+#pragma endregion
 };

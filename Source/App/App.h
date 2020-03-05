@@ -153,7 +153,7 @@ public:
 	}
 
 
-	#pragma region IVulkanGpuServiceDelegate
+	#pragma region IRendererDelegate
 	
 	VkSurfaceKHR CreateSurface(VkInstance instance) const override
 	{
@@ -187,6 +187,25 @@ public:
 
 		return { (u32)width, (u32)height };
 	}
+
+
+	// TODO Remove this horrible code D: The connection of glfw, imgui and vulkan need to be done somewhere else - ie. a factory class
+	void InitImguiWithGlfwVulkan() override
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+
+		ImGui::StyleColorsLight();
+
+		// Setup Platform/Renderer bindings
+		ImGui_ImplGlfw_InitForVulkan(_window, true);
+		//const char* glsl_version = "#version 450";// ? which version
+
+		//ImGui_ImplVulkan_Init(glsl_version);
+	}
+
+	
+
 	//void DrawUI(VkCommandBuffer commandBuffer)
 	//{
 	//	// Start the Dear ImGui frame
@@ -280,20 +299,6 @@ private:
 	}
 
 	
-	void InitUI()
-	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		
-		ImGui::StyleColorsLight();
-
-		// Setup Platform/Renderer bindings
-		ImGui_ImplGlfw_InitForVulkan(_window, true);
-		const char* glsl_version = "#version 450";// ? which version
-		
-		ImGui_ImplVulkan_Init(glsl_version);
-	}
-
 
 
 	// TODO Move to utils class

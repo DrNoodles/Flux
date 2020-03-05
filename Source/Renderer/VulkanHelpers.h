@@ -10,7 +10,6 @@
 #include <cassert>
 
 struct QueueFamilyIndices;
-struct GLFWwindow;
 struct Vertex;
 struct Skybox;
 struct Renderable;
@@ -28,9 +27,6 @@ public:
 		CreateInstance(bool enableValidationLayers, const std::vector<const char*>& validationLayers);
 	static bool CheckValidationLayerSupport(const std::vector<const char*>& validationLayers);
 	static std::vector<const char*> GetRequiredExtensions(bool enableValidationLayers);
-
-
-	[[nodiscard]] static VkSurfaceKHR CreateSurface(VkInstance instance, GLFWwindow* window);
 
 
 	[[nodiscard]] static VkDebugUtilsMessengerEXT SetupDebugMessenger(VkInstance instance);
@@ -134,10 +130,12 @@ public:
 		FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, VkPhysicalDevice physicalDevice);;
 
 
+	// deprecated: use version which uses a VkCommandBuffer param
 	[[deprecated]] static void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize,
 		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device);
 
 
+	// deprecated: use version which uses a VkCommandBuffer param
 	[[deprecated]] static void CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height,
 		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device);
 
@@ -154,7 +152,8 @@ public:
 		VkImageLayout newLayout, VkImageSubresourceRange subresourceRange, 
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-	
+
+	// deprecated: use version which uses a VkCommandBuffer param
 	[[deprecated]] static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
 		uint32_t mipLevels, VkCommandPool transferCommandPool, VkQueue transferQueue,
 		VkDevice device);

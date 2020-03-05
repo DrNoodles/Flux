@@ -10,8 +10,9 @@
 
 #include <Shared/FileService.h>
 
-#define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
-#include <GLFW/glfw3.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_vulkan.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -19,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
+
 
 using vkh = VulkanHelpers;
 
@@ -31,6 +33,8 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
 	
+	InitImgui();
+
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 
 	// Load a cube
@@ -164,7 +168,8 @@ void Renderer::DrawFrame(float dt,
 		_pbrPipeline, _pbrPipelineLayout,
 		_skyboxPipeline, _skyboxPipelineLayout);
 
-
+	
+	
 	// Execute command buffer with the image as an attachment in the framebuffer
 	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 	VkSemaphore waitSemaphores[waitCount] = {_imageAvailableSemaphores[_currentFrame]};
@@ -229,35 +234,42 @@ void Renderer::CleanUp()
 {
 	vkDeviceWaitIdle(_device);
 
-	CleanupSwapchainAndDependents();
-
-	for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-	for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-	for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
-	for (auto& mesh : _meshes)
-	{
-		//mesh.Vertices.clear();
-		//mesh.Indices.clear();
-		vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
-		vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
-	}
-
-	_textures.clear(); // RAII will cleanup
-
-	vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
-
-	vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
 	
-	vkDestroyCommandPool(_device, _commandPool, nullptr);
-	vkDestroyDevice(_device, nullptr);
-	if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-	vkDestroySurfaceKHR(_instance, _surface, nullptr);
-	vkDestroyInstance(_instance, nullptr);
+	CleanupImgui();
+
+
+	// Cleanup Renderer & Vulkan
+	{
+		CleanupSwapchainAndDependents();
+
+		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+
+		for (auto& mesh : _meshes)
+		{
+			//mesh.Vertices.clear();
+			//mesh.Indices.clear();
+			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
+			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
+		}
+
+		_textures.clear(); // RAII will cleanup
+
+		vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
+
+		vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
+
+		vkDestroyCommandPool(_device, _commandPool, nullptr);
+		vkDestroyDevice(_device, nullptr);
+		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+	}
 }
 
 IblTextureResourceIds
@@ -1323,3 +1335,83 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 
 #pragma endregion Skybox
+
+
+#pragma region ImGui
+
+void Renderer::InitImgui()
+{
+	// This is required as this layer doesn't have access to GLFW. // TODO Refactor so Renderer has no logical coupling to GLFW at all
+	_delegate.InitImguiWithGlfwVulkan();
+
+
+	const auto imageCount = (u32)_swapchainImages.size();
+
+	
+	// Create descriptor pool - from main_vulkan.cpp imgui example code
+	{
+		_imguiDescriptorPool = vkh::CreateDescriptorPool({
+			 { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+			}, 1, _device); // todo is maxsets = imageCount needed?
+	}
+
+
+	// Get the min image count - Copied from VulkanHelpers::CreateSwapchain
+	u32 minImageCount;
+	{
+		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_physicalDevice, _surface);
+		
+		minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
+		const auto maxImageCount = deets.Capabilities.maxImageCount;
+		const auto maxImageCountExists = maxImageCount != 0;
+		if (maxImageCountExists && minImageCount > maxImageCount)
+		{
+			minImageCount = maxImageCount;
+		}
+	}
+
+	
+	// Init device info
+	ImGui_ImplVulkan_InitInfo initInfo = {};
+	{
+		initInfo.Instance = _instance;
+		initInfo.PhysicalDevice = _physicalDevice;
+		initInfo.Device = _device;
+		initInfo.QueueFamily = vkh::FindQueueFamilies(_physicalDevice, _surface).GraphicsFamily.value(); // vomit
+		initInfo.Queue = _graphicsQueue;
+		initInfo.PipelineCache = nullptr;
+		initInfo.DescriptorPool = _imguiDescriptorPool;
+		initInfo.MinImageCount = minImageCount;
+		initInfo.ImageCount = imageCount;
+		initInfo.MSAASamples = _msaaSamples;
+		initInfo.Allocator = nullptr;
+		initInfo.CheckVkResultFn = [](VkResult err)
+		{
+			if (err == 0) return;
+			printf("VkResult %d\n", err);
+			if (err < 0)
+				abort();
+		};
+	}
+
+
+	ImGui_ImplVulkan_Init(&initInfo, _renderPass);
+}
+void Renderer::CleanupImgui()
+{
+	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+}
+#pragma endregion

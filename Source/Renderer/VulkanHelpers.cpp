@@ -151,6 +151,7 @@ bool VulkanHelpers::CheckValidationLayerSupport(const std::vector<const char*>& 
 
 std::vector<const char*> VulkanHelpers::GetRequiredExtensions(bool enableValidationLayers)
 {
+	// TODO Remove all references to GLFW
 	uint32_t glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
@@ -162,16 +163,6 @@ std::vector<const char*> VulkanHelpers::GetRequiredExtensions(bool enableValidat
 	}
 
 	return extensions;
-}
-
-VkSurfaceKHR VulkanHelpers::CreateSurface(VkInstance instance, GLFWwindow* window)
-{
-	VkSurfaceKHR surface;
-	if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create window surface");
-	}
-	return surface;
 }
 
 VkDebugUtilsMessengerEXT VulkanHelpers::SetupDebugMessenger(VkInstance instance)
@@ -1255,6 +1246,7 @@ std::vector<VkCommandBuffer> VulkanHelpers::AllocateAndRecordCommandBuffers(uint
 	return commandBuffers;
 }
 
+// TODO Move this into renderer.cpp - this isn't a helper at all
 void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 	const Skybox* skybox,
 	const std::vector<std::unique_ptr<Renderable>>& renderables,
@@ -1369,8 +1361,7 @@ std::tuple<std::vector<VkSemaphore>, std::vector<VkSemaphore>, std::vector<VkFen
 }
 
 
-VkDescriptorPool VulkanHelpers::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& poolSizes, u32 maxSets, 
-	VkDevice device)
+[[nodiscard]] VkDescriptorPool VulkanHelpers::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& poolSizes, u32 maxSets, VkDevice device)
 {
 	// Create descriptor pool
 	VkDescriptorPoolCreateInfo poolCI = {};
