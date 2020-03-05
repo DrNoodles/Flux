@@ -44,46 +44,8 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawFrame(float dt,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
-	const std::vector<Light>& lights,
-	glm::mat4 view, glm::vec3 camPos)
+void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
 {
-	assert(renderableIds.size() == transforms.size());
-
-	// Sync CPU-GPU
-	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
-
-	// Aquire an image from the swap chain
-	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
-	                                        nullptr, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		RecreateSwapchain();
-		return;
-	}
-	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
-	if (!isUsable)
-	{
-		throw std::runtime_error("Failed to acquire swapchain image!");
-	}
-
-
-	// If the image is still used by a previous frame, wait for it to finish!
-	if (_imagesInFlight[imageIndex] != nullptr)
-	{
-		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
-	}
-	// Mark the image as now being in use by this frame
-	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
-
-
-	auto startBench = std::chrono::steady_clock::now();
-
-
 	// Calc Projection
 	const auto vfov = 45.f;
 	const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
@@ -157,17 +119,142 @@ void Renderer::DrawFrame(float dt,
 		vkUnmapMemory(_device, modelBufferMemory);
 	}
 
-	RecordCommandBuffer(
-		_commandBuffers[imageIndex],
-		skybox,
-		_renderables,
-		_meshes,
-		imageIndex,
-		_swapchainExtent,
-		_swapchainFramebuffers[imageIndex],
-		_renderPass,
-		_pbrPipeline, _pbrPipelineLayout,
-		_skyboxPipeline, _skyboxPipelineLayout);
+
+
+
+	// Record Command Buffer
+
+	auto frameIndex = imageIndex;
+	auto renderPass = _renderPass;
+	auto swapchainExtent = _swapchainExtent;
+	auto commandBuffer = _commandBuffers[imageIndex];
+	auto swapchainFramebuffer = _swapchainFramebuffers[imageIndex];
+	auto pbrPipeline = _pbrPipeline;
+	auto pbrPipelineLayout = _pbrPipelineLayout;
+	auto skyboxPipeline = _skyboxPipeline;
+	auto skyboxPipelineLayout = _skyboxPipelineLayout;
+	auto& meshes = _meshes;
+	auto& renderables = _renderables;
+	
+	// Start command buffer
+	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
+	{
+		// Record renderpass
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
+			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			// Skybox
+			if (skybox)
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+
+				const auto& mesh = *meshes[skybox->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
+					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+
+
+			// Objects
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
+
+				for (const auto& renderable : renderables)
+				{
+					const auto& mesh = *meshes[renderable->MeshId.Id];
+
+					// Draw mesh
+					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer,
+						VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
+						0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+					/*const void* pValues;
+					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+				}
+			}
+
+
+			// ImGui
+			{
+				_delegate.BuildGui();
+				DrawImgui(commandBuffer);
+			}
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+	else
+	{
+		throw std::runtime_error("Failed to begin recording command buffer");
+	}
+
+	// End command buffer
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to end recording command buffer");
+	}
+}
+
+void Renderer::DrawFrame(float dt,
+                         const std::vector<RenderableResourceId>& renderableIds,
+                         const std::vector<glm::mat4>& transforms,
+                         const std::vector<Light>& lights,
+                         glm::mat4 view, glm::vec3 camPos)
+{
+	assert(renderableIds.size() == transforms.size());
+
+	// Sync CPU-GPU
+	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
+
+	// Aquire an image from the swap chain
+	uint32_t imageIndex;
+	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+	                                        nullptr, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapchain();
+		return;
+	}
+	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+	if (!isUsable)
+	{
+		throw std::runtime_error("Failed to acquire swapchain image!");
+	}
+
+
+	// If the image is still used by a previous frame, wait for it to finish!
+	if (_imagesInFlight[imageIndex] != nullptr)
+	{
+		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
+	}
+	// Mark the image as now being in use by this frame
+	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+
+	auto startBench = std::chrono::steady_clock::now();
+
+
+	DrawEverything(renderableIds, transforms, lights, view, camPos, imageIndex);
 
 	
 	
@@ -623,103 +710,6 @@ void Renderer::RecreateSwapchain()
 	vkDeviceWaitIdle(_device);
 	CleanupSwapchainAndDependents();
 	CreateSwapchainAndDependents(size.width, size.height);
-}
-
-void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
-	const Skybox* skybox,
-	const std::vector<std::unique_ptr<Renderable>>& renderables,
-	const std::vector<std::unique_ptr<MeshResource>>& meshes,
-	int frameIndex,
-	VkExtent2D swapchainExtent,
-	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
-	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
-	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout) const
-{
-	// Start command buffer
-	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
-	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
-	{
-		// Record renderpass
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
-			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			// Skybox
-			if (skybox)
-			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
-
-				const auto& mesh = *meshes[skybox->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
-					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-			}
-
-
-
-			// Objects
-			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
-
-				for (const auto& renderable : renderables)
-				{
-					const auto& mesh = *meshes[renderable->MeshId.Id];
-
-					// Draw mesh
-					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-					VkDeviceSize offsets[] = { 0 };
-					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
-						0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-					/*const void* pValues;
-					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
-					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-				}
-			}
-
-
-			// ImGui
-			{
-				ImGui_ImplVulkan_NewFrame();
-				ImGui_ImplGlfw_NewFrame();
-				ImGui::NewFrame();
-				
-				auto show_demo_window = true;
-				ImGui::ShowDemoWindow(&show_demo_window);
-				
-				ImGui::Render();
-				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-			}
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
-	else
-	{
-		throw std::runtime_error("Failed to begin recording command buffer");
-	}
-
-
-	// End command buffer
-	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to end recording command buffer");
-	}
 }
 
 
@@ -1510,8 +1500,10 @@ void Renderer::InitImgui()
 		ImGui_ImplVulkan_DestroyFontUploadObjects();
 	}
 }
-// TODO BuildGui() // Creates the gui for this frame
-// TODO DrawImgui(VkCommandBuffer commandBuffer)
+void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
+{
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+}
 void Renderer::CleanupImgui()
 {
 	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);

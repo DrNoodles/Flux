@@ -33,6 +33,7 @@ public:
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
 
 	virtual void InitImguiWithGlfwVulkan() = 0; // TODO remove this temp crap;
+	virtual void BuildGui() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,10 +45,10 @@ public:
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 	void DrawFrame(float dt,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
-		const std::vector<Light>& lights,
-		glm::mat4 view, glm::vec3 camPos);
+	               const std::vector<RenderableResourceId>& renderableIds,
+	               const std::vector<glm::mat4>& transforms,
+	               const std::vector<Light>& lights,
+	               glm::mat4 view, glm::vec3 camPos);
 	void CleanUp(); // TODO convert to RAII?
 
 	TextureResourceId CreateTextureResource(const std::string& path);
@@ -163,12 +164,7 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 
-	void RecordCommandBuffer(VkCommandBuffer commandBuffer, const Skybox* skybox,
-	                         const std::vector<std::unique_ptr<Renderable>>& renderables,
-	                         const std::vector<std::unique_ptr<MeshResource>>& meshes, int frameIndex,
-	                         VkExtent2D swapchainExtent, VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
-	                         VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout, VkPipeline skyboxPipeline,
-	                         VkPipelineLayout skyboxPipelineLayout) const;
+	void DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
 
 	
 	#pragma region Shared
@@ -269,6 +265,7 @@ private:
 	
 	VkDescriptorPool _imguiDescriptorPool = nullptr;
 	void InitImgui();
+	void DrawImgui(VkCommandBuffer commandBuffer);
 	void CleanupImgui();
 
 #pragma endregion

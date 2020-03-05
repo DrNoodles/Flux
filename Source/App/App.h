@@ -192,53 +192,44 @@ public:
 	// TODO Remove this horrible code D: The connection of glfw, imgui and vulkan need to be done somewhere else - ie. a factory class
 	void InitImguiWithGlfwVulkan() override
 	{
-		
-		// Setup Platform/Renderer bindings
 		ImGui_ImplGlfw_InitForVulkan(_window, true);
-		//const char* glsl_version = "#version 450";// ? which version
-
-		//ImGui_ImplVulkan_Init(glsl_version);
 	}
-
 	
+	void BuildGui() override
+	{
+		// Start the Dear ImGui frame
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		{
+			auto show_demo_window = true;
+			ImGui::ShowDemoWindow(&show_demo_window);
+			//
+			//// Scene Pane
+			//ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
+			//ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
 
-	//void DrawUI(VkCommandBuffer commandBuffer)
-	//{
-	//	// Start the Dear ImGui frame
-	//	ImGui_ImplVulkan_NewFrame();
-	//	ImGui_ImplGlfw_NewFrame();
-	//	ImGui::NewFrame();
-	//	{
-			/*
-			glViewport(0, 0, _windowWidth, _windowWidth);
-
-			// Scene Pane
-
-			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
-
-			auto& entsView = _sceneController.EntitiesView();
-			std::vector<Entity*> allEnts{ entsView.size() };
-			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
-				{
-					return pe.get();
-				});
-			IblVm iblVm{ &_sceneController, &_renderOptions };
-			_scenePane.DrawUI(allEnts, _selection, iblVm);
+			//auto& entsView = _sceneController.EntitiesView();
+			//std::vector<Entity*> allEnts{ entsView.size() };
+			//std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
+			//	{
+			//		return pe.get();
+			//	});
+			//IblVm iblVm{ &_sceneController, &_renderOptions };
+			//_scenePane.DrawUI(allEnts, _selection, iblVm);
 
 
-			// Properties Pane
-			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
+			//// Properties Pane
+			//ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
+			//ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
 
-			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-			_propsPresenter.Draw((int)_selection.size(), selection, _textures, _meshes, _gpuResourceService.get());
-			*/
-	/*	}
+			//Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+			//_propsPresenter.Draw((int)_selection.size(), selection, _textures, _meshes, _gpuResourceService.get());
+			
+		}
 		ImGui::EndFrame();
 		ImGui::Render();
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-	}*/
+	}
 
 	#pragma endregion
 
