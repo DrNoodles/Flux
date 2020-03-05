@@ -1197,136 +1197,26 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 	vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
 }
 
-std::vector<VkCommandBuffer> VulkanHelpers::AllocateAndRecordCommandBuffers(uint32_t numBuffersToCreate,
-	const Skybox* skybox,
-	const std::vector<std::unique_ptr<Renderable>>& renderables,
-	const std::vector<std::unique_ptr<MeshResource>>& meshes,
-	VkExtent2D swapchainExtent,
-	const std::vector<VkFramebuffer>&
-	swapchainFramebuffers, VkCommandPool commandPool,
-	VkDevice device,
-	VkRenderPass renderPass, 
-	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
-	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
+std::vector<VkCommandBuffer> VulkanHelpers::AllocateCommandBuffers(u32 numBuffersToCreate,
+	VkCommandPool commandPool, VkDevice device)
 {
-	assert(numBuffersToCreate == swapchainFramebuffers.size());
-	//assert(numBuffersToCreate == descriptorSets.size());
-
-	// Allocate command buffer
-	VkCommandBufferAllocateInfo commandBufferAllocInfo = {};
+	VkCommandBufferAllocateInfo allocInfo = {};
 	{
-		commandBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		commandBufferAllocInfo.commandPool = commandPool;
-		commandBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		commandBufferAllocInfo.commandBufferCount = numBuffersToCreate;
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = commandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = numBuffersToCreate;
 	}
 
 	std::vector<VkCommandBuffer> commandBuffers{ numBuffersToCreate };
-	if (vkAllocateCommandBuffers(device, &commandBufferAllocInfo, commandBuffers.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate Command Buffers");
-	}
-
-	// TODO Is recording necessary as part of the create? We're rebuilding this per frame anyways
-	for (u32 i = 0; i < commandBuffers.size(); ++i)
-	{
-		RecordCommandBuffer(
-			commandBuffers[i],
-			skybox,
-			renderables,
-			meshes,
-			i,
-			swapchainExtent,
-			swapchainFramebuffers[i],
-			renderPass,
-			pbrPipeline, pbrPipelineLayout,
-			skyboxPipeline, skyboxPipelineLayout);
 	}
 
 	return commandBuffers;
 }
 
-// TODO Move this into renderer.cpp - this isn't a helper at all
-void VulkanHelpers::RecordCommandBuffer(VkCommandBuffer commandBuffer,
-	const Skybox* skybox,
-	const std::vector<std::unique_ptr<Renderable>>& renderables,
-	const std::vector<std::unique_ptr<MeshResource>>& meshes,
-	int frameIndex,
-	VkExtent2D swapchainExtent,
-	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
-	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
-	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
-{
-	// Start command buffer
-	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
-	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
-	{
-		// Record renderpass
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
-			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			// Skybox
-			if (skybox)
-			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
-
-				const auto& mesh = *meshes[skybox->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
-					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-			}
-
-
-
-			// Objects
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
-
-			for (const auto& renderable : renderables)
-			{
-				const auto& mesh = *meshes[renderable->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
-					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-				/*const void* pValues;
-				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-			}
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
-	else
-	{
-		throw std::runtime_error("Failed to begin recording command buffer");
-	}
-
-
-	// End command buffer
-	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to end recording command buffer");
-	}
-}
 
 std::tuple<std::vector<VkSemaphore>, std::vector<VkSemaphore>, std::vector<VkFence>, std::vector<VkFence>> VulkanHelpers
 ::CreateSyncObjects(size_t numFramesInFlight, size_t numSwapchainImages, VkDevice device)

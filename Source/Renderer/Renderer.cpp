@@ -156,7 +156,7 @@ void Renderer::DrawFrame(float dt,
 		vkUnmapMemory(_device, modelBufferMemory);
 	}
 
-	vkh::RecordCommandBuffer(
+	RecordCommandBuffer(
 		_commandBuffers[imageIndex],
 		skybox,
 		_renderables,
@@ -610,16 +610,21 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
 	}
 
-	_commandBuffers = vkh::AllocateAndRecordCommandBuffers(
-		numImagesInFlight,
-		GetCurrentSkyboxOrNull(),
-		_renderables,
-		_meshes,
-		_swapchainExtent,
-		_swapchainFramebuffers,
-		_commandPool, _device, _renderPass,
-		_pbrPipeline, _pbrPipelineLayout,
-		_skyboxPipeline, _skyboxPipelineLayout);
+	_commandBuffers = vkh::AllocateCommandBuffers(numImagesInFlight, _commandPool, _device);
+
+	for (u32 i = 0; i < _commandBuffers.size(); ++i)
+	{
+		RecordCommandBuffer(_commandBuffers[i],
+			GetCurrentSkyboxOrNull(),
+			_renderables,
+			_meshes,
+			i,
+			_swapchainExtent,
+			_swapchainFramebuffers[i],
+			_renderPass,
+			_pbrPipeline, _pbrPipelineLayout,
+			_skyboxPipeline, _skyboxPipelineLayout);
+	}
 	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 }
 
@@ -633,6 +638,88 @@ void Renderer::RecreateSwapchain()
 }
 
 
+
+
+void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
+	const Skybox* skybox,
+	const std::vector<std::unique_ptr<Renderable>>& renderables,
+	const std::vector<std::unique_ptr<MeshResource>>& meshes,
+	int frameIndex,
+	VkExtent2D swapchainExtent,
+	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
+	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
+	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
+{
+	// Start command buffer
+	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
+	{
+		// Record renderpass
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
+			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			// Skybox
+			if (skybox)
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+
+				const auto& mesh = *meshes[skybox->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
+					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+
+
+
+			// Objects
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
+
+			for (const auto& renderable : renderables)
+			{
+				const auto& mesh = *meshes[renderable->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
+					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+				/*const void* pValues;
+				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+	else
+	{
+		throw std::runtime_error("Failed to begin recording command buffer");
+	}
+
+
+	// End command buffer
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to end recording command buffer");
+	}
+}
 
 #pragma region Shared
 

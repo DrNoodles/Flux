@@ -163,37 +163,8 @@ public:
 		VkQueue transferQueue, VkDevice device);
 
 
-	[[nodiscard]] static std::vector<VkCommandBuffer> AllocateAndRecordCommandBuffers(
-		uint32_t numBuffersToCreate,
-
-		const Skybox* skybox,
-		const std::vector<std::unique_ptr<Renderable>>& renderables,
-		const std::vector<std::unique_ptr<MeshResource>>& meshes,
-
-		VkExtent2D swapchainExtent, const std::vector<VkFramebuffer>& swapchainFramebuffers,
-
-		VkCommandPool commandPool,
-		VkDevice device,
-		VkRenderPass renderPass,
-		VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout, 
-		VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout);
-
-
-	// TODO Move to Renderer (this is not a helper)
-	static void RecordCommandBuffer(
-		VkCommandBuffer commandBuffer,
-
-		const Skybox* skybox,
-		const std::vector<std::unique_ptr<Renderable>>& renderables,
-		const std::vector<std::unique_ptr<MeshResource>>& meshes,
-		int frameIndex,
-
-		VkExtent2D swapchainExtent,
-		VkFramebuffer swapchainFramebuffer,
-
-		VkRenderPass renderPass,
-		VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
-		VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout);
+	[[nodiscard]] static std::vector<VkCommandBuffer> AllocateCommandBuffers(u32 numBuffersToCreate,
+		VkCommandPool commandPool, VkDevice device);
 
 
 	// Returns render finished semaphore and image available semaphore, in that order

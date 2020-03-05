@@ -162,9 +162,13 @@ private:
 
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
 
-
+	void RecordCommandBuffer(VkCommandBuffer commandBuffer, const Skybox* skybox,
+	                         const std::vector<std::unique_ptr<Renderable>>& renderables,
+	                         const std::vector<std::unique_ptr<MeshResource>>& meshes, int frameIndex,
+	                         VkExtent2D swapchainExtent, VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
+	                         VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout, VkPipeline skyboxPipeline,
+	                         VkPipelineLayout skyboxPipelineLayout);
 
 	
 	#pragma region Shared
@@ -177,6 +181,9 @@ private:
 	
 	#pragma region Pbr
 
+	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, 
+		const Renderable& renderable) const;
+	
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
