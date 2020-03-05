@@ -192,11 +192,7 @@ public:
 	// TODO Remove this horrible code D: The connection of glfw, imgui and vulkan need to be done somewhere else - ie. a factory class
 	void InitImguiWithGlfwVulkan() override
 	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-
-		ImGui::StyleColorsLight();
-
+		
 		// Setup Platform/Renderer bindings
 		ImGui_ImplGlfw_InitForVulkan(_window, true);
 		//const char* glsl_version = "#version 450";// ? which version

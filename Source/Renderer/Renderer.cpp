@@ -10,6 +10,7 @@
 
 #include <Shared/FileService.h>
 
+// TODO Remove all notion of imgui in Renderer
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
@@ -612,19 +613,6 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 
 	_commandBuffers = vkh::AllocateCommandBuffers(numImagesInFlight, _commandPool, _device);
 
-	for (u32 i = 0; i < _commandBuffers.size(); ++i)
-	{
-		RecordCommandBuffer(_commandBuffers[i],
-			GetCurrentSkyboxOrNull(),
-			_renderables,
-			_meshes,
-			i,
-			_swapchainExtent,
-			_swapchainFramebuffers[i],
-			_renderPass,
-			_pbrPipeline, _pbrPipelineLayout,
-			_skyboxPipeline, _skyboxPipelineLayout);
-	}
 	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 }
 
@@ -637,9 +625,6 @@ void Renderer::RecreateSwapchain()
 	CreateSwapchainAndDependents(size.width, size.height);
 }
 
-
-
-
 void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 	const Skybox* skybox,
 	const std::vector<std::unique_ptr<Renderable>>& renderables,
@@ -648,7 +633,7 @@ void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 	VkExtent2D swapchainExtent,
 	VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
 	VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout,
-	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout)
+	VkPipeline skyboxPipeline, VkPipelineLayout skyboxPipelineLayout) const
 {
 	// Start command buffer
 	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
@@ -685,25 +670,41 @@ void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 
 
 			// Objects
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
-
-			for (const auto& renderable : renderables)
 			{
-				const auto& mesh = *meshes[renderable->MeshId.Id];
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
 
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
-					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				for (const auto& renderable : renderables)
+				{
+					const auto& mesh = *meshes[renderable->MeshId.Id];
 
-				/*const void* pValues;
-				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+					// Draw mesh
+					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer,
+						VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
+						0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+					/*const void* pValues;
+					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+				}
+			}
+
+
+			// ImGui
+			{
+				ImGui_ImplVulkan_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+				
+				auto show_demo_window = true;
+				ImGui::ShowDemoWindow(&show_demo_window);
+				
+				ImGui::Render();
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 			}
 		}
 		vkCmdEndRenderPass(commandBuffer);
@@ -720,6 +721,7 @@ void Renderer::RecordCommandBuffer(VkCommandBuffer commandBuffer,
 		throw std::runtime_error("Failed to end recording command buffer");
 	}
 }
+
 
 #pragma region Shared
 
@@ -1428,12 +1430,17 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 void Renderer::InitImgui()
 {
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGui::StyleColorsLight();
+
+	
 	// This is required as this layer doesn't have access to GLFW. // TODO Refactor so Renderer has no logical coupling to GLFW at all
 	_delegate.InitImguiWithGlfwVulkan();
 
 
 	const auto imageCount = (u32)_swapchainImages.size();
-
 	
 	// Create descriptor pool - from main_vulkan.cpp imgui example code
 	{
@@ -1449,13 +1456,14 @@ void Renderer::InitImgui()
 			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
 			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
 			 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-			}, 1, _device); // todo is maxsets = imageCount needed?
+			}, imageCount, _device); 
 	}
 
 
-	// Get the min image count - Copied from VulkanHelpers::CreateSwapchain
+	// Get the min image count
 	u32 minImageCount;
 	{
+		// Copied from VulkanHelpers::CreateSwapchain - TODO either store minImageCount or make it a separate func
 		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_physicalDevice, _surface);
 		
 		minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
@@ -1484,16 +1492,26 @@ void Renderer::InitImgui()
 		initInfo.Allocator = nullptr;
 		initInfo.CheckVkResultFn = [](VkResult err)
 		{
-			if (err == 0) return;
+			if (err == VK_SUCCESS) return;
 			printf("VkResult %d\n", err);
 			if (err < 0)
 				abort();
 		};
 	}
 
-
 	ImGui_ImplVulkan_Init(&initInfo, _renderPass);
+
+
+	// Upload Fonts
+	{
+		const auto cmdBuf = vkh::BeginSingleTimeCommands(_commandPool, _device);
+		ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
+		vkh::EndSingeTimeCommands(cmdBuf, _commandPool, _graphicsQueue, _device);
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+	}
 }
+// TODO BuildGui() // Creates the gui for this frame
+// TODO DrawImgui(VkCommandBuffer commandBuffer)
 void Renderer::CleanupImgui()
 {
 	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);

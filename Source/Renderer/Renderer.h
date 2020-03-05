@@ -168,7 +168,7 @@ private:
 	                         const std::vector<std::unique_ptr<MeshResource>>& meshes, int frameIndex,
 	                         VkExtent2D swapchainExtent, VkFramebuffer swapchainFramebuffer, VkRenderPass renderPass,
 	                         VkPipeline pbrPipeline, VkPipelineLayout pbrPipelineLayout, VkPipeline skyboxPipeline,
-	                         VkPipelineLayout skyboxPipelineLayout);
+	                         VkPipelineLayout skyboxPipelineLayout) const;
 
 	
 	#pragma region Shared
