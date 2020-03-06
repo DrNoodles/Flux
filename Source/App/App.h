@@ -7,8 +7,7 @@
 #include "IModelLoaderService.h"
 #include "SceneManager.h"
 #include "AssImpModelLoaderService.h"
-#include "UI/PropsView.h"
-#include "UI/ScenePane.h"
+#include "UI/UiPresenter.h"
 
 #include <Renderer/Renderer.h>
 #include <Renderer/CubemapTextureLoader.h>
@@ -44,21 +43,33 @@ public:
 
 	bool FramebufferResized = false;
 
-	
+
+	std::unique_ptr<UiPresenter> _ui;
+
 	explicit App(AppOptions options)
 	{
-		// Set Dependencies
-		_options = std::move(options);
-		
-		// Init all the things
 		InitWindow();
 
-		// Services
-		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 
-		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir,
-		                                       _options.AssetsDir, *this, *_modelLoaderService);
-		_scene = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
+		// Services
+		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+
+
+		// Controllers
+		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
+		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
+
+
+		// UI
+		auto ui = std::make_unique<UiPresenter>(/*dependencies*/);
+
+
+		// Set all teh things
+		_options = std::move(options);
+		_modelLoaderService = std::move(modelLoaderService);
+		_renderer = std::move(renderer);
+		_scene = std::move(scene);
+		_ui = std::move(ui);
 	}
 	~App()
 	{
@@ -197,38 +208,7 @@ public:
 	
 	void BuildGui() override
 	{
-		// Start the Dear ImGui frame
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-		{
-			auto show_demo_window = true;
-			ImGui::ShowDemoWindow(&show_demo_window);
-			//
-			//// Scene Pane
-			//ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			//ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
-
-			//auto& entsView = _sceneController.EntitiesView();
-			//std::vector<Entity*> allEnts{ entsView.size() };
-			//std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
-			//	{
-			//		return pe.get();
-			//	});
-			//IblVm iblVm{ &_sceneController, &_renderOptions };
-			//_scenePane.DrawUI(allEnts, _selection, iblVm);
-
-
-			//// Properties Pane
-			//ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			//ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
-
-			//Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-			//_propsPresenter.Draw((int)_selection.size(), selection, _textures, _meshes, _gpuResourceService.get());
-			
-		}
-		ImGui::EndFrame();
-		ImGui::Render();
+		_ui->Draw();
 	}
 
 	#pragma endregion
@@ -340,7 +320,6 @@ private:
 				_scene->GetEntities().emplace_back(std::move(entity));
 			}
 		}
-
 	}
 	
 	void LoadSphere()

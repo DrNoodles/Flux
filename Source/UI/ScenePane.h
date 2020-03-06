@@ -5,10 +5,10 @@
 class IblVm;
 struct Entity;
 
-class IUiActionsDelegate
+class ISceneViewDelegate
 {
 public:
-	virtual ~IUiActionsDelegate() = default;
+	virtual ~ISceneViewDelegate() = default;
 	virtual void LoadDemoScene() = 0;
 	virtual void LoadModel(const std::string& path) = 0;
 	virtual void CreateLight() = 0;
@@ -25,12 +25,12 @@ class ScenePane
 {
 public:
 	ScenePane() = default;
-	explicit ScenePane(IUiActionsDelegate* delegate)
+	explicit ScenePane(ISceneViewDelegate* delegate)
 	{
 		_delegate = delegate;
 	}
 	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
 
 private:
-	IUiActionsDelegate* _delegate = nullptr;
+	ISceneViewDelegate* _delegate = nullptr;
 };

@@ -268,5 +268,5 @@ private:
 	void DrawImgui(VkCommandBuffer commandBuffer);
 	void CleanupImgui();
 
-#pragma endregion
+	#pragma endregion
 };
