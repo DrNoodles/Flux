@@ -7,8 +7,7 @@
 #include "IModelLoaderService.h"
 #include "SceneManager.h"
 #include "AssImpModelLoaderService.h"
-#include "UI/PropsView.h"
-#include "UI/ScenePane.h"
+#include "UI/UiPresenter.h"
 
 #include <Renderer/Renderer.h>
 #include <Renderer/CubemapTextureLoader.h>
@@ -38,27 +37,39 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 // TODO Extract IWindow interface and VulkanWindow impl from App
-class App final : public IRendererDelegate
+class App final : public IRendererDelegate, public IUiPresenterDelegate
 {
 public:
 
 	bool FramebufferResized = false;
 
-	
+
+	std::unique_ptr<UiPresenter> _ui;
+
 	explicit App(AppOptions options)
 	{
-		// Set Dependencies
-		_options = std::move(options);
-		
-		// Init all the things
 		InitWindow();
 
-		// Services
-		_modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 
-		_renderer = std::make_unique<Renderer>(_options.EnabledVulkanValidationLayers, _options.ShaderDir,
-		                                       _options.AssetsDir, *this, *_modelLoaderService);
-		_scene = std::make_unique<SceneManager>(*_modelLoaderService, *_renderer);
+		// Services
+		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
+
+
+		// Controllers
+		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
+		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
+
+
+		// UI
+		auto ui = std::make_unique<UiPresenter>(*this/*dependencies*/);
+
+
+		// Set all teh things
+		_options = std::move(options);
+		_modelLoaderService = std::move(modelLoaderService);
+		_renderer = std::move(renderer);
+		_scene = std::move(scene);
+		_ui = std::move(ui);
 	}
 	~App()
 	{
@@ -153,7 +164,17 @@ public:
 	}
 
 
-	#pragma region IVulkanGpuServiceDelegate
+	#pragma region IUiPresenterDelegate
+
+	glm::ivec2 GetWindowSize() const override
+	{
+		return _windowSize;
+	}
+	
+	#pragma endregion
+
+	
+	#pragma region IRendererDelegate
 	
 	VkSurfaceKHR CreateSurface(VkInstance instance) const override
 	{
@@ -187,43 +208,17 @@ public:
 
 		return { (u32)width, (u32)height };
 	}
-	//void DrawUI(VkCommandBuffer commandBuffer)
-	//{
-	//	// Start the Dear ImGui frame
-	//	ImGui_ImplVulkan_NewFrame();
-	//	ImGui_ImplGlfw_NewFrame();
-	//	ImGui::NewFrame();
-	//	{
-			/*
-			glViewport(0, 0, _windowWidth, _windowWidth);
 
-			// Scene Pane
-
-			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
-
-			auto& entsView = _sceneController.EntitiesView();
-			std::vector<Entity*> allEnts{ entsView.size() };
-			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
-				{
-					return pe.get();
-				});
-			IblVm iblVm{ &_sceneController, &_renderOptions };
-			_scenePane.DrawUI(allEnts, _selection, iblVm);
-
-
-			// Properties Pane
-			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
-
-			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-			_propsPresenter.Draw((int)_selection.size(), selection, _textures, _meshes, _gpuResourceService.get());
-			*/
-	/*	}
-		ImGui::EndFrame();
-		ImGui::Render();
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-	}*/
+	// TODO Remove this horrible code D: The connection of glfw, imgui and vulkan need to be done somewhere else - ie. a factory class
+	void InitImguiWithGlfwVulkan() override
+	{
+		ImGui_ImplGlfw_InitForVulkan(_window, true);
+	}
+	
+	void BuildGui() override
+	{
+		_ui->Draw();
+	}
 
 	#pragma endregion
 
@@ -234,7 +229,7 @@ private:
 	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 	
-	const glm::ivec2 _defaultWindowSize = { 800,600 };
+	glm::ivec2 _windowSize = { 800,600 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _options;
 
@@ -263,7 +258,7 @@ private:
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
 
-		GLFWwindow* window = glfwCreateWindow(_defaultWindowSize.x, _defaultWindowSize.y, "Vulkan", nullptr, nullptr);
+		GLFWwindow* window = glfwCreateWindow(_windowSize.x, _windowSize.y, "Vulkan", nullptr, nullptr);
 		if (window == nullptr)
 		{
 			throw std::runtime_error("Failed to create GLFWwindow");
@@ -280,73 +275,18 @@ private:
 	}
 
 	
-	//void InitUI()
-	//{
-	//	IMGUI_CHECKVERSION();
-	//	ImGui::CreateContext();
-	//	
-	//	ImGui::StyleColorsLight();
 
-	//	// Setup Platform/Renderer bindings
-	//	ImGui_ImplGlfw_InitForVulkan(_window, true);
-	//	const char* glsl_version = "#version 450"; ? which version
-	//	
-	//	ImGui_ImplVulkan_Init(glsl_version);
-	//}
 
+	// TODO Move to utils class
+	static float RandF(float min, float max)
+	{
+		const auto base = float(rand()) / RAND_MAX;
+		return min + base * (max - min);
+	}
 	
 	#pragma region Scene Management
 
-	//void LoadStormtrooperHelmet()
-	//{
-	//	const auto path = _options.ModelsDir + "Stormtrooper/helmet/helmet.fbx";
-	//	std::cout << "Loading model:" << path << std::endl;
-
-	//	auto& entities = _scene->GetEntities();
-
-	//	auto entity = std::make_unique<Entity>();
-	//	entity->Name = "Stormtrooper Helmet";
-	//	entity->Transform.SetScale(glm::vec3{ 10 });
-	//	entity->Transform.SetPos(glm::vec3{ -1, -15, 0 });
-	//	entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
-
-
-	//	// Add more maps to the material
-	//	{
-	//		Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-
-	//		// Load basecolor map
-	//		matCopy.BasecolorMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
-	//		matCopy.UseBasecolorMap = true;
-	//		
-	//		// Load normal map
-	//		matCopy.NormalMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/normalsRGB.png");
-	//		matCopy.UseNormalMap = true;
-	//		matCopy.InvertNormalMapZ = true;
-
-	//		// Load roughness map
-	//		matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/basecolorRGB_glossA.png");
-	//		matCopy.UseRoughnessMap = true;
-	//		matCopy.InvertRoughnessMap = true; // gloss
-	//		matCopy.RoughnessMapChannel = Material::Channel::Alpha;
-
-	//		// Load metalness map
-	//		matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/metalnessB.png");
-	//		matCopy.UseMetalnessMap = true;
-	//		matCopy.MetalnessMapChannel = Material::Channel::Blue;
-
-	//		// Load ao map
-	//		matCopy.AoMap = _scene->LoadTexture(_options.ModelsDir + "Stormtrooper/helmet/aoR.png");
-	//		matCopy.UseAoMap = true;
-	//		matCopy.AoMapChannel = Material::Channel::Red;
-
-	//		// Set material
-	//		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-	//	}
-
-
-	//	entities.emplace_back(std::move(entity));
-	//}
+	bool _sceneLoaded = false;
 
 	void LoadSphereArray()
 	{
@@ -389,7 +329,6 @@ private:
 				_scene->GetEntities().emplace_back(std::move(entity));
 			}
 		}
-
 	}
 	
 	void LoadSphere()
@@ -548,13 +487,6 @@ private:
 		}
 	}
 
-	// TODO Move to utils class
-	static float RandF(float min, float max)
-	{
-		const auto base = float(rand()) / RAND_MAX;
-		return min + base * (max - min);
-	}
-
 	void NextSkybox()
 	{
 		_currentSkybox = ++_currentSkybox % _skyboxPaths.size();
@@ -637,8 +569,6 @@ private:
 		}
 	}
 
-	bool _sceneLoaded = false;
-
 	void LoadScene() 
 	{
 		if (_sceneLoaded) { return; }
@@ -646,10 +576,10 @@ private:
 
 		std::cout << "Loading scene\n";
 		LoadSkybox(_skyboxPaths[_currentSkybox]);
-		LoadAxis();
-		LoadSphereArray();
+		//LoadAxis();
+		//LoadSphereArray();
 		//LoadStormtrooperHelmet();
-		LoadRailgun();
+		//LoadRailgun();
 		//LoadLighting();
 	}
 
@@ -701,7 +631,6 @@ private:
 		_camera.Focus(center, radius, viewportAspect);
 		*/
 	}
-
 	
 	#pragma endregion
 
@@ -806,6 +735,8 @@ private:
 	void OnWindowSizeChanged(int width, int height)
 	{
 		FramebufferResized = true;
+		_windowSize.x = width;
+		_windowSize.y = height;
 	}
 
 	#pragma endregion 

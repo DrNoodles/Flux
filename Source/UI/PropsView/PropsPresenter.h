@@ -5,10 +5,11 @@
 #include "RenderableVm.h"
 #include "LightVm.h"
 
-#include "App/Entity.h"
+#include "App/Entity/Entity.h"
+#include "Renderer/TextureResource.h"
 
 
-// Purpose of the class is to take app state, prepare it for view, create view and inject the view data.
+// Purpose of the class is to take app state, prepare it for view (via view models), create view and inject the view models.
 // It's also responsible for converting view changes into state changes.
 class PropsPresenter
 {
@@ -18,8 +19,8 @@ public:
 	// Precondition: selection must NOT be null if selectionCount = 1
 	void Draw(int selectionCount, Entity* selection, 
 		const std::vector<TextureResource*>& textures, 
-		const std::vector<MeshResource*>& models,
-		ResourceManager* res)
+		const std::vector<MeshResource*>& models/*,
+		ResourceManager* res*/)
 	{
 		if (selectionCount != 1)
 		{
@@ -40,7 +41,7 @@ public:
 				: std::nullopt;
 
 			_rvm = selection->Renderable.has_value()
-				? std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
+				? std::nullopt//std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
 				: std::nullopt;
 		}
 		else

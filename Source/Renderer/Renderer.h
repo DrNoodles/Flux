@@ -31,6 +31,9 @@ public:
 	// Renderer stuff
 	virtual VkExtent2D GetFramebufferSize() = 0;
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
+
+	virtual void InitImguiWithGlfwVulkan() = 0; // TODO remove this temp crap;
+	virtual void BuildGui() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,10 +45,10 @@ public:
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 	void DrawFrame(float dt,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
-		const std::vector<Light>& lights,
-		glm::mat4 view, glm::vec3 camPos);
+	               const std::vector<RenderableResourceId>& renderableIds,
+	               const std::vector<glm::mat4>& transforms,
+	               const std::vector<Light>& lights,
+	               glm::mat4 view, glm::vec3 camPos);
 	void CleanUp(); // TODO convert to RAII?
 
 	TextureResourceId CreateTextureResource(const std::string& path);
@@ -155,16 +158,15 @@ private:
 	TextureResourceId _placeholderTexture;
 	MeshResourceId _skyboxMesh;
 
-
 	void InitVulkan();
 	void CleanupSwapchainAndDependents();
 
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
-	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Renderable& renderable) const;
 
+	void DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
 
-
+	
 	#pragma region Shared
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
@@ -175,6 +177,9 @@ private:
 	
 	#pragma region Pbr
 
+	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, 
+		const Renderable& renderable) const;
+	
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
@@ -253,4 +258,15 @@ private:
 		const VkExtent2D& swapchainExtent);
 
 	#pragma endregion Skybox
+
+
+	
+	#pragma region ImGui
+	
+	VkDescriptorPool _imguiDescriptorPool = nullptr;
+	void InitImgui();
+	void DrawImgui(VkCommandBuffer commandBuffer);
+	void CleanupImgui();
+
+	#pragma endregion
 };

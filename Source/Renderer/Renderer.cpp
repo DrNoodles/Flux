@@ -10,8 +10,10 @@
 
 #include <Shared/FileService.h>
 
-#define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
-#include <GLFW/glfw3.h>
+// TODO Remove all notion of imgui in Renderer
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_vulkan.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -19,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
+
 
 using vkh = VulkanHelpers;
 
@@ -31,6 +34,8 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
 	
+	InitImgui();
+
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 
 	// Load a cube
@@ -39,46 +44,8 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawFrame(float dt,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
-	const std::vector<Light>& lights,
-	glm::mat4 view, glm::vec3 camPos)
+void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
 {
-	assert(renderableIds.size() == transforms.size());
-
-	// Sync CPU-GPU
-	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
-
-	// Aquire an image from the swap chain
-	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
-	                                        nullptr, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		RecreateSwapchain();
-		return;
-	}
-	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
-	if (!isUsable)
-	{
-		throw std::runtime_error("Failed to acquire swapchain image!");
-	}
-
-
-	// If the image is still used by a previous frame, wait for it to finish!
-	if (_imagesInFlight[imageIndex] != nullptr)
-	{
-		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
-	}
-	// Mark the image as now being in use by this frame
-	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
-
-
-	auto startBench = std::chrono::steady_clock::now();
-
-
 	// Calc Projection
 	const auto vfov = 45.f;
 	const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
@@ -152,19 +119,145 @@ void Renderer::DrawFrame(float dt,
 		vkUnmapMemory(_device, modelBufferMemory);
 	}
 
-	vkh::RecordCommandBuffer(
-		_commandBuffers[imageIndex],
-		skybox,
-		_renderables,
-		_meshes,
-		imageIndex,
-		_swapchainExtent,
-		_swapchainFramebuffers[imageIndex],
-		_renderPass,
-		_pbrPipeline, _pbrPipelineLayout,
-		_skyboxPipeline, _skyboxPipelineLayout);
 
 
+
+	// Record Command Buffer
+
+	auto frameIndex = imageIndex;
+	auto renderPass = _renderPass;
+	auto swapchainExtent = _swapchainExtent;
+	auto commandBuffer = _commandBuffers[imageIndex];
+	auto swapchainFramebuffer = _swapchainFramebuffers[imageIndex];
+	auto pbrPipeline = _pbrPipeline;
+	auto pbrPipelineLayout = _pbrPipelineLayout;
+	auto skyboxPipeline = _skyboxPipeline;
+	auto skyboxPipelineLayout = _skyboxPipelineLayout;
+	auto& meshes = _meshes;
+	auto& renderables = _renderables;
+	
+	// Start command buffer
+	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
+	{
+		// Record renderpass
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
+			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			// Skybox
+			if (skybox)
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+
+				const auto& mesh = *meshes[skybox->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
+					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+
+
+			// Objects
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
+
+				for (const auto& renderable : renderables)
+				{
+					const auto& mesh = *meshes[renderable->MeshId.Id];
+
+					// Draw mesh
+					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+					vkCmdBindDescriptorSets(commandBuffer,
+						VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
+						0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+					/*const void* pValues;
+					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+				}
+			}
+
+
+			// ImGui
+			{
+				_delegate.BuildGui();
+				DrawImgui(commandBuffer);
+			}
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+	else
+	{
+		throw std::runtime_error("Failed to begin recording command buffer");
+	}
+
+	// End command buffer
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to end recording command buffer");
+	}
+}
+
+void Renderer::DrawFrame(float dt,
+                         const std::vector<RenderableResourceId>& renderableIds,
+                         const std::vector<glm::mat4>& transforms,
+                         const std::vector<Light>& lights,
+                         glm::mat4 view, glm::vec3 camPos)
+{
+	assert(renderableIds.size() == transforms.size());
+
+	// Sync CPU-GPU
+	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
+
+	// Aquire an image from the swap chain
+	uint32_t imageIndex;
+	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+	                                        nullptr, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapchain();
+		return;
+	}
+	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+	if (!isUsable)
+	{
+		throw std::runtime_error("Failed to acquire swapchain image!");
+	}
+
+
+	// If the image is still used by a previous frame, wait for it to finish!
+	if (_imagesInFlight[imageIndex] != nullptr)
+	{
+		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
+	}
+	// Mark the image as now being in use by this frame
+	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+
+	auto startBench = std::chrono::steady_clock::now();
+
+
+	DrawEverything(renderableIds, transforms, lights, view, camPos, imageIndex);
+
+	
+	
 	// Execute command buffer with the image as an attachment in the framebuffer
 	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 	VkSemaphore waitSemaphores[waitCount] = {_imageAvailableSemaphores[_currentFrame]};
@@ -229,35 +322,42 @@ void Renderer::CleanUp()
 {
 	vkDeviceWaitIdle(_device);
 
-	CleanupSwapchainAndDependents();
-
-	for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-	for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-	for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
-	for (auto& mesh : _meshes)
-	{
-		//mesh.Vertices.clear();
-		//mesh.Indices.clear();
-		vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
-		vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
-	}
-
-	_textures.clear(); // RAII will cleanup
-
-	vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
-
-	vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
 	
-	vkDestroyCommandPool(_device, _commandPool, nullptr);
-	vkDestroyDevice(_device, nullptr);
-	if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-	vkDestroySurfaceKHR(_instance, _surface, nullptr);
-	vkDestroyInstance(_instance, nullptr);
+	CleanupImgui();
+
+
+	// Cleanup Renderer & Vulkan
+	{
+		CleanupSwapchainAndDependents();
+
+		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+
+		for (auto& mesh : _meshes)
+		{
+			//mesh.Vertices.clear();
+			//mesh.Indices.clear();
+			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
+			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
+			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
+		}
+
+		_textures.clear(); // RAII will cleanup
+
+		vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
+
+		vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
+
+		vkDestroyCommandPool(_device, _commandPool, nullptr);
+		vkDestroyDevice(_device, nullptr);
+		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+	}
 }
 
 IblTextureResourceIds
@@ -598,16 +698,8 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
 	}
 
-	_commandBuffers = vkh::AllocateAndRecordCommandBuffers(
-		numImagesInFlight,
-		GetCurrentSkyboxOrNull(),
-		_renderables,
-		_meshes,
-		_swapchainExtent,
-		_swapchainFramebuffers,
-		_commandPool, _device, _renderPass,
-		_pbrPipeline, _pbrPipelineLayout,
-		_skyboxPipeline, _skyboxPipelineLayout);
+	_commandBuffers = vkh::AllocateCommandBuffers(numImagesInFlight, _commandPool, _device);
+
 	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 }
 
@@ -619,7 +711,6 @@ void Renderer::RecreateSwapchain()
 	CleanupSwapchainAndDependents();
 	CreateSwapchainAndDependents(size.width, size.height);
 }
-
 
 
 #pragma region Shared
@@ -1323,3 +1414,111 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 
 #pragma endregion Skybox
+
+
+#pragma region ImGui
+
+void Renderer::InitImgui()
+{
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+
+	
+	// UI Style
+	const float rounding = 3;
+	
+	ImGui::StyleColorsLight();
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.WindowRounding = 0;
+	style.WindowBorderSize = 0;
+	style.WindowRounding = 0;
+	style.FrameRounding = rounding;
+	style.ChildRounding = rounding;
+
+	
+	// This is required as this layer doesn't have access to GLFW. // TODO Refactor so Renderer has no logical coupling to GLFW at all
+	_delegate.InitImguiWithGlfwVulkan();
+
+
+	const auto imageCount = (u32)_swapchainImages.size();
+	
+	// Create descriptor pool - from main_vulkan.cpp imgui example code
+	{
+		_imguiDescriptorPool = vkh::CreateDescriptorPool({
+			 { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+			}, imageCount, _device); 
+	}
+
+
+	// Get the min image count
+	u32 minImageCount;
+	{
+		// Copied from VulkanHelpers::CreateSwapchain - TODO either store minImageCount or make it a separate func
+		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_physicalDevice, _surface);
+		
+		minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
+		const auto maxImageCount = deets.Capabilities.maxImageCount;
+		const auto maxImageCountExists = maxImageCount != 0;
+		if (maxImageCountExists && minImageCount > maxImageCount)
+		{
+			minImageCount = maxImageCount;
+		}
+	}
+
+	
+	// Init device info
+	ImGui_ImplVulkan_InitInfo initInfo = {};
+	{
+		initInfo.Instance = _instance;
+		initInfo.PhysicalDevice = _physicalDevice;
+		initInfo.Device = _device;
+		initInfo.QueueFamily = vkh::FindQueueFamilies(_physicalDevice, _surface).GraphicsFamily.value(); // vomit
+		initInfo.Queue = _graphicsQueue;
+		initInfo.PipelineCache = nullptr;
+		initInfo.DescriptorPool = _imguiDescriptorPool;
+		initInfo.MinImageCount = minImageCount;
+		initInfo.ImageCount = imageCount;
+		initInfo.MSAASamples = _msaaSamples;
+		initInfo.Allocator = nullptr;
+		initInfo.CheckVkResultFn = [](VkResult err)
+		{
+			if (err == VK_SUCCESS) return;
+			printf("VkResult %d\n", err);
+			if (err < 0)
+				abort();
+		};
+	}
+
+	ImGui_ImplVulkan_Init(&initInfo, _renderPass);
+
+
+	// Upload Fonts
+	{
+		const auto cmdBuf = vkh::BeginSingleTimeCommands(_commandPool, _device);
+		ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
+		vkh::EndSingeTimeCommands(cmdBuf, _commandPool, _graphicsQueue, _device);
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+	}
+}
+void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
+{
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+}
+void Renderer::CleanupImgui()
+{
+	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+}
+#pragma endregion

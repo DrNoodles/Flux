@@ -78,7 +78,7 @@ void PropsView::DrawTransformPanel(TransformVm& tvm) const
 		if (ImGui::DragFloat3("Rotation", &tvm.Rot[0])) tvm.Commit();
 		if (ImGui::DragFloat3("Scale", &tvm.Scale[0], 0.1f)) tvm.Commit();
 		ImGui::PopItemWidth();
-		ImGui::SameLine(ImGui::GetContentRegionAvailWidth() - 45);
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 45);
 		ImGui::SetNextItemWidth(40);
 		ImGui::Checkbox("Lock", &tvm.UniformScale);
 	}
