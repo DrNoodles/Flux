@@ -19,7 +19,7 @@ public:
 	{}
 
 	
-	std::vector<std::unique_ptr<Entity>>& GetEntities() { return _entities; }
+	//std::vector<std::unique_ptr<Entity>>& GetEntities() { return _entities; }
 	Camera& GetCamera() { return _camera; }
 
 	
@@ -28,6 +28,30 @@ public:
 	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 
+
+
+
+	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
+	{
+		return _entities;
+	}
+	void AddEntity(std::unique_ptr<Entity> e)
+	{
+		_entities.emplace_back(std::move(e));
+	}
+	void RemoveEntity(int entId)
+	{
+		_entities.erase(std::remove_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
+			{
+				return entId == e->Id;
+			}),
+			_entities.end());
+	}
+
+
+
+
+	
 private:
 	// Dependencies
 	IModelLoaderService& _modelLoaderService;

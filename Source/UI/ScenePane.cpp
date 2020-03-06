@@ -107,10 +107,12 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 						if (isSelected)
 						{
 							Deselect(e);
+							printf_s("Deselected %s\n", e->Name.c_str());
 						}
 						else
 						{
 							Select(e);
+							printf_s("Selected %s\n", e->Name.c_str());
 						}
 					}
 				}

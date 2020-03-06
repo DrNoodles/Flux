@@ -110,12 +110,14 @@ public:
 	}
 
 
-	void Update(const float dt) const
+	void Update(const float dt)
 	{
+		DeleteEntities(); 
+		
 		const auto degreesPerSec = 30.f;
 		const auto rotationDelta = dt * degreesPerSec;
 
-		for (auto& entity : _scene->GetEntities())
+		for (auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Action)
 			{
@@ -136,7 +138,7 @@ public:
 	
 	void Draw(const float dt) const
 	{
-		auto& entities = _scene->GetEntities();
+		auto& entities = _scene->EntitiesView();
 		std::vector<RenderableResourceId> renderables;
 		std::vector<Light> lights;
 		std::vector<glm::mat4> transforms;
@@ -165,10 +167,17 @@ public:
 
 
 	#pragma region IUiPresenterDelegate
-
+	
 	glm::ivec2 GetWindowSize() const override
 	{
 		return _windowSize;
+	}
+	void Delete(const std::vector<int>& entityIds) override
+	{
+		for (auto id : entityIds)
+		{
+			_deletionQueue.push_back(id);
+		}
 	}
 	
 	#pragma endregion
@@ -275,7 +284,17 @@ private:
 	}
 
 	
+	std::vector<int> _deletionQueue{};
+	void DeleteEntities()
+	{
+		for (auto& entId : _deletionQueue)
+		{
+			_scene->RemoveEntity(entId);
+			_ui->ClearSelection();
+		}
 
+		_deletionQueue.clear();
+	}
 
 	// TODO Move to utils class
 	static float RandF(float min, float max)
@@ -325,7 +344,7 @@ private:
 				matCopy.Metalness = metalness;
 				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-				_scene->GetEntities().emplace_back(std::move(entity));
+				_scene->AddEntity(std::move(entity));
 			}
 		}
 	}
@@ -346,7 +365,7 @@ private:
 		matCopy.Metalness = 1;
 		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-		_scene->GetEntities().emplace_back(std::move(entity));
+		_scene->AddEntity(std::move(entity));
 	}
 	
 	void LoadRailgun()
@@ -354,7 +373,6 @@ private:
 		const auto path = _options.ModelsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 
-		auto& entities = _scene->GetEntities();
 
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Railgun";
@@ -381,7 +399,7 @@ private:
 		//}
 
 
-		entities.emplace_back(std::move(entity));
+		_scene->AddEntity(std::move(entity));
 	}
 
 	void LoadAxis()
@@ -422,7 +440,7 @@ private:
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// X
@@ -454,7 +472,7 @@ private:
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Y
@@ -468,7 +486,7 @@ private:
 			matCopy.Basecolor = { 0,1,0 };
 			matCopy.Roughness = 0;
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Z
@@ -482,7 +500,7 @@ private:
 			matCopy.Basecolor = { 0,0,1 };
 			matCopy.Roughness = 0;
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 	}
 
@@ -540,7 +558,7 @@ private:
 		dirLight->Light->Color = { 1,1,1 };
 		dirLight->Light->Intensity = 20;
 		dirLight->Light->Type = LightComponent::Types::directional;
-		_scene->GetEntities().emplace_back(std::move(dirLight));
+		_scene->AddEntity(std::move(dirLight));
 
 		// Max random lights
 		for (int i = 0; i < 7; i++)
@@ -552,13 +570,13 @@ private:
 			light->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
 			light->Light->Intensity = 300;
 			light->Light->Type = LightComponent::Types::point;
-			_scene->GetEntities().emplace_back(std::move(light));
+			_scene->AddEntity(std::move(light));
 		}
 	}
 
 	void RandomizeLights()
 	{
-		for (auto& entity : _scene->GetEntities())
+		for (auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Light.has_value())
 			{

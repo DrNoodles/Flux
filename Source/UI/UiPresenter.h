@@ -3,17 +3,19 @@
 #include "ScenePane.h"
 #include "PropsView/PropsPresenter.h"
 
+#include <Shared/FileService.h>
+
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-#include "Shared/FileService.h"
 
 class IUiPresenterDelegate
 {
 public:
 	virtual ~IUiPresenterDelegate() = default;
 	virtual glm::ivec2 GetWindowSize() const = 0;
+	virtual void Delete(const std::vector<int>& entityIds) = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate
@@ -41,6 +43,10 @@ public:
 	UiPresenter(UiPresenter&&) = delete;
 	UiPresenter& operator=(UiPresenter&&) = delete;
 
+	void ClearSelection()
+	{
+		_selection.clear();
+	}
 	void Draw()
 	{
 		// Start the Dear ImGui frame
@@ -55,15 +61,13 @@ public:
 			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
 			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
 
-			/*auto& entsView = _sceneController.EntitiesView();
+			auto& entsView = _scene.EntitiesView();
 			std::vector<Entity*> allEnts{ entsView.size() };
 			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
 				{
 					return pe.get();
-				});*/
+				});
 			//IblVm iblVm{ &_sceneController, &_renderOptions };
-			auto _selection = std::unordered_set<Entity*>();
-			auto allEnts = std::vector<Entity*>();
 			_scenePane.DrawUI(allEnts, _selection/*, iblVm*/);
 
 
@@ -78,6 +82,8 @@ public:
 		ImGui::EndFrame();
 		ImGui::Render();
 	}
+
+	
 private:
 	// Dependencies
 	IUiPresenterDelegate& _dgate;
@@ -90,7 +96,6 @@ private:
 	// Layout
 	int _scenePanelWidth = 250;
 	int _propsPanelWidth = 300;
-	
 
 	int WindowWidth() const { return _dgate.GetWindowSize().x; }
 	int WindowHeight() const { return _dgate.GetWindowSize().y; }
@@ -109,17 +114,20 @@ private:
 	glm::ivec2 PropsSize() const { return { _propsPanelWidth, WindowHeight() }; }
 
 
-
+	// Selection -- TODO Find a better home for this?
+	std::unordered_set<Entity*> _selection{};
+	
+	
 	#pragma region ISceneViewDelegate
 	
 	void LoadDemoScene() override
 	{
-		printf("LoadDemoScene()");
+		printf("LoadDemoScene()\n");
 		//_libraryController->LoadDemoScene();
 	}
 	void LoadModel(const std::string& path) override
 	{
-		printf("LoadModel(%s)", path.c_str());
+		printf("LoadModel(%s)\n", path.c_str());
 
 		// Split path into a dir and filename so we can name the entity
 		std::string dir, filename;
@@ -133,43 +141,49 @@ private:
 		entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
 
 
-		// Store entity
-		auto& entities = _scene.GetEntities();
-		entities.emplace_back(std::move(entity));
+		_scene.AddEntity(std::move(entity));
 	}
 	void CreateLight() override
 	{
-		printf("CreateLight()");
+		printf("CreateLight()\n");
 	}
 	void CreateSphere() override
 	{
-		printf("CreateSphere()");
+		printf("CreateSphere()\n");
 	}
 	void CreateBlob() override
 	{
-		printf("CreateBlob()");
+		printf("CreateBlob()\n");
 	}
 	void CreateCube() override
 	{
-		printf("CreateCube()");
+		printf("CreateCube()\n");
 	}
 	void DeleteSelected() override
 	{
-		printf("DeleteSelected()");
+		printf("DeleteSelected()\n");
+		std::vector<int> ids{};
+		std::for_each(_selection.begin(), _selection.end(), [&ids](Entity* s) { ids.emplace_back(s->Id); });
+		_dgate.Delete(ids);
 	}
 	void DeleteAll() override
 	{
-		printf("DeleteAll()");
+		printf("DeleteAll()\n");
+		auto& entities = _scene.EntitiesView();
+		std::vector<int> ids{};
+		std::for_each(entities.begin(), entities.end(), [&ids](const std::unique_ptr<Entity>& e) { ids.emplace_back(e->Id); });
+		_dgate.Delete(ids);
+
 	}
 	float GetExposure() const override
 	{
-		//printf("GetExposure()");
+		//printf("GetExposure()\n");
 		return 69.420f;
 	}
 	void SetExposure(float exposure) override
 	{
-		printf("SetExposure(%f)", exposure);
+		printf("SetExposure(%f)\n", exposure);
 	}
-	
-	#pragma endregion 
+
+	#pragma endregion
 };
