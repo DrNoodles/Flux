@@ -7,6 +7,8 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
+#include "Shared/FileService.h"
+
 class IUiPresenterDelegate
 {
 public:
@@ -18,8 +20,8 @@ class UiPresenter final : public ISceneViewDelegate
 {
 public:
 
-	explicit UiPresenter(IUiPresenterDelegate& dgate /*dependencies here*/)
-	: _dgate(dgate), _scenePane(ScenePane(this))
+	explicit UiPresenter(IUiPresenterDelegate& dgate, SceneManager& scene/*dependencies here*/)
+	: _dgate(dgate), _scene(scene), _scenePane(ScenePane(this))
 	{
 		// TODO Set dependencies
 
@@ -38,7 +40,6 @@ public:
 	// Disable move
 	UiPresenter(UiPresenter&&) = delete;
 	UiPresenter& operator=(UiPresenter&&) = delete;
-
 
 	void Draw()
 	{
@@ -80,7 +81,8 @@ public:
 private:
 	// Dependencies
 	IUiPresenterDelegate& _dgate;
-
+	SceneManager& _scene;
+	
 	// Views
 	ScenePane _scenePane;
 	PropsPresenter _propsPresenter;
@@ -92,7 +94,6 @@ private:
 
 	int WindowWidth() const { return _dgate.GetWindowSize().x; }
 	int WindowHeight() const { return _dgate.GetWindowSize().y; }
-	
 	// Anchor left
 	glm::ivec2 ScenePos() const { return { 0, 0 }; }
 	glm::ivec2 SceneSize() const
@@ -100,7 +101,6 @@ private:
 		int i = _dgate.GetWindowSize().y;
 		return { _scenePanelWidth, i };
 	}
-
 	// Fit to middle
 	glm::ivec2 ViewportPos() const { return { _scenePanelWidth, 0 }; }
 	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsPanelWidth - _scenePanelWidth, WindowHeight() }; }
@@ -111,13 +111,31 @@ private:
 
 
 	#pragma region ISceneViewDelegate
+	
 	void LoadDemoScene() override
 	{
 		printf("LoadDemoScene()");
+		//_libraryController->LoadDemoScene();
 	}
 	void LoadModel(const std::string& path) override
 	{
 		printf("LoadModel(%s)", path.c_str());
+
+		// Split path into a dir and filename so we can name the entity
+		std::string dir, filename;
+		std::tie(dir, filename) = FileService::SplitPathAsDirAndFilename(path);
+
+		
+		// Create new entity
+		auto entity = std::make_unique<Entity>();
+		entity->Name = filename;
+		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
+		entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
+
+
+		// Store entity
+		auto& entities = _scene.GetEntities();
+		entities.emplace_back(std::move(entity));
 	}
 	void CreateLight() override
 	{
@@ -152,5 +170,6 @@ private:
 	{
 		printf("SetExposure(%f)", exposure);
 	}
+	
 	#pragma endregion 
 };

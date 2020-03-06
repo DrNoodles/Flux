@@ -61,7 +61,7 @@ public:
 
 
 		// UI
-		auto ui = std::make_unique<UiPresenter>(*this/*dependencies*/);
+		auto ui = std::make_unique<UiPresenter>(*this, *scene/*dependencies*/);
 
 
 		// Set all teh things
@@ -286,7 +286,6 @@ private:
 	
 	#pragma region Scene Management
 
-	bool _sceneLoaded = false;
 
 	void LoadSphereArray()
 	{
@@ -569,17 +568,17 @@ private:
 		}
 	}
 
-	void LoadScene() 
+	bool _demoSceneLoaded = false;
+	void LoadDemoScene()
 	{
-		if (_sceneLoaded) { return; }
-		_sceneLoaded = true;
+		if (_demoSceneLoaded) { return; }
+		_demoSceneLoaded = true;
 
 		std::cout << "Loading scene\n";
 		LoadSkybox(_skyboxPaths[_currentSkybox]);
-		//LoadAxis();
-		//LoadSphereArray();
-		//LoadStormtrooperHelmet();
-		//LoadRailgun();
+		LoadAxis();
+		LoadSphereArray();
+		LoadRailgun();
 		//LoadLighting();
 	}
 
@@ -674,7 +673,7 @@ private:
 
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
-		if (key == GLFW_KEY_X)      { LoadScene(); }
+		if (key == GLFW_KEY_X)      { LoadDemoScene(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { NextSkybox(); }
 	}
