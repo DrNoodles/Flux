@@ -11,7 +11,7 @@
 #include <string>
 
 
-void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
+void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const
 {
 	assert(_delegate); // Delegate must be set
 	

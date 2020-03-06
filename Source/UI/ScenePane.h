@@ -24,12 +24,12 @@ public:
 class ScenePane
 {
 public:
-	ScenePane() = default;
+	ScenePane() = delete;
 	explicit ScenePane(ISceneViewDelegate* delegate)
 	{
 		_delegate = delegate;
 	}
-	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
+	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const;
 
 private:
 	ISceneViewDelegate* _delegate = nullptr;

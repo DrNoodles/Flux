@@ -41,7 +41,7 @@ public:
 				: std::nullopt;
 
 			_rvm = selection->Renderable.has_value()
-				? std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
+				? std::nullopt//std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
 				: std::nullopt;
 		}
 		else

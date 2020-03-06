@@ -1422,8 +1422,18 @@ void Renderer::InitImgui()
 {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+	
+	// UI Style
+	const float rounding = 3;
+	
 	ImGui::StyleColorsLight();
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.WindowRounding = 0;
+	style.WindowBorderSize = 0;
+	style.WindowRounding = 0;
+	style.FrameRounding = rounding;
+	style.ChildRounding = rounding;
 
 	
 	// This is required as this layer doesn't have access to GLFW. // TODO Refactor so Renderer has no logical coupling to GLFW at all

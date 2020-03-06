@@ -37,7 +37,7 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 // TODO Extract IWindow interface and VulkanWindow impl from App
-class App final : public IRendererDelegate
+class App final : public IRendererDelegate, public IUiPresenterDelegate
 {
 public:
 
@@ -61,7 +61,7 @@ public:
 
 
 		// UI
-		auto ui = std::make_unique<UiPresenter>(/*dependencies*/);
+		auto ui = std::make_unique<UiPresenter>(*this/*dependencies*/);
 
 
 		// Set all teh things
@@ -164,6 +164,16 @@ public:
 	}
 
 
+	#pragma region IUiPresenterDelegate
+
+	glm::ivec2 GetWindowSize() const override
+	{
+		return _windowSize;
+	}
+	
+	#pragma endregion
+
+	
 	#pragma region IRendererDelegate
 	
 	VkSurfaceKHR CreateSurface(VkInstance instance) const override
@@ -199,7 +209,6 @@ public:
 		return { (u32)width, (u32)height };
 	}
 
-
 	// TODO Remove this horrible code D: The connection of glfw, imgui and vulkan need to be done somewhere else - ie. a factory class
 	void InitImguiWithGlfwVulkan() override
 	{
@@ -220,7 +229,7 @@ private:
 	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 	
-	const glm::ivec2 _defaultWindowSize = { 800,600 };
+	glm::ivec2 _windowSize = { 800,600 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _options;
 
@@ -249,7 +258,7 @@ private:
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
 
-		GLFWwindow* window = glfwCreateWindow(_defaultWindowSize.x, _defaultWindowSize.y, "Vulkan", nullptr, nullptr);
+		GLFWwindow* window = glfwCreateWindow(_windowSize.x, _windowSize.y, "Vulkan", nullptr, nullptr);
 		if (window == nullptr)
 		{
 			throw std::runtime_error("Failed to create GLFWwindow");
@@ -567,10 +576,10 @@ private:
 
 		std::cout << "Loading scene\n";
 		LoadSkybox(_skyboxPaths[_currentSkybox]);
-		LoadAxis();
-		LoadSphereArray();
+		//LoadAxis();
+		//LoadSphereArray();
 		//LoadStormtrooperHelmet();
-		LoadRailgun();
+		//LoadRailgun();
 		//LoadLighting();
 	}
 
@@ -726,6 +735,8 @@ private:
 	void OnWindowSizeChanged(int width, int height)
 	{
 		FramebufferResized = true;
+		_windowSize.x = width;
+		_windowSize.y = height;
 	}
 
 	#pragma endregion 
