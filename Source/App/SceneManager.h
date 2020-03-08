@@ -41,11 +41,29 @@ public:
 	}
 	void RemoveEntity(int entId)
 	{
-		_entities.erase(std::remove_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
+		// Find item
+		auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
 			{
 				return entId == e->Id;
-			}),
-			_entities.end());
+			});
+
+		if (iterator == _entities.end())
+		{
+			assert(false); // trying to erase bogus entId
+			return;
+		}
+
+		
+		// Cleanup entity references in app
+		Entity* e = iterator->get();
+		if (e->Renderable.has_value())
+		{
+			auto& r = e->Renderable.value();
+			// TODO Clean up rendereable shit
+		}
+
+		
+		_entities.erase(iterator);
 	}
 
 

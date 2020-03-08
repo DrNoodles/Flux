@@ -6,9 +6,12 @@
 #include "App/Entity/Entity.h"
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h> // for ImGui::PushItemFlag() to enable disabling of widgets https://github.com/ocornut/imgui/issues/211
 
 #include <unordered_set>
 #include <string>
+
+
 
 
 void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const
@@ -119,16 +122,45 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 			}
 			ImGui::EndChild();
 		}
-		
-		if (!selection.empty())
+
+
+		// Delete selected button
 		{
-			if (ImGui::Button("Delete")) _delegate->DeleteSelected();
-			ImGui::SameLine();
+			if (selection.empty())
+			{
+				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+			}
+
+			if (ImGui::Button("Delete Selected")) _delegate->DeleteSelected();
+
+			if (selection.empty())
+			{
+				ImGui::PopItemFlag();
+				ImGui::PopStyleVar();
+			}
 		}
 
-		if (ImGui::Button("Delete All")) _delegate->DeleteAll();
+		// Delete All button
+		{
+			if (ents.empty())
+			{
+				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+			}
 
+			ImGui::SameLine();
+			if (ImGui::Button("Delete All")) _delegate->DeleteAll();
 
+			if (ents.empty())
+			{
+				ImGui::PopItemFlag();
+				ImGui::PopStyleVar();
+			}
+		}
+		
+
+		
 		ImGui::Spacing();
 
 		

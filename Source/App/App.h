@@ -238,7 +238,7 @@ private:
 	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 	
-	glm::ivec2 _windowSize = { 800,600 };
+	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _options;
 
@@ -289,22 +289,23 @@ private:
 	{
 		for (auto& entId : _deletionQueue)
 		{
-			_scene->RemoveEntity(entId);
 			_ui->ClearSelection();
+			_scene->RemoveEntity(entId);
 		}
 
 		_deletionQueue.clear();
 	}
 
+	
 	// TODO Move to utils class
 	static float RandF(float min, float max)
 	{
 		const auto base = float(rand()) / RAND_MAX;
 		return min + base * (max - min);
 	}
+
 	
 	#pragma region Scene Management
-
 
 	void LoadSphereArray()
 	{

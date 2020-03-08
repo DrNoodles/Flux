@@ -120,8 +120,6 @@ void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderabl
 	}
 
 
-
-
 	// Record Command Buffer
 
 	auto frameIndex = imageIndex;
@@ -134,7 +132,6 @@ void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderabl
 	auto skyboxPipeline = _skyboxPipeline;
 	auto skyboxPipelineLayout = _skyboxPipelineLayout;
 	auto& meshes = _meshes;
-	auto& renderables = _renderables;
 	
 	// Start command buffer
 	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
@@ -173,8 +170,9 @@ void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderabl
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
 
-				for (const auto& renderable : renderables)
+				for (const auto& renderableId : renderableIds)
 				{
+					const auto& renderable = _renderables[renderableId.Id].get();
 					const auto& mesh = *meshes[renderable->MeshId.Id];
 
 					// Draw mesh
