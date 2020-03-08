@@ -16,6 +16,7 @@ public:
 	virtual ~IUiPresenterDelegate() = default;
 	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
+	virtual void LoadDemoScene() = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate
@@ -23,7 +24,7 @@ class UiPresenter final : public ISceneViewDelegate
 public:
 
 	explicit UiPresenter(IUiPresenterDelegate& dgate, SceneManager& scene/*dependencies here*/)
-	: _dgate(dgate), _scene(scene), _scenePane(ScenePane(this))
+	: _delegate(dgate), _scene(scene), _scenePane(ScenePane(this))
 	{
 		// TODO Set dependencies
 
@@ -86,7 +87,7 @@ public:
 	
 private:
 	// Dependencies
-	IUiPresenterDelegate& _dgate;
+	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	
 	// Views
@@ -97,13 +98,13 @@ private:
 	int _scenePanelWidth = 250;
 	int _propsPanelWidth = 300;
 
-	int WindowWidth() const { return _dgate.GetWindowSize().x; }
-	int WindowHeight() const { return _dgate.GetWindowSize().y; }
+	int WindowWidth() const { return _delegate.GetWindowSize().x; }
+	int WindowHeight() const { return _delegate.GetWindowSize().y; }
 	// Anchor left
 	glm::ivec2 ScenePos() const { return { 0, 0 }; }
 	glm::ivec2 SceneSize() const
 	{
-		int i = _dgate.GetWindowSize().y;
+		int i = _delegate.GetWindowSize().y;
 		return { _scenePanelWidth, i };
 	}
 	// Fit to middle
@@ -123,6 +124,7 @@ private:
 	void LoadDemoScene() override
 	{
 		printf("LoadDemoScene()\n");
+		_delegate.LoadDemoScene();
 		//_libraryController->LoadDemoScene();
 	}
 	void LoadModel(const std::string& path) override
@@ -164,7 +166,7 @@ private:
 		printf("DeleteSelected()\n");
 		std::vector<int> ids{};
 		std::for_each(_selection.begin(), _selection.end(), [&ids](Entity* s) { ids.emplace_back(s->Id); });
-		_dgate.Delete(ids);
+		_delegate.Delete(ids);
 	}
 	void DeleteAll() override
 	{
@@ -172,7 +174,7 @@ private:
 		auto& entities = _scene.EntitiesView();
 		std::vector<int> ids{};
 		std::for_each(entities.begin(), entities.end(), [&ids](const std::unique_ptr<Entity>& e) { ids.emplace_back(e->Id); });
-		_dgate.Delete(ids);
+		_delegate.Delete(ids);
 
 	}
 	float GetExposure() const override

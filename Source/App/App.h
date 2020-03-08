@@ -112,7 +112,7 @@ public:
 
 	void Update(const float dt)
 	{
-		DeleteEntities(); 
+		ProcessDeletionQueue(); 
 		
 		const auto degreesPerSec = 30.f;
 		const auto rotationDelta = dt * degreesPerSec;
@@ -178,6 +178,15 @@ public:
 		{
 			_deletionQueue.push_back(id);
 		}
+	}
+	void LoadDemoScene() override
+	{
+		std::cout << "Loading scene\n";
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
+		LoadAxis();
+		LoadSphereArray();
+		LoadRailgun();
+		//LoadLighting();
 	}
 	
 	#pragma endregion
@@ -285,7 +294,7 @@ private:
 
 	
 	std::vector<int> _deletionQueue{};
-	void DeleteEntities()
+	void ProcessDeletionQueue()
 	{
 		for (auto& entId : _deletionQueue)
 		{
@@ -587,20 +596,6 @@ private:
 		}
 	}
 
-	bool _demoSceneLoaded = false;
-	void LoadDemoScene()
-	{
-		if (_demoSceneLoaded) { return; }
-		_demoSceneLoaded = true;
-
-		std::cout << "Loading scene\n";
-		LoadSkybox(_skyboxPaths[_currentSkybox]);
-		LoadAxis();
-		LoadSphereArray();
-		LoadRailgun();
-		//LoadLighting();
-	}
-
 	void FrameAll()
 	{
 		// TODO Fix this method!
@@ -683,8 +678,6 @@ private:
 	{
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
-
-
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		// ONLY on pressed is handled
@@ -692,7 +685,6 @@ private:
 
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
-		if (key == GLFW_KEY_X)      { LoadDemoScene(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { NextSkybox(); }
 	}

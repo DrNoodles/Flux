@@ -29,7 +29,7 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 			ImGui::Text("Scene Loader");
 			if (ImGui::BeginChild("Scene Loader", ImVec2{ 0,35 }, true))
 			{
-				if (ImGui::Button("Load Scene"))
+				if (ImGui::Button("Load Demo Scene"))
 				{
 					_delegate->LoadDemoScene();
 				}
