@@ -80,16 +80,17 @@ public:
 
 	void Run()
 	{
+		LoadDefaultScene();
+
 		while (!glfwWindowShouldClose(_window))
 		{
 			glfwPollEvents();
 
-
 			// Compute time elapsed
 			const auto currentTime = std::chrono::high_resolution_clock::now();
 			_totalTime = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _startTime).count();
-			const auto dt = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _lastTime).count();
-			_lastTime = currentTime;
+			const auto dt = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _lastFrameTime).count();
+			_lastFrameTime = currentTime;
 
 
 			// Report fps
@@ -112,23 +113,11 @@ public:
 	{
 		ProcessDeletionQueue(); 
 		
-		const auto degreesPerSec = 30.f;
-		const auto rotationDelta = dt * degreesPerSec;
-
 		for (auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Action)
 			{
 				entity->Action->Update(dt);
-			}
-
-			// TODO Temp rotation of all renderables. Convert  to turntable actions
-			if (entity->Renderable.has_value())
-			{
-				auto& transform = entity->Transform;
-				auto rot = transform.GetRot();
-				rot.y += rotationDelta;
-				transform.SetRot(rot);
 			}
 		}
 	}
@@ -177,6 +166,16 @@ public:
 			_deletionQueue.push_back(id);
 		}
 	}
+
+	void LoadDefaultScene()
+	{
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
+
+		auto blob = _library->CreateBlob();
+		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
+		_scene->AddEntity(std::move(blob));
+	}
+
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
@@ -264,7 +263,7 @@ private:
 
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
-	std::chrono::steady_clock::time_point _lastTime;
+	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
 	float _totalTime = 0;
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
 	const std::chrono::duration<double, std::chrono::seconds::period> _reportFpsRate{ 1 };
@@ -388,6 +387,7 @@ private:
 		entity->Name = "Railgun";
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 
 		//// Add more maps to the material

@@ -151,6 +151,7 @@ private:
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
 
+		ReplaceSelection(entity.get());
 
 		_scene.AddEntity(std::move(entity));
 	}

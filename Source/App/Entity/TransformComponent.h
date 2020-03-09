@@ -42,7 +42,7 @@ public:
 
 private:
 	glm::vec3 _position{};
-	glm::vec3 _rotation{};
+	glm::vec3 _rotation{}; // degrees
 	glm::vec3 _scale{1};
 	glm::mat4 _mat{ 1 };
 	bool _dirty = false;
