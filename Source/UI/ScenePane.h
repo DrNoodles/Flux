@@ -11,7 +11,8 @@ public:
 	virtual ~ISceneViewDelegate() = default;
 	virtual void LoadDemoScene() = 0;
 	virtual void LoadModel(const std::string& path) = 0;
-	virtual void CreateLight() = 0;
+	virtual void CreateDirectionalLight() = 0;
+	virtual void CreatePointLight() = 0;
 	virtual void CreateSphere() = 0;
 	virtual void CreateBlob() = 0;
 	virtual void CreateCube() = 0;

@@ -155,14 +155,29 @@ private:
 
 		_scene.AddEntity(std::move(entity));
 	}
-	void CreateLight() override
+	void CreateDirectionalLight() override
 	{
-		printf("CreateLight()\n");
+		printf("CreateDirectionalLight()\n");
+
+		auto entity = std::make_unique<Entity>();
+		entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+		entity->Light = LightComponent{};
+		entity->Light->Type = LightComponent::Types::directional;
+		entity->Light->Intensity = 15;
+		entity->Transform.SetPos({ 1, 1, 1 });
+
+		ReplaceSelection(entity.get());
+		_scene.AddEntity(std::move(entity));
+	}
+	void CreatePointLight() override
+	{
+		printf("CreatePointLight()\n");
 		
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "PointLight" + std::to_string(entity->Id);
 		entity->Light = LightComponent{};
 		entity->Light->Type = LightComponent::Types::point;
+		entity->Light->Intensity = 500;
 
 		ReplaceSelection(entity.get());
 		_scene.AddEntity(std::move(entity));
@@ -192,6 +207,7 @@ private:
 		printf("CreateCube()\n");
 
 		auto entity = _library->CreateCube();
+		entity->Transform.SetScale(glm::vec3{ 1.5f });
 		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 		ReplaceSelection(entity.get());

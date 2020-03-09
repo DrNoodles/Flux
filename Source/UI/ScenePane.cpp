@@ -26,15 +26,15 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 
 		// Scene Load/Unload
 		{
-			ImGui::Text("Scene Loader");
-			if (ImGui::BeginChild("Scene Loader", ImVec2{ 0,35 }, true))
+			ImGui::Text("Load");
+			if (ImGui::BeginChild("Load", ImVec2{ 0,35 }, true))
 			{
-				if (ImGui::Button("Load Demo Scene"))
+				if (ImGui::Button("Demo Scene"))
 				{
 					_delegate->LoadDemoScene();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Load Object"))
+				if (ImGui::Button("Object"))
 				{
 					const auto path = FileService::ModelPicker();
 					if (!path.empty())
@@ -48,10 +48,10 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 		}
 
 		
-		// Creation
+		// Create
 		{
-			ImGui::Text("Create Primitives");
-			if (ImGui::BeginChild("Create Primitives", ImVec2{ 0,60 }, true))
+			ImGui::Text("Create");
+			if (ImGui::BeginChild("Create", ImVec2{ 0,60 }, true))
 			{
 				if (ImGui::Button("Blob"))
 				{
@@ -67,17 +67,23 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 				{
 					_delegate->CreateCube();
 				}
-				if (ImGui::Button("Light"))
+
+
+				if (ImGui::Button("Point Light"))
 				{
-					_delegate->CreateLight();
+					_delegate->CreatePointLight();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Directional Light"))
+				{
+					_delegate->CreateDirectionalLight();
 				}
 			}
 			ImGui::EndChild();
 			ImGui::Spacing();
 		}
-		
 
-		
+
 		
 		// Selection helper lambdas
 		const auto IsSelected = [&selection](Entity* target)
