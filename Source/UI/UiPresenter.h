@@ -3,11 +3,14 @@
 #include "ScenePane.h"
 #include "PropsView/PropsPresenter.h"
 
+#include "App/LibraryManager.h"
+
 #include <Shared/FileService.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
+
 
 
 class IUiPresenterDelegate
@@ -23,8 +26,8 @@ class UiPresenter final : public ISceneViewDelegate
 {
 public:
 
-	explicit UiPresenter(IUiPresenterDelegate& dgate, SceneManager& scene/*dependencies here*/)
-	: _delegate(dgate), _scene(scene), _scenePane(ScenePane(this))
+	explicit UiPresenter(IUiPresenterDelegate& dgate, LibraryManager* library, SceneManager& scene)
+	: _delegate(dgate), _scene(scene), _library{library}, _scenePane(ScenePane(this))
 	{
 		// TODO Set dependencies
 
@@ -44,6 +47,11 @@ public:
 	UiPresenter(UiPresenter&&) = delete;
 	UiPresenter& operator=(UiPresenter&&) = delete;
 
+	void ReplaceSelection(Entity*const entity)
+	{
+		ClearSelection();
+		_selection.insert(entity);
+	}
 	void ClearSelection()
 	{
 		_selection.clear();
@@ -89,7 +97,8 @@ private:
 	// Dependencies
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
-	
+	LibraryManager* _library;
+
 	// Views
 	ScenePane _scenePane;
 	PropsPresenter _propsPresenter;
@@ -156,6 +165,12 @@ private:
 	void CreateBlob() override
 	{
 		printf("CreateBlob()\n");
+
+		auto entity = _library->CreateBlob();
+		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+		ReplaceSelection(entity.get());
+		_scene.AddEntity(std::move(entity));
 	}
 	void CreateCube() override
 	{

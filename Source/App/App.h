@@ -43,9 +43,6 @@ public:
 
 	bool FramebufferResized = false;
 
-
-	std::unique_ptr<UiPresenter> _ui;
-
 	explicit App(AppOptions options)
 	{
 		InitWindow();
@@ -58,10 +55,10 @@ public:
 		// Controllers
 		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
-
+		auto library = std::make_unique<LibraryManager>(*renderer, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
-		auto ui = std::make_unique<UiPresenter>(*this, *scene/*dependencies*/);
+		auto ui = std::make_unique<UiPresenter>(*this, library.get(), *scene/*dependencies*/);
 
 
 		// Set all teh things
@@ -70,6 +67,7 @@ public:
 		_renderer = std::move(renderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
+		_library = std::move(library);
 	}
 	~App()
 	{
@@ -243,9 +241,11 @@ public:
 	
 private:
 	// Dependencies
-	std::unique_ptr<Renderer> _renderer = nullptr;
-	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+	std::unique_ptr<SceneManager> _scene = nullptr;
+	std::unique_ptr<LibraryManager> _library = nullptr;;
+	std::unique_ptr<UiPresenter> _ui = nullptr;
+	std::unique_ptr<Renderer> _renderer = nullptr;
 	
 	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
@@ -423,7 +423,7 @@ private:
 		// Pivot
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "X";
+			entity->Name = "Axis-Pivot";
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -456,7 +456,7 @@ private:
 		// X
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "X";
+			entity->Name = "Axis-X";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -488,7 +488,7 @@ private:
 		// Y
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "Y";
+			entity->Name = "Axis-Y";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -502,7 +502,7 @@ private:
 		// Z
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "Z";
+			entity->Name = "Axis-Z";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
