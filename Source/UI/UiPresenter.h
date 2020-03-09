@@ -158,6 +158,14 @@ private:
 	void CreateLight() override
 	{
 		printf("CreateLight()\n");
+		
+		auto entity = std::make_unique<Entity>();
+		entity->Name = "PointLight" + std::to_string(entity->Id);
+		entity->Light = LightComponent{};
+		entity->Light->Type = LightComponent::Types::point;
+
+		ReplaceSelection(entity.get());
+		_scene.AddEntity(std::move(entity));
 	}
 	void CreateSphere() override
 	{
