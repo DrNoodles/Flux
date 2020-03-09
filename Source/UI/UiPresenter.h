@@ -161,6 +161,12 @@ private:
 	void CreateSphere() override
 	{
 		printf("CreateSphere()\n");
+
+		auto entity = _library->CreateSphere();
+		//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+		ReplaceSelection(entity.get());
+		_scene.AddEntity(std::move(entity));
 	}
 	void CreateBlob() override
 	{
@@ -175,6 +181,12 @@ private:
 	void CreateCube() override
 	{
 		printf("CreateCube()\n");
+
+		auto entity = _library->CreateCube();
+		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+		ReplaceSelection(entity.get());
+		_scene.AddEntity(std::move(entity));
 	}
 	void DeleteSelected() override
 	{

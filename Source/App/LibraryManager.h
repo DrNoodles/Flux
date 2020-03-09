@@ -3,12 +3,10 @@
 #include "Entity/Actions/TurntableActionComponent.h"
 #include "Entity/Entity.h"
 #include "Renderer/Renderer.h"
-#include "SceneManager.h"
 
 #include <utility>
 #include <vector>
 #include <memory>
-#include <cmath>
 #include <chrono>
 
 class LibraryManager
@@ -22,47 +20,69 @@ public:
 	
 	//TODO clean up resources on exit
 
-	/*
+	
 	std::unique_ptr<Entity> CreateSphere()
 	{
 		if (!_spherePrimitiveLoaded)
 		{
-			_sphereModelId = _resources.LoadRenderableFromFile(_modelsDir + "Sphere/Sphere.obj").Meshes[0].MeshId;
+			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Sphere/Sphere.obj");
+			auto& meshDefinition = modelDefinition.value().Meshes[0];
+			
+			_sphereModelId = _resources.CreateMeshResource(meshDefinition);
 			_spherePrimitiveLoaded = true;
 		}
 
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "Sphere" + std::to_string(entity->Id);
-		entity->Renderable = Renderable{ RenderableMesh{_sphereModelId,CreateRandomMaterial()} };
-		return entity;
-	}*/
+		return CreateEntity(_sphereModelId, "Sphere");
+	}
 
-	//std::unique_ptr<Entity> CreateCube()
-	//{
-	//	if (!_cubePrimitiveLoaded)
-	//	{
-	//		_cubeModelId = _resources.StoreMesh(std::make_unique<CubeMesh>());
-	//		_cubePrimitiveLoaded = true;
-	//	}
+	std::unique_ptr<Entity> CreateCube()
+	{
+		if (!_cubePrimitiveLoaded)
+		{
+			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Cube/Cube.obj");
+			auto& meshDefinition = modelDefinition.value().Meshes[0];
+			
+			_cubeModelId = _resources.CreateMeshResource(meshDefinition);
+			_cubePrimitiveLoaded = true;
+		}
 
-	//	auto entity = std::make_unique<Entity>();
-	//	entity->Name = "Cube" + std::to_string(entity->Id);
-	//	entity->Renderable = Renderable{ RenderableMesh{_cubeModelId,CreateRandomMaterial()} };
-	//	return entity;
-	//}
+		return CreateEntity(_cubeModelId, "Cube");
+	}
 
 	std::unique_ptr<Entity> CreateBlob()
 	{
 		if (!_blobPrimitiveLoaded)
 		{
-			auto model = _modelLoaderService->LoadModel(_libraryDir + "Models/Blob/Blob.obj");
-			auto& meshDefinition = model.value().Meshes[0];
+			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Blob/Blob.obj");
+			auto& meshDefinition = modelDefinition.value().Meshes[0];
+			
 			_blobModelId = _resources.CreateMeshResource(meshDefinition);
+			_blobPrimitiveLoaded = true;
 		}
 
+		return CreateEntity(_blobModelId, "Blob");
+	}
+
+private:
+	// Dependencies
+	IModelLoaderService* _modelLoaderService;
+	Renderer& _resources; // TODO Replace Renderer inclusion once a gpu resource service exists (that the renderer relies on also)
+	const std::string _libraryDir;
+
+	bool _spherePrimitiveLoaded = false;
+	bool _cubePrimitiveLoaded = false;
+	bool _blobPrimitiveLoaded = false;
+	MeshResourceId _sphereModelId = 0;
+	MeshResourceId _cubeModelId = 0;
+	MeshResourceId _blobModelId = 0;
+	
+
+
+	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const std::string& name) const
+	{
 		// Create renderable resource
 		RenderableCreateInfo info = {};
-		info.MeshId = _blobModelId;
+		info.MeshId = meshId;
 		info.Mat = CreateRandomMaterial();
 		RenderableResourceId resourceId = _resources.CreateRenderable(info);
 
@@ -72,24 +92,10 @@ public:
 
 		// Create entity
 		auto entity = std::make_unique<Entity>();
-		entity->Name = "Blob" + std::to_string(entity->Id);
+		entity->Name = name + std::to_string(entity->Id);
 		entity->Renderable = std::make_optional(comp);
 		return entity;
 	}
-
-private:
-	// Dependencies
-	IModelLoaderService* _modelLoaderService;
-	Renderer& _resources; // TODO Replace Renderer inclusion once a gpu resource service exists (that the renderer relies on also)
-	const std::string _libraryDir;
-
-	//bool _spherePrimitiveLoaded = false;
-	//bool _cubePrimitiveLoaded = false;
-	//unsigned _sphereModelId = 0;
-	//unsigned _cubeModelId = 0;
-	bool _blobPrimitiveLoaded = false;
-	MeshResourceId _blobModelId = 0;
-	
 
 	static Material CreateRandomMaterial()
 	{

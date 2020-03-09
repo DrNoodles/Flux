@@ -53,14 +53,14 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 			ImGui::Text("Create Primitives");
 			if (ImGui::BeginChild("Create Primitives", ImVec2{ 0,60 }, true))
 			{
-				if (ImGui::Button("Sphere"))
-				{
-					_delegate->CreateSphere();
-				}
-				ImGui::SameLine();
 				if (ImGui::Button("Blob"))
 				{
 					_delegate->CreateBlob();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Sphere"))
+				{
+					_delegate->CreateSphere();
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Cube"))
