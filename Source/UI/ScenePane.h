@@ -18,8 +18,11 @@ public:
 	virtual void CreateCube() = 0;
 	virtual void DeleteSelected() = 0;
 	virtual void DeleteAll() = 0;
+	
 	virtual float GetExposure() const = 0;
 	virtual void SetExposure(float exposure) = 0;
+	virtual float GetSkyboxRotation() const = 0;
+	virtual void SetSkyboxRotation(float skyboxRotation) = 0;
 };
 
 class ScenePane
@@ -30,7 +33,7 @@ public:
 	{
 		_delegate = delegate;
 	}
-	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const;
+	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
 
 private:
 	ISceneViewDelegate* _delegate = nullptr;

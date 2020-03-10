@@ -2,8 +2,9 @@
 
 #include "ScenePane.h"
 #include "PropsView/PropsPresenter.h"
+#include "IblVm.h"
 
-#include "App/LibraryManager.h"
+#include <App/LibraryManager.h>
 
 #include <Shared/FileService.h>
 
@@ -20,7 +21,7 @@ public:
 	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
 	virtual void LoadDemoScene() = 0;
-	virtual RenderOptions GetRenderOptions() const = 0;
+	virtual RenderOptions& GetRenderOptions() = 0;
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
 
@@ -78,8 +79,8 @@ public:
 				{
 					return pe.get();
 				});
-			//IblVm iblVm{ &_sceneController, &_renderOptions };
-			_scenePane.DrawUI(allEnts, _selection/*, iblVm*/);
+			IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
+			_scenePane.DrawUI(allEnts, _selection, iblVm);
 
 
 			// Properties Pane
@@ -231,6 +232,7 @@ private:
 		_delegate.Delete(ids);
 
 	}
+
 	float GetExposure() const override
 	{
 		//printf("GetExposure()\n");
@@ -244,6 +246,19 @@ private:
 		ro.ExposureBias = exposure;
 		_delegate.SetRenderOptions(ro);
 	}
+	
+	float GetSkyboxRotation() const override
+	{
+		return _delegate.GetRenderOptions().SkyboxRotation;
+	}
+	void SetSkyboxRotation(float rotation) override
+	{
+		printf("SetSkyboxRotation(%f)\n", rotation);
 
+		auto ro = _delegate.GetRenderOptions();
+		ro.SkyboxRotation = rotation;
+		_delegate.SetRenderOptions(ro);
+	}
+	
 	#pragma endregion
 };

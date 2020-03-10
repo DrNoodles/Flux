@@ -15,8 +15,10 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 
 #include <vector>
 #include <string>
@@ -55,8 +57,6 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		// flip Y to convert glm from OpenGL coord system to Vulkan
 		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 	}
-
-	printf_s("Exposure:%f\n", options.ExposureBias);
 	
 	// Update light buffers
 	{
@@ -84,7 +84,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		// Populate ubo
 		auto skyUbo = SkyboxVertUbo{};
 		skyUbo.Projection = projection; // same as camera
-		//skyUbo.Rotation = glm::mat3{ 1 }; // no rotation for now
+		skyUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
 		skyUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
 
 		// Copy to gpu

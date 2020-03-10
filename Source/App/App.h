@@ -186,7 +186,7 @@ public:
 		//LoadLighting();
 	}
 
-	RenderOptions GetRenderOptions() const override
+	RenderOptions& GetRenderOptions() override
 	{
 		return _renderOptions;
 	}

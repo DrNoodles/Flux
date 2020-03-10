@@ -27,7 +27,7 @@ struct RenderableCreateInfo;
 struct RenderOptions
 {
 	float ExposureBias = 1;
-	//float SkyboxRotation = 0; // degrees
+	float SkyboxRotation = 0; // degrees
 	//bool ShowClipping = false;
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;

@@ -14,7 +14,7 @@
 
 
 
-void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const
+void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
 {
 	assert(_delegate); // Delegate must be set
 	
@@ -170,40 +170,40 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 		ImGui::Spacing();
 
 		
-		//// IBL Panel
-		//{
-		//	auto& ibls = iblVm.Ibls;
-		//	auto& activeIbl = iblVm.ActiveIbl;
-		//	
-		//	if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
-		//	{
-		//		ImGui::Text("IMAGE BASED LIGHTING");
-		//		
-		//		if (ImGui::BeginCombo("Map", ibls[activeIbl].c_str()))
-		//		{
-		//			for (int i = 0; i < (int)ibls.size(); ++i)
-		//			{
-		//				const bool isSelected = i == activeIbl;
-		//				if (ImGui::Selectable(ibls[i].c_str(), isSelected))
-		//				{
-		//					activeIbl = i;
-		//				}
-		//				if (isSelected)
-		//				{
-		//					ImGui::SetItemDefaultFocus();
-		//				}
-		//			}
-		//			ImGui::EndCombo();
-		//		}
-		//		ImGui::PushItemWidth(40);
-		//		if (ImGui::DragFloat("Rotation", &iblVm.Rotation, 1, 0, 0, "%0.f")) iblVm.Commit();
-		//		ImGui::PopItemWidth();
+		// IBL Panel
+		{
+			//auto& ibls = iblVm.Ibls;
+			//auto& activeIbl = iblVm.ActiveIbl;
+			
+			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
+			{
+				ImGui::Text("IMAGE BASED LIGHTING");
+				
+				/*if (ImGui::BeginCombo("Map", ibls[activeIbl].c_str()))
+				{
+					for (int i = 0; i < (int)ibls.size(); ++i)
+					{
+						const bool isSelected = i == activeIbl;
+						if (ImGui::Selectable(ibls[i].c_str(), isSelected))
+						{
+							activeIbl = i;
+						}
+						if (isSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}*/
+				ImGui::PushItemWidth(40);
+				if (ImGui::DragInt("Rotation", &iblVm.Rotation, 1, 0, 0)) iblVm.Commit();
+				ImGui::PopItemWidth();
 
-		//		if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
-		//	}
-		//	ImGui::EndChild();
-		//	ImGui::Spacing();
-		//}
+				//if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
+			}
+			ImGui::EndChild();
+			ImGui::Spacing();
+		}
 
 		float exposure = _delegate->GetExposure();
 		if (ImGui::DragFloat("Exposure", &exposure, .01f, 0, 1000, "%0.2f")) _delegate->SetExposure(exposure);
