@@ -70,17 +70,13 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	}
 
 
-	if (_refreshRenderableDescriptorSets)
-	{
-		_refreshRenderableDescriptorSets = false;
-		UpdateRenderableDescriptorSets();
-	}
-
 	
 	// Update skybox buffer
 	const Skybox* skybox = GetCurrentSkyboxOrNull(); // Hardcode first skybox for now
 	if (skybox)
 	{
+		printf_s("ShowIrradiance:%s\n", options.ShowIrradiance ? "True" : "False");
+		
 		// Vert ubo
 		{
 			// Populate ubo
@@ -268,11 +264,19 @@ void Renderer::DrawFrame(float dt, const RenderOptions& options,
 	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
 
-	auto startBench = std::chrono::steady_clock::now();
+	const auto startBench = std::chrono::steady_clock::now();
 
 
+	// Diff render options and force state updates where needed
+	if (_refreshRenderableDescriptorSets || _lastOptions.ShowIrradiance != options.ShowIrradiance)
+	{
+		_refreshRenderableDescriptorSets = false;
+		UpdateRenderableDescriptorSets();
+	}
+	_lastOptions = options;
+
+	
 	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex);
-
 	
 	
 	// Execute command buffer with the image as an attachment in the framebuffer

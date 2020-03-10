@@ -28,11 +28,11 @@ struct RenderOptions
 {
 	float ExposureBias = 1;
 	float SkyboxRotation = 0; // degrees
+	bool ShowIrradiance = true;
 	//bool ShowClipping = false;
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;
-	//bool ShowIrradiance = true;
 	//bool UseMsaa = true;
 };
 
@@ -174,6 +174,8 @@ private:
 	// Required resources
 	TextureResourceId _placeholderTexture;
 	MeshResourceId _skyboxMesh;
+
+	RenderOptions _lastOptions;
 
 	void InitVulkan();
 	void CleanupSwapchainAndDependents();

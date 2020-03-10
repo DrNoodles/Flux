@@ -11,7 +11,7 @@ public:
 	//std::vector<std::string> Ibls{};
 	//int ActiveIbl = 0;
 	int Rotation = 0;
-	//bool ShowIrradiance = false;
+	bool ShowIrradiance = false;
 
 	IblVm() = default;
 	IblVm(SceneManager* sc, RenderOptions* ro) : _sc{ sc }, _ro{ ro }
@@ -33,9 +33,9 @@ public:
 		//}
 
 		//ActiveIbl = _sc->GetActiveCubemap();
-		Rotation = _ro->SkyboxRotation;
 		
-		//ShowIrradiance = _ro->ShowIrradiance;
+		Rotation = (i32)_ro->SkyboxRotation;
+		ShowIrradiance = _ro->ShowIrradiance;
 	}
 	void Commit()
 	{
@@ -43,10 +43,10 @@ public:
 		if (Rotation < 0) // ensure [0,360] range
 			Rotation += 360; 
 		
-		_ro->SkyboxRotation = (float)Rotation;
-		/*_sc->SetActiveCubemap(ActiveIbl);
-		_sc->CubemapsView()[ActiveIbl]->SetRotation(Rotation);
-		_ro->ShowIrradiance = ShowIrradiance;*/
+		_ro->SkyboxRotation = (f32)Rotation;
+		_ro->ShowIrradiance = ShowIrradiance;
+		//_sc->SetActiveCubemap(ActiveIbl);
+		//_sc->CubemapsView()[ActiveIbl]->SetRotation(Rotation);
 	}
 	
 private:

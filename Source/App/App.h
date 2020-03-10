@@ -328,7 +328,7 @@ private:
 
 	void LoadSphereArray()
 	{
-		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "blob/blob.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
 		glm::vec3 center = { 0,4,0 };
