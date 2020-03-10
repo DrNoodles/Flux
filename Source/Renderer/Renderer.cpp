@@ -104,7 +104,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		info.View = view;
 		info.Projection = projection;
 		info.CamPos = camPos;
-		info.ExposureBias = 1.0f;
+		info.ExposureBias = options.ExposureBias;
 		info.ShowNormalMap = false;
 		info.CubemapRotation = options.SkyboxRotation;
 
