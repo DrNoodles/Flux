@@ -39,11 +39,9 @@ public:
 	}
 	void Commit()
 	{
-		if (Rotation >= 360)
-			Rotation -= 360;
-
-		if (Rotation < 0)
-			Rotation += 360;
+		Rotation %= 360; // ensure (-360,360) range
+		if (Rotation < 0) // ensure [0,360] range
+			Rotation += 360; 
 		
 		_ro->SkyboxRotation = (float)Rotation;
 		/*_sc->SetActiveCubemap(ActiveIbl);

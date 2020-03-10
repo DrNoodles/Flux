@@ -1,5 +1,9 @@
 #version 450 core
-layout(binding = 1) uniform samplerCube uCubemap;
+layout(std140, binding = 1) uniform SkyboxVertUbo
+{
+	vec4 exposureBias; // [float,-,-,-]
+} ubo;
+layout(binding = 2) uniform samplerCube uCubemap;
 
 layout (location=0) in vec3 fragUVW; // direction vector representing a 3d texture coord
 
@@ -16,11 +20,10 @@ void main()
 
 	// TODO Support blurring 
 
-	float exposureBias = 1;
 
 	// Post-processing - TODO Move to post pass shader
-	color *= exposureBias; // Exposure
-	color = ACESFitted(color); // Tonemap
+	color *= ubo.exposureBias[0]; // Exposure
+	color = ACESFitted(color);    // Tonemap
 	color = pow(color, vec3(1/2.2));  // Gamma: sRGB Linear -> 2.2
 
 	outColor = vec4(color, 1.0);

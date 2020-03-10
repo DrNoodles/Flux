@@ -266,6 +266,7 @@ private:
 		u32 count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& skyboxVertUbo,
+		const std::vector<VkBuffer>& skyboxFragUbo,
 		const TextureResource& skyboxMap,
 		VkDevice device);
 

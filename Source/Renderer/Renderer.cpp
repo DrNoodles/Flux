@@ -81,18 +81,35 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	const Skybox* skybox = GetCurrentSkyboxOrNull(); // Hardcode first skybox for now
 	if (skybox)
 	{
-		// Populate ubo
-		auto skyUbo = SkyboxVertUbo{};
-		skyUbo.Projection = projection; // same as camera
-		skyUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
-		skyUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
+		// Vert ubo
+		{
+			// Populate ubo
+			auto skyboxVertUbo = SkyboxVertUbo{};
+			skyboxVertUbo.Projection = projection; // same as camera
+			skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
+			skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
 
-		// Copy to gpu
-		void* data;
-		auto size = sizeof(skyUbo);
-		vkMapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory, 0, size, 0, &data);
-		memcpy(data, &skyUbo, size);
-		vkUnmapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory);
+			// Copy to gpu
+			void* data;
+			auto size = sizeof(skyboxVertUbo);
+			vkMapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory, 0, size, 0, &data);
+			memcpy(data, &skyboxVertUbo, size);
+			vkUnmapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory);
+		}
+
+		// Frab ubo
+		{
+			// Populate ubo
+			auto skyboxFragUbo = SkyboxFragUbo{};
+			skyboxFragUbo.ExposureBias[0] = options.ExposureBias;
+
+			// Copy to gpu
+			void* data;
+			auto size = sizeof(skyboxFragUbo);
+			vkMapMemory(_device, skybox->FrameResources[imageIndex].FragUniformBufferMemory, 0, size, 0, &data);
+			memcpy(data, &skyboxFragUbo, size);
+			vkUnmapMemory(_device, skybox->FrameResources[imageIndex].FragUniformBufferMemory);
+		}
 	}
 	
 	
@@ -619,6 +636,8 @@ void Renderer::CleanupSwapchainAndDependents()
 		{
 			vkDestroyBuffer(_device, info.VertUniformBuffer, nullptr);
 			vkFreeMemory(_device, info.VertUniformBufferMemory, nullptr);
+			vkDestroyBuffer(_device, info.FragUniformBuffer, nullptr);
+			vkFreeMemory(_device, info.FragUniformBufferMemory, nullptr);
 			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
@@ -725,7 +744,7 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 	const auto numPbrCombinedImageSamplers = 8;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
-	const auto numSkyboxUniformBuffers = 1;
+	const auto numSkyboxUniformBuffers = 2;
 	const auto numSkyboxCombinedImageSamplers = 1;
 	
 	// Define which descriptor types our descriptor sets contain
@@ -1117,19 +1136,29 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 std::vector<SkyboxResourceFrame>
 Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const
 {
-	// Uniform buffers
-	std::vector<VkBuffer> skyboxVertBuffers;
-	std::vector<VkDeviceMemory> skyboxVertBuffersMemory;
-	std::tie(skyboxVertBuffers, skyboxVertBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxVertUbo), _device, _physicalDevice);
-
-
-	// Create descriptor sets
+	// Allocate descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
 		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
 
+
+	// Vert Uniform buffers
+	std::vector<VkBuffer> skyboxVertBuffers;
+	std::vector<VkDeviceMemory> skyboxVertBuffersMemory;
+	
+	std::tie(skyboxVertBuffers, skyboxVertBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxVertUbo), _device, _physicalDevice);
+
+	
+	// Frag Uniform buffers
+	std::vector<VkBuffer> skyboxFragBuffers;
+	std::vector<VkDeviceMemory> skyboxFragBuffersMemory;
+	
+	std::tie(skyboxFragBuffers, skyboxFragBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxFragUbo), _device, _physicalDevice);
+
+
 	WriteSkyboxDescriptorSets(
-		numImagesInFlight, descriptorSets, skyboxVertBuffers, *_textures[skybox.IblTextureIds.EnvironmentCubemapId.Id], _device);
+		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[skybox.IblTextureIds.EnvironmentCubemapId.Id], _device);
 
 
 	// Group data for return
@@ -1140,6 +1169,8 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 	{
 		modelInfos[i].VertUniformBuffer = skyboxVertBuffers[i];
 		modelInfos[i].VertUniformBufferMemory = skyboxVertBuffersMemory[i];
+		modelInfos[i].FragUniformBuffer = skyboxFragBuffers[i];
+		modelInfos[i].FragUniformBufferMemory = skyboxFragBuffersMemory[i];
 		modelInfos[i].DescriptorSet = descriptorSets[i];
 	}
 
@@ -1149,10 +1180,12 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 VkDescriptorSetLayout Renderer::CreateSkyboxDescriptorSetLayout(VkDevice device)
 {
 	return vkh::CreateDescriptorSetLayout(device, {
-		// mesh ubo
+		// vert ubo
 		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+		// frag ubo
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// skybox map
-		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
 }
 
@@ -1160,6 +1193,7 @@ void Renderer::WriteSkyboxDescriptorSets(
 	u32 count,
 	const std::vector<VkDescriptorSet>& descriptorSets,
 	const std::vector<VkBuffer>& skyboxVertUbo,
+	const std::vector<VkBuffer>& skyboxFragUbo,
 	const TextureResource& skyboxMap,
 	VkDevice device)
 {
@@ -1169,16 +1203,22 @@ void Renderer::WriteSkyboxDescriptorSets(
 	// Configure our new descriptor sets to point to our buffer and configured for what's in the buffer
 	for (size_t i = 0; i < count; ++i)
 	{
-		VkDescriptorBufferInfo bufferUboInfo = {};
-		bufferUboInfo.buffer = skyboxVertUbo[i];
-		bufferUboInfo.offset = 0;
-		bufferUboInfo.range = sizeof(SkyboxVertUbo);
+		VkDescriptorBufferInfo vertBufferUboInfo = {};
+		vertBufferUboInfo.buffer = skyboxVertUbo[i];
+		vertBufferUboInfo.offset = 0;
+		vertBufferUboInfo.range = sizeof(SkyboxVertUbo);
+
+		VkDescriptorBufferInfo fragBufferUboInfo = {};
+		fragBufferUboInfo.buffer = skyboxFragUbo[i];
+		fragBufferUboInfo.offset = 0;
+		fragBufferUboInfo.range = sizeof(SkyboxFragUbo);
 		
 		auto& set = descriptorSets[i];
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites
+		std::array<VkWriteDescriptorSet, 3> descriptorWrites
 		{
-			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-			vki::WriteDescriptorSet(set, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &skyboxMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &vertBufferUboInfo),
+			vki::WriteDescriptorSet(set, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &fragBufferUboInfo),
+			vki::WriteDescriptorSet(set, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &skyboxMap.DescriptorImageInfo()),
 		};
 
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
