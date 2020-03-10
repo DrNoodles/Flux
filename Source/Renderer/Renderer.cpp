@@ -106,6 +106,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		info.CamPos = camPos;
 		info.ExposureBias = 1.0f;
 		info.ShowNormalMap = false;
+		info.CubemapRotation = options.SkyboxRotation;
 
 		const auto& renderable = _renderables[renderableIds[i].Id].get();
 		
