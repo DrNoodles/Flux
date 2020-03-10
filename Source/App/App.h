@@ -62,7 +62,7 @@ public:
 
 
 		// Set all teh things
-		_options = std::move(options);
+		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
 		_renderer = std::move(renderer);
 		_scene = std::move(scene);
@@ -149,7 +149,7 @@ public:
 
 		auto& camera = _scene->GetCamera();
 		auto view = camera.GetViewMatrix();
-		_renderer->DrawFrame(dt, renderables, transforms, lights, view, camera.Position);
+		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
 	}
 
 
@@ -184,6 +184,16 @@ public:
 		LoadSphereArray();
 		LoadRailgun();
 		//LoadLighting();
+	}
+
+	RenderOptions GetRenderOptions() const override
+	{
+		return _renderOptions;
+	}
+	
+	void SetRenderOptions(const RenderOptions& ro) override
+	{
+		_renderOptions = ro;
 	}
 	
 	#pragma endregion
@@ -248,8 +258,9 @@ private:
 	
 	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
-	AppOptions _options;
-
+	AppOptions _appOptions;
+	RenderOptions _renderOptions;
+	
 	// Skybox management
 	u32 _currentSkybox = 0;
 	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxes = {};
@@ -317,7 +328,7 @@ private:
 
 	void LoadSphereArray()
 	{
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
 		glm::vec3 center = { 0,4,0 };
@@ -360,7 +371,7 @@ private:
 	
 	void LoadSphere()
 	{
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
 		auto entity = std::make_unique<Entity>();
@@ -379,7 +390,7 @@ private:
 	
 	void LoadRailgun()
 	{
-		const auto path = _options.ModelsDir + "railgun/q2railgun.gltf";
+		const auto path = _appOptions.ModelsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 
 
@@ -418,7 +429,7 @@ private:
 
 		auto scale = glm::vec3{ 0.5f };
 		f32 dist = 1;
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 
 		// Pivot
 		{
@@ -431,21 +442,21 @@ private:
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 			{
 				matCopy.UseBasecolorMap = true;
-				matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
+				matCopy.BasecolorMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
 
 				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
+				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
 				
 				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.AoMapChannel = Material::Channel::Red;
 				
 				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.MetalnessMapChannel = Material::Channel::Blue;
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
@@ -466,18 +477,18 @@ private:
 				matCopy.Basecolor = { 1,0,0 };
 
 				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/Normal.png");
+				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
 
 				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.AoMapChannel = Material::Channel::Red;
 
 				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.MetalnessMapChannel = Material::Channel::Blue;
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
@@ -522,7 +533,7 @@ private:
 	
 	void LoadSkybox(const std::string& filename)
 	{
-		std::string path = _options.IblDir + filename;
+		std::string path = _appOptions.IblDir + filename;
 
 		std::cout << "Loading skybox: " << path << std::endl;
 
@@ -599,7 +610,6 @@ private:
 	void FrameAll()
 	{
 		// TODO Fix this method!
-		return;
 		/*
 		// Nothing to frame?
 		if (_entities.empty())

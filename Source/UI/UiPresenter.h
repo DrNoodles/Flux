@@ -20,6 +20,8 @@ public:
 	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
 	virtual void LoadDemoScene() = 0;
+	virtual RenderOptions GetRenderOptions() const = 0;
+	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate
@@ -232,11 +234,15 @@ private:
 	float GetExposure() const override
 	{
 		//printf("GetExposure()\n");
-		return 69.420f;
+		return _delegate.GetRenderOptions().ExposureBias;
 	}
 	void SetExposure(float exposure) override
 	{
 		printf("SetExposure(%f)\n", exposure);
+
+		auto ro = _delegate.GetRenderOptions();
+		ro.ExposureBias = exposure;
+		_delegate.SetRenderOptions(ro);
 	}
 
 	#pragma endregion

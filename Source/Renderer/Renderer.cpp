@@ -44,7 +44,7 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
+void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
 {
 	// Calc Projection
 	const auto vfov = 45.f;
@@ -56,6 +56,7 @@ void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderabl
 		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 	}
 
+	printf_s("Exposure:%f\n", options.ExposureBias);
 	
 	// Update light buffers
 	{
@@ -212,7 +213,7 @@ void Renderer::DrawEverything(const std::vector<RenderableResourceId>& renderabl
 	}
 }
 
-void Renderer::DrawFrame(float dt,
+void Renderer::DrawFrame(float dt, const RenderOptions& options,
                          const std::vector<RenderableResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
@@ -252,7 +253,7 @@ void Renderer::DrawFrame(float dt,
 	auto startBench = std::chrono::steady_clock::now();
 
 
-	DrawEverything(renderableIds, transforms, lights, view, camPos, imageIndex);
+	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex);
 
 	
 	
