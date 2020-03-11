@@ -70,15 +70,9 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	}
 
 
-	if (_refreshRenderableDescriptorSets)
-	{
-		_refreshRenderableDescriptorSets = false;
-		UpdateRenderableDescriptorSets();
-	}
-
 	
 	// Update skybox buffer
-	const Skybox* skybox = GetCurrentSkyboxOrNull(); // Hardcode first skybox for now
+	const Skybox* skybox = GetCurrentSkyboxOrNull();
 	if (skybox)
 	{
 		// Vert ubo
@@ -268,11 +262,35 @@ void Renderer::DrawFrame(float dt, const RenderOptions& options,
 	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
 
-	auto startBench = std::chrono::steady_clock::now();
+	const auto startBench = std::chrono::steady_clock::now();
 
 
+	
+	// Diff render options and force state updates where needed
+	{
+		// Process whether refreshing is required
+		_refreshSkyboxDescriptorSets |= _lastOptions.ShowIrradiance != options.ShowIrradiance;
+
+
+		_lastOptions = options;
+
+		// Rebuild descriptor sets as needed
+		if (_refreshSkyboxDescriptorSets)
+		{
+			_refreshSkyboxDescriptorSets = false;
+			UpdateSkyboxesDescriptorSets();
+		}
+
+		if (_refreshRenderableDescriptorSets)
+		{
+			_refreshRenderableDescriptorSets = false;
+			UpdateRenderableDescriptorSets();
+		}
+	}
+	
+
+	
 	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex);
-
 	
 	
 	// Execute command buffer with the image as an attachment in the framebuffer
@@ -535,46 +553,6 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	if (!descriptorSetsMatch)
 	{
 		_refreshRenderableDescriptorSets = true;
-	}
-}
-
-void Renderer::UpdateRenderableDescriptorSets()
-{
-	// Rebuild all objects dependent on skybox
-	for (auto& renderable : _renderables)
-	{
-		// Gather descriptor sets and uniform buffers
-		const auto count = renderable->FrameResources.size();
-		std::vector<VkDescriptorSet> descriptorSets{};
-		std::vector<VkBuffer> modelBuffers{};
-		descriptorSets.resize(count);
-		modelBuffers.resize(count);
-		for (size_t i = 0; i < count; i++)
-		{
-			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
-			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
-		}
-		
-		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
-		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
-
-		
-		// Write updated descriptor sets
-		WritePbrDescriptorSets((u32)count, descriptorSets,
-			modelBuffers,
-			_lightBuffers,
-			*_textures[basecolorMapId],
-			*_textures[normalMapId],
-			*_textures[roughnessMapId],
-			*_textures[metalnessMapId],
-			*_textures[aoMapId],
-			GetIrradianceTextureResource(),
-			GetPrefilterTextureResource(),
-			GetBrdfTextureResource(),
-			_device);
 	}
 }
 
@@ -1128,6 +1106,46 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	return pipeline;
 }
 
+void Renderer::UpdateRenderableDescriptorSets()
+{
+	// Rebuild all objects dependent on skybox
+	for (auto& renderable : _renderables)
+	{
+		// Gather descriptor sets and uniform buffers
+		const auto count = renderable->FrameResources.size();
+		std::vector<VkDescriptorSet> descriptorSets{};
+		std::vector<VkBuffer> modelBuffers{};
+		descriptorSets.resize(count);
+		modelBuffers.resize(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
+			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
+		}
+
+		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
+		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
+		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
+		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
+		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
+
+
+		// Write updated descriptor sets
+		WritePbrDescriptorSets((u32)count, descriptorSets,
+			modelBuffers,
+			_lightBuffers,
+			*_textures[basecolorMapId],
+			*_textures[normalMapId],
+			*_textures[roughnessMapId],
+			*_textures[metalnessMapId],
+			*_textures[aoMapId],
+			GetIrradianceTextureResource(),
+			GetPrefilterTextureResource(),
+			GetBrdfTextureResource(),
+			_device);
+	}
+}
+
 #pragma endregion Pbr
 
 
@@ -1157,8 +1175,12 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxFragUbo), _device, _physicalDevice);
 
 
+	const auto textureId = _lastOptions.ShowIrradiance
+		? skybox.IblTextureIds.IrradianceCubemapId.Id
+		: skybox.IblTextureIds.EnvironmentCubemapId.Id;
+	
 	WriteSkyboxDescriptorSets(
-		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[skybox.IblTextureIds.EnvironmentCubemapId.Id], _device);
+		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[textureId], _device);
 
 
 	// Group data for return
@@ -1452,6 +1474,34 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	return pipeline;
 }
 
+void Renderer::UpdateSkyboxesDescriptorSets()
+{
+	for (auto& skybox : _skyboxes)
+	{
+		const auto count = skybox->FrameResources.size();
+
+		std::vector<VkDescriptorSet> descriptorSets = {};
+		std::vector<VkBuffer> vertUbos = {};
+		std::vector<VkBuffer> fragUbos = {};
+		
+		descriptorSets.resize(count);
+		vertUbos.resize(count);
+		fragUbos.resize(count);
+		
+		for (size_t i = 0; i < count; i++)
+		{
+			descriptorSets[i] = skybox->FrameResources[i].DescriptorSet;
+			vertUbos[i] = skybox->FrameResources[i].VertUniformBuffer;
+			fragUbos[i] = skybox->FrameResources[i].FragUniformBuffer;
+		}
+
+		const auto textureId = _lastOptions.ShowIrradiance
+			? skybox->IblTextureIds.IrradianceCubemapId.Id
+			: skybox->IblTextureIds.EnvironmentCubemapId.Id;
+
+		WriteSkyboxDescriptorSets((u32)count, descriptorSets, vertUbos, fragUbos, *_textures[textureId], _device);
+	}
+}
 
 #pragma endregion Skybox
 

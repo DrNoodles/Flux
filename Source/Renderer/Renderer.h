@@ -28,11 +28,11 @@ struct RenderOptions
 {
 	float ExposureBias = 1;
 	float SkyboxRotation = 0; // degrees
+	bool ShowIrradiance = true;
 	//bool ShowClipping = false;
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;
-	//bool ShowIrradiance = true;
 	//bool UseMsaa = true;
 };
 
@@ -93,8 +93,8 @@ public:
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
 	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
+	
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
-	void UpdateRenderableDescriptorSets();
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
 
@@ -170,10 +170,13 @@ private:
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
 
 	bool _refreshRenderableDescriptorSets = false;
+	bool _refreshSkyboxDescriptorSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;
 	MeshResourceId _skyboxMesh;
+
+	RenderOptions _lastOptions;
 
 	void InitVulkan();
 	void CleanupSwapchainAndDependents();
@@ -238,6 +241,8 @@ private:
 		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
 	}
 
+	void UpdateRenderableDescriptorSets();
+
 	#pragma endregion Pbr
 
 
@@ -255,8 +260,7 @@ private:
 		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
 	}
 
-	std::vector<SkyboxResourceFrame>
-	CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
+	std::vector<SkyboxResourceFrame> CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
 
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreateSkyboxDescriptorSetLayout(VkDevice device);
@@ -274,6 +278,8 @@ private:
 	static VkPipeline CreateSkyboxGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
 		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
 		const VkExtent2D& swapchainExtent);
+
+	void UpdateSkyboxesDescriptorSets();
 
 	#pragma endregion Skybox
 
