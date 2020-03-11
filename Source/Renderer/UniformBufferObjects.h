@@ -4,6 +4,7 @@
 #include "Shared/CommonTypes.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #define GLM_ENABLE_EXPERIMENTAL // for hash
 #include <glm/gtx/hash.hpp>
 
@@ -14,9 +15,14 @@ struct SkyboxVertUbo
 {
 	alignas(16) glm::mat4 Projection;
 	alignas(16) glm::mat4 View;
-	//alignas(16) glm::mat3 Rotation;
+	alignas(16) glm::mat4 Rotation;
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct SkyboxFragUbo
+{
+	alignas(16) glm::vec4 ExposureBias; // [float,-,-,-]
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct LightPacked
@@ -64,6 +70,7 @@ struct UniversalUboCreateInfo
 	// Render options
 	bool ShowNormalMap = false;
 	float ExposureBias = 1.0f;
+	float CubemapRotation = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +106,8 @@ struct UniversalUbo
 	// Render options
 	alignas(16) glm::vec4 ShowNormalMap;
 	alignas(16) glm::vec4 ExposureBias;
+	alignas(16) glm::mat4 CubemapRotation;
+
 
 	
 	// Create a UniversalUbo packed to match shader standards. MUST unpack in shader.
@@ -134,6 +143,7 @@ struct UniversalUbo
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
 		ubo.ExposureBias[0] = info.ExposureBias;
+		ubo.CubemapRotation = glm::rotate(glm::radians(info.CubemapRotation), glm::vec3{ 0,1,0 });
 		
 		return ubo;
 	}

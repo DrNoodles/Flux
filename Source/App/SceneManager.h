@@ -19,7 +19,7 @@ public:
 	{}
 
 	
-	std::vector<std::unique_ptr<Entity>>& GetEntities() { return _entities; }
+	//std::vector<std::unique_ptr<Entity>>& GetEntities() { return _entities; }
 	Camera& GetCamera() { return _camera; }
 
 	
@@ -28,6 +28,48 @@ public:
 	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 
+
+
+
+	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
+	{
+		return _entities;
+	}
+	void AddEntity(std::unique_ptr<Entity> e)
+	{
+		_entities.emplace_back(std::move(e));
+	}
+	void RemoveEntity(int entId)
+	{
+		// Find item
+		auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
+			{
+				return entId == e->Id;
+			});
+
+		if (iterator == _entities.end())
+		{
+			assert(false); // trying to erase bogus entId
+			return;
+		}
+
+		
+		// Cleanup entity references in app
+		Entity* e = iterator->get();
+		if (e->Renderable.has_value())
+		{
+			auto& r = e->Renderable.value();
+			// TODO Clean up rendereable shit
+		}
+
+		
+		_entities.erase(iterator);
+	}
+
+
+
+
+	
 private:
 	// Dependencies
 	IModelLoaderService& _modelLoaderService;

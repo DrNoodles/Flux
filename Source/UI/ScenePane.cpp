@@ -6,12 +6,15 @@
 #include "App/Entity/Entity.h"
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h> // for ImGui::PushItemFlag() to enable disabling of widgets https://github.com/ocornut/imgui/issues/211
 
 #include <unordered_set>
 #include <string>
 
 
-void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection/*, IblVm& iblVm*/) const
+
+
+void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
 {
 	assert(_delegate); // Delegate must be set
 	
@@ -23,15 +26,15 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 
 		// Scene Load/Unload
 		{
-			ImGui::Text("Scene Loader");
-			if (ImGui::BeginChild("Scene Loader", ImVec2{ 0,35 }, true))
+			ImGui::Text("Load");
+			if (ImGui::BeginChild("Load", ImVec2{ 0,35 }, true))
 			{
-				if (ImGui::Button("Load Scene"))
+				if (ImGui::Button("Demo Scene"))
 				{
 					_delegate->LoadDemoScene();
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Load Object"))
+				if (ImGui::Button("Object"))
 				{
 					const auto path = FileService::ModelPicker();
 					if (!path.empty())
@@ -45,36 +48,42 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 		}
 
 		
-		// Creation
+		// Create
 		{
-			ImGui::Text("Create Primitives");
-			if (ImGui::BeginChild("Create Primitives", ImVec2{ 0,60 }, true))
+			ImGui::Text("Create");
+			if (ImGui::BeginChild("Create", ImVec2{ 0,60 }, true))
 			{
-				if (ImGui::Button("Sphere"))
-				{
-					_delegate->CreateSphere();
-				}
-				ImGui::SameLine();
 				if (ImGui::Button("Blob"))
 				{
 					_delegate->CreateBlob();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Sphere"))
+				{
+					_delegate->CreateSphere();
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Cube"))
 				{
 					_delegate->CreateCube();
 				}
-				if (ImGui::Button("Light"))
+
+
+				if (ImGui::Button("Point Light"))
 				{
-					_delegate->CreateLight();
+					_delegate->CreatePointLight();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Directional Light"))
+				{
+					_delegate->CreateDirectionalLight();
 				}
 			}
 			ImGui::EndChild();
 			ImGui::Spacing();
 		}
-		
 
-		
+
 		
 		// Selection helper lambdas
 		const auto IsSelected = [&selection](Entity* target)
@@ -107,63 +116,94 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 						if (isSelected)
 						{
 							Deselect(e);
+							printf_s("Deselected %s\n", e->Name.c_str());
 						}
 						else
 						{
 							Select(e);
+							printf_s("Selected %s\n", e->Name.c_str());
 						}
 					}
 				}
 			}
 			ImGui::EndChild();
 		}
-		
-		if (!selection.empty())
+
+
+		// Delete selected button
 		{
-			if (ImGui::Button("Delete")) _delegate->DeleteSelected();
-			ImGui::SameLine();
+			if (selection.empty())
+			{
+				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+			}
+
+			if (ImGui::Button("Delete Selected")) _delegate->DeleteSelected();
+
+			if (selection.empty())
+			{
+				ImGui::PopItemFlag();
+				ImGui::PopStyleVar();
+			}
 		}
 
-		if (ImGui::Button("Delete All")) _delegate->DeleteAll();
+		// Delete All button
+		{
+			if (ents.empty())
+			{
+				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+			}
 
+			ImGui::SameLine();
+			if (ImGui::Button("Delete All")) _delegate->DeleteAll();
 
+			if (ents.empty())
+			{
+				ImGui::PopItemFlag();
+				ImGui::PopStyleVar();
+			}
+		}
+		
+
+		
 		ImGui::Spacing();
 
 		
-		//// IBL Panel
-		//{
-		//	auto& ibls = iblVm.Ibls;
-		//	auto& activeIbl = iblVm.ActiveIbl;
-		//	
-		//	if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
-		//	{
-		//		ImGui::Text("IMAGE BASED LIGHTING");
-		//		
-		//		if (ImGui::BeginCombo("Map", ibls[activeIbl].c_str()))
-		//		{
-		//			for (int i = 0; i < (int)ibls.size(); ++i)
-		//			{
-		//				const bool isSelected = i == activeIbl;
-		//				if (ImGui::Selectable(ibls[i].c_str(), isSelected))
-		//				{
-		//					activeIbl = i;
-		//				}
-		//				if (isSelected)
-		//				{
-		//					ImGui::SetItemDefaultFocus();
-		//				}
-		//			}
-		//			ImGui::EndCombo();
-		//		}
-		//		ImGui::PushItemWidth(40);
-		//		if (ImGui::DragFloat("Rotation", &iblVm.Rotation, 1, 0, 0, "%0.f")) iblVm.Commit();
-		//		ImGui::PopItemWidth();
+		// IBL Panel
+		{
+			//auto& ibls = iblVm.Ibls;
+			//auto& activeIbl = iblVm.ActiveIbl;
+			
+			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
+			{
+				ImGui::Text("IMAGE BASED LIGHTING");
+				
+				/*if (ImGui::BeginCombo("Map", ibls[activeIbl].c_str()))
+				{
+					for (int i = 0; i < (int)ibls.size(); ++i)
+					{
+						const bool isSelected = i == activeIbl;
+						if (ImGui::Selectable(ibls[i].c_str(), isSelected))
+						{
+							activeIbl = i;
+						}
+						if (isSelected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}*/
+				ImGui::PushItemWidth(40);
+				if (ImGui::DragInt("Rotation", &iblVm.Rotation, 1, 0, 0)) iblVm.Commit();
+				ImGui::PopItemWidth();
 
-		//		if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
-		//	}
-		//	ImGui::EndChild();
-		//	ImGui::Spacing();
-		//}
+				//if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
+			}
+			ImGui::EndChild();
+			ImGui::Spacing();
+		}
 
 		float exposure = _delegate->GetExposure();
 		if (ImGui::DragFloat("Exposure", &exposure, .01f, 0, 1000, "%0.2f")) _delegate->SetExposure(exposure);

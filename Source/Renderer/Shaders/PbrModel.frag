@@ -44,6 +44,7 @@ layout(std140, binding = 0) uniform UniversalUbo
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
 	vec4 exposureBias;       // float in [0]
+	mat4 cubemapRotation;
 } ubo;
 layout(binding = 1) uniform sampler2D BasecolorMap;
 layout(binding = 2) uniform sampler2D NormalMap;
@@ -57,9 +58,7 @@ layout(std140, binding = 6) uniform LightUbo
 	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
 
-// IBL //
-//uniform mat3 cubemapRotation;
-const mat3 cubemapRotation = mat3(1);
+
 layout(binding = 7) uniform samplerCube IrradianceMap; // diffuse
 layout(binding = 8) uniform samplerCube PrefilterMap; // spec
 layout(binding = 9) uniform sampler2D BrdfLUT; // spec
@@ -208,9 +207,10 @@ void main()
 		vec3 kD = 1.0 - kS;
 		kD *= 1.0 - metalness;	
 
+		mat3 cubemapRotationMat3 = mat3(ubo.cubemapRotation);
 
 		//// Compute diffuse IBL ////
-		vec3 irradiance = texture(IrradianceMap, cubemapRotation*normal).rgb;
+		vec3 irradiance = texture(IrradianceMap, cubemapRotationMat3*normal).rgb;
 		vec3 diffuse    = irradiance * basecolor;
 
 
@@ -218,7 +218,7 @@ void main()
 		// Sample the reflection color from the prefiltered map 
 		vec3 R = reflect(-V, normal); // reflection vector
 		const float MAX_REFLECTION_LOD = 5.0; // 6 mip levels when generating prefilter map - must match external mip gen
-		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotation*R, roughness*MAX_REFLECTION_LOD).rgb;
+		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*MAX_REFLECTION_LOD).rgb;
 
 		// Sample BRDF LUT
 		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, roughness)).rg;

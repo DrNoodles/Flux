@@ -12,6 +12,7 @@
 struct UniversalUbo;
 struct RenderableCreateInfo;
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //struct IblTextureResourceIds
 //{
@@ -20,6 +21,21 @@ struct RenderableCreateInfo;
 //	TextureResourceId PrefilterCubemapId;
 //	TextureResourceId BrdfLutId;
 //};
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct RenderOptions
+{
+	float ExposureBias = 1;
+	float SkyboxRotation = 0; // degrees
+	//bool ShowClipping = false;
+	//bool DrawDepth = false;
+	//bool DrawNormals = false;
+	//bool DisableShadows = false;
+	//bool ShowIrradiance = true;
+	//bool UseMsaa = true;
+};
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class IRendererDelegate
@@ -36,6 +52,7 @@ public:
 	virtual void BuildGui() = 0;
 };
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Renderer
 {
@@ -44,7 +61,7 @@ public:
 
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
-	void DrawFrame(float dt,
+	void DrawFrame(float dt, const RenderOptions& options,
 	               const std::vector<RenderableResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
 	               const std::vector<Light>& lights,
@@ -164,7 +181,7 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 
-	void DrawEverything(const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
+	void DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
 
 	
 	#pragma region Shared
@@ -249,6 +266,7 @@ private:
 		u32 count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& skyboxVertUbo,
+		const std::vector<VkBuffer>& skyboxFragUbo,
 		const TextureResource& skyboxMap,
 		VkDevice device);
 

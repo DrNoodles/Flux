@@ -43,9 +43,6 @@ public:
 
 	bool FramebufferResized = false;
 
-
-	std::unique_ptr<UiPresenter> _ui;
-
 	explicit App(AppOptions options)
 	{
 		InitWindow();
@@ -58,18 +55,19 @@ public:
 		// Controllers
 		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
-
+		auto library = std::make_unique<LibraryManager>(*renderer, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
-		auto ui = std::make_unique<UiPresenter>(*this/*dependencies*/);
+		auto ui = std::make_unique<UiPresenter>(*this, library.get(), *scene/*dependencies*/);
 
 
 		// Set all teh things
-		_options = std::move(options);
+		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
 		_renderer = std::move(renderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
+		_library = std::move(library);
 	}
 	~App()
 	{
@@ -82,16 +80,17 @@ public:
 
 	void Run()
 	{
+		LoadDefaultScene();
+
 		while (!glfwWindowShouldClose(_window))
 		{
 			glfwPollEvents();
 
-
 			// Compute time elapsed
 			const auto currentTime = std::chrono::high_resolution_clock::now();
 			_totalTime = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _startTime).count();
-			const auto dt = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _lastTime).count();
-			_lastTime = currentTime;
+			const auto dt = std::chrono::duration<f32, std::chrono::seconds::period>(currentTime - _lastFrameTime).count();
+			_lastFrameTime = currentTime;
 
 
 			// Report fps
@@ -110,25 +109,15 @@ public:
 	}
 
 
-	void Update(const float dt) const
+	void Update(const float dt)
 	{
-		const auto degreesPerSec = 30.f;
-		const auto rotationDelta = dt * degreesPerSec;
-
-		for (auto& entity : _scene->GetEntities())
+		ProcessDeletionQueue(); 
+		
+		for (auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Action)
 			{
 				entity->Action->Update(dt);
-			}
-
-			// TODO Temp rotation of all renderables. Convert  to turntable actions
-			if (entity->Renderable.has_value())
-			{
-				auto& transform = entity->Transform;
-				auto rot = transform.GetRot();
-				rot.y += rotationDelta;
-				transform.SetRot(rot);
 			}
 		}
 	}
@@ -136,7 +125,7 @@ public:
 	
 	void Draw(const float dt) const
 	{
-		auto& entities = _scene->GetEntities();
+		auto& entities = _scene->EntitiesView();
 		std::vector<RenderableResourceId> renderables;
 		std::vector<Light> lights;
 		std::vector<glm::mat4> transforms;
@@ -160,15 +149,51 @@ public:
 
 		auto& camera = _scene->GetCamera();
 		auto view = camera.GetViewMatrix();
-		_renderer->DrawFrame(dt, renderables, transforms, lights, view, camera.Position);
+		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
 	}
 
 
 	#pragma region IUiPresenterDelegate
-
+	
 	glm::ivec2 GetWindowSize() const override
 	{
 		return _windowSize;
+	}
+	void Delete(const std::vector<int>& entityIds) override
+	{
+		for (auto id : entityIds)
+		{
+			_deletionQueue.push_back(id);
+		}
+	}
+
+	void LoadDefaultScene()
+	{
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
+
+		auto blob = _library->CreateBlob();
+		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
+		_scene->AddEntity(std::move(blob));
+	}
+
+	void LoadDemoScene() override
+	{
+		std::cout << "Loading scene\n";
+		LoadSkybox(_skyboxPaths[_currentSkybox]);
+		LoadAxis();
+		LoadSphereArray();
+		LoadRailgun();
+		//LoadLighting();
+	}
+
+	RenderOptions& GetRenderOptions() override
+	{
+		return _renderOptions;
+	}
+	
+	void SetRenderOptions(const RenderOptions& ro) override
+	{
+		_renderOptions = ro;
 	}
 	
 	#pragma endregion
@@ -225,14 +250,17 @@ public:
 	
 private:
 	// Dependencies
-	std::unique_ptr<Renderer> _renderer = nullptr;
-	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+	std::unique_ptr<SceneManager> _scene = nullptr;
+	std::unique_ptr<LibraryManager> _library = nullptr;;
+	std::unique_ptr<UiPresenter> _ui = nullptr;
+	std::unique_ptr<Renderer> _renderer = nullptr;
 	
-	glm::ivec2 _windowSize = { 800,600 };
+	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
-	AppOptions _options;
-
+	AppOptions _appOptions;
+	RenderOptions _renderOptions;
+	
 	// Skybox management
 	u32 _currentSkybox = 0;
 	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxes = {};
@@ -246,7 +274,7 @@ private:
 
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
-	std::chrono::steady_clock::time_point _lastTime;
+	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
 	float _totalTime = 0;
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
 	const std::chrono::duration<double, std::chrono::seconds::period> _reportFpsRate{ 1 };
@@ -275,22 +303,32 @@ private:
 	}
 
 	
+	std::vector<int> _deletionQueue{};
+	void ProcessDeletionQueue()
+	{
+		for (auto& entId : _deletionQueue)
+		{
+			_ui->ClearSelection();
+			_scene->RemoveEntity(entId);
+		}
 
+		_deletionQueue.clear();
+	}
 
+	
 	// TODO Move to utils class
 	static float RandF(float min, float max)
 	{
 		const auto base = float(rand()) / RAND_MAX;
 		return min + base * (max - min);
 	}
+
 	
 	#pragma region Scene Management
 
-	bool _sceneLoaded = false;
-
 	void LoadSphereArray()
 	{
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
 		glm::vec3 center = { 0,4,0 };
@@ -326,14 +364,14 @@ private:
 				matCopy.Metalness = metalness;
 				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-				_scene->GetEntities().emplace_back(std::move(entity));
+				_scene->AddEntity(std::move(entity));
 			}
 		}
 	}
 	
 	void LoadSphere()
 	{
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 		std::cout << "Loading model:" << path << std::endl;
 
 		auto entity = std::make_unique<Entity>();
@@ -347,20 +385,20 @@ private:
 		matCopy.Metalness = 1;
 		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-		_scene->GetEntities().emplace_back(std::move(entity));
+		_scene->AddEntity(std::move(entity));
 	}
 	
 	void LoadRailgun()
 	{
-		const auto path = _options.ModelsDir + "railgun/q2railgun.gltf";
+		const auto path = _appOptions.ModelsDir + "railgun/q2railgun.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 
-		auto& entities = _scene->GetEntities();
 
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Railgun";
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 
 		//// Add more maps to the material
@@ -382,7 +420,7 @@ private:
 		//}
 
 
-		entities.emplace_back(std::move(entity));
+		_scene->AddEntity(std::move(entity));
 	}
 
 	void LoadAxis()
@@ -391,12 +429,12 @@ private:
 
 		auto scale = glm::vec3{ 0.5f };
 		f32 dist = 1;
-		const auto path = _options.ModelsDir + "sphere/sphere.obj";
+		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 
 		// Pivot
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "X";
+			entity->Name = "Axis-Pivot";
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -404,32 +442,32 @@ private:
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 			{
 				matCopy.UseBasecolorMap = true;
-				matCopy.BasecolorMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
+				matCopy.BasecolorMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
 
 				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
+				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
 				
 				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.AoMapChannel = Material::Channel::Red;
 				
 				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				matCopy.MetalnessMapChannel = Material::Channel::Blue;
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// X
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "X";
+			entity->Name = "Axis-X";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -439,29 +477,29 @@ private:
 				matCopy.Basecolor = { 1,0,0 };
 
 				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/Normal.png");
+				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
 
 				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.AoMapChannel = Material::Channel::Red;
 
 				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_options.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				matCopy.MetalnessMapChannel = Material::Channel::Blue;
 			}
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
 
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Y
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "Y";
+			entity->Name = "Axis-Y";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -469,13 +507,13 @@ private:
 			matCopy.Basecolor = { 0,1,0 };
 			matCopy.Roughness = 0;
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Z
 		{
 			auto entity = std::make_unique<Entity>();
-			entity->Name = "Z";
+			entity->Name = "Axis-Z";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
 			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
@@ -483,7 +521,7 @@ private:
 			matCopy.Basecolor = { 0,0,1 };
 			matCopy.Roughness = 0;
 			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-			_scene->GetEntities().emplace_back(std::move(entity));
+			_scene->AddEntity(std::move(entity));
 		}
 	}
 
@@ -495,7 +533,7 @@ private:
 	
 	void LoadSkybox(const std::string& filename)
 	{
-		std::string path = _options.IblDir + filename;
+		std::string path = _appOptions.IblDir + filename;
 
 		std::cout << "Loading skybox: " << path << std::endl;
 
@@ -541,7 +579,7 @@ private:
 		dirLight->Light->Color = { 1,1,1 };
 		dirLight->Light->Intensity = 20;
 		dirLight->Light->Type = LightComponent::Types::directional;
-		_scene->GetEntities().emplace_back(std::move(dirLight));
+		_scene->AddEntity(std::move(dirLight));
 
 		// Max random lights
 		for (int i = 0; i < 7; i++)
@@ -553,13 +591,13 @@ private:
 			light->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
 			light->Light->Intensity = 300;
 			light->Light->Type = LightComponent::Types::point;
-			_scene->GetEntities().emplace_back(std::move(light));
+			_scene->AddEntity(std::move(light));
 		}
 	}
 
 	void RandomizeLights()
 	{
-		for (auto& entity : _scene->GetEntities())
+		for (auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Light.has_value())
 			{
@@ -569,24 +607,9 @@ private:
 		}
 	}
 
-	void LoadScene() 
-	{
-		if (_sceneLoaded) { return; }
-		_sceneLoaded = true;
-
-		std::cout << "Loading scene\n";
-		LoadSkybox(_skyboxPaths[_currentSkybox]);
-		//LoadAxis();
-		//LoadSphereArray();
-		//LoadStormtrooperHelmet();
-		//LoadRailgun();
-		//LoadLighting();
-	}
-
 	void FrameAll()
 	{
 		// TODO Fix this method!
-		return;
 		/*
 		// Nothing to frame?
 		if (_entities.empty())
@@ -665,8 +688,6 @@ private:
 	{
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
-
-
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		// ONLY on pressed is handled
@@ -674,7 +695,6 @@ private:
 
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
-		if (key == GLFW_KEY_X)      { LoadScene(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { NextSkybox(); }
 	}

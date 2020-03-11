@@ -4,7 +4,7 @@ layout(std140, binding = 0) uniform SkyboxVertUbo
 {
 	mat4 projection;
 	mat4 view;
-//	mat3 rotation;
+	mat4 rotation;
 } ubo;
 
 layout(location = 0) in vec3 inPosition;
@@ -22,7 +22,7 @@ void main()
 	// The position in the cube also works out to be the UV coordinate. Cubemap magic!
 	fragUVW = inPosition; 
 
-	vec4 pos = ubo.projection * ubo.view * vec4(inPosition.xyz, 1.0f);//vec4(inverse(u.rotation)*inPosition, 1.0f);
+	vec4 pos = ubo.projection * ubo.view * inverse(ubo.rotation) * vec4(inPosition, 1.0f);
 	gl_Position = pos.xyww; // Setting z = w means the perspective division (z/w) into NDC will make z=1 always, at max depth.
 }
 

@@ -62,3 +62,13 @@ std::vector<char> FileService::ReadFile(const std::string& path)
 
 	return buffer;
 }
+
+std::tuple<std::string, std::string> FileService::SplitPathAsDirAndFilename(const std::string& path)
+{
+	// TODO safety check this actually exists :)
+	const size_t idx = path.find_last_of("/\\");
+	const auto directory = path.substr(0, idx + 1);
+	const auto filename = path.substr(idx + 1);
+	
+	return { directory, filename };
+}

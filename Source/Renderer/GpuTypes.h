@@ -158,8 +158,8 @@ struct SkyboxResourceFrame // for lack of a better name...
 	VkDescriptorSet DescriptorSet;
 	VkBuffer VertUniformBuffer;
 	VkDeviceMemory VertUniformBufferMemory;
-	//VkBuffer FragUniformBuffer;
-	//VkDeviceMemory VertUniformBufferMemory;
+	VkBuffer FragUniformBuffer;
+	VkDeviceMemory FragUniformBufferMemory;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
