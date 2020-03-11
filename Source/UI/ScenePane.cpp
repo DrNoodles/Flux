@@ -172,21 +172,21 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 		
 		// IBL Panel
 		{
-			//auto& ibls = iblVm.Ibls;
-			//auto& activeIbl = iblVm.ActiveIbl;
+			auto& ibls = _delegate->GetSkyboxList();
+			auto activeIbl = _delegate->GetActiveSkybox();
 			
 			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
 			{
 				ImGui::Text("IMAGE BASED LIGHTING");
 				
-				/*if (ImGui::BeginCombo("Map", ibls[activeIbl].c_str()))
+				if (ImGui::BeginCombo("Map", ibls[activeIbl].Name.c_str()))
 				{
-					for (int i = 0; i < (int)ibls.size(); ++i)
+					for (u32 idx = 0; idx < ibls.size(); ++idx)
 					{
-						const bool isSelected = i == activeIbl;
-						if (ImGui::Selectable(ibls[i].c_str(), isSelected))
+						const bool isSelected = idx == activeIbl;
+						if (ImGui::Selectable(ibls[idx].Name.c_str(), isSelected))
 						{
-							activeIbl = i;
+							_delegate->SetActiveSkybox(idx);
 						}
 						if (isSelected)
 						{
@@ -194,7 +194,7 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 						}
 					}
 					ImGui::EndCombo();
-				}*/
+				}
 				ImGui::PushItemWidth(40);
 				if (ImGui::DragInt("Rotation", &iblVm.Rotation, 1, 0, 0)) iblVm.Commit();
 				ImGui::PopItemWidth();

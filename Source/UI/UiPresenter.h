@@ -42,6 +42,19 @@ public:
 
 	~UiPresenter() = default;
 
+	void NextSkybox()
+	{
+		_activeSkybox = ++_activeSkybox % _library->GetSkyboxes().size();
+		LoadSkybox(_library->GetSkyboxes()[_activeSkybox].Path);
+	}
+
+	void LoadSkybox(const std::string& path) const
+	{
+		const SkyboxResourceId resId = _scene.LoadSkybox(path);
+		_scene.SetSkybox(resId);
+	}
+
+	
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -258,6 +271,21 @@ private:
 		auto ro = _delegate.GetRenderOptions();
 		ro.SkyboxRotation = rotation;
 		_delegate.SetRenderOptions(ro);
+	}
+
+	u32 _activeSkybox = 0;
+	const std::vector<SkyboxInfo>& GetSkyboxList() override
+	{
+		return _library->GetSkyboxes();
+	}
+	u32 GetActiveSkybox() const override { return _activeSkybox; }
+	void SetActiveSkybox(u32 idx) override
+	{
+		const auto& skyboxInfo = _library->GetSkyboxes()[idx];
+		const auto resourceId = _scene.LoadSkybox(skyboxInfo.Path);
+		_scene.SetSkybox(resourceId);
+
+		_activeSkybox = idx;
 	}
 	
 	#pragma endregion

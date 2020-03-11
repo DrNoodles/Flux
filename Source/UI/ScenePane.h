@@ -1,6 +1,11 @@
 #pragma once
 
+#include "App/LibraryManager.h" //SkyboxInfo
+
+#include <Shared/CommonTypes.h>
+
 #include <unordered_set>
+
 
 class IblVm;
 struct Entity;
@@ -21,8 +26,13 @@ public:
 	
 	virtual float GetExposure() const = 0;
 	virtual void SetExposure(float exposure) = 0;
+
 	virtual float GetSkyboxRotation() const = 0;
 	virtual void SetSkyboxRotation(float skyboxRotation) = 0;
+	
+	virtual const std::vector<SkyboxInfo>& GetSkyboxList() = 0;
+	virtual u32 GetActiveSkybox() const = 0;
+	virtual void SetActiveSkybox(u32 idx) = 0;
 };
 
 class ScenePane

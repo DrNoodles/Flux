@@ -332,8 +332,8 @@ private:
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
 		const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT; 
-		const u32 numMips = 6;
-		const i32 dim = 1024; // Note: 1024 and 6 mips results in a smallest mip of 32x32 per face
+		const u32 numMips = 8;
+		const i32 dim = 512; // Note: 1024 and 6 mips results in a smallest mip of 32x32 per face
 
 
 		// TODO Sampler: GL_LINEAR_MIPMAP_LINEAR min filter!

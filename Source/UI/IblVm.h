@@ -4,12 +4,10 @@
 
 #include <cassert>
 
+// TODO Get rid of this - lets just go with the _delegate system to remove ViewModels entirely
 class IblVm final
 {
 public:
-	
-	//std::vector<std::string> Ibls{};
-	//int ActiveIbl = 0;
 	int Rotation = 0;
 	bool ShowIrradiance = false;
 
@@ -23,17 +21,6 @@ public:
 
 	void Update()
 	{
-		//auto& cubemaps = _sc->CubemapsView();
-
-		//Ibls.clear();
-		//Ibls.reserve(cubemaps.size());
-		//for (auto&& i : cubemaps)
-		//{
-		//	Ibls.emplace_back(i->Name());
-		//}
-
-		//ActiveIbl = _sc->GetActiveCubemap();
-		
 		Rotation = (i32)_ro->SkyboxRotation;
 		ShowIrradiance = _ro->ShowIrradiance;
 	}
@@ -45,8 +32,6 @@ public:
 		
 		_ro->SkyboxRotation = (f32)Rotation;
 		_ro->ShowIrradiance = ShowIrradiance;
-		//_sc->SetActiveCubemap(ActiveIbl);
-		//_sc->CubemapsView()[ActiveIbl]->SetRotation(Rotation);
 	}
 	
 private:
