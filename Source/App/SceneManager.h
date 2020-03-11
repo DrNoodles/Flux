@@ -66,10 +66,11 @@ public:
 		_entities.erase(iterator);
 	}
 
+	SkyboxResourceId LoadSkybox(const std::string& path);
+	void SetSkybox(const SkyboxResourceId& id);
+	SkyboxResourceId GetSkybox() const;
 
 
-
-	
 private:
 	// Dependencies
 	IModelLoaderService& _modelLoaderService;
@@ -78,10 +79,9 @@ private:
 	// Scene
 	Camera _camera;
 	std::vector<std::unique_ptr<Entity>> _entities{};
-	
+	SkyboxResourceId _skybox;
 
-
-	// Track loaded textures to prevent loading the same texture more than once
-	std::unordered_map<std::string, TextureResourceId> _loadedTextures{};
-
+	// Cache
+	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxesCache = {};
+	std::unordered_map<std::string, TextureResourceId> _loadedTexturesCache = {};
 };

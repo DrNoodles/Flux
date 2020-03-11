@@ -217,7 +217,7 @@ void main()
 		//// Compute specular IBL ////
 		// Sample the reflection color from the prefiltered map 
 		vec3 R = reflect(-V, normal); // reflection vector
-		const float MAX_REFLECTION_LOD = 5.0; // 6 mip levels when generating prefilter map - must match external mip gen
+		const float MAX_REFLECTION_LOD = 4.0; // 6 mip levels when generating prefilter map - must match external mip gen
 		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*MAX_REFLECTION_LOD).rgb;
 
 		// Sample BRDF LUT

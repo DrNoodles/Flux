@@ -148,7 +148,7 @@ public:
 
 
 		auto& camera = _scene->GetCamera();
-		auto view = camera.GetViewMatrix();
+		const auto view = camera.GetViewMatrix();
 		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
 	}
 
@@ -167,19 +167,21 @@ public:
 		}
 	}
 
+	// TODO Move to _ui layer to make a single spot where UI drives state
 	void LoadDefaultScene()
 	{
-		LoadSkybox(_skyboxPaths[_currentSkybox]);
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 
 		auto blob = _library->CreateBlob();
 		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
 		_scene->AddEntity(std::move(blob));
 	}
 
+	// TODO Move to _ui layer to make a single spot where UI drives state
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
-		LoadSkybox(_skyboxPaths[_currentSkybox]);
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
 		LoadSphereArray();
 		LoadRailgun();
@@ -216,10 +218,7 @@ public:
 		glfwGetFramebufferSize(_window, &width, &height);
 		return { (u32)width, (u32)height };
 	}
-	//Camera UpdateState(float dt) override
-	//{
-	//	return _camera;
-	//}
+
 	VkExtent2D WaitTillFramebufferHasSize() override
 	{
 		// This handles a minimized window. Wait until it has size > 0
@@ -261,16 +260,6 @@ private:
 	AppOptions _appOptions;
 	RenderOptions _renderOptions;
 	
-	// Skybox management
-	u32 _currentSkybox = 0;
-	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxes = {};
-	std::vector<std::string> _skyboxPaths =
-	{
-		"ChiricahuaPath.hdr",
-		"DitchRiver.hdr",
-		"debug/equirectangular.hdr",
-	};
-
 
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
@@ -328,8 +317,7 @@ private:
 
 	void LoadSphereArray()
 	{
-		const auto path = _appOptions.ModelsDir + "blob/blob.obj";
-		std::cout << "Loading model:" << path << std::endl;
+		std::cout << "Loading sphere array" << std::endl;
 
 		glm::vec3 center = { 0,4,0 };
 		auto numRows = 2;
@@ -353,13 +341,14 @@ private:
 				f32 wStart = -width / 2.f;
 				f32 x = center.x + wStart + colSpacing * col;
 
-				auto entity = std::make_unique<Entity>();
+				
+				auto entity = _library->CreateSphere();
 				entity->Name = "Sphere_" + std::to_string(row) + "_" + std::to_string(col);
 				entity->Transform.SetPos({ x,y,0.f });
-				entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 				// config mat
 				Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+				matCopy.Basecolor = glm::vec3{ 1 };
 				matCopy.Roughness = roughness;
 				matCopy.Metalness = metalness;
 				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
@@ -367,25 +356,6 @@ private:
 				_scene->AddEntity(std::move(entity));
 			}
 		}
-	}
-	
-	void LoadSphere()
-	{
-		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
-		std::cout << "Loading model:" << path << std::endl;
-
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "Sphere";
-		entity->Transform.SetPos(glm::vec3{ 0, 2, 0 });
-		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
-
-		// config mat
-		Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-		matCopy.Roughness = 0;
-		matCopy.Metalness = 1;
-		_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-
-		_scene->AddEntity(std::move(entity));
 	}
 	
 	void LoadRailgun()
@@ -429,15 +399,14 @@ private:
 
 		auto scale = glm::vec3{ 0.5f };
 		f32 dist = 1;
-		const auto path = _appOptions.ModelsDir + "sphere/sphere.obj";
 
 		// Pivot
 		{
-			auto entity = std::make_unique<Entity>();
+			
+			auto entity = _library->CreateSphere();
 			entity->Name = "Axis-Pivot";
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
 			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
 			{
@@ -466,103 +435,66 @@ private:
 		
 		// X
 		{
-			auto entity = std::make_unique<Entity>();
+			auto entity = _library->CreateSphere();
 			entity->Name = "Axis-X";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
-			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
 
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			Material mat{};
 			{
-				matCopy.Basecolor = { 1,0,0 };
+				mat.Basecolor = { 1,0,0 };
 
-				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
+				mat.UseNormalMap = true;
+				mat.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
 
-				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
-				matCopy.AoMapChannel = Material::Channel::Red;
+				mat.UseAoMap = true;
+				mat.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.AoMapChannel = Material::Channel::Red;
 
-				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
-				matCopy.RoughnessMapChannel = Material::Channel::Green;
+				mat.UseRoughnessMap = true;
+				mat.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.RoughnessMapChannel = Material::Channel::Green;
 
-				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
-				matCopy.MetalnessMapChannel = Material::Channel::Blue;
+				mat.UseMetalnessMap = true;
+				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Y
 		{
-			auto entity = std::make_unique<Entity>();
+			auto entity = _library->CreateSphere();
 			entity->Name = "Axis-Y";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
-			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-			matCopy.Basecolor = { 0,1,0 };
-			matCopy.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			
+			Material mat{};
+			mat.Basecolor = { 0,1,0 };
+			mat.Roughness = 0;
+			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			
 			_scene->AddEntity(std::move(entity));
 		}
 		
 		// Z
 		{
-			auto entity = std::make_unique<Entity>();
+			auto entity = _library->CreateSphere();
 			entity->Name = "Axis-Z";
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
-			entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-			matCopy.Basecolor = { 0,0,1 };
-			matCopy.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			
+			Material mat{};
+			mat.Basecolor = { 0,0,1 };
+			mat.Roughness = 0;
+			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			
 			_scene->AddEntity(std::move(entity));
 		}
 	}
 
-	void NextSkybox()
-	{
-		_currentSkybox = ++_currentSkybox % _skyboxPaths.size();
-		LoadSkybox(_skyboxPaths[_currentSkybox]);
-	}
-	
-	void LoadSkybox(const std::string& filename)
-	{
-		std::string path = _appOptions.IblDir + filename;
-
-		std::cout << "Loading skybox: " << path << std::endl;
-
-		SkyboxResourceId skyboxResourceId;
-		
-		// See if skybox is already loaded
-		const auto it = _loadedSkyboxes.find(path);
-		if (it != _loadedSkyboxes.end())
-		{
-			// Use existing resource
-			skyboxResourceId = it->second;
-		}
-		else
-		{
-			std::cout << "  Creating skybox\n";
-
-			// Create new resource
-			const auto ids = _renderer->CreateIblTextureResources(path);
-			SkyboxCreateInfo createInfo = {};
-			createInfo.IblTextureIds = ids;
-			skyboxResourceId = _renderer->CreateSkybox(createInfo);
-
-			_loadedSkyboxes.emplace(path, skyboxResourceId);
-		}
-		
-
-		_renderer->SetSkybox(skyboxResourceId);
-	}
-	
 	void LoadLighting()
 	{
 		auto RandF = [] (float min, float max)
@@ -696,7 +628,7 @@ private:
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
-		if (key == GLFW_KEY_C)      { NextSkybox(); }
+		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
