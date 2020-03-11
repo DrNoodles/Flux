@@ -330,6 +330,7 @@ vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 	vec3 factor = max(vec3(1.0 - roughness), F0); // make rough surfaces reflect less strongly on glancing angles
 	return F0 + (factor - F0) * pow(1.0 - cosTheta, 5.0);
 }
+
 float DistributionGGX(float NdotH, float roughness)
 {
 	float a = roughness*roughness; // disney found rough^2 had more realistic results
@@ -342,6 +343,7 @@ float DistributionGGX(float NdotH, float roughness)
 
 	return numerator / denominator; // TODO: safe guard div0
 }
+
 float GeometrySchlickGGX_Direct(float NdotV, float roughness)
 {
 	float r = roughness + 1.0; 
