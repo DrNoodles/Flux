@@ -54,7 +54,14 @@ public:
 		_scene.SetSkybox(resId);
 	}
 
-	
+	void DeleteSelected() override
+	{
+		printf("DeleteSelected()\n");
+		std::vector<int> ids{};
+		std::for_each(_selection.begin(), _selection.end(), [&ids](Entity* s) { ids.emplace_back(s->Id); });
+		_delegate.Delete(ids);
+	}
+
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -229,13 +236,7 @@ private:
 		ReplaceSelection(entity.get());
 		_scene.AddEntity(std::move(entity));
 	}
-	void DeleteSelected() override
-	{
-		printf("DeleteSelected()\n");
-		std::vector<int> ids{};
-		std::for_each(_selection.begin(), _selection.end(), [&ids](Entity* s) { ids.emplace_back(s->Id); });
-		_delegate.Delete(ids);
-	}
+
 	void DeleteAll() override
 	{
 		printf("DeleteAll()\n");

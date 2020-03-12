@@ -648,6 +648,7 @@ private:
 		if (key == GLFW_KEY_F)      { FrameAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
+		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
