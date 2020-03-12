@@ -126,7 +126,7 @@ public:
 	void Draw(const float dt) const
 	{
 		auto& entities = _scene->EntitiesView();
-		std::vector<RenderableResourceId> renderables;
+		std::vector<RenderableMeshResourceId> renderables;
 		std::vector<Light> lights;
 		std::vector<glm::mat4> transforms;
 		
@@ -134,8 +134,11 @@ public:
 		{
 			if (entity->Renderable.has_value())
 			{
-				renderables.emplace_back(entity->Renderable->RenderableId);
-				transforms.emplace_back(entity->Transform.GetMatrix());
+				for (auto && meshId : entity->Renderable->GetMeshIds())
+				{
+					renderables.emplace_back(meshId);
+					transforms.emplace_back(entity->Transform.GetMatrix());
+				}
 			}
 
 			if (entity->Light.has_value())
@@ -362,11 +365,12 @@ private:
 				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 				
 				// config mat
-				Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-				matCopy.Basecolor = glm::vec3{ 1 };
-				matCopy.Roughness = roughness;
-				matCopy.Metalness = metalness;
-				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+				Material mat = {};
+				mat.Basecolor = glm::vec3{ 1 };
+				mat.Roughness = roughness;
+				mat.Metalness = metalness;
+
+				_scene->SetMaterial(*entity->Renderable, mat);
 
 				_scene->AddEntity(std::move(entity));
 			}
@@ -443,7 +447,7 @@ private:
 				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
@@ -474,7 +478,7 @@ private:
 				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
@@ -489,7 +493,7 @@ private:
 			Material mat{};
 			mat.Basecolor = { 0,1,0 };
 			mat.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 			
 			_scene->AddEntity(std::move(entity));
 		}
@@ -504,7 +508,7 @@ private:
 			Material mat{};
 			mat.Basecolor = { 0,0,1 };
 			mat.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 			
 			_scene->AddEntity(std::move(entity));
 		}

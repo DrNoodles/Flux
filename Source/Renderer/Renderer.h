@@ -2,7 +2,7 @@
 
 #include "GpuTypes.h"
 #include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
-#include "Renderable.h"
+#include "RenderableMesh.h"
 #include "Material.h"
 #include "TextureResource.h"
 #include "CubemapTextureLoader.h"
@@ -10,7 +10,7 @@
 #include <vector>
 
 struct UniversalUbo;
-struct RenderableCreateInfo;
+struct RenderableMeshCreateInfo;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ public:
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 	void DrawFrame(float dt, const RenderOptions& options,
-	               const std::vector<RenderableResourceId>& renderableIds,
+	               const std::vector<RenderableMeshResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
 	               const std::vector<Light>& lights,
 	               glm::mat4 view, glm::vec3 camPos);
@@ -72,7 +72,7 @@ public:
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 
-	RenderableResourceId CreateRenderable(const RenderableCreateInfo& createInfo);
+	RenderableMeshResourceId CreateRenderableMesh(const MeshResourceId& meshId, const Material& material);
 
 
 
@@ -92,9 +92,9 @@ public:
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
-	const Renderable& GetRenderable(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
+	const RenderableMesh& GetRenderable(const RenderableMeshResourceId& id) const { return *_renderables[id.Id]; }
 	
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
 
@@ -164,7 +164,7 @@ private:
 
 	SkyboxResourceId _activeSkybox = {};
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
-	std::vector<std::unique_ptr<Renderable>> _renderables{};
+	std::vector<std::unique_ptr<RenderableMesh>> _renderables{};
 	
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};
 	std::vector<std::unique_ptr<TextureResource>> _textures{};
@@ -184,7 +184,7 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 
-	void DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
+	void DrawEverything(const RenderOptions& options, const std::vector<RenderableMeshResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
 
 	
 	#pragma region Shared
@@ -198,7 +198,7 @@ private:
 	#pragma region Pbr
 
 	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, 
-		const Renderable& renderable) const;
+		const RenderableMesh& renderable) const;
 	
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);

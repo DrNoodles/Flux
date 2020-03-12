@@ -2,7 +2,7 @@
 #include "VulkanInitializers.h"
 #include "UniformBufferObjects.h"
 #include "App/IModelLoaderService.h"
-#include "Renderable.h"
+#include "RenderableMesh.h"
 
 #include <Shared/FileService.h>
 

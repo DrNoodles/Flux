@@ -25,8 +25,10 @@ public:
 	
 	RenderableComponent LoadRenderableComponentFromFile(const std::string& path);
 	TextureResourceId LoadTexture(const std::string& path);
-	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	const Material& GetMaterial(const RenderableMeshResourceId& resourceId) const;
+	
+	void SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const;
+	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat);
 
 
 

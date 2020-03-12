@@ -4,7 +4,7 @@
 #include "VulkanHelpers.h"
 #include "VulkanInitializers.h"
 #include "UniformBufferObjects.h"
-#include "Renderable.h"
+#include "RenderableMesh.h"
 #include "CubemapTextureLoader.h"
 #include "IblLoader.h"
 
@@ -46,7 +46,7 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
+void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableMeshResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
 {
 	// Calc Projection
 	const auto vfov = 45.f;
@@ -226,7 +226,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 }
 
 void Renderer::DrawFrame(float dt, const RenderOptions& options,
-                         const std::vector<RenderableResourceId>& renderableIds,
+                         const std::vector<RenderableMeshResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
                          glm::mat4 view, glm::vec3 camPos)
@@ -505,20 +505,20 @@ SkyboxResourceId Renderer::CreateSkybox(const SkyboxCreateInfo& createInfo)
 	return id;
 }
 
-RenderableResourceId Renderer::CreateRenderable(const RenderableCreateInfo& createInfo)
+RenderableMeshResourceId Renderer::CreateRenderableMesh(const MeshResourceId& meshId, const Material& material)
 {
-	auto model = std::make_unique<Renderable>();
-	model->MeshId = createInfo.MeshId;
-	model->Mat = createInfo.Mat;
+	auto model = std::make_unique<RenderableMesh>();
+	model->MeshId = meshId;
+	model->Mat = material;
 	model->FrameResources = CreatePbrModelFrameResources((u32)_swapchainImages.size(), *model);
 
-	const RenderableResourceId id = (u32)_renderables.size();
+	const RenderableMeshResourceId id = (u32)_renderables.size();
 	_renderables.emplace_back(std::move(model));
 
 	return id;
 }
 
-void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
+void Renderer::SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat)
 {
 	auto renderable = _renderables[renderableResId.Id].get();
 	auto& oldMat = renderable->Mat;
@@ -748,7 +748,7 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 #pragma region Pbr
 
 std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 numImagesInFlight,
-	const Renderable& renderable) const
+	const RenderableMesh& renderable) const
 {
 	// Create uniform buffers
 	std::vector<VkBuffer> modelBuffers;
