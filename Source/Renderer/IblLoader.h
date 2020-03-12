@@ -126,8 +126,8 @@ private:
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
 		const VkFormat irrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const i32 irrDim = 128;
-		const u32 irrMips = 5;
+		const i32 irrDim = 64;
+		const u32 irrMips = 1;
 
 
 		TextureResource irrCubemap = Shared_CreateCubeTextureResource(physicalDevice, device, irrFormat, irrDim, irrMips);
@@ -333,7 +333,7 @@ private:
 
 		const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT; 
 		const i32 dim = 512;
-		const u32 numMips = 8;
+		const u32 numMips = 5;
 
 
 		// TODO Sampler: GL_LINEAR_MIPMAP_LINEAR min filter!
