@@ -190,6 +190,8 @@ public:
 	/*	auto blob = _library->CreateBlob();
 		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
 		_scene->AddEntity(std::move(blob));*/
+
+		_ui->FrameSelectionOrAll();
 	}
 
 	// TODO Move to _ui layer to make a single spot where UI drives state
