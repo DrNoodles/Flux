@@ -66,6 +66,11 @@ private:
 
 		meshDefinition.Name = mesh->mName.C_Str();
 
+
+		// Tally positions - for use in computing bounds
+		std::vector<glm::vec3> positions{ mesh->mNumVertices };
+
+		
 		// Get verts
 		for (uint32_t i = 0; i < mesh->mNumVertices; ++i)
 		{
@@ -95,6 +100,7 @@ private:
 				v.TexCoord = { 0,0 };
 			}
 
+			positions.push_back(v.Pos);
 			meshDefinition.Vertices.push_back(v);
 		}
 
@@ -123,6 +129,9 @@ private:
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), ao.begin(), ao.end());
 		}
 
+		// Compute AABB
+		meshDefinition.Bounds = AABB{ positions };
+		
 		return meshDefinition;
 	}
 	

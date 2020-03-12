@@ -32,12 +32,6 @@ public:
 	explicit UiPresenter(IUiPresenterDelegate& dgate, LibraryManager* library, SceneManager& scene)
 	: _delegate(dgate), _scene(scene), _library{library}, _scenePane(ScenePane(this))
 	{
-		// TODO Set dependencies
-
-
-		// Create views
-		
-		_propsPresenter = PropsPresenter();
 	}
 
 	~UiPresenter() = default;
@@ -62,6 +56,72 @@ public:
 		_delegate.Delete(ids);
 	}
 
+	void FrameSelectionOrAll()
+	{
+		std::vector<Entity*> targets = {};
+
+		
+		if (_selection.empty()) // Frame scene
+		{
+			for (auto&& e : _scene.EntitiesView())
+			{
+				if (e->Renderable)
+				{
+					targets.emplace_back(e.get());
+				}
+			}
+		}
+		else // Frame selection
+		{
+			for (auto&& e : _selection)
+			{
+				if (e->Renderable)
+				{
+					targets.emplace_back(e);
+				}
+			}
+		}
+
+		
+		// Nothing to frame?
+		if (targets.empty())
+		{
+			return;
+		}
+
+
+		// Compute the world space bounds of all renderable's in the selection
+		AABB totalWorldBounds;
+		bool first = true;
+
+		for (auto& entity : targets)
+		{
+			auto localBounds = entity->Renderable->GetBounds();
+			auto worldBounds = localBounds.Transform(entity->Transform.GetMatrix());
+
+			if (first)
+			{
+				first = false;
+				totalWorldBounds = worldBounds;
+			}
+			else
+			{
+				totalWorldBounds = totalWorldBounds.Merge(worldBounds);
+			}
+		}
+
+		if (first == true || totalWorldBounds.IsEmpty())
+		{
+			return;
+		}
+
+		// Focus the bounds
+		auto radius = glm::length(totalWorldBounds.Max() - totalWorldBounds.Min());
+		const auto aspect = float(ViewportSize().x) / float(ViewportSize().y);
+		_scene.GetCamera().Focus(totalWorldBounds.Center(), radius, aspect);
+	}
+
+	
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -157,7 +217,8 @@ private:
 	{
 		printf("LoadDemoScene()\n");
 		_delegate.LoadDemoScene();
-		//_libraryController->LoadDemoScene();
+		ClearSelection();
+		FrameSelectionOrAll();
 	}
 	void LoadModel(const std::string& path) override
 	{
@@ -174,9 +235,13 @@ private:
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
 
+		//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+		
 		ReplaceSelection(entity.get());
-
+		
 		_scene.AddEntity(std::move(entity));
+
+		FrameSelectionOrAll();
 	}
 	void CreateDirectionalLight() override
 	{
