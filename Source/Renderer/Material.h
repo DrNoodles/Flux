@@ -16,12 +16,19 @@ struct Material
 		Blue = 2,
 		Alpha = 3,
 	};
+	
 	bool UseBasecolorMap = false;
 	bool UseNormalMap = false;
 	bool UseMetalnessMap = false;
 	bool UseRoughnessMap = false;
 	bool UseAoMap = false;
 
+	std::string BasecolorMapPath = {};
+	std::string NormalMapPath = {};
+	std::string MetalnessMapPath = {};
+	std::string RoughnessMapPath = {};
+	std::string AoMapPath = {};
+	
 	bool HasBasecolorMap() const { return BasecolorMap.has_value(); }
 	bool HasNormalMap() const { return NormalMap.has_value(); }
 	bool HasMetalnessMap() const { return MetalnessMap.has_value(); }

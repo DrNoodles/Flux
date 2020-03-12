@@ -148,6 +148,8 @@ public:
 	{
 		_selection.clear();
 	}
+
+
 	void Draw()
 	{
 		// Start the Dear ImGui frame
@@ -191,7 +193,7 @@ public:
 					_rvm = std::nullopt;
 					_lvm = std::nullopt;
 				}
-				else if (selection->Id != _selectionId)
+				else if (selection && selection->Id != _selectionId)
 				{
 					// New selection
 					_selectionId = selection->Id;
@@ -201,9 +203,18 @@ public:
 						? std::optional(LightVm{ &selection->Light.value() })
 						: std::nullopt;
 
-					_rvm = selection->Renderable.has_value()
-						? std::optional(RenderableVm{})
-						: std::nullopt;
+					if (selection->Renderable.has_value())
+					{
+						const auto& renComp = *selection->Renderable;
+						const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
+						const auto& mat = _scene.GetMaterial(submeshResId);
+						
+						_rvm = std::optional(PopulateMaterialState(mat));
+					}
+					else
+					{
+						_rvm = std::nullopt;
+					}
 				}
 				else
 				{
@@ -408,7 +419,43 @@ private:
 
 	#pragma endregion
 
-	
+
+
+
+	RenderableVm PopulateMaterialState(const Material& mat)
+	{
+		RenderableVm rvm = {};
+
+		rvm.UseBaseColorMap = mat.UseBasecolorMap;
+		rvm.UseMetalnessMap = mat.UseMetalnessMap;
+		rvm.UseRoughnessMap = mat.UseRoughnessMap;
+		//rvm.UseNormalMap = mat.UseNormalMap;
+		//rvm.UseAoMap = mat.UseAoMap;
+
+		rvm.BaseColor = mat.Basecolor;
+		rvm.Metalness = mat.Metalness;
+		rvm.Roughness = mat.Roughness;
+
+		rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
+		rvm.InvertAoMap = mat.InvertAoMap;
+		rvm.InvertRoughnessMap = mat.InvertRoughnessMap;
+		rvm.InvertMetalnessMap = mat.InvertMetalnessMap;
+
+		rvm.ActiveMetalnessChannel = int(mat.MetalnessMapChannel);
+		rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
+		rvm.ActiveAoChannel = int(mat.AoMapChannel);
+
+		rvm.ActiveSolo = mat.ActiveSolo;
+
+		rvm.BaseColorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
+		rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
+		rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
+		rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
+		rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
+
+		return rvm;
+	}
+
 
 	#pragma region IPropsViewDelegate
 	

@@ -422,33 +422,44 @@ private:
 
 		// Pivot
 		{
-			
 			auto entity = _library->CreateSphere();
 			entity->Name = "Axis-Pivot";
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 
-			Material mat;
+
 			{
+				Material mat;
+
+				auto basePath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png";
+				auto ormPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png";
+				auto normalPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png";
+				
 				mat.UseBasecolorMap = true;
-				mat.BasecolorMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
+				mat.BasecolorMapPath = basePath;
+				mat.BasecolorMap = _scene->LoadTexture(basePath);
 
 				mat.UseNormalMap = true;
-				mat.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
+				mat.NormalMapPath = normalPath;
+				mat.NormalMap = _scene->LoadTexture(normalPath);
 				
 				mat.UseAoMap = true;
-				mat.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.AoMapPath = ormPath;
+				mat.AoMap = _scene->LoadTexture(ormPath);
 				mat.AoMapChannel = Material::Channel::Red;
 				
 				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.RoughnessMapPath = ormPath;
+				mat.RoughnessMap = _scene->LoadTexture(ormPath);
 				mat.RoughnessMapChannel = Material::Channel::Green;
 
 				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.MetalnessMapPath = ormPath;
+				mat.MetalnessMap = _scene->LoadTexture(ormPath);
 				mat.MetalnessMapChannel = Material::Channel::Blue;
+
+				_scene->SetMaterial(*entity->Renderable, mat);
 			}
-			_scene->SetMaterial(*entity->Renderable, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
