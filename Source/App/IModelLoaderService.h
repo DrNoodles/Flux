@@ -21,6 +21,7 @@ struct MeshDefinition
 	std::vector<Vertex> Vertices{};
 	std::vector<u32> Indices{};
 	std::vector<TextureDefinition> Textures{};
+	AABB Bounds{};
 };
 
 struct ModelDefinition

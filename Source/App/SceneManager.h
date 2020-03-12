@@ -28,10 +28,7 @@ public:
 	const Material& GetMaterial(const RenderableMeshResourceId& resourceId) const;
 	
 	void SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const;
-	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat);
-
-
-
+	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat) const;
 
 	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
 	{

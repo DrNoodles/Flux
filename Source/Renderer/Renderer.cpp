@@ -463,21 +463,12 @@ TextureResourceId Renderer::CreateTextureResource(const std::string& path)
 
 MeshResourceId Renderer::CreateMeshResource(const MeshDefinition& meshDefinition)
 {
-	auto mesh = std::make_unique<MeshResource>();
-
-	// Compute AABB
-	std::vector<glm::vec3> positions{meshDefinition.Vertices.size()};
-	for (size_t i = 0; i < meshDefinition.Vertices.size(); i++)
-	{
-		positions[i] = meshDefinition.Vertices[i].Pos;
-	}
-	const AABB bounds{positions};
-
-
 	// Load mesh resource
+	auto mesh = std::make_unique<MeshResource>();
+	
 	mesh->IndexCount = meshDefinition.Indices.size();
 	mesh->VertexCount = meshDefinition.Vertices.size();
-	mesh->Bounds = bounds;
+	mesh->Bounds = meshDefinition.Bounds;
 
 	std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
 		= vkh::CreateVertexBuffer(meshDefinition.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);

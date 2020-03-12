@@ -44,7 +44,8 @@ public:
 	
 	
 	//TODO clean up resources on exit
-	
+
+
 	std::unique_ptr<Entity> CreateSphere()
 	{
 		if (!_spherePrimitiveLoaded)
@@ -53,10 +54,12 @@ public:
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 
 			_sphereModelId = _resources.CreateMeshResource(meshDefinition);
+			_sphereBounds = meshDefinition.Bounds;
+			
 			_spherePrimitiveLoaded = true;
 		}
 
-		return CreateEntity(_sphereModelId, "Sphere");
+		return CreateEntity(_sphereModelId, _sphereBounds, "Sphere");
 	}
 
 	std::unique_ptr<Entity> CreateCube()
@@ -67,10 +70,12 @@ public:
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 			
 			_cubeModelId = _resources.CreateMeshResource(meshDefinition);
+			_cubeBounds = meshDefinition.Bounds;
+
 			_cubePrimitiveLoaded = true;
 		}
 
-		return CreateEntity(_cubeModelId, "Cube");
+		return CreateEntity(_cubeModelId, _cubeBounds, "Cube");
 	}
 
 	std::unique_ptr<Entity> CreateBlob()
@@ -81,10 +86,12 @@ public:
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 			
 			_blobModelId = _resources.CreateMeshResource(meshDefinition);
+			_blobBounds = meshDefinition.Bounds;
+
 			_blobPrimitiveLoaded = true;
 		}
 
-		return CreateEntity(_blobModelId, "Blob");
+		return CreateEntity(_blobModelId, _blobBounds, "Blob");
 	}
 	
 	static Material CreateRandomMaterial()
@@ -120,12 +127,15 @@ private:
 	Renderer& _resources; // TODO Replace Renderer inclusion once a gpu resource service exists (that the renderer relies on also)
 	const std::string _libraryDir;
 
-	bool _spherePrimitiveLoaded = false;
 	bool _cubePrimitiveLoaded = false;
 	bool _blobPrimitiveLoaded = false;
+	bool _spherePrimitiveLoaded = false;
 	MeshResourceId _sphereModelId = 0;
 	MeshResourceId _cubeModelId = 0;
 	MeshResourceId _blobModelId = 0;
+	AABB _sphereBounds;
+	AABB _cubeBounds;
+	AABB _blobBounds;
 
 	std::vector<SkyboxInfo> _skyboxInfos = {};
 	const std::vector<std::string> _skyboxFilenames =
@@ -135,13 +145,12 @@ private:
 		"debug/equirectangular.hdr",
 	};
 	
-	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const std::string& name) const
+	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
 	{
-		// Create renderable resource
-		const RenderableMeshResourceId resourceId = _resources.CreateRenderableMesh(meshId, Material{});
+		const auto renderableResId = _resources.CreateRenderableMesh(meshId, Material{});
 
 		// Create renderable component
-		RenderableComponent comp{ resourceId };
+		RenderableComponent comp{ renderableResId, bounds };
 
 		// Create entity
 		auto entity = std::make_unique<Entity>();

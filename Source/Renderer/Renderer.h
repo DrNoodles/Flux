@@ -92,7 +92,7 @@ public:
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
-	const RenderableMesh& GetRenderable(const RenderableMeshResourceId& id) const { return *_renderables[id.Id]; }
+	const RenderableMesh& GetRenderableMesh(const RenderableMeshResourceId& id) const { return *_renderables[id.Id]; }
 	
 	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);

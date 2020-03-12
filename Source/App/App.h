@@ -557,54 +557,6 @@ private:
 			}
 		}
 	}
-
-	void FrameAll()
-	{
-		// TODO Fix this method!
-		/*
-		// Nothing to frame?
-		if (_entities.empty())
-		{
-			return; // TODO Setup default scene framing?
-		}
-
-
-		// Compute the bounds of all renderable's in the selection
-		AABB totalBounds;
-		bool first = true;
-		for (auto& entity : _entities)
-		{
-			ModelResource modelRes = _resourceManager->GetModel(entity->Renderable.ModelId);
-			auto localBounds = modelRes.Mesh->Bounds;
-			
-			auto worldBounds = localBounds.Transform(model->Transform.GetMatrix());
-
-			if (first)
-			{
-				first = false;
-				totalBounds = worldBounds;
-			}
-			else
-			{
-				totalBounds = totalBounds.Merge(worldBounds);
-			}
-		}
-
-
-		if (first == true || totalBounds.IsEmpty())
-		{
-			return;
-		}
-
-
-		// Focus the bounds!
-		auto center = totalBounds.Center();
-		auto radius = glm::length(totalBounds.Max() - totalBounds.Min());
-		const auto framebufferSize = GetFramebufferSize();
-		const f32 viewportAspect = float(framebufferSize.width) / float(framebufferSize.height);
-		_camera.Focus(center, radius, viewportAspect);
-		*/
-	}
 	
 	#pragma endregion
 
@@ -645,9 +597,10 @@ private:
 		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
 
 		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
-		if (key == GLFW_KEY_F)      { FrameAll(); }
+		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
+		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
