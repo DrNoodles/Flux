@@ -29,12 +29,17 @@ public:
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
 
-class UiPresenter final : public ISceneViewDelegate
+class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate
 {
 public:
 
 	explicit UiPresenter(IUiPresenterDelegate& dgate, LibraryManager* library, SceneManager& scene)
-	: _delegate(dgate), _scene(scene), _library{library}, _scenePane(ScenePane(this))
+	:
+	_delegate(dgate),
+	_scene{scene},
+	_library{library},
+	_scenePane{ScenePane{this}},
+	_propsView{PropsView{this}}
 	{
 	}
 
@@ -197,7 +202,7 @@ public:
 						: std::nullopt;
 
 					_rvm = selection->Renderable.has_value()
-						? std::nullopt//std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
+						? std::optional(RenderableVm{})
 						: std::nullopt;
 				}
 				else
@@ -221,11 +226,13 @@ private:
 
 	// Views
 	ScenePane _scenePane;
-	PropsView _propsView{};
+	PropsView _propsView;
 	//PropsPresenter _propsPresenter;
 
 	// PropsView helpers
 	int _selectionId = -1;
+	int _selectedSubMesh = 0;
+	std::vector<std::string> _submeshes{};
 	TransformVm _tvm{}; // TODO Make optional and remove default constructor
 	std::optional<RenderableVm> _rvm = std::nullopt;
 	std::optional<LightVm> _lvm = std::nullopt;
@@ -398,6 +405,25 @@ private:
 
 		_activeSkybox = idx;
 	}
-	
+
 	#pragma endregion
+
+	
+
+	#pragma region IPropsViewDelegate
+	
+	RenderableVm GetMaterialState() const override
+	{
+		return RenderableVm();
+	}
+	void CommitMaterialChanges(RenderableVm state) override
+	{
+		
+	}
+	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
+	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
+	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
+
+	#pragma endregion
+	
 };
