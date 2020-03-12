@@ -2,7 +2,7 @@
 #include "imgui/imgui.h"
 #include <optional>
 
-class RenderableVm;
+struct RenderableVm;
 class TransformVm;
 class LightVm;
 

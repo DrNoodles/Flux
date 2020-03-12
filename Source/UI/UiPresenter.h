@@ -1,8 +1,12 @@
 #pragma once
 
 #include "ScenePane.h"
-#include "PropsView/PropsPresenter.h"
 #include "IblVm.h"
+#include "PropsView/PropsView.h"
+#include "PropsView/TransformVm.h"
+#include "PropsView/LightVm.h"
+#include "PropsView/RenderableVm.h"
+//#include "PropsView/PropsPresenter.h"
 
 #include <App/LibraryManager.h>
 
@@ -148,28 +152,61 @@ public:
 		{
 			//auto show_demo_window = true;
 			//ImGui::ShowDemoWindow(&show_demo_window);
+
 			
 			// Scene Pane
-			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
+			{
+				ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
+				ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
 
-			auto& entsView = _scene.EntitiesView();
-			std::vector<Entity*> allEnts{ entsView.size() };
-			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
-				{
-					return pe.get();
-				});
-			IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
-			_scenePane.DrawUI(allEnts, _selection, iblVm);
+				auto& entsView = _scene.EntitiesView();
+				std::vector<Entity*> allEnts{ entsView.size() };
+				std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
+					{
+						return pe.get();
+					});
+				IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
+				_scenePane.DrawUI(allEnts, _selection, iblVm);
+			}
 
-
+			
 			// Properties Pane
-			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
+			{
+				ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
+				ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
 
-			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-			_propsPresenter.Draw((int)_selection.size(), selection, {}, {}/*, _gpuResourceService.get()*/);
+				Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 
+				auto selectionCount = (int)_selection.size();
+				if (selectionCount != 1)
+				{
+					// Reset it all
+					_selectionId = -1;
+					_tvm = TransformVm{};
+					_rvm = std::nullopt;
+					_lvm = std::nullopt;
+				}
+				else if (selection->Id != _selectionId)
+				{
+					// New selection
+					_selectionId = selection->Id;
+					_tvm = TransformVm{ &selection->Transform };
+
+					_lvm = selection->Light.has_value()
+						? std::optional(LightVm{ &selection->Light.value() })
+						: std::nullopt;
+
+					_rvm = selection->Renderable.has_value()
+						? std::nullopt//std::optional(RenderableVm{ res, &selection->Renderable.value(), &textures, &models })
+						: std::nullopt;
+				}
+				else
+				{
+					// Same selection as last frame
+				}
+
+				_propsView.DrawUI(selectionCount, _tvm, _rvm, _lvm);
+			}
 		}
 		ImGui::EndFrame();
 		ImGui::Render();
@@ -184,8 +221,16 @@ private:
 
 	// Views
 	ScenePane _scenePane;
-	PropsPresenter _propsPresenter;
+	PropsView _propsView{};
+	//PropsPresenter _propsPresenter;
 
+	// PropsView helpers
+	int _selectionId = -1;
+	TransformVm _tvm{}; // TODO Make optional and remove default constructor
+	std::optional<RenderableVm> _rvm = std::nullopt;
+	std::optional<LightVm> _lvm = std::nullopt;
+
+	
 	// Layout
 	int _scenePanelWidth = 250;
 	int _propsPanelWidth = 300;

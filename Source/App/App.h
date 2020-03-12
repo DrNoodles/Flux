@@ -176,7 +176,6 @@ public:
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadSphereArray();
 
-
 		/*
 		auto entity = _library->CreateBlob();
 		Material mat = {};

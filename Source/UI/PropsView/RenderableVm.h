@@ -1,17 +1,41 @@
 #pragma once
 
-#include "App/IModelLoaderService.h" // TextureType
-#include "App/Entity/RenderableComponent.h"
+#include "App/AppTypes.h" // TextureType
 
-#include <iostream>
-#include <exception>
-#include <optional>
+#include <glm/glm.hpp>
+
 #include <vector>
 
 
-class RenderableVm
+struct RenderableVm // TODO Rename to MaterialState
 {
-public:
+	bool UseBaseColorMap = false;
+	//bool UseNormalMap = false;
+	bool UseMetalnessMap = false;
+	bool UseRoughnessMap = false;
+	//bool UseAoMap = false;
+
+	std::string BaseColorMapPath{};
+	std::string NormalMapPath{};
+	std::string MetalnessMapPath{};
+	std::string RoughnessMapPath{};
+	std::string AoMapPath{};
+
+	glm::vec3 BaseColor = glm::vec3{ 1 };
+	float Metalness = 0.0f;
+	float Roughness = 0.3f;
+
+	bool InvertNormalMapZ = false;
+	bool InvertAoMap = false;
+	bool InvertRoughnessMap = false;
+	bool InvertMetalnessMap = false;
+
+	TextureType ActiveSolo = TextureType::Undefined;
+
+	inline static std::vector<std::string> MapChannels = { "Red", "Green", "Blue", "Alpha" };
+	int ActiveMetalnessChannel = 0;
+	int ActiveRoughnessChannel = 0;
+	int ActiveAoChannel = 0;
 };
 
 
