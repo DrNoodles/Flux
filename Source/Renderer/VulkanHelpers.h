@@ -12,7 +12,7 @@
 struct QueueFamilyIndices;
 struct Vertex;
 struct Skybox;
-struct Renderable;
+struct RenderableMesh;
 class TextureResource;
 struct MeshResource;
 struct SwapChainSupportDetails;

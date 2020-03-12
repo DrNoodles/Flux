@@ -126,7 +126,7 @@ public:
 	void Draw(const float dt) const
 	{
 		auto& entities = _scene->EntitiesView();
-		std::vector<RenderableResourceId> renderables;
+		std::vector<RenderableMeshResourceId> renderables;
 		std::vector<Light> lights;
 		std::vector<glm::mat4> transforms;
 		
@@ -134,8 +134,11 @@ public:
 		{
 			if (entity->Renderable.has_value())
 			{
-				renderables.emplace_back(entity->Renderable->RenderableId);
-				transforms.emplace_back(entity->Transform.GetMatrix());
+				for (auto && meshId : entity->Renderable->GetMeshIds())
+				{
+					renderables.emplace_back(meshId);
+					transforms.emplace_back(entity->Transform.GetMatrix());
+				}
 			}
 
 			if (entity->Light.has_value())
@@ -171,10 +174,22 @@ public:
 	void LoadDefaultScene()
 	{
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		LoadSphereArray();
 
-		auto blob = _library->CreateBlob();
+
+		/*
+		auto entity = _library->CreateBlob();
+		Material mat = {};
+		mat.Basecolor = glm::vec3{ 1 };
+		mat.Metalness = 1;
+		mat.Roughness = 0;
+		_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+		_scene->AddEntity(std::move(entity));
+		*/
+		
+	/*	auto blob = _library->CreateBlob();
 		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
-		_scene->AddEntity(std::move(blob));
+		_scene->AddEntity(std::move(blob));*/
 	}
 
 	// TODO Move to _ui layer to make a single spot where UI drives state
@@ -319,7 +334,7 @@ private:
 	{
 		std::cout << "Loading sphere array" << std::endl;
 
-		glm::vec3 center = { 0,4,0 };
+		glm::vec3 center = { 0,0,0 };
 		auto numRows = 2;
 		auto numColumns = 5;
 		auto rowSpacing = 2.2f;
@@ -341,17 +356,21 @@ private:
 				f32 wStart = -width / 2.f;
 				f32 x = center.x + wStart + colSpacing * col;
 
+				char name[256];
+				sprintf_s(name, 256, "Blob M:%.2f R:%.2f", metalness, roughness);
 				
-				auto entity = _library->CreateSphere();
-				entity->Name = "Sphere_" + std::to_string(row) + "_" + std::to_string(col);
+				auto entity = _library->CreateBlob();
+				entity->Name = name;
 				entity->Transform.SetPos({ x,y,0.f });
-
+				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+				
 				// config mat
-				Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
-				matCopy.Basecolor = glm::vec3{ 1 };
-				matCopy.Roughness = roughness;
-				matCopy.Metalness = metalness;
-				_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+				Material mat = {};
+				mat.Basecolor = glm::vec3{ 1 };
+				mat.Roughness = roughness;
+				mat.Metalness = metalness;
+
+				_scene->SetMaterial(*entity->Renderable, mat);
 
 				_scene->AddEntity(std::move(entity));
 			}
@@ -408,27 +427,27 @@ private:
 			entity->Transform.SetScale(scale*0.5f);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 
-			Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+			Material mat;
 			{
-				matCopy.UseBasecolorMap = true;
-				matCopy.BasecolorMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
+				mat.UseBasecolorMap = true;
+				mat.BasecolorMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png");
 
-				matCopy.UseNormalMap = true;
-				matCopy.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
+				mat.UseNormalMap = true;
+				mat.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png");
 				
-				matCopy.UseAoMap = true;
-				matCopy.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
-				matCopy.AoMapChannel = Material::Channel::Red;
+				mat.UseAoMap = true;
+				mat.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.AoMapChannel = Material::Channel::Red;
 				
-				matCopy.UseRoughnessMap = true;
-				matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
-				matCopy.RoughnessMapChannel = Material::Channel::Green;
+				mat.UseRoughnessMap = true;
+				mat.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.RoughnessMapChannel = Material::Channel::Green;
 
-				matCopy.UseMetalnessMap = true;
-				matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
-				matCopy.MetalnessMapChannel = Material::Channel::Blue;
+				mat.UseMetalnessMap = true;
+				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png");
+				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
+			_scene->SetMaterial(*entity->Renderable, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
@@ -459,7 +478,7 @@ private:
 				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 
 			_scene->AddEntity(std::move(entity));
 		}
@@ -474,7 +493,7 @@ private:
 			Material mat{};
 			mat.Basecolor = { 0,1,0 };
 			mat.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 			
 			_scene->AddEntity(std::move(entity));
 		}
@@ -489,7 +508,7 @@ private:
 			Material mat{};
 			mat.Basecolor = { 0,0,1 };
 			mat.Roughness = 0;
-			_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+			_scene->SetMaterial(*entity->Renderable, mat);
 			
 			_scene->AddEntity(std::move(entity));
 		}

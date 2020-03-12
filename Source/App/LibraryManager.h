@@ -138,14 +138,10 @@ private:
 	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const std::string& name) const
 	{
 		// Create renderable resource
-		RenderableCreateInfo info = {};
-		info.MeshId = meshId;
-		info.Mat = Material();// CreateRandomMaterial();
-		const RenderableResourceId resourceId = _resources.CreateRenderable(info);
+		const RenderableMeshResourceId resourceId = _resources.CreateRenderableMesh(meshId, Material{});
 
 		// Create renderable component
-		RenderableComponent comp = {};
-		comp.RenderableId = resourceId;
+		RenderableComponent comp{ resourceId };
 
 		// Create entity
 		auto entity = std::make_unique<Entity>();

@@ -14,19 +14,16 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		throw std::invalid_argument("Couldn't load model");
 	}
 
-	RenderableComponent rc = {};
+	std::vector<RenderableMeshResourceId> renderableMeshResIds;
 
-	
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
-		RenderableCreateInfo renderableCreateInfo = {};
-
 		// Create the Mesh resource
-		renderableCreateInfo.MeshId = _renderer.CreateMeshResource(meshDef); 
+		auto meshId = _renderer.CreateMeshResource(meshDef); 
 
 
 		// Create Texture resources and config Material
-		auto& mat = renderableCreateInfo.Mat;
+		Material mat = {};
 		for (const auto& texDef : meshDef.Textures)
 		{
 			const auto texResId = LoadTexture(texDef.Path);
@@ -64,21 +61,10 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 			}
 		}
 
-		//// Hardcoded test data TODO Remove this, duh.
-		//mat.UseRoughnessMap = true;
-		//mat.RoughnessMapChannel = Material::Channel::Green;
-		//mat.RoughnessMap = mat.AoMap;
-		//
-		//mat.UseMetalnessMap = true;
-		//mat.MetalnessMapChannel = Material::Channel::Blue;
-		//mat.MetalnessMap = mat.AoMap;
-		
-		rc.RenderableId = _renderer.CreateRenderable(renderableCreateInfo);
-		
-		break; // TODO Only processing the first mesh for now!
+		renderableMeshResIds.emplace_back(_renderer.CreateRenderableMesh(meshId, mat));
 	}
 
-	return rc;
+	return RenderableComponent{ renderableMeshResIds };
 }
 
 TextureResourceId SceneManager::LoadTexture(const std::string& path)
@@ -97,13 +83,20 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 	return texResId;
 }
 
-const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
+const Material& SceneManager::GetMaterial(const RenderableMeshResourceId& resourceId) const
 {
-	const Renderable& renderable = _renderer.GetRenderable(resourceId);
-	return renderable.Mat;
+	return _renderer.GetRenderable(resourceId).Mat;
 }
 
-void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
+void SceneManager::SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const
+{
+	for (auto& renderableMeshId : renderableComp.GetMeshIds())
+	{
+		_renderer.SetMaterial(renderableMeshId, newMat);
+	}
+}
+
+void SceneManager::SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat)
 {
 	// TODO Undo redo
 	_renderer.SetMaterial(renderableResId, newMat);

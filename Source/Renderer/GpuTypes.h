@@ -29,7 +29,7 @@ struct MeshIdType;
 struct TextureIdType;
 //struct ShaderIdType;
 typedef ResourceId<SkyboxIdType> SkyboxResourceId;
-typedef ResourceId<RenderableIdType> RenderableResourceId;
+typedef ResourceId<RenderableIdType> RenderableMeshResourceId;
 typedef ResourceId<MeshIdType> MeshResourceId;
 typedef ResourceId<TextureIdType> TextureResourceId;
 //typedef ResourceId<ShaderIdType> ShaderResourceId;

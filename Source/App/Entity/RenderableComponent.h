@@ -1,26 +1,31 @@
 #pragma once
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include "Renderer/GpuTypes.h"
-#include "Renderer/Renderable.h"
+#include "Renderer/RenderableMesh.h"
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//struct RenderableMesh
-//{
-//	u32 ModelId = u32_max;
-//
-//	// Material
-//	u32 BasecolorMapId = u32_max;
-//	u32 NormalMapId = u32_max;
-//};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class RenderableComponent
 {
 public:
-	RenderableResourceId RenderableId; // TODO Support N Renderables
+	RenderableComponent() = delete;
+
+	explicit RenderableComponent(std::vector<RenderableMeshResourceId> meshIds)
+	{
+		_renderableIds = std::move(meshIds);
+	}
+	
+	explicit RenderableComponent(RenderableMeshResourceId meshId)
+		: RenderableComponent{ std::vector<RenderableMeshResourceId>{ meshId} }
+	{
+	}
+
+	AABB GetAABB() const { return _aabb; }
+	const std::vector<RenderableMeshResourceId>& GetMeshIds() const { return _renderableIds; }
+	
+private:
+	AABB _aabb;
+	std::vector<RenderableMeshResourceId> _renderableIds;
 
 	// TODO Use this space to add additional data used for the App/Ui layer
 };
