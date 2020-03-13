@@ -337,17 +337,17 @@ private:
 
 		glm::vec3 center = { 0,0,0 };
 		auto numRows = 2;
-		auto numColumns = 5;
-		auto rowSpacing = 2.2f;
-		auto colSpacing = 2.2f;
+		auto numColumns = 6;
+		auto rowSpacing = 2.1f;
+		auto colSpacing = 2.1f;
 		
 		for (int row = 0; row < numRows; row++)
 		{
 			f32 metalness = row / f32(numRows - 1);
 
 			f32 height = f32(numRows - 1) * rowSpacing;
-			f32 hStart = -height / 2.f;
-			f32 y = center.y + hStart + rowSpacing * row;
+			f32 hStart = height / 2.f;
+			f32 y = center.y + hStart + -rowSpacing * row;
 
 			for (int col = 0; col < numColumns; col++)
 			{
@@ -439,11 +439,11 @@ private:
 				mat.BasecolorMapPath = basePath;
 				mat.BasecolorMap = _scene->LoadTexture(basePath);
 
-				mat.UseNormalMap = true;
+				//mat.UseNormalMap = true;
 				mat.NormalMapPath = normalPath;
 				mat.NormalMap = _scene->LoadTexture(normalPath);
 				
-				mat.UseAoMap = true;
+				//mat.UseAoMap = true;
 				mat.AoMapPath = ormPath;
 				mat.AoMap = _scene->LoadTexture(ormPath);
 				mat.AoMapChannel = Material::Channel::Red;
@@ -475,10 +475,10 @@ private:
 			{
 				mat.Basecolor = { 1,0,0 };
 
-				mat.UseNormalMap = true;
+				//mat.UseNormalMap = true;
 				mat.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
 
-				mat.UseAoMap = true;
+				//mat.UseAoMap = true;
 				mat.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
 				mat.AoMapChannel = Material::Channel::Red;
 

@@ -125,11 +125,11 @@ struct UniversalUbo
 		ubo.Roughness[0] = material.Roughness;
 		ubo.Metalness[0] = material.Metalness;
 
-		ubo.UseBasecolorMap[0] = float(material.UseBasecolorMap);
-		ubo.UseNormalMap[0] = float(material.UseNormalMap);
-		ubo.UseRoughnessMap[0] = float(material.UseRoughnessMap);
-		ubo.UseMetalnessMap[0] = float(material.UseMetalnessMap);
-		ubo.UseAoMap[0] = float(material.UseAoMap);
+		ubo.UseBasecolorMap[0] = float(material.UsingBasecolorMap());
+		ubo.UseNormalMap[0] = float(material.UsingNormalMap());
+		ubo.UseRoughnessMap[0] = float(material.UsingRoughnessMap());
+		ubo.UseMetalnessMap[0] = float(material.UsingMetalnessMap());
+		ubo.UseAoMap[0] = float(material.UsingAoMap());
 		
 		ubo.InvertNormalMapZ[0] = float(material.InvertNormalMapZ);
 		ubo.InvertRoughnessMap[0] = float(material.InvertRoughnessMap);

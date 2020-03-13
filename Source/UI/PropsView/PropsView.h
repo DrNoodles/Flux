@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-struct RenderableVm;
+struct MaterialViewState;
 class TransformVm;
 class LightVm;
 
@@ -22,8 +22,7 @@ public:
 	virtual const std::vector<std::string>& GetSubmeshes() = 0;
 
 	// Material
-	virtual RenderableVm GetMaterialState() const = 0;
-	virtual void CommitMaterialChanges(RenderableVm state) = 0;
+	virtual void CommitMaterialChanges(const MaterialViewState& state) = 0;
 
 	// Light?
 };
@@ -33,7 +32,7 @@ class PropsView
 public:
 	PropsView() = delete;
 	explicit PropsView(IPropsViewDelegate* delegate) : _delegate{delegate} {}
-	void DrawUI(int selectionCount, TransformVm& tvm, std::optional<RenderableVm>& rvm, std::optional<LightVm>& lvm) const;
+	void DrawUI(int selectionCount, TransformVm& tvm, std::optional<MaterialViewState>& rvm, std::optional<LightVm>& lvm) const;
 
 private:
 	// Dependencies
@@ -43,13 +42,13 @@ private:
 
 	void DrawTransformPanel(TransformVm& tvm) const;
 	void DrawLightPanel(LightVm& lvm) const;
-	void DrawRenderablePanel(RenderableVm& rvm) const;
+	void DrawRenderablePanel(MaterialViewState& rvm) const;
 	
-	void BaseColor(RenderableVm& rvm) const;
-	void Metalness(RenderableVm& rvm) const;
-	void Roughness(RenderableVm& rvm) const;
-	void AmbientOcclusion(RenderableVm& rvm) const;
-	void Normals(RenderableVm& rvm) const;
+	void Basecolor(MaterialViewState& rvm) const;
+	void Metalness(MaterialViewState& rvm) const;
+	void Roughness(MaterialViewState& rvm) const;
+	void AmbientOcclusion(MaterialViewState& rvm) const;
+	void Normals(MaterialViewState& rvm) const;
 };
 
 

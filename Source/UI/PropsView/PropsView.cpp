@@ -1,7 +1,7 @@
 
 #include "PropsView.h"
 
-#include "RenderableVm.h"
+#include "MaterialViewState.h"
 #include "TransformVm.h"
 #include "LightVm.h"
 #include "Shared/FileService.h"
@@ -25,7 +25,7 @@ const ImGuiWindowFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen;
 
 void PropsView::DrawUI(int selectionCount, 
 	TransformVm& tvm,
-	std::optional<RenderableVm>& rvm,
+	std::optional<MaterialViewState>& rvm,
 	std::optional<LightVm>& lvm) const
 {
 	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
@@ -107,7 +107,7 @@ void SubSectionSpacing()
 	ImGui::Spacing();
 }
 
-void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
+void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 {
 	if (ImGui::CollapsingHeader("Model", headerFlags))
 	{
@@ -145,7 +145,7 @@ void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 		ImGui::SetNextItemWidth(100);
 		if (ImGui::Combo("Solo Texture", &soloSelection, "All\0Base Color\0Metalness\0Roughness\0AO\0Normals"))
 		{
-			rvm.ActiveSolo = (TextureType)soloSelection;
+			rvm.ActiveSolo = soloSelection;
 			_delegate->CommitMaterialChanges(rvm);
 		}
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Display only the selected texture.");
@@ -153,7 +153,7 @@ void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 		if (ImGui::BeginChild("Material Panel", ImVec2{ 0,0 }, true))
 		{
 			ImGui::Spacing();
-			BaseColor(rvm);
+			Basecolor(rvm);
 			SubSectionSpacing();
 
 			Metalness(rvm);
@@ -171,12 +171,12 @@ void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 	}
 }
 
-void PropsView::BaseColor(RenderableVm& rvm) const
+void PropsView::Basecolor(MaterialViewState& rvm) const
 {
-	bool& useMap = rvm.UseBaseColorMap;
-	std::string& mapPath = rvm.BaseColorMapPath;
+	bool& useMap = rvm.UseBasecolorMap;
+	std::string& mapPath = rvm.BasecolorMapPath;
 	const std::string& valueName = "Base Color";
-	float* col = &rvm.BaseColor[0];
+	float* col = &rvm.Basecolor[0];
 	
 
 	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
@@ -227,7 +227,7 @@ void PropsView::BaseColor(RenderableVm& rvm) const
 	}
 }
 
-void PropsView::Metalness(RenderableVm& rvm) const
+void PropsView::Metalness(MaterialViewState& rvm) const
 {
 	const std::string title = "METALLIC";
 	const std::string valueName = "Metalness";
@@ -282,12 +282,12 @@ void PropsView::Metalness(RenderableVm& rvm) const
 		ImGui::Spacing();
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 		{
-			for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+			for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 			{
 				const bool isSelected = i == activeChannel;
-				if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+				if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 				{
 					activeChannel = i;
 					_delegate->CommitMaterialChanges(rvm);
@@ -309,7 +309,7 @@ void PropsView::Metalness(RenderableVm& rvm) const
 	}
 }
 
-void PropsView::Roughness(RenderableVm& rvm) const
+void PropsView::Roughness(MaterialViewState& rvm) const
 {
 	const std::string title = "ROUGHNESS";
 	const std::string valueName = "Roughness";
@@ -362,12 +362,12 @@ void PropsView::Roughness(RenderableVm& rvm) const
 		ImGui::Spacing();
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 		{
-			for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+			for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 			{
 				const bool isSelected = i == activeChannel;
-				if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+				if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 				{
 					activeChannel = i;
 					_delegate->CommitMaterialChanges(rvm);
@@ -389,7 +389,7 @@ void PropsView::Roughness(RenderableVm& rvm) const
 	}
 }
 
-void PropsView::AmbientOcclusion(RenderableVm& rvm) const
+void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 {
 	const std::string title = "AMBIENT OCCLUSION";
 	const std::string valueName = "AO";
@@ -430,12 +430,12 @@ void PropsView::AmbientOcclusion(RenderableVm& rvm) const
 	ImGui::Spacing();
 
 	ImGui::PushItemWidth(70);
-	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 	{
-		for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+		for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 		{
 			const bool isSelected = i == activeChannel;
-			if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+			if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 			{
 				activeChannel = i;
 				_delegate->CommitMaterialChanges(rvm);
@@ -452,7 +452,7 @@ void PropsView::AmbientOcclusion(RenderableVm& rvm) const
 	if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 }
 
-void PropsView::Normals(RenderableVm& rvm) const
+void PropsView::Normals(MaterialViewState& rvm) const
 {
 	const std::string title = "NORMALS";
 	const std::string valueName = "Normals";

@@ -5,7 +5,7 @@
 #include "PropsView/PropsView.h"
 #include "PropsView/TransformVm.h"
 #include "PropsView/LightVm.h"
-#include "PropsView/RenderableVm.h"
+#include "PropsView/MaterialViewState.h"
 //#include "PropsView/PropsPresenter.h"
 
 #include <App/LibraryManager.h>
@@ -245,7 +245,7 @@ private:
 	int _selectedSubMesh = 0;
 	std::vector<std::string> _submeshes{};
 	TransformVm _tvm{}; // TODO Make optional and remove default constructor
-	std::optional<RenderableVm> _rvm = std::nullopt;
+	std::optional<MaterialViewState> _rvm = std::nullopt;
 	std::optional<LightVm> _lvm = std::nullopt;
 
 	
@@ -422,17 +422,17 @@ private:
 
 
 
-	RenderableVm PopulateMaterialState(const Material& mat)
+	MaterialViewState PopulateMaterialState(const Material& mat)
 	{
-		RenderableVm rvm = {};
+		MaterialViewState rvm = {};
 
-		rvm.UseBaseColorMap = mat.UseBasecolorMap;
+		rvm.UseBasecolorMap = mat.UseBasecolorMap;
 		rvm.UseMetalnessMap = mat.UseMetalnessMap;
 		rvm.UseRoughnessMap = mat.UseRoughnessMap;
 		//rvm.UseNormalMap = mat.UseNormalMap;
 		//rvm.UseAoMap = mat.UseAoMap;
 
-		rvm.BaseColor = mat.Basecolor;
+		rvm.Basecolor = mat.Basecolor;
 		rvm.Metalness = mat.Metalness;
 		rvm.Roughness = mat.Roughness;
 
@@ -445,9 +445,19 @@ private:
 		rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
 		rvm.ActiveAoChannel = int(mat.AoMapChannel);
 
-		rvm.ActiveSolo = mat.ActiveSolo;
+		switch (mat.ActiveSolo)
+		{
+		case TextureType::Undefined: rvm.ActiveSolo = 0; break;
+		case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
+		case TextureType::Metalness: rvm.ActiveSolo = 2; break;
+		case TextureType::Roughness: rvm.ActiveSolo = 3; break;
+		case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
+		case TextureType::Normals: rvm.ActiveSolo = 5; break;
+		default:
+			throw std::out_of_range("");
+		}
 
-		rvm.BaseColorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
+		rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
 		rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
 		rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
 		rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
@@ -459,13 +469,110 @@ private:
 
 	#pragma region IPropsViewDelegate
 	
-	RenderableVm GetMaterialState() const override
+	void CommitMaterialChanges(const MaterialViewState& state) override
 	{
-		return RenderableVm();
-	}
-	void CommitMaterialChanges(RenderableVm state) override
-	{
+		Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+		if (!selection)
+		{
+			throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+		}
+
+		const auto& renComp = *selection->Renderable;
+		const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
+		auto mat = _scene.GetMaterial(submeshResId);
+
 		
+
+		// Update material properties
+
+		mat.UseBasecolorMap = state.UseBasecolorMap;
+		mat.UseMetalnessMap = state.UseMetalnessMap;
+		mat.UseRoughnessMap = state.UseRoughnessMap;
+		//mat.UseNormalMap = state.UseNormalMap;
+		//mat.UseAoMap = state.UseAoMap;
+		
+		mat.Basecolor = state.Basecolor;
+		mat.Metalness = state.Metalness;
+		mat.Roughness = state.Roughness;
+
+		mat.InvertNormalMapZ = state.InvertNormalMapZ;
+		mat.InvertAoMap = state.InvertAoMap;
+		mat.InvertRoughnessMap = state.InvertRoughnessMap;
+		mat.InvertMetalnessMap = state.InvertMetalnessMap;
+
+		mat.MetalnessMapChannel = (Material::Channel)state.ActiveMetalnessChannel;
+		mat.RoughnessMapChannel = (Material::Channel)state.ActiveRoughnessChannel;
+		mat.AoMapChannel = (Material::Channel)state.ActiveAoChannel;
+
+		switch (state.ActiveSolo)
+		{
+		case 0: mat.ActiveSolo = TextureType::Undefined; break;
+		case 1: mat.ActiveSolo = TextureType::Basecolor; break;
+		case 2: mat.ActiveSolo = TextureType::Metalness; break;
+		case 3: mat.ActiveSolo = TextureType::Roughness; break;
+		case 4: mat.ActiveSolo = TextureType::AmbientOcclusion; break;
+		case 5: mat.ActiveSolo = TextureType::Normals; break;
+		default:
+			throw std::out_of_range("");
+		}
+		
+		auto UpdateMap = [&](const std::string& newPath, Material& targetMat, const TextureType type)
+		{
+			std::optional<TextureResourceId>* pMap = nullptr;
+			std::string* pMapPath = nullptr;
+
+			switch (type)
+			{
+			case TextureType::Basecolor:
+				pMap = &targetMat.BasecolorMap;
+				pMapPath = &targetMat.BasecolorMapPath;
+				break;
+			case TextureType::Normals:
+				pMap = &targetMat.NormalMap;
+				pMapPath = &targetMat.NormalMapPath;
+				break;
+			case TextureType::Roughness:
+				pMap = &targetMat.RoughnessMap;
+				pMapPath = &targetMat.RoughnessMapPath;
+				break;
+			case TextureType::Metalness:
+				pMap = &targetMat.MetalnessMap;
+				pMapPath = &targetMat.MetalnessMapPath;
+				break;
+			case TextureType::AmbientOcclusion:
+				pMap = &targetMat.AoMap;
+				pMapPath = &targetMat.AoMapPath;
+				break;
+
+			case TextureType::Undefined:
+			default:
+				throw std::invalid_argument("unhandled TextureType");
+			}
+
+			if (newPath.empty())
+			{
+				*pMap = std::nullopt;
+				*pMapPath = "";
+			}
+			else // path is empty, make sure the material is also
+			{
+				const bool pathIsDifferent = !(pMapPath && *pMapPath == newPath);
+				if (pathIsDifferent)
+				{
+					*pMap = _scene.LoadTexture(newPath);;
+					*pMapPath = newPath;
+				}
+			}
+		};
+
+		UpdateMap(state.BasecolorMapPath, mat, TextureType::Basecolor);
+		UpdateMap(state.NormalMapPath, mat, TextureType::Normals);
+		UpdateMap(state.MetalnessMapPath, mat, TextureType::Metalness);
+		UpdateMap(state.RoughnessMapPath, mat, TextureType::Roughness);
+		UpdateMap(state.AoMapPath, mat, TextureType::AmbientOcclusion);
+
+		
+		_scene.SetMaterial(renComp, mat);
 	}
 	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }

@@ -39,7 +39,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 				break;
 
 			case TextureType::Normals:
-				mat.UseNormalMap = true;
+				//mat.UseNormalMap = true;
 				mat.NormalMap = texResId;
 				mat.NormalMapPath = texDef.Path;
 				break;
@@ -57,7 +57,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 				break;
 
 			case TextureType::AmbientOcclusion:
-				mat.UseAoMap = true;
+				//mat.UseAoMap = true;
 				mat.AoMap = texResId;
 				mat.AoMapPath = texDef.Path;
 				break;

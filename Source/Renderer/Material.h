@@ -18,10 +18,10 @@ struct Material
 	};
 	
 	bool UseBasecolorMap = false;
-	bool UseNormalMap = false;
+	//bool UseNormalMap = false;
 	bool UseMetalnessMap = false;
 	bool UseRoughnessMap = false;
-	bool UseAoMap = false;
+	//bool UseAoMap = false;
 
 	std::string BasecolorMapPath = {};
 	std::string NormalMapPath = {};
@@ -64,7 +64,7 @@ struct Material
 
 	bool UsingNormalMap() const
 	{
-		return UseNormalMap && HasNormalMap() &&
+		return /*UseNormalMap && */HasNormalMap() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Normals);
 	}
 
@@ -82,48 +82,7 @@ struct Material
 
 	bool UsingAoMap() const
 	{
-		return UseAoMap && HasAoMap() &&
+		return /*UseAoMap && */HasAoMap() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::AmbientOcclusion);
 	}
-
-	//void Bind(const ShaderResource& shader, const std::vector<TextureResource*>& textures) const
-	//{
-	//	// Set material uniforms
-	//	shader.SetVec3("uAlbedo", Albedo);
-	//	shader.SetFloat("uMetallic", Metallic);
-	//	shader.SetFloat("uRoughness", Roughness);
-	//	shader.SetFloat("uAo", AmbientOcclusion);
-
-	//	// Don't set use map to true unless there's a map to use! This avoids a corrupt look
-	//	shader.SetBool("useAlbedoMap", UsingAlbedoMap());
-	//	shader.SetBool("useNormalMap", UsingNormalMap());
-	//	shader.SetBool("useMetallicMap", UsingMetalnessMap());
-	//	shader.SetBool("useRoughnessMap", UsingRoughnessMap());
-	//	shader.SetBool("useAoMap", UsingAoMap());
-	//	
-	//	shader.SetBool("invertNormalMapZ", InvertNormalMapZ);
-	//	shader.SetBool("invertAoMap", InvertAoMap);
-	//	shader.SetBool("invertRoughnessMap", InvertRoughnessMap);
-	//	shader.SetBool("invertMetalnessMap", InvertMetalnessMap);
-
-	//	shader.SetInt("metalnessMapChannel", (int)MetalnessMapChannel);
-	//	shader.SetInt("roughnessMapChannel", (int)RoughnessMapChannel);
-	//	shader.SetInt("aoMapChannel", (int)AoMapChannel);
-	//	
-	//	// Bind textures
-	//	auto textureUnit = 0;
-	//	if (UsingAlbedoMap()) BindMap(textureUnit++, "AlbedoMap", textures[AlbedoMap->ResourceId]->Id(), shader);
-	//	if (UsingNormalMap()) BindMap(textureUnit++, "NormalMap", textures[NormalMap->ResourceId]->Id(), shader);
-	//	if (UsingMetalnessMap()) BindMap(textureUnit++, "MetalnessMap", textures[MetalnessMap->ResourceId]->Id(), shader);
-	//	if (UsingRoughnessMap()) BindMap(textureUnit++, "RoughnessMap", textures[RoughnessMap->ResourceId]->Id(), shader);
-	//	if (UsingAoMap()) BindMap(textureUnit++, "AmbientOcclusionMap", textures[AoMap->ResourceId]->Id(), shader);
-	//}
-
-	//static void BindMap(int textureUnit, const std::string& textureUnitName, UINT textureId, 
-	//	const ShaderResource& shader)
-	//{
-	//	glActiveTexture(GL_TEXTURE0 + textureUnit);
-	//	glBindTexture(GL_TEXTURE_2D, textureId);
-	//	shader.SetInt(textureUnitName, textureUnit);
-	//}
 };
