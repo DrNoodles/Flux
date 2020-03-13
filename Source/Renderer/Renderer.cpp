@@ -1507,8 +1507,9 @@ void Renderer::InitImgui()
 	
 	// UI Style
 	const float rounding = 3;
-	
-	ImGui::StyleColorsLight();
+
+	ImGui::StyleColorsClassic();
+	//ImGui::StyleColorsLight();
 	ImGuiStyle& style = ImGui::GetStyle();
 	style.WindowRounding = 0;
 	style.WindowBorderSize = 0;
