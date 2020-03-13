@@ -149,7 +149,6 @@ public:
 		_selection.clear();
 	}
 
-
 	void Draw()
 	{
 		// Start the Dear ImGui frame

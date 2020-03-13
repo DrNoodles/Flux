@@ -82,6 +82,11 @@ public:
 	{
 		LoadDefaultScene();
 
+		// Update UI only as quickly as the monitor's refresh rate
+		//auto vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		//_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>(1.f / (f32)vidMode->refreshRate);
+
+		
 		while (!glfwWindowShouldClose(_window))
 		{
 			glfwPollEvents();
@@ -210,7 +215,12 @@ public:
 	
 	void BuildGui() override
 	{
-		_ui->Draw();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		if (currentTime - _lastUiUpdate > _uiUpdateRate)
+		{
+			_lastUiUpdate = currentTime;
+			_ui->Draw();
+		}
 	}
 
 	#pragma endregion
@@ -234,9 +244,13 @@ private:
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
 	float _totalTime = 0;
+	
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
-	const std::chrono::duration<double, std::chrono::seconds::period> _reportFpsRate{ 1 };
+	const std::chrono::duration<float, std::chrono::seconds::period> _reportFpsRate{ 1 };
 	FpsCounter _fpsCounter{};
+
+	std::chrono::steady_clock::time_point _lastUiUpdate;
+	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f/90 };
 
 
 	void InitWindow()
