@@ -1,8 +1,12 @@
 #pragma once
 
 #include "ScenePane.h"
-#include "PropsView/PropsPresenter.h"
 #include "IblVm.h"
+#include "PropsView/PropsView.h"
+#include "PropsView/TransformVm.h"
+#include "PropsView/LightVm.h"
+#include "PropsView/MaterialViewState.h"
+//#include "PropsView/PropsPresenter.h"
 
 #include <App/LibraryManager.h>
 
@@ -25,12 +29,17 @@ public:
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
 
-class UiPresenter final : public ISceneViewDelegate
+class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate
 {
 public:
 
 	explicit UiPresenter(IUiPresenterDelegate& dgate, LibraryManager* library, SceneManager& scene)
-	: _delegate(dgate), _scene(scene), _library{library}, _scenePane(ScenePane(this))
+	:
+	_delegate(dgate),
+	_scene{scene},
+	_library{library},
+	_scenePane{ScenePane{this}},
+	_propsView{PropsView{this}}
 	{
 	}
 
@@ -139,6 +148,8 @@ public:
 	{
 		_selection.clear();
 	}
+
+
 	void Draw()
 	{
 		// Start the Dear ImGui frame
@@ -148,28 +159,70 @@ public:
 		{
 			//auto show_demo_window = true;
 			//ImGui::ShowDemoWindow(&show_demo_window);
+
 			
 			// Scene Pane
-			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
+			{
+				ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
+				ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
 
-			auto& entsView = _scene.EntitiesView();
-			std::vector<Entity*> allEnts{ entsView.size() };
-			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
-				{
-					return pe.get();
-				});
-			IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
-			_scenePane.DrawUI(allEnts, _selection, iblVm);
+				auto& entsView = _scene.EntitiesView();
+				std::vector<Entity*> allEnts{ entsView.size() };
+				std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
+					{
+						return pe.get();
+					});
+				IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
+				_scenePane.DrawUI(allEnts, _selection, iblVm);
+			}
 
-
+			
 			// Properties Pane
-			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
+			{
+				ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
+				ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
 
-			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-			_propsPresenter.Draw((int)_selection.size(), selection, {}, {}/*, _gpuResourceService.get()*/);
+				Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 
+				auto selectionCount = (int)_selection.size();
+				if (selectionCount != 1)
+				{
+					// Reset it all
+					_selectionId = -1;
+					_tvm = TransformVm{};
+					_rvm = std::nullopt;
+					_lvm = std::nullopt;
+				}
+				else if (selection && selection->Id != _selectionId)
+				{
+					// New selection
+					_selectionId = selection->Id;
+					_tvm = TransformVm{ &selection->Transform };
+
+					_lvm = selection->Light.has_value()
+						? std::optional(LightVm{ &selection->Light.value() })
+						: std::nullopt;
+
+					if (selection->Renderable.has_value())
+					{
+						const auto& renComp = *selection->Renderable;
+						const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
+						const auto& mat = _scene.GetMaterial(submeshResId);
+						
+						_rvm = std::optional(PopulateMaterialState(mat));
+					}
+					else
+					{
+						_rvm = std::nullopt;
+					}
+				}
+				else
+				{
+					// Same selection as last frame
+				}
+
+				_propsView.DrawUI(selectionCount, _tvm, _rvm, _lvm);
+			}
 		}
 		ImGui::EndFrame();
 		ImGui::Render();
@@ -184,8 +237,18 @@ private:
 
 	// Views
 	ScenePane _scenePane;
-	PropsPresenter _propsPresenter;
+	PropsView _propsView;
+	//PropsPresenter _propsPresenter;
 
+	// PropsView helpers
+	int _selectionId = -1;
+	int _selectedSubMesh = 0;
+	std::vector<std::string> _submeshes{};
+	TransformVm _tvm{}; // TODO Make optional and remove default constructor
+	std::optional<MaterialViewState> _rvm = std::nullopt;
+	std::optional<LightVm> _lvm = std::nullopt;
+
+	
 	// Layout
 	int _scenePanelWidth = 250;
 	int _propsPanelWidth = 300;
@@ -353,6 +416,168 @@ private:
 
 		_activeSkybox = idx;
 	}
-	
+
 	#pragma endregion
+
+
+
+
+	MaterialViewState PopulateMaterialState(const Material& mat)
+	{
+		MaterialViewState rvm = {};
+
+		rvm.UseBasecolorMap = mat.UseBasecolorMap;
+		rvm.UseMetalnessMap = mat.UseMetalnessMap;
+		rvm.UseRoughnessMap = mat.UseRoughnessMap;
+		//rvm.UseNormalMap = mat.UseNormalMap;
+		//rvm.UseAoMap = mat.UseAoMap;
+
+		rvm.Basecolor = mat.Basecolor;
+		rvm.Metalness = mat.Metalness;
+		rvm.Roughness = mat.Roughness;
+
+		rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
+		rvm.InvertAoMap = mat.InvertAoMap;
+		rvm.InvertRoughnessMap = mat.InvertRoughnessMap;
+		rvm.InvertMetalnessMap = mat.InvertMetalnessMap;
+
+		rvm.ActiveMetalnessChannel = int(mat.MetalnessMapChannel);
+		rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
+		rvm.ActiveAoChannel = int(mat.AoMapChannel);
+
+		switch (mat.ActiveSolo)
+		{
+		case TextureType::Undefined: rvm.ActiveSolo = 0; break;
+		case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
+		case TextureType::Metalness: rvm.ActiveSolo = 2; break;
+		case TextureType::Roughness: rvm.ActiveSolo = 3; break;
+		case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
+		case TextureType::Normals: rvm.ActiveSolo = 5; break;
+		default:
+			throw std::out_of_range("");
+		}
+
+		rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
+		rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
+		rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
+		rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
+		rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
+
+		return rvm;
+	}
+
+
+	#pragma region IPropsViewDelegate
+	
+	void CommitMaterialChanges(const MaterialViewState& state) override
+	{
+		Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+		if (!selection)
+		{
+			throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+		}
+
+		const auto& renComp = *selection->Renderable;
+		const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
+		auto mat = _scene.GetMaterial(submeshResId);
+
+		
+
+		// Update material properties
+
+		mat.UseBasecolorMap = state.UseBasecolorMap;
+		mat.UseMetalnessMap = state.UseMetalnessMap;
+		mat.UseRoughnessMap = state.UseRoughnessMap;
+		//mat.UseNormalMap = state.UseNormalMap;
+		//mat.UseAoMap = state.UseAoMap;
+		
+		mat.Basecolor = state.Basecolor;
+		mat.Metalness = state.Metalness;
+		mat.Roughness = state.Roughness;
+
+		mat.InvertNormalMapZ = state.InvertNormalMapZ;
+		mat.InvertAoMap = state.InvertAoMap;
+		mat.InvertRoughnessMap = state.InvertRoughnessMap;
+		mat.InvertMetalnessMap = state.InvertMetalnessMap;
+
+		mat.MetalnessMapChannel = (Material::Channel)state.ActiveMetalnessChannel;
+		mat.RoughnessMapChannel = (Material::Channel)state.ActiveRoughnessChannel;
+		mat.AoMapChannel = (Material::Channel)state.ActiveAoChannel;
+
+		switch (state.ActiveSolo)
+		{
+		case 0: mat.ActiveSolo = TextureType::Undefined; break;
+		case 1: mat.ActiveSolo = TextureType::Basecolor; break;
+		case 2: mat.ActiveSolo = TextureType::Metalness; break;
+		case 3: mat.ActiveSolo = TextureType::Roughness; break;
+		case 4: mat.ActiveSolo = TextureType::AmbientOcclusion; break;
+		case 5: mat.ActiveSolo = TextureType::Normals; break;
+		default:
+			throw std::out_of_range("");
+		}
+		
+		auto UpdateMap = [&](const std::string& newPath, Material& targetMat, const TextureType type)
+		{
+			std::optional<TextureResourceId>* pMap = nullptr;
+			std::string* pMapPath = nullptr;
+
+			switch (type)
+			{
+			case TextureType::Basecolor:
+				pMap = &targetMat.BasecolorMap;
+				pMapPath = &targetMat.BasecolorMapPath;
+				break;
+			case TextureType::Normals:
+				pMap = &targetMat.NormalMap;
+				pMapPath = &targetMat.NormalMapPath;
+				break;
+			case TextureType::Roughness:
+				pMap = &targetMat.RoughnessMap;
+				pMapPath = &targetMat.RoughnessMapPath;
+				break;
+			case TextureType::Metalness:
+				pMap = &targetMat.MetalnessMap;
+				pMapPath = &targetMat.MetalnessMapPath;
+				break;
+			case TextureType::AmbientOcclusion:
+				pMap = &targetMat.AoMap;
+				pMapPath = &targetMat.AoMapPath;
+				break;
+
+			case TextureType::Undefined:
+			default:
+				throw std::invalid_argument("unhandled TextureType");
+			}
+
+			if (newPath.empty())
+			{
+				*pMap = std::nullopt;
+				*pMapPath = "";
+			}
+			else // path is empty, make sure the material is also
+			{
+				const bool pathIsDifferent = !(pMapPath && *pMapPath == newPath);
+				if (pathIsDifferent)
+				{
+					*pMap = _scene.LoadTexture(newPath);;
+					*pMapPath = newPath;
+				}
+			}
+		};
+
+		UpdateMap(state.BasecolorMapPath, mat, TextureType::Basecolor);
+		UpdateMap(state.NormalMapPath, mat, TextureType::Normals);
+		UpdateMap(state.MetalnessMapPath, mat, TextureType::Metalness);
+		UpdateMap(state.RoughnessMapPath, mat, TextureType::Roughness);
+		UpdateMap(state.AoMapPath, mat, TextureType::AmbientOcclusion);
+
+		
+		_scene.SetMaterial(renComp, mat);
+	}
+	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
+	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
+	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
+
+	#pragma endregion
+	
 };

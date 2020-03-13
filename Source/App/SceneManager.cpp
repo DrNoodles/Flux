@@ -35,26 +35,31 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 			case TextureType::Basecolor:
 				mat.UseBasecolorMap = true;
 				mat.BasecolorMap = texResId;
+				mat.BasecolorMapPath = texDef.Path;
 				break;
 
 			case TextureType::Normals:
-				mat.UseNormalMap = true;
+				//mat.UseNormalMap = true;
 				mat.NormalMap = texResId;
+				mat.NormalMapPath = texDef.Path;
 				break;
 
 			case TextureType::Roughness:
 				mat.UseRoughnessMap = true;
 				mat.RoughnessMap = texResId;
+				mat.RoughnessMapPath = texDef.Path;
 				break;
 
 			case TextureType::Metalness:
 				mat.UseMetalnessMap = true;
 				mat.MetalnessMap = texResId;
+				mat.MetalnessMapPath = texDef.Path;
 				break;
 
 			case TextureType::AmbientOcclusion:
-				mat.UseAoMap = true;
+				//mat.UseAoMap = true;
 				mat.AoMap = texResId;
+				mat.AoMapPath = texDef.Path;
 				break;
 
 			case TextureType::Undefined:

@@ -1,7 +1,7 @@
 
 #include "PropsView.h"
 
-#include "RenderableVm.h"
+#include "MaterialViewState.h"
 #include "TransformVm.h"
 #include "LightVm.h"
 #include "Shared/FileService.h"
@@ -25,7 +25,7 @@ const ImGuiWindowFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen;
 
 void PropsView::DrawUI(int selectionCount, 
 	TransformVm& tvm,
-	std::optional<RenderableVm>& rvm,
+	std::optional<MaterialViewState>& rvm,
 	std::optional<LightVm>& lvm) const
 {
 	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
@@ -53,7 +53,7 @@ void PropsView::DrawUI(int selectionCount,
 		{
 			ImGui::Spacing();
 			ImGui::Spacing();
-			//DrawRenderablePanel(rvm.value());
+			DrawRenderablePanel(rvm.value());
 		}
 
 
@@ -106,25 +106,26 @@ void SubSectionSpacing()
 	ImGui::Spacing();
 	ImGui::Spacing();
 }
-/*
-void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
+
+void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 {
 	if (ImGui::CollapsingHeader("Model", headerFlags))
 	{
 		ImGui::Spacing();
 
+		auto& submeshes = _delegate->GetSubmeshes();
 
 		ImGui::Text("Sub-Mesh");
-		const auto height = glm::min(5, int(rvm.MeshVms.size()) + 1) * ImGui::GetItemsLineHeightWithSpacing();
+		const auto height = glm::min(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
 		if (ImGui::BeginChild("Sub-Mesh Panel", ImVec2{ 0,height }, true))
 		{
-			for (int i = 0; i < rvm.MeshVms.size(); ++i)
+			for (int i = 0; i < submeshes.size(); ++i)
 			{
-				const auto& mesh = rvm.MeshVms[i];
+				const auto& mesh = submeshes[i];
 
-				if (ImGui::Selectable((mesh + "##" + mesh).c_str(), i == rvm.GetSelectedSubMesh()))
+				if (ImGui::Selectable((mesh + "##" + mesh).c_str(), i == _delegate->GetSelectedSubMesh()))
 				{
-					rvm.SelectSubMesh(i);
+					_delegate->SelectSubMesh(i);
 				}
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip(mesh.c_str());
 			}
@@ -140,19 +141,19 @@ void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 		
 		int soloSelection = (int)rvm.ActiveSolo;
 		// NOTE: The order must match TextureType
-		ImGui::SameLine(ImGui::GetContentRegionAvailWidth()-125);
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x-125);
 		ImGui::SetNextItemWidth(100);
 		if (ImGui::Combo("Solo Texture", &soloSelection, "All\0Base Color\0Metalness\0Roughness\0AO\0Normals"))
 		{
-			rvm.ActiveSolo = (TextureType)soloSelection;
-			rvm.CommitChanges();
+			rvm.ActiveSolo = soloSelection;
+			_delegate->CommitMaterialChanges(rvm);
 		}
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Display only the selected texture.");
 
 		if (ImGui::BeginChild("Material Panel", ImVec2{ 0,0 }, true))
 		{
 			ImGui::Spacing();
-			BaseColor(rvm);
+			Basecolor(rvm);
 			SubSectionSpacing();
 
 			Metalness(rvm);
@@ -170,12 +171,12 @@ void PropsView::DrawRenderablePanel(RenderableVm& rvm) const
 	}
 }
 
-void PropsView::BaseColor(RenderableVm& rvm) const
+void PropsView::Basecolor(MaterialViewState& rvm) const
 {
-	bool& useMap = rvm.UseBaseColorMap;
-	std::string& mapPath = rvm.BaseColorMapPath;
+	bool& useMap = rvm.UseBasecolorMap;
+	std::string& mapPath = rvm.BasecolorMapPath;
 	const std::string& valueName = "Base Color";
-	float* col = &rvm.BaseColor[0];
+	float* col = &rvm.Basecolor[0];
 	
 
 	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
@@ -189,7 +190,7 @@ void PropsView::BaseColor(RenderableVm& rvm) const
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
 	{
 		useMap = current;
-		rvm.CommitChanges();
+		_delegate->CommitMaterialChanges(rvm);
 	}
 	if (ImGui::IsItemHovered()) ImGui::SetTooltip(("Define " + valueName + " via a uniform value or texture").c_str());
 	ImGui::PopItemWidth();
@@ -202,13 +203,13 @@ void PropsView::BaseColor(RenderableVm& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvailWidth() - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
 			{
 				mapPath = newPath;
-				rvm.CommitChanges();
+				_delegate->CommitMaterialChanges(rvm);
 			}
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
@@ -217,16 +218,16 @@ void PropsView::BaseColor(RenderableVm& rvm) const
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
-			rvm.CommitChanges();
+			_delegate->CommitMaterialChanges(rvm);
 		}
 	}
 	else
 	{
-		if (ImGui::ColorEdit3((valueName + "##" + valueName).c_str(), col)) rvm.CommitChanges();
+		if (ImGui::ColorEdit3((valueName + "##" + valueName).c_str(), col)) _delegate->CommitMaterialChanges(rvm);
 	}
 }
 
-void PropsView::Metalness(RenderableVm& rvm) const
+void PropsView::Metalness(MaterialViewState& rvm) const
 {
 	const std::string title = "METALLIC";
 	const std::string valueName = "Metalness";
@@ -247,7 +248,7 @@ void PropsView::Metalness(RenderableVm& rvm) const
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
 	{
 		useMap = current;
-		rvm.CommitChanges();
+		_delegate->CommitMaterialChanges(rvm);
 	}
 	if (ImGui::IsItemHovered()) ImGui::SetTooltip(("Define " + valueName + " via a uniform value or texture").c_str());
 	ImGui::PopItemWidth();
@@ -260,13 +261,13 @@ void PropsView::Metalness(RenderableVm& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 		
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvailWidth() - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
 			{
 				mapPath = newPath;
-				rvm.CommitChanges();
+				_delegate->CommitMaterialChanges(rvm);
 			}
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
@@ -275,21 +276,21 @@ void PropsView::Metalness(RenderableVm& rvm) const
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
-			rvm.CommitChanges();
+			_delegate->CommitMaterialChanges(rvm);
 		}
 
 		ImGui::Spacing();
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 		{
-			for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+			for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 			{
 				const bool isSelected = i == activeChannel;
-				if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+				if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 				{
 					activeChannel = i;
-					rvm.CommitChanges();
+					_delegate->CommitMaterialChanges(rvm);
 				}
 				if (isSelected)
 				{
@@ -300,15 +301,15 @@ void PropsView::Metalness(RenderableVm& rvm) const
 		}
 		ImGui::PopItemWidth();
 		ImGui::SameLine(160);
-		if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) rvm.CommitChanges();
+		if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 	}
 	else
 	{
-		if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1)) rvm.CommitChanges();
+		if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1)) _delegate->CommitMaterialChanges(rvm);
 	}
 }
 
-void PropsView::Roughness(RenderableVm& rvm) const
+void PropsView::Roughness(MaterialViewState& rvm) const
 {
 	const std::string title = "ROUGHNESS";
 	const std::string valueName = "Roughness";
@@ -328,7 +329,7 @@ void PropsView::Roughness(RenderableVm& rvm) const
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
 	{
 		useMap = current;
-		rvm.CommitChanges();
+		_delegate->CommitMaterialChanges(rvm);
 	}
 	if (ImGui::IsItemHovered()) ImGui::SetTooltip(("Define " + valueName + " via a uniform value or texture").c_str());
 	ImGui::PopItemWidth();
@@ -340,13 +341,13 @@ void PropsView::Roughness(RenderableVm& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvailWidth() - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
 			{
 				mapPath = newPath;
-				rvm.CommitChanges();
+				_delegate->CommitMaterialChanges(rvm);
 			}
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
@@ -355,21 +356,21 @@ void PropsView::Roughness(RenderableVm& rvm) const
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
-			rvm.CommitChanges();
+			_delegate->CommitMaterialChanges(rvm);
 		}
 
 		ImGui::Spacing();
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 		{
-			for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+			for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 			{
 				const bool isSelected = i == activeChannel;
-				if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+				if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 				{
 					activeChannel = i;
-					rvm.CommitChanges();
+					_delegate->CommitMaterialChanges(rvm);
 				}
 				if (isSelected)
 				{
@@ -380,15 +381,15 @@ void PropsView::Roughness(RenderableVm& rvm) const
 		}
 		ImGui::PopItemWidth();
 		ImGui::SameLine(160);
-		if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) rvm.CommitChanges();
+		if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 	}
 	else
 	{
-		if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1)) rvm.CommitChanges();
+		if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1)) _delegate->CommitMaterialChanges(rvm);
 	}
 }
 
-void PropsView::AmbientOcclusion(RenderableVm& rvm) const
+void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 {
 	const std::string title = "AMBIENT OCCLUSION";
 	const std::string valueName = "AO";
@@ -408,13 +409,13 @@ void PropsView::AmbientOcclusion(RenderableVm& rvm) const
 
 	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvailWidth() - 35, 0 }))
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
 	{
 		const auto newPath = FileService::TexturePicker();
 		if (!newPath.empty())
 		{
 			mapPath = newPath;
-			rvm.CommitChanges();
+			_delegate->CommitMaterialChanges(rvm);
 		}
 	}
 	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
@@ -423,21 +424,21 @@ void PropsView::AmbientOcclusion(RenderableVm& rvm) const
 	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 	{
 		mapPath = "";
-		rvm.CommitChanges();
+		_delegate->CommitMaterialChanges(rvm);
 	}
 
 	ImGui::Spacing();
 
 	ImGui::PushItemWidth(70);
-	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), RenderableVm::MapChannels[activeChannel].c_str()))
+	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 	{
-		for (int i = 0; i < (int)RenderableVm::MapChannels.size(); ++i)
+		for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 		{
 			const bool isSelected = i == activeChannel;
-			if (ImGui::Selectable(RenderableVm::MapChannels[i].c_str(), isSelected))
+			if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
 			{
 				activeChannel = i;
-				rvm.CommitChanges();
+				_delegate->CommitMaterialChanges(rvm);
 			}
 			if (isSelected)
 			{
@@ -448,10 +449,10 @@ void PropsView::AmbientOcclusion(RenderableVm& rvm) const
 	}
 	ImGui::PopItemWidth();
 	ImGui::SameLine(160);
-	if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) rvm.CommitChanges();
+	if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 }
 
-void PropsView::Normals(RenderableVm& rvm) const
+void PropsView::Normals(MaterialViewState& rvm) const
 {
 	const std::string title = "NORMALS";
 	const std::string valueName = "Normals";
@@ -470,13 +471,13 @@ void PropsView::Normals(RenderableVm& rvm) const
 
 	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvailWidth() - 35, 0 }))
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
 	{
 		const auto newPath = FileService::TexturePicker();
 		if (!newPath.empty())
 		{
 			mapPath = newPath;
-			rvm.CommitChanges();
+			_delegate->CommitMaterialChanges(rvm);
 		}
 	}
 	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
@@ -485,11 +486,10 @@ void PropsView::Normals(RenderableVm& rvm) const
 	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 	{
 		mapPath = "";
-		rvm.CommitChanges();
+		_delegate->CommitMaterialChanges(rvm);
 	}
 
 	ImGui::Spacing();
 
-	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) rvm.CommitChanges();
+	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 }
-*/
