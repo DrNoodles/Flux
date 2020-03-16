@@ -82,6 +82,11 @@ public:
 	{
 		LoadDefaultScene();
 
+		// Update UI only as quickly as the monitor's refresh rate
+		//auto vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		//_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>(1.f / (f32)vidMode->refreshRate);
+
+		
 		while (!glfwWindowShouldClose(_window))
 		{
 			glfwPollEvents();
@@ -210,7 +215,12 @@ public:
 	
 	void BuildGui() override
 	{
-		_ui->Draw();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		if (currentTime - _lastUiUpdate > _uiUpdateRate)
+		{
+			_lastUiUpdate = currentTime;
+			_ui->Draw();
+		}
 	}
 
 	#pragma endregion
@@ -234,9 +244,13 @@ private:
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
 	float _totalTime = 0;
+	
 	std::chrono::steady_clock::time_point _lastFpsUpdate;
-	const std::chrono::duration<double, std::chrono::seconds::period> _reportFpsRate{ 1 };
+	const std::chrono::duration<float, std::chrono::seconds::period> _reportFpsRate{ 1 };
 	FpsCounter _fpsCounter{};
+
+	std::chrono::steady_clock::time_point _lastUiUpdate;
+	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f/90 };
 
 
 	void InitWindow()
@@ -255,6 +269,7 @@ private:
 		//glfwSetWindowUserPointer(_window, this);
 		
 		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
+		glfwSetFramebufferSizeCallback(_window, FramebufferSizeCallback);
 		glfwSetKeyCallback(_window, KeyCallback);
 		glfwSetCursorPosCallback(_window, CursorPosCallback);
 		glfwSetScrollCallback(_window, ScrollCallback);
@@ -588,10 +603,13 @@ private:
 	{
 		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
 	}
+	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+	{
+		//printf("TODO Handle FramebufferSizeCallback()\n");
+	}
 	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	{
 		g_windowMap[window]->OnWindowSizeChanged(width, height);
-		
 	}
 
 
@@ -601,14 +619,24 @@ private:
 	// Event handlers
 	void OnScrollChanged(double xOffset, double yOffset)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantCaptureMouse)
+			return;
+
+		
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantTextInput || io.WantCaptureKeyboard)
+			return;
+
+		
 		// ONLY on pressed is handled
 		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
 
-		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
+		//if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
@@ -616,6 +644,11 @@ private:
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantCaptureMouse)
+			return;
+		
+		
 		// On first input lets remove a snap
 		if (_firstCursorInput)
 		{
