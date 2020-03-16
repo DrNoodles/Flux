@@ -269,6 +269,7 @@ private:
 		//glfwSetWindowUserPointer(_window, this);
 		
 		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
+		glfwSetFramebufferSizeCallback(_window, FramebufferSizeCallback);
 		glfwSetKeyCallback(_window, KeyCallback);
 		glfwSetCursorPosCallback(_window, CursorPosCallback);
 		glfwSetScrollCallback(_window, ScrollCallback);
@@ -602,10 +603,13 @@ private:
 	{
 		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
 	}
+	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+	{
+		//printf("TODO Handle FramebufferSizeCallback()\n");
+	}
 	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	{
 		g_windowMap[window]->OnWindowSizeChanged(width, height);
-		
 	}
 
 
@@ -615,14 +619,24 @@ private:
 	// Event handlers
 	void OnScrollChanged(double xOffset, double yOffset)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantCaptureMouse)
+			return;
+
+		
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantTextInput || io.WantCaptureKeyboard)
+			return;
+
+		
 		// ONLY on pressed is handled
 		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
 
-		if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
+		//if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
@@ -630,6 +644,11 @@ private:
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantCaptureMouse)
+			return;
+		
+		
 		// On first input lets remove a snap
 		if (_firstCursorInput)
 		{
