@@ -98,7 +98,7 @@ public:
 			if ((currentTime - _lastFpsUpdate) > _reportFpsRate)
 			{
 				char buffer[32];
-				snprintf(buffer, 32, "%.1f fps", _fpsCounter.GetFps());
+				snprintf(buffer, 32, "Flux - %.1f fps", _fpsCounter.GetFps());
 				glfwSetWindowTitle(_window, buffer);
 				_lastFpsUpdate = currentTime;
 			}
@@ -106,53 +106,6 @@ public:
 			Update(dt);
 			Draw(dt);
 		}
-	}
-
-
-	void Update(const float dt)
-	{
-		ProcessDeletionQueue(); 
-		
-		for (auto& entity : _scene->EntitiesView())
-		{
-			if (entity->Action)
-			{
-				entity->Action->Update(dt);
-			}
-		}
-	}
-
-	
-	void Draw(const float dt) const
-	{
-		auto& entities = _scene->EntitiesView();
-		std::vector<RenderableMeshResourceId> renderables;
-		std::vector<Light> lights;
-		std::vector<glm::mat4> transforms;
-		
-		for (auto& entity : entities)
-		{
-			if (entity->Renderable.has_value())
-			{
-				for (auto && meshId : entity->Renderable->GetMeshIds())
-				{
-					renderables.emplace_back(meshId);
-					transforms.emplace_back(entity->Transform.GetMatrix());
-				}
-			}
-
-			if (entity->Light.has_value())
-			{
-				auto light = entity->Light->ToLight();
-				light.Pos = entity->Transform.GetPos();
-				lights.emplace_back(light);
-			}
-		}
-
-
-		auto& camera = _scene->GetCamera();
-		const auto view = camera.GetViewMatrix();
-		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
 	}
 
 
@@ -326,6 +279,53 @@ private:
 	{
 		const auto base = float(rand()) / RAND_MAX;
 		return min + base * (max - min);
+	}
+
+
+	void Update(const float dt)
+	{
+		ProcessDeletionQueue();
+
+		for (auto& entity : _scene->EntitiesView())
+		{
+			if (entity->Action)
+			{
+				entity->Action->Update(dt);
+			}
+		}
+	}
+
+
+	void Draw(const float dt) const
+	{
+		auto& entities = _scene->EntitiesView();
+		std::vector<RenderableMeshResourceId> renderables;
+		std::vector<Light> lights;
+		std::vector<glm::mat4> transforms;
+
+		for (auto& entity : entities)
+		{
+			if (entity->Renderable.has_value())
+			{
+				for (auto&& meshId : entity->Renderable->GetMeshIds())
+				{
+					renderables.emplace_back(meshId);
+					transforms.emplace_back(entity->Transform.GetMatrix());
+				}
+			}
+
+			if (entity->Light.has_value())
+			{
+				auto light = entity->Light->ToLight();
+				light.Pos = entity->Transform.GetPos();
+				lights.emplace_back(light);
+			}
+		}
+
+
+		auto& camera = _scene->GetCamera();
+		const auto view = camera.GetViewMatrix();
+		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
 	}
 
 	
