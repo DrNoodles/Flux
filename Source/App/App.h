@@ -152,7 +152,7 @@ public:
 		std::cout << "Loading scene\n";
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
-		LoadSphereArray();
+		LoadSphereArray({0,4,0});
 		LoadRailgun();
 		//LoadLighting();
 	}
@@ -331,11 +331,11 @@ private:
 	
 	#pragma region Scene Management
 
-	void LoadSphereArray()
+	void LoadSphereArray(const glm::vec3& offset = glm::vec3{ 0,0,0 })
 	{
 		std::cout << "Loading sphere array" << std::endl;
 
-		glm::vec3 center = { 0,0,0 };
+		glm::vec3 center = offset;
 		auto numRows = 2;
 		auto numColumns = 6;
 		auto rowSpacing = 2.1f;
