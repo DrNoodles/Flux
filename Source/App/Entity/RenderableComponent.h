@@ -5,28 +5,38 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct RenderableComponentSubmesh
+{
+	const RenderableResourceId Id;
+	const std::string Name;
+	RenderableComponentSubmesh() = delete;
+	RenderableComponentSubmesh(RenderableResourceId id, std::string name) : Id(id), Name(std::move(name)) {}
+};
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class RenderableComponent
 {
 public:
 	RenderableComponent() = delete;
 
-	explicit RenderableComponent(std::vector<RenderableMeshResourceId> meshIds, AABB bounds)
+	explicit RenderableComponent(std::vector<RenderableComponentSubmesh> submeshes, AABB bounds)
 	{
-		_renderableIds = std::move(meshIds);
+		_renderableIds = std::move(submeshes);
 		_bounds = bounds;
 	}
 	
-	explicit RenderableComponent(RenderableMeshResourceId meshId, AABB bounds)
-		: RenderableComponent{ std::vector<RenderableMeshResourceId>{ meshId }, bounds }
+	explicit RenderableComponent(RenderableComponentSubmesh submeshes, AABB bounds)
+		: RenderableComponent{ std::vector<RenderableComponentSubmesh>{std::move(submeshes)}, bounds }
 	{
 	}
 
 	AABB GetBounds() const { return _bounds; }
-	const std::vector<RenderableMeshResourceId>& GetMeshIds() const { return _renderableIds; }
+	const std::vector<RenderableComponentSubmesh>& GetSubmeshes() const { return _renderableIds; }
 	
 private:
 	AABB _bounds;
-	std::vector<RenderableMeshResourceId> _renderableIds;
+	std::vector<RenderableComponentSubmesh> _renderableIds;
 
 	// TODO Use this space to add additional data used for the App/Ui layer
 };

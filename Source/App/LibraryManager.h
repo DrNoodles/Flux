@@ -147,10 +147,10 @@ private:
 	
 	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
 	{
-		const auto renderableResId = _resources.CreateRenderableMesh(meshId, Material{});
+		const auto renderableResId = _resources.CreateRenderable(meshId, Material{});
 
 		// Create renderable component
-		RenderableComponent comp{ renderableResId, bounds };
+		RenderableComponent comp{ {renderableResId, name}, bounds };
 
 		// Create entity
 		auto entity = std::make_unique<Entity>();

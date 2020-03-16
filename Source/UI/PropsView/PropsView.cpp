@@ -25,7 +25,6 @@ const ImGuiWindowFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen;
 
 void PropsView::DrawUI(int selectionCount, 
 	TransformVm& tvm,
-	std::optional<MaterialViewState>& rvm,
 	std::optional<LightVm>& lvm) const
 {
 	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
@@ -43,22 +42,21 @@ void PropsView::DrawUI(int selectionCount,
 		}
 
 		DrawTransformPanel(tvm);
+		
 		if (lvm.has_value())
 		{
 			ImGui::Spacing();
 			ImGui::Spacing();
 			DrawLightPanel(lvm.value());
 		}
+		
+		auto rvm = _delegate->GetMaterialState();
 		if (rvm.has_value())
 		{
 			ImGui::Spacing();
 			ImGui::Spacing();
 			DrawRenderablePanel(rvm.value());
 		}
-
-
-
-		
 	}
 	ImGui::End();
 }

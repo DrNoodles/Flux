@@ -184,36 +184,38 @@ public:
 
 				Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 
-				auto selectionCount = (int)_selection.size();
+				const auto selectionCount = (int)_selection.size();
 				if (selectionCount != 1)
 				{
 					// Reset it all
 					_selectionId = -1;
 					_tvm = TransformVm{};
-					_rvm = std::nullopt;
 					_lvm = std::nullopt;
 				}
 				else if (selection && selection->Id != _selectionId)
 				{
 					// New selection
+					
 					_selectionId = selection->Id;
+					
+
 					_tvm = TransformVm{ &selection->Transform };
 
+					
 					_lvm = selection->Light.has_value()
 						? std::optional(LightVm{ &selection->Light.value() })
 						: std::nullopt;
 
+					
+					// Collect submeshes
+					_selectedSubMesh = 0;
+					_submeshes.clear();
 					if (selection->Renderable.has_value())
-					{
-						const auto& renComp = *selection->Renderable;
-						const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
-						const auto& mat = _scene.GetMaterial(submeshResId);
-						
-						_rvm = std::optional(PopulateMaterialState(mat));
-					}
-					else
-					{
-						_rvm = std::nullopt;
+					{	
+						for (const auto& componentSubmesh : selection->Renderable->GetSubmeshes())
+						{
+							_submeshes.emplace_back(componentSubmesh.Name);
+						}
 					}
 				}
 				else
@@ -221,7 +223,7 @@ public:
 					// Same selection as last frame
 				}
 
-				_propsView.DrawUI(selectionCount, _tvm, _rvm, _lvm);
+				_propsView.DrawUI(selectionCount, _tvm, _lvm);
 			}
 		}
 		ImGui::EndFrame();
@@ -235,17 +237,18 @@ private:
 	SceneManager& _scene;
 	LibraryManager* _library;
 
+	
 	// Views
 	ScenePane _scenePane;
 	PropsView _propsView;
 	//PropsPresenter _propsPresenter;
 
+	
 	// PropsView helpers
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
 	std::vector<std::string> _submeshes{};
 	TransformVm _tvm{}; // TODO Make optional and remove default constructor
-	std::optional<MaterialViewState> _rvm = std::nullopt;
 	std::optional<LightVm> _lvm = std::nullopt;
 
 	
@@ -269,10 +272,11 @@ private:
 	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsPanelWidth,0 }; }
 	glm::ivec2 PropsSize() const { return { _propsPanelWidth, WindowHeight() }; }
 
-
-	// Selection -- TODO Find a better home for this?
+	
+	// Selection
 	std::unordered_set<Entity*> _selection{};
 	
+
 	
 	#pragma region ISceneViewDelegate
 	
@@ -421,54 +425,20 @@ private:
 
 
 
-
-	MaterialViewState PopulateMaterialState(const Material& mat)
-	{
-		MaterialViewState rvm = {};
-
-		rvm.UseBasecolorMap = mat.UseBasecolorMap;
-		rvm.UseMetalnessMap = mat.UseMetalnessMap;
-		rvm.UseRoughnessMap = mat.UseRoughnessMap;
-		//rvm.UseNormalMap = mat.UseNormalMap;
-		//rvm.UseAoMap = mat.UseAoMap;
-
-		rvm.Basecolor = mat.Basecolor;
-		rvm.Metalness = mat.Metalness;
-		rvm.Roughness = mat.Roughness;
-
-		rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
-		rvm.InvertAoMap = mat.InvertAoMap;
-		rvm.InvertRoughnessMap = mat.InvertRoughnessMap;
-		rvm.InvertMetalnessMap = mat.InvertMetalnessMap;
-
-		rvm.ActiveMetalnessChannel = int(mat.MetalnessMapChannel);
-		rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
-		rvm.ActiveAoChannel = int(mat.AoMapChannel);
-
-		switch (mat.ActiveSolo)
-		{
-		case TextureType::Undefined: rvm.ActiveSolo = 0; break;
-		case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
-		case TextureType::Metalness: rvm.ActiveSolo = 2; break;
-		case TextureType::Roughness: rvm.ActiveSolo = 3; break;
-		case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
-		case TextureType::Normals: rvm.ActiveSolo = 5; break;
-		default:
-			throw std::out_of_range("");
-		}
-
-		rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
-		rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
-		rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
-		rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
-		rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
-
-		return rvm;
-	}
-
-
 	#pragma region IPropsViewDelegate
-	
+
+	std::optional<MaterialViewState> GetMaterialState() override
+	{
+		Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+
+		if (!selection || !selection->Renderable.has_value())
+			return std::nullopt;
+
+		const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+		const auto& mat = _scene.GetMaterial(componentSubmesh.Id);
+
+		return PopulateMaterialState(mat);
+	}
 	void CommitMaterialChanges(const MaterialViewState& state) override
 	{
 		Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
@@ -478,8 +448,8 @@ private:
 		}
 
 		const auto& renComp = *selection->Renderable;
-		const auto& submeshResId = renComp.GetMeshIds()[_selectedSubMesh];
-		auto mat = _scene.GetMaterial(submeshResId);
+		const auto& componentSubmesh = renComp.GetSubmeshes()[_selectedSubMesh];
+		auto mat = _scene.GetMaterial(componentSubmesh.Id);
 
 		
 
@@ -572,12 +542,58 @@ private:
 		UpdateMap(state.AoMapPath, mat, TextureType::AmbientOcclusion);
 
 		
-		_scene.SetMaterial(renComp, mat);
+		_scene.SetMaterial(componentSubmesh.Id, mat);
 	}
 	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
 
+
+	static MaterialViewState PopulateMaterialState(const Material& mat)
+	{
+		MaterialViewState rvm = {};
+
+		rvm.UseBasecolorMap = mat.UseBasecolorMap;
+		rvm.UseMetalnessMap = mat.UseMetalnessMap;
+		rvm.UseRoughnessMap = mat.UseRoughnessMap;
+		//rvm.UseNormalMap = mat.UseNormalMap;
+		//rvm.UseAoMap = mat.UseAoMap;
+
+		rvm.Basecolor = mat.Basecolor;
+		rvm.Metalness = mat.Metalness;
+		rvm.Roughness = mat.Roughness;
+
+		rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
+		rvm.InvertAoMap = mat.InvertAoMap;
+		rvm.InvertRoughnessMap = mat.InvertRoughnessMap;
+		rvm.InvertMetalnessMap = mat.InvertMetalnessMap;
+
+		rvm.ActiveMetalnessChannel = int(mat.MetalnessMapChannel);
+		rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
+		rvm.ActiveAoChannel = int(mat.AoMapChannel);
+
+		switch (mat.ActiveSolo)
+		{
+		case TextureType::Undefined: rvm.ActiveSolo = 0; break;
+		case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
+		case TextureType::Metalness: rvm.ActiveSolo = 2; break;
+		case TextureType::Roughness: rvm.ActiveSolo = 3; break;
+		case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
+		case TextureType::Normals: rvm.ActiveSolo = 5; break;
+		default:
+			throw std::out_of_range("");
+		}
+
+		rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
+		rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
+		rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
+		rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
+		rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
+
+		return rvm;
+	}
+
+	
 	#pragma endregion
 	
 };

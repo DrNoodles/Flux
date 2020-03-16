@@ -29,7 +29,7 @@ struct MeshIdType;
 struct TextureIdType;
 //struct ShaderIdType;
 typedef ResourceId<SkyboxIdType> SkyboxResourceId;
-typedef ResourceId<RenderableIdType> RenderableMeshResourceId;
+typedef ResourceId<RenderableIdType> RenderableResourceId;
 typedef ResourceId<MeshIdType> MeshResourceId;
 typedef ResourceId<TextureIdType> TextureResourceId;
 //typedef ResourceId<ShaderIdType> ShaderResourceId;
@@ -149,7 +149,7 @@ struct MeshResource
 	VkDeviceMemory VertexBufferMemory = nullptr;
 	VkBuffer IndexBuffer = nullptr;
 	VkDeviceMemory IndexBufferMemory = nullptr;
-	AABB Bounds;
+	//AABB Bounds;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
