@@ -299,7 +299,7 @@ private:
 	void Draw(const float dt) const
 	{
 		auto& entities = _scene->EntitiesView();
-		std::vector<RenderableMeshResourceId> renderables;
+		std::vector<RenderableResourceId> renderables;
 		std::vector<Light> lights;
 		std::vector<glm::mat4> transforms;
 
@@ -307,9 +307,9 @@ private:
 		{
 			if (entity->Renderable.has_value())
 			{
-				for (auto&& meshId : entity->Renderable->GetMeshIds())
+				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
 				{
-					renderables.emplace_back(meshId);
+					renderables.emplace_back(componentSubmesh.Id);
 					transforms.emplace_back(entity->Transform.GetMatrix());
 				}
 			}

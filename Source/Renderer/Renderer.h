@@ -62,7 +62,7 @@ public:
 	explicit Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 	void DrawFrame(float dt, const RenderOptions& options,
-	               const std::vector<RenderableMeshResourceId>& renderableIds,
+	               const std::vector<RenderableResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
 	               const std::vector<Light>& lights,
 	               glm::mat4 view, glm::vec3 camPos);
@@ -72,7 +72,7 @@ public:
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 
-	RenderableMeshResourceId CreateRenderableMesh(const MeshResourceId& meshId, const Material& material);
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
 
 
 
@@ -92,9 +92,9 @@ public:
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
-	const RenderableMesh& GetRenderableMesh(const RenderableMeshResourceId& id) const { return *_renderables[id.Id]; }
+	const RenderableMesh& GetRenderableMesh(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	
-	void SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat);
+	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
 
@@ -184,7 +184,7 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 
-	void DrawEverything(const RenderOptions& options, const std::vector<RenderableMeshResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
+	void DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex);
 
 	
 	#pragma region Shared

@@ -61,6 +61,8 @@ struct AABB
 			transform * _max
 		};
 	}*/
+
+	// TODO change this to create an oriented bounding box. The user can then create a bounding box from the OBB.
 	AABB Transform(const glm::mat4& transform) const
 	{
 		// Transform all corners of the AABB then create a new AABB from the transformed corners.

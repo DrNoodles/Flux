@@ -22,6 +22,7 @@ public:
 	virtual const std::vector<std::string>& GetSubmeshes() = 0;
 
 	// Material
+	virtual std::optional<MaterialViewState> GetMaterialState() = 0;
 	virtual void CommitMaterialChanges(const MaterialViewState& state) = 0;
 
 	// Light?
@@ -32,7 +33,7 @@ class PropsView
 public:
 	PropsView() = delete;
 	explicit PropsView(IPropsViewDelegate* delegate) : _delegate{delegate} {}
-	void DrawUI(int selectionCount, TransformVm& tvm, std::optional<MaterialViewState>& rvm, std::optional<LightVm>& lvm) const;
+	void DrawUI(int selectionCount, TransformVm& tvm, std::optional<LightVm>& lvm) const;
 
 private:
 	// Dependencies

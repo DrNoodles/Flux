@@ -16,7 +16,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 
 	bool first = true;
 	AABB renderableBounds;
-	std::vector<RenderableMeshResourceId> renderableMeshResIds;
+	std::vector<RenderableComponentSubmesh> submeshes;
 
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
@@ -69,7 +69,8 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		}
 
 
-		renderableMeshResIds.emplace_back(_renderer.CreateRenderableMesh(meshId, mat));
+		RenderableComponentSubmesh submesh = { _renderer.CreateRenderable(meshId, mat), meshDef.Name };
+		submeshes.emplace_back(submesh);
 
 		
 		// Expand bounds to contain all submeshes
@@ -86,7 +87,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		
 	}
 
-	return RenderableComponent{ renderableMeshResIds, renderableBounds };
+	return RenderableComponent{ submeshes, renderableBounds };
 }
 
 TextureResourceId SceneManager::LoadTexture(const std::string& path)
@@ -105,20 +106,20 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 	return texResId;
 }
 
-const Material& SceneManager::GetMaterial(const RenderableMeshResourceId& resourceId) const
+const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
 {
 	return _renderer.GetRenderableMesh(resourceId).Mat;
 }
 
 void SceneManager::SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const
 {
-	for (auto& renderableMeshId : renderableComp.GetMeshIds())
+	for (const auto& submesh : renderableComp.GetSubmeshes())
 	{
-		_renderer.SetMaterial(renderableMeshId, newMat);
+		_renderer.SetMaterial(submesh.Id, newMat);
 	}
 }
 
-void SceneManager::SetMaterial(const RenderableMeshResourceId& renderableResId, const Material& newMat) const
+void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
 {
 	_renderer.SetMaterial(renderableResId, newMat);
 }
