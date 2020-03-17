@@ -436,7 +436,7 @@ private:
 
 		auto cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
 
-		VkViewport viewport = vki::Viewport(0, 0, (float)targetTex.Width(), (float)targetTex.Height(), 0.0f, 1.0f);
+		VkViewport viewport = vki::Viewport(0, 0, (f32)targetTex.Width(), (f32)targetTex.Height(), 0.0f, 1.0f);
 		VkRect2D scissor = vki::Rect2D(0, 0, targetTex.Width(), targetTex.Height());
 
 		vkCmdSetViewport(cmdBuf, 0, 1, &viewport);

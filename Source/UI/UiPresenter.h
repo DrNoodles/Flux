@@ -229,6 +229,9 @@ public:
 		ImGui::Render();
 	}
 
+	// Fit to middle
+	glm::ivec2 ViewportPos() const { return { _scenePanelWidth, 0 }; }
+	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsPanelWidth - _scenePanelWidth, WindowHeight() }; }
 	
 private:
 	// Dependencies
@@ -264,9 +267,7 @@ private:
 		int i = _delegate.GetWindowSize().y;
 		return { _scenePanelWidth, i };
 	}
-	// Fit to middle
-	glm::ivec2 ViewportPos() const { return { _scenePanelWidth, 0 }; }
-	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsPanelWidth - _scenePanelWidth, WindowHeight() }; }
+
 	// Anchor right
 	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsPanelWidth,0 }; }
 	glm::ivec2 PropsSize() const { return { _propsPanelWidth, WindowHeight() }; }
