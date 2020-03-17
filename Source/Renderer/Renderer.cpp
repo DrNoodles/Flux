@@ -30,8 +30,8 @@ using vkh = VulkanHelpers;
 
 bool flip = true;
 
-Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, const std::string& assetsDir,
-	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService): _delegate(delegate), _shaderDir(shaderDir)
+Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir,
+	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
 	_enableValidationLayers = enableValidationLayers;
 	InitVulkan();
@@ -46,7 +46,9 @@ Renderer::Renderer(bool enableValidationLayers, const std::string& shaderDir, co
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex)
+void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, 
+	const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, 
+	u32 imageIndex, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
 	// Calc Projection
 	const auto vfov = 45.f;
@@ -158,6 +160,15 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
 			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
 
+
+		// Render region
+		auto viewport = vki::Viewport(0, 0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0, 1);
+		auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
+		
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			// Skybox
@@ -229,7 +240,7 @@ void Renderer::DrawFrame(float dt, const RenderOptions& options,
                          const std::vector<RenderableResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
-                         glm::mat4 view, glm::vec3 camPos)
+                         glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
 	assert(renderableIds.size() == transforms.size());
 
@@ -290,7 +301,7 @@ void Renderer::DrawFrame(float dt, const RenderOptions& options,
 	
 
 	
-	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex);
+	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex, regionPos, regionSize);
 	
 	
 	// Execute command buffer with the image as an attachment in the framebuffer
@@ -937,34 +948,34 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	}
 
 
-	// Viewports and scissor  -  The region of the frambuffer we render output to
-	VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
-	{
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = (float)swapchainExtent.width;
-		viewport.height = (float)swapchainExtent.height;
-		
-	/*	viewport.x = 0;
-		viewport.y = (float)swapchainExtent.height;
-		viewport.width = (float)swapchainExtent.width;
-		viewport.height = -(float)swapchainExtent.height;*/
-		
-		viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
-		viewport.maxDepth = 1;
-	}
-	VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
-	{
-		scissor.offset = { 0, 0 };
-		scissor.extent = swapchainExtent;
-	}
+	// Viewports and scissor  -  The region of the framebuffer we render output to
+	//VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
+	//{
+	//	viewport.x = 0;
+	//	viewport.y = 0;
+	//	viewport.width = 100;// (f32)swapchainExtent.width;
+	//	viewport.height = 100;// (f32)swapchainExtent.height;
+	//	
+	///*	viewport.x = 0;
+	//	viewport.y = (float)swapchainExtent.height;
+	//	viewport.width = (float)swapchainExtent.width;
+	//	viewport.height = -(float)swapchainExtent.height;*/
+	//	
+	//	viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
+	//	viewport.maxDepth = 1;
+	//}
+	//VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
+	//{
+	//	scissor.offset = { 0, 0 };
+	//	scissor.extent = { 100,100 }; //{ swapchainExtent.width, swapchainExtent.height };
+	//}
 	VkPipelineViewportStateCreateInfo viewportCI = {};
 	{
 		viewportCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportCI.viewportCount = 1;
-		viewportCI.pViewports = &viewport;
+		//viewportCI.pViewports = &viewport;
 		viewportCI.scissorCount = 1;
-		viewportCI.pScissors = &scissor;
+	//	viewportCI.pScissors = &scissor;
 	}
 
 
@@ -1044,18 +1055,20 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Dynamic State  -  Set which states can be changed without recreating the pipeline. Must be set at draw time
-	//std::array<VkDynamicState,1> dynamicStates =
-	//{
-	//	VK_DYNAMIC_STATE_VIEWPORT,
-	//	//VK_DYNAMIC_STATE_LINE_WIDTH,
-	//};
-	//VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
-	//{
-	//	dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	//	dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
-	//	dynamicStateCI.pDynamicStates = dynamicStates.data();
-	//}
+	std::array<VkDynamicState,2> dynamicStates =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+		//VK_DYNAMIC_STATE_LINE_WIDTH,
+	};
+	VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
+	{
+		dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateCI.dynamicStateCount = (u32)dynamicStates.size();
+		dynamicStateCI.pDynamicStates = dynamicStates.data();
+	}
 
+	
 	// Create the Pipeline  -  Finally!...
 	VkGraphicsPipelineCreateInfo graphicsPipelineCI = {};
 	{
@@ -1073,7 +1086,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 		graphicsPipelineCI.pMultisampleState = &multisampleCI;
 		graphicsPipelineCI.pDepthStencilState = &depthStencilCI;
 		graphicsPipelineCI.pColorBlendState = &colorBlendCI;
-		graphicsPipelineCI.pDynamicState = nullptr;
+		graphicsPipelineCI.pDynamicState = &dynamicStateCI;
 
 		graphicsPipelineCI.layout = pipelineLayout;
 
@@ -1306,33 +1319,33 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Viewports and scissor  -  The region of the frambuffer we render output to
-	VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
-	{
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = (float)swapchainExtent.width;
-		viewport.height = (float)swapchainExtent.height;
-		
-		/*viewport.x = 0;
-		viewport.y = (float)swapchainExtent.height;
-		viewport.width = (float)swapchainExtent.width;
-		viewport.height = -(float)swapchainExtent.height;*/
-		
-		viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
-		viewport.maxDepth = 1;
-	}
-	VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
-	{
-		scissor.offset = { 0, 0 };
-		scissor.extent = swapchainExtent;
-	}
+	//VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
+	//{
+	//	viewport.x = 0;
+	//	viewport.y = 0;
+	//	viewport.width = 100;// (float)swapchainExtent.width;
+	//	viewport.height = 100;// (float)swapchainExtent.height;
+	//	
+	//	/*viewport.x = 0;
+	//	viewport.y = (float)swapchainExtent.height;
+	//	viewport.width = (float)swapchainExtent.width;
+	//	viewport.height = -(float)swapchainExtent.height;*/
+	//	
+	//	viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
+	//	viewport.maxDepth = 1;
+	//}
+	//VkRect2D scissor = {}; // scissor filters out pixels beyond these bounds
+	//{
+	//	scissor.offset = { 0, 0 };
+	//	scissor.extent = { 100,100 };// swapchainExtent;
+	//}
 	VkPipelineViewportStateCreateInfo viewportCI = {};
 	{
 		viewportCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportCI.viewportCount = 1;
-		viewportCI.pViewports = &viewport;
+		//viewportCI.pViewports = &viewport;
 		viewportCI.scissorCount = 1;
-		viewportCI.pScissors = &scissor;
+	//	viewportCI.pScissors = &scissor;
 	}
 
 
@@ -1412,18 +1425,20 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Dynamic State  -  Set which states can be changed without recreating the pipeline. Must be set at draw time
-	//std::array<VkDynamicState,1> dynamicStates =
-	//{
-	//	VK_DYNAMIC_STATE_VIEWPORT,
-	//	//VK_DYNAMIC_STATE_LINE_WIDTH,
-	//};
-	//VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
-	//{
-	//	dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	//	dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
-	//	dynamicStateCI.pDynamicStates = dynamicStates.data();
-	//}
+	std::array<VkDynamicState, 2> dynamicStates =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+		//VK_DYNAMIC_STATE_LINE_WIDTH,
+	};
+	VkPipelineDynamicStateCreateInfo dynamicStateCI = {};
+	{
+		dynamicStateCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateCI.dynamicStateCount = (uint32_t)dynamicStates.size();
+		dynamicStateCI.pDynamicStates = dynamicStates.data();
+	}
 
+	
 	// Create the Pipeline  -  Finally!...
 	VkGraphicsPipelineCreateInfo graphicsPipelineCI = {};
 	{
@@ -1441,7 +1456,7 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 		graphicsPipelineCI.pMultisampleState = &multisampleCI;
 		graphicsPipelineCI.pDepthStencilState = &depthStencilCI;
 		graphicsPipelineCI.pColorBlendState = &colorBlendCI;
-		graphicsPipelineCI.pDynamicState = nullptr;
+		graphicsPipelineCI.pDynamicState = &dynamicStateCI;
 
 		graphicsPipelineCI.layout = pipelineLayout;
 
@@ -1508,8 +1523,7 @@ void Renderer::InitImgui()
 	// UI Style
 	const float rounding = 3;
 
-	ImGui::StyleColorsClassic();
-	//ImGui::StyleColorsLight();
+	ImGui::StyleColorsLight();
 	ImGuiStyle& style = ImGui::GetStyle();
 	style.WindowRounding = 0;
 	style.WindowBorderSize = 0;
@@ -1603,4 +1617,5 @@ void Renderer::CleanupImgui()
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 }
+
 #pragma endregion

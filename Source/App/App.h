@@ -340,7 +340,7 @@ private:
 
 		auto& camera = _scene->GetCamera();
 		const auto view = camera.GetViewMatrix();
-		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position);
+		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position, _ui->ViewportPos(), _ui->ViewportSize());
 	}
 
 	
@@ -619,6 +619,7 @@ private:
 	// Event handlers
 	void OnScrollChanged(double xOffset, double yOffset)
 	{
+		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.WantCaptureMouse)
 			return;
@@ -628,6 +629,7 @@ private:
 	}
 	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
+		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.WantTextInput || io.WantCaptureKeyboard)
 			return;
@@ -644,6 +646,7 @@ private:
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
 	{
+		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.WantCaptureMouse)
 			return;
