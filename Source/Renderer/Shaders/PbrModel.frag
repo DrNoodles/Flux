@@ -221,7 +221,7 @@ void main()
 		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*MAX_REFLECTION_LOD).rgb;
 
 		// Sample BRDF LUT
-		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, roughness)).rg;
+		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, 1-roughness)).rg;
 
 		// Final specular by combining prefilter color and BRDF LUT
 		vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
