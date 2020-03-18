@@ -406,23 +406,25 @@ private:
 		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 
-		//// Add more maps to the material
-		//{
-		//	Material matCopy = _scene->GetMaterial(entity->Renderable->RenderableId);
+		// Add more maps to the material
+		{
+			const RenderableResourceId resourceId = entity->Renderable->GetSubmeshes()[0].Id;
+			
+			Material matCopy = _scene->GetMaterial(resourceId);
 
-		//	// Load roughness map
-		//	matCopy.RoughnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
-		//	matCopy.UseRoughnessMap = true;
-		//	matCopy.RoughnessMapChannel = Material::Channel::Green;
+			// Load roughness map
+			matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.ModelsDir + "railgun/ORM.png");
+			matCopy.UseRoughnessMap = true;
+			matCopy.RoughnessMapChannel = Material::Channel::Green;
 
-		//	// Load metalness map
-		//	matCopy.MetalnessMap = _scene->LoadTexture(_options.ModelsDir + "railgun/ORM.png");
-		//	matCopy.UseMetalnessMap = true;
-		//	matCopy.MetalnessMapChannel = Material::Channel::Blue;
+			// Load metalness map
+			matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.ModelsDir + "railgun/ORM.png");
+			matCopy.UseMetalnessMap = true;
+			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
-		//	// Set material
-		//	_scene->SetMaterial(entity->Renderable->RenderableId, matCopy);
-		//}
+			// Set material
+			_scene->SetMaterial(resourceId, matCopy);
+		}
 
 
 		_scene->AddEntity(std::move(entity));
