@@ -31,11 +31,11 @@ public:
 		in.PhysicalDevice = physicalDevice;
 		in.Device = device;
 		
-		const u32 cubemapRes = 2048;
+		const u32 dstCubemapFaceRes = 2048;
+		const u32 dstFaceMipLevels = (u32)std::floor(std::log2(std::max(dstCubemapFaceRes, dstCubemapFaceRes))) + 1;
 		const auto texelFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 		const auto targetFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
 		
 		auto texels = TexelsRgbaF32();
 		texels.Load(path);
@@ -59,15 +59,15 @@ public:
 
 
 		// Create dst cubemap
-		TextureResource dstCubemap = [&in, &texels, &texelFormat, &targetFormat, &finalLayout, &cubemapRes]()
+		TextureResource dstCubemap = [&in, &texels, &texelFormat, &targetFormat, &finalLayout, &dstCubemapFaceRes, &dstFaceMipLevels]()
 		{
 			VkImage image;
 			VkDeviceMemory memory;
 
-			const auto mipLevels = 1;
+			const auto mipLevels = dstFaceMipLevels;
 			const auto layerCount = 6;
 			
-			std::tie(image, memory) = vkh::CreateImage2D(cubemapRes, cubemapRes, mipLevels,
+			std::tie(image, memory) = vkh::CreateImage2D(dstCubemapFaceRes, dstCubemapFaceRes, mipLevels,
 				VK_SAMPLE_COUNT_1_BIT,
 				targetFormat,
 				VK_IMAGE_TILING_OPTIMAL,
@@ -85,7 +85,7 @@ public:
 				VK_FILTER_LINEAR, VK_FILTER_LINEAR,
 				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 			
-			return TextureResource(in.Device, cubemapRes, cubemapRes, mipLevels, layerCount,
+			return TextureResource(in.Device, dstCubemapFaceRes, dstCubemapFaceRes, mipLevels, layerCount,
 				image, memory, view, sampler, targetFormat, finalLayout);
 		}();
 		
@@ -134,7 +134,7 @@ public:
 		RenderTarget renderTarget = {};
 		{
 			std::tie(renderTarget.Image, renderTarget.Memory) = vkh::CreateImage2D(
-				cubemapRes, cubemapRes, 1, VK_SAMPLE_COUNT_1_BIT, 
+				dstCubemapFaceRes, dstCubemapFaceRes, 1, VK_SAMPLE_COUNT_1_BIT, 
 				targetFormat, 
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // render to it, copy from it
@@ -143,7 +143,7 @@ public:
 
 			renderTarget.View = vkh::CreateImage2DView(renderTarget.Image, targetFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, in.Device);
 
-			renderTarget.Framebuffer = vkh::CreateFramebuffer(in.Device, cubemapRes, cubemapRes, { renderTarget.View }, renderPass, 1);
+			renderTarget.Framebuffer = vkh::CreateFramebuffer(in.Device, dstCubemapFaceRes, dstCubemapFaceRes, { renderTarget.View }, renderPass, 1);
 		}
 
 		
@@ -569,13 +569,12 @@ private:
 		// Stop. Render time!
 		for (u32 mip = 0; mip < targetCube.MipLevels(); mip++)
 		{
+			viewport.width = f32(targetCube.Width() * std::pow(0.5f, mip));
+			viewport.height = f32(targetCube.Height() * std::pow(0.5f, mip));
+			vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+			
 			for (u32 face = 0; face < 6; face++)
 			{
-				viewport.width = f32(targetCube.Width() * std::pow(0.5f, mip));
-				viewport.height = f32(targetCube.Height() * std::pow(0.5f, mip));
-				vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
-
-
 				// Render scene from cube face's point of view
 				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 				{
