@@ -118,7 +118,17 @@ float GetRoughness();
 float GetMetalness();
 float GetAmbientOcclusion();
 
+bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001f)
+{
+	return abs(a.r-b.r) < threshold 
+		&& abs(a.g-b.g) < threshold 
+		&& abs(a.b-b.b) < threshold;
+}
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// main
 
 void main() 
 {
@@ -240,9 +250,20 @@ void main()
 	color = ACESFitted(color); // Tonemap  
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
+	//	// Shows values clipped at white or black as bold colours
+//	if (bShowClipping)
+//	{
+		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
+		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
+//	}
+
 	outColor = vec4(color,1.0);
 }
 
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// PBR Get Properties
 
 vec3 GetBasecolor()
 {
@@ -319,6 +340,9 @@ float GetAmbientOcclusion()
 
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IBL
+
 vec3 FresnelSchlick(float cosTheta, vec3 F0)
 {
 	cosTheta = min(cosTheta,1); // fixes issue where cosTheta is slightly > 1.0. a floating point issue that causes black pixels where the half and view dirs align
@@ -361,7 +385,9 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+
 const mat3 ACESInputMat = mat3(
 	0.59719, 0.07600, 0.02840, 
 	0.35458, 0.90834, 0.13383,
@@ -394,7 +420,10 @@ vec3 ACESFitted(vec3 color)
 
 
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UBOs - must match packing on CPU side
+
 void UnpackUbos()
 {
 	// Material

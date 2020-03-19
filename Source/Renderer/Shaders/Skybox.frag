@@ -1,7 +1,8 @@
 #version 450 core
-layout(std140, binding = 1) uniform SkyboxVertUbo
+layout(std140, binding = 1) uniform SkyboxFragUbo
 {
 	vec4 exposureBias; // [float,-,-,-]
+	//vec4 showClipping; // [bool,-,-,-]
 } ubo;
 layout(binding = 2) uniform samplerCube uCubemap;
 
@@ -14,6 +15,16 @@ layout (location=0) out vec4 outColor;
 // Tonemapping
 vec3 ACESFitted(vec3 color);
 
+bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001)
+{
+	return abs(a.r-b.r) < threshold 
+		&& abs(a.g-b.g) < threshold 
+		&& abs(a.b-b.b) < threshold;
+}
+
+
+
+
 void main()
 {
 	vec3 color = texture(uCubemap, fragUVW).rgb;
@@ -25,6 +36,13 @@ void main()
 	color *= ubo.exposureBias[0]; // Exposure
 	color = ACESFitted(color);    // Tonemap
 	color = pow(color, vec3(1/2.2));  // Gamma: sRGB Linear -> 2.2
+	
+//	// Shows values clipped at white or black as bold colours
+//	if (bShowClipping)
+//	{
+		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
+		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
+//	}
 
 	outColor = vec4(color, 1.0);
 }

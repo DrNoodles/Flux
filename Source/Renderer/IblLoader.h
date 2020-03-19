@@ -336,7 +336,6 @@ private:
 		const u32 numMips = 5;
 
 
-		// TODO Sampler: GL_LINEAR_MIPMAP_LINEAR min filter!
 		TextureResource prefilterCubemap = Shared_CreateCubeTextureResource(physicalDevice, device, format, dim, numMips);
 
 
