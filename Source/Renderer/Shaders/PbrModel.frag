@@ -43,6 +43,7 @@ layout(std140, binding = 0) uniform UniversalUbo
 
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
+	vec4 showClipping;      // bool in [0]
 	vec4 exposureBias;       // float in [0]
 	mat4 cubemapRotation;
 } ubo;
@@ -95,6 +96,7 @@ int uAoMapChannel;
 
 // Render Options
 bool uShowNormalMap;
+bool uShowClipping;
 float uExposureBias;
 
 
@@ -251,11 +253,11 @@ void main()
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
 	//	// Shows values clipped at white or black as bold colours
-//	if (bShowClipping)
-//	{
+	if (uShowClipping)
+	{
 		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
 		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
-//	}
+	}
 
 	outColor = vec4(color,1.0);
 }
@@ -448,5 +450,6 @@ void UnpackUbos()
 
 	// Render options
 	uShowNormalMap = bool(ubo.showNormalMap[0]);
+	uShowClipping = bool(ubo.showClipping[0]);
 	uExposureBias = ubo.exposureBias[0];
 }

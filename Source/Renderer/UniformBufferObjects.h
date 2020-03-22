@@ -21,7 +21,7 @@ struct SkyboxVertUbo
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SkyboxFragUbo
 {
-	alignas(16) glm::vec4 ExposureBias; // [float,-,-,-]
+	alignas(16) glm::vec4 ExposureBias_ShowClipping; // [float,bool...,-,-]
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +69,7 @@ struct UniversalUboCreateInfo
 
 	// Render options
 	bool ShowNormalMap = false;
+	bool ShowClipping = false;;
 	float ExposureBias = 1.0f;
 	float CubemapRotation = 0;
 };
@@ -105,6 +106,7 @@ struct UniversalUbo
 	
 	// Render options
 	alignas(16) glm::vec4 ShowNormalMap;
+	alignas(16) glm::vec4 ShowClipping;
 	alignas(16) glm::vec4 ExposureBias;
 	alignas(16) glm::mat4 CubemapRotation;
 
@@ -142,6 +144,7 @@ struct UniversalUbo
 		
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
+		ubo.ShowClipping[0] = info.ShowClipping;
 		ubo.ExposureBias[0] = info.ExposureBias;
 		ubo.CubemapRotation = glm::rotate(glm::radians(info.CubemapRotation), glm::vec3{ 0,1,0 });
 		

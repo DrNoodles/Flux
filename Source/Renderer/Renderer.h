@@ -29,7 +29,7 @@ struct RenderOptions
 	float ExposureBias = 1;
 	float SkyboxRotation = 0; // degrees
 	bool ShowIrradiance = true;
-	//bool ShowClipping = false;
+	bool ShowClipping = false;
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;

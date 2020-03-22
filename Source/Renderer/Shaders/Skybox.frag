@@ -1,8 +1,7 @@
 #version 450 core
 layout(std140, binding = 1) uniform SkyboxFragUbo
 {
-	vec4 exposureBias; // [float,-,-,-]
-	//vec4 showClipping; // [bool,-,-,-]
+	vec4 exposureBias_showClipping; // [float,bool...,-,-]
 } ubo;
 layout(binding = 2) uniform samplerCube uCubemap;
 
@@ -33,16 +32,16 @@ void main()
 
 
 	// Post-processing - TODO Move to post pass shader
-	color *= ubo.exposureBias[0]; // Exposure
+	color *= ubo.exposureBias_showClipping[0]; // Exposure
 	color = ACESFitted(color);    // Tonemap
 	color = pow(color, vec3(1/2.2));  // Gamma: sRGB Linear -> 2.2
 	
-//	// Shows values clipped at white or black as bold colours
-//	if (bShowClipping)
-//	{
+	// Shows values clipped at white or black as bold colours
+	if (bool(ubo.exposureBias_showClipping[1]))
+	{
 		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
 		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
-//	}
+	}
 
 	outColor = vec4(color, 1.0);
 }
