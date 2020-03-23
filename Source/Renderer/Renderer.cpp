@@ -46,8 +46,155 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, const std
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, 
-	const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, 
+std::optional<u32> Renderer::PreFrame()
+{
+	// Sync CPU-GPU
+	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
+
+	// Aquire an image from the swap chain
+	u32 imageIndex;
+	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+		nullptr, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapchain();
+		return std::nullopt;
+	}
+	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+	if (!isUsable)
+	{
+		throw std::runtime_error("Failed to acquire swapchain image!");
+	}
+
+
+	// If the image is still used by a previous frame, wait for it to finish!
+	if (_imagesInFlight[imageIndex] != nullptr)
+	{
+		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
+	}
+	
+	// Mark the image as now being in use by this frame
+	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+	return imageIndex;
+}
+
+void Renderer::PostFrame(u32 imageIndex)
+{
+
+	// Execute command buffer with the image as an attachment in the framebuffer
+	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
+	VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
+	VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+	const uint32_t signalCount = 1;
+	VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
+
+	VkSubmitInfo submitInfo = {};
+	{
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &_commandBuffers[imageIndex];
+		// cmdbuf that binds the swapchain image we acquired as color attachment
+		submitInfo.waitSemaphoreCount = waitCount;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+		submitInfo.signalSemaphoreCount = signalCount;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+	}
+
+	vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
+
+	if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to submit Draw Command Buffer");
+	}
+
+
+	// Return the image to the swap chain for presentation
+	std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
+	VkPresentInfoKHR presentInfo = {};
+	{
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphores;
+		presentInfo.swapchainCount = (uint32_t)swapchains.size();
+		presentInfo.pSwapchains = swapchains.data();
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = nullptr;
+	}
+
+	VkResult result = vkQueuePresentKHR(_presentQueue, &presentInfo);
+	if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		FramebufferResized = false;
+		RecreateSwapchain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed ot present swapchain image!");
+	}
+
+	_currentFrame = (_currentFrame + 1) % _maxFramesInFlight;
+}
+
+
+void Renderer::DrawFrame(float dt, const RenderOptions& options,
+                         const std::vector<RenderableResourceId>& renderableIds,
+                         const std::vector<glm::mat4>& transforms,
+                         const std::vector<Light>& lights,
+                         glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
+{
+	const auto imageIndex = PreFrame();
+	if (!imageIndex.has_value())
+	{
+		return;
+	}
+	
+	const auto startBench = std::chrono::steady_clock::now();
+
+	
+	// Diff render options and force state updates where needed
+	{
+		// Process whether refreshing is required
+		_refreshSkyboxDescriptorSets |= _lastOptions.ShowIrradiance != options.ShowIrradiance;
+
+
+		_lastOptions = options;
+
+		// Rebuild descriptor sets as needed
+		if (_refreshSkyboxDescriptorSets)
+		{
+			_refreshSkyboxDescriptorSets = false;
+			UpdateSkyboxesDescriptorSets();
+		}
+
+		if (_refreshRenderableDescriptorSets)
+		{
+			_refreshRenderableDescriptorSets = false;
+			UpdateRenderableDescriptorSets();
+		}
+	}
+	
+
+	assert(renderableIds.size() == transforms.size());
+
+	DrawEverything(options, renderableIds, transforms, lights, view, camPos, *imageIndex, regionPos, regionSize);
+
+
+	
+	const std::chrono::duration<double, std::chrono::milliseconds::period> duration
+		= std::chrono::steady_clock::now() - startBench;
+	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
+
+	
+	PostFrame(*imageIndex);
+}
+
+
+void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds,
+	const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos,
 	u32 imageIndex, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
 	// Calc Projection
@@ -59,11 +206,11 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		// flip Y to convert glm from OpenGL coord system to Vulkan
 		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 	}
-	
+
 	// Update light buffers
 	{
 		auto lightsUbo = LightUbo::Create(lights);
-		
+
 		void* data;
 		auto size = sizeof(lightsUbo);
 		vkMapMemory(_device, _lightBuffersMemory[imageIndex], 0, size, 0, &data);
@@ -72,7 +219,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	}
 
 
-	
+
 	// Update skybox buffer
 	const Skybox* skybox = GetCurrentSkyboxOrNull();
 	if (skybox)
@@ -108,8 +255,8 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 			vkUnmapMemory(_device, skybox->FrameResources[imageIndex].FragUniformBufferMemory);
 		}
 	}
-	
-	
+
+
 	// Update Model
 	for (size_t i = 0; i < renderableIds.size(); i++)
 	{
@@ -124,7 +271,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		info.CubemapRotation = options.SkyboxRotation;
 
 		const auto& renderable = _renderables[renderableIds[i].Id].get();
-		
+
 		auto& modelBufferMemory = renderable->FrameResources[imageIndex].UniformBufferMemory;
 		auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
 
@@ -149,7 +296,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	auto skyboxPipeline = _skyboxPipeline;
 	auto skyboxPipelineLayout = _skyboxPipelineLayout;
 	auto& meshes = _meshes;
-	
+
 	// Start command buffer
 	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
@@ -166,11 +313,11 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		// Render region
 		auto viewport = vki::Viewport(0, 0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0, 1);
 		auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
-		
+
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-		
+
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			// Skybox
@@ -238,133 +385,6 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 	}
 }
 
-void Renderer::DrawFrame(float dt, const RenderOptions& options,
-                         const std::vector<RenderableResourceId>& renderableIds,
-                         const std::vector<glm::mat4>& transforms,
-                         const std::vector<Light>& lights,
-                         glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
-{
-	assert(renderableIds.size() == transforms.size());
-
-	// Sync CPU-GPU
-	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
-
-	// Aquire an image from the swap chain
-	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
-	                                        nullptr, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		RecreateSwapchain();
-		return;
-	}
-	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
-	if (!isUsable)
-	{
-		throw std::runtime_error("Failed to acquire swapchain image!");
-	}
-
-
-	// If the image is still used by a previous frame, wait for it to finish!
-	if (_imagesInFlight[imageIndex] != nullptr)
-	{
-		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
-	}
-	// Mark the image as now being in use by this frame
-	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
-
-
-	const auto startBench = std::chrono::steady_clock::now();
-
-
-	
-	// Diff render options and force state updates where needed
-	{
-		// Process whether refreshing is required
-		_refreshSkyboxDescriptorSets |= _lastOptions.ShowIrradiance != options.ShowIrradiance;
-
-
-		_lastOptions = options;
-
-		// Rebuild descriptor sets as needed
-		if (_refreshSkyboxDescriptorSets)
-		{
-			_refreshSkyboxDescriptorSets = false;
-			UpdateSkyboxesDescriptorSets();
-		}
-
-		if (_refreshRenderableDescriptorSets)
-		{
-			_refreshRenderableDescriptorSets = false;
-			UpdateRenderableDescriptorSets();
-		}
-	}
-	
-
-	
-	DrawEverything(options, renderableIds, transforms, lights, view, camPos, imageIndex, regionPos, regionSize);
-	
-	
-	// Execute command buffer with the image as an attachment in the framebuffer
-	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
-	VkSemaphore waitSemaphores[waitCount] = {_imageAvailableSemaphores[_currentFrame]};
-	VkPipelineStageFlags waitStages[waitCount] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-
-	const uint32_t signalCount = 1;
-	VkSemaphore signalSemaphores[signalCount] = {_renderFinishedSemaphores[_currentFrame]};
-
-	VkSubmitInfo submitInfo = {};
-	{
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_commandBuffers[imageIndex];
-		// cmdbuf that binds the swapchain image we acquired as color attachment
-		submitInfo.waitSemaphoreCount = waitCount;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
-		submitInfo.signalSemaphoreCount = signalCount;
-		submitInfo.pSignalSemaphores = signalSemaphores;
-	}
-
-	const std::chrono::duration<double, std::chrono::milliseconds::period> duration
-		= std::chrono::steady_clock::now() - startBench;
-	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
-
-	vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
-
-	if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to submit Draw Command Buffer");
-	}
-
-
-	// Return the image to the swap chain for presentation
-	std::array<VkSwapchainKHR, 1> swapchains = {_swapchain};
-	VkPresentInfoKHR presentInfo = {};
-	{
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphores;
-		presentInfo.swapchainCount = (uint32_t)swapchains.size();
-		presentInfo.pSwapchains = swapchains.data();
-		presentInfo.pImageIndices = &imageIndex;
-		presentInfo.pResults = nullptr;
-	}
-
-	result = vkQueuePresentKHR(_presentQueue, &presentInfo);
-	if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
-		FramebufferResized = false;
-		RecreateSwapchain();
-	}
-	else if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed ot present swapchain image!");
-	}
-
-	_currentFrame = (_currentFrame + 1) % _maxFramesInFlight;
-}
 
 void Renderer::CleanUp()
 {

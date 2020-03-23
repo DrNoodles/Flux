@@ -61,6 +61,10 @@ public:
 
 	explicit Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
+
+	std::optional<u32> PreFrame();
+	void PostFrame(u32 imageIndex);
+	
 	void DrawFrame(float dt, const RenderOptions& options,
 	               const std::vector<RenderableResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
