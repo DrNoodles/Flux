@@ -24,9 +24,9 @@ public:
 	virtual void DeleteSelected() = 0;
 	virtual void DeleteAll() = 0;
 	
-	virtual float GetExposure() const = 0;
-	virtual void SetExposure(float exposure) = 0;
-
+	virtual const RenderOptions& GetRenderOptions() = 0;
+	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
+	
 	virtual float GetSkyboxRotation() const = 0;
 	virtual void SetSkyboxRotation(float skyboxRotation) = 0;
 	

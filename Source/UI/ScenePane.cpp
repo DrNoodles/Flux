@@ -21,12 +21,14 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove
 		| ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
+	const ImGuiTreeNodeFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen;
+	
 	if (ImGui::Begin("LeftPane", nullptr, paneFlags))
 	{
 
 		// Scene Load/Unload
+		if (ImGui::CollapsingHeader("Load", headerFlags))
 		{
-			ImGui::Text("Load");
 			if (ImGui::BeginChild("Load", ImVec2{ 0,35 }, true))
 			{
 				if (ImGui::Button("Demo Scene"))
@@ -45,13 +47,14 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 			}
 			ImGui::EndChild();
 			ImGui::Spacing();
+			ImGui::Spacing();
 		}
 
 		
 		// Create
+		if (ImGui::CollapsingHeader("Create", headerFlags))
 		{
-			ImGui::Text("Create");
-			if (ImGui::BeginChild("Create", ImVec2{ 0,60 }, true))
+			if (ImGui::BeginChild("Create##1", ImVec2{ 0,60 }, true))
 			{
 				if (ImGui::Button("Blob"))
 				{
@@ -80,33 +83,35 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 				}
 			}
 			ImGui::EndChild();
+			
+			ImGui::Spacing();
 			ImGui::Spacing();
 		}
 
 
-		
-		// Selection helper lambdas
-		const auto IsSelected = [&selection](Entity* target)
-		{
-			return selection.find(target) != selection.end();
-		};
-		const auto Select = [&selection](Entity* target)
-		{
-			selection.clear(); // only allowing single selection
-			selection.insert(target);
-		};
-		const auto Deselect = [&selection](Entity* target)
-		{
-			selection.erase(target);
-		};
-
-
-
 		// Scene Panel
+		if (ImGui::CollapsingHeader("Scene", headerFlags))
 		{
-			if (ImGui::BeginChild("Scene Panel", ImVec2{ 0,200 }, true))
+			ImGui::Text("Outliner");
+			if (ImGui::BeginChild("Scene_Outliner", ImVec2{ 0,200 }, true))
 			{
-				ImGui::Text("SCENE");
+
+				// Selection helper lambdas
+				const auto IsSelected = [&selection](Entity* target)
+				{
+					return selection.find(target) != selection.end();
+				};
+				const auto Select = [&selection](Entity* target)
+				{
+					selection.clear(); // only allowing single selection
+					selection.insert(target);
+				};
+				const auto Deselect = [&selection](Entity* target)
+				{
+					selection.erase(target);
+				};
+
+
 				for (Entity* e : ents)
 				{
 					const auto isSelected = IsSelected(e);
@@ -127,57 +132,63 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 				}
 			}
 			ImGui::EndChild();
-		}
+			ImGui::Spacing();
 
 
-		// Delete selected button
-		{
-			if (selection.empty())
+			ImGui::Text("Actions");
+			if (ImGui::BeginChild("Scene_Actions", ImVec2{ 0,35 }, true))
 			{
-				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+				// Delete selected button
+				{
+					if (selection.empty())
+					{
+						ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+						ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+					}
+
+					if (ImGui::Button("Delete Selected")) _delegate->DeleteSelected();
+
+					if (selection.empty())
+					{
+						ImGui::PopItemFlag();
+						ImGui::PopStyleVar();
+					}
+				}
+
+				// Delete All button
+				{
+					if (ents.empty())
+					{
+						ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+						ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+					}
+
+					ImGui::SameLine();
+					if (ImGui::Button("Delete All")) _delegate->DeleteAll();
+
+					if (ents.empty())
+					{
+						ImGui::PopItemFlag();
+						ImGui::PopStyleVar();
+					}
+				}
 			}
+			ImGui::EndChild();
 
-			if (ImGui::Button("Delete Selected")) _delegate->DeleteSelected();
-
-			if (selection.empty())
-			{
-				ImGui::PopItemFlag();
-				ImGui::PopStyleVar();
-			}
-		}
-
-		// Delete All button
-		{
-			if (ents.empty())
-			{
-				ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-			}
-
-			ImGui::SameLine();
-			if (ImGui::Button("Delete All")) _delegate->DeleteAll();
-
-			if (ents.empty())
-			{
-				ImGui::PopItemFlag();
-				ImGui::PopStyleVar();
-			}
+			
+			ImGui::Spacing();
+			ImGui::Spacing();
 		}
 		
-
-		
-		ImGui::Spacing();
-
 		
 		// IBL Panel
+		if (ImGui::CollapsingHeader("Image Based Lighting", headerFlags))
 		{
 			auto& ibls = _delegate->GetSkyboxList();
 			auto activeIbl = _delegate->GetActiveSkybox();
 			
-			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
+			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,82 }, true))
 			{
-				ImGui::Text("IMAGE BASED LIGHTING");
 				
 				if (ImGui::BeginCombo("Map", ibls[activeIbl].Name.c_str()))
 				{
@@ -195,18 +206,45 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 					}
 					ImGui::EndCombo();
 				}
-				ImGui::PushItemWidth(40);
+				ImGui::PushItemWidth(50);
 				if (ImGui::DragInt("Rotation", &iblVm.Rotation, 1, 0, 0)) iblVm.Commit();
 				ImGui::PopItemWidth();
 
 				if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
 			}
 			ImGui::EndChild();
+
+			
+			ImGui::Spacing();
 			ImGui::Spacing();
 		}
 
-		float exposure = _delegate->GetExposure();
-		if (ImGui::DragFloat("Exposure", &exposure, .01f, 0, 1000, "%0.2f")) _delegate->SetExposure(exposure);
+		
+		// Render Options Panel
+		if (ImGui::CollapsingHeader("Render Options", headerFlags))
+		{
+			if (ImGui::BeginChild("Render Options all", ImVec2{ 0,60 }, true))
+			{
+				auto roCopy = _delegate->GetRenderOptions();
+
+				ImGui::PushItemWidth(50);
+				if (ImGui::DragFloat("Exposure", &roCopy.ExposureBias, .01f, 0, 1000, "%0.2f")) {
+					_delegate->SetRenderOptions(roCopy);
+				}
+				ImGui::PopItemWidth();
+
+				if (ImGui::Checkbox("Show Clipping", &roCopy.ShowClipping)) {
+					_delegate->SetRenderOptions(roCopy);
+				}
+			}
+			ImGui::EndChild();
+
+
+			ImGui::Spacing();
+			ImGui::Spacing();
+		}
+
+		
 	}
 	ImGui::End();
 }
