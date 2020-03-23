@@ -97,7 +97,8 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		{
 			// Populate ubo
 			auto skyboxFragUbo = SkyboxFragUbo{};
-			skyboxFragUbo.ExposureBias[0] = options.ExposureBias;
+			skyboxFragUbo.ExposureBias_ShowClipping[0] = options.ExposureBias;
+			skyboxFragUbo.ExposureBias_ShowClipping[1] = options.ShowClipping;
 
 			// Copy to gpu
 			void* data;
@@ -118,6 +119,7 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 		info.Projection = projection;
 		info.CamPos = camPos;
 		info.ExposureBias = options.ExposureBias;
+		info.ShowClipping = options.ShowClipping;
 		info.ShowNormalMap = false;
 		info.CubemapRotation = options.SkyboxRotation;
 

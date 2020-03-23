@@ -379,20 +379,15 @@ private:
 
 	}
 
-	float GetExposure() const override
+	const RenderOptions& GetRenderOptions() override
 	{
-		//printf("GetExposure()\n");
-		return _delegate.GetRenderOptions().ExposureBias;
+		return _delegate.GetRenderOptions();
 	}
-	void SetExposure(float exposure) override
+	void SetRenderOptions(const RenderOptions& ro) override
 	{
-		printf("SetExposure(%f)\n", exposure);
-
-		auto ro = _delegate.GetRenderOptions();
-		ro.ExposureBias = exposure;
 		_delegate.SetRenderOptions(ro);
 	}
-	
+
 	float GetSkyboxRotation() const override
 	{
 		return _delegate.GetRenderOptions().SkyboxRotation;
@@ -548,7 +543,6 @@ private:
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
 
-
 	static MaterialViewState PopulateMaterialState(const Material& mat)
 	{
 		MaterialViewState rvm = {};
@@ -593,7 +587,6 @@ private:
 		return rvm;
 	}
 
-	
 	#pragma endregion
 	
 };
