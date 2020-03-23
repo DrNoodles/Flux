@@ -62,14 +62,14 @@ public:
 	explicit Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
-	std::optional<u32> PreFrame();
-	void PostFrame(u32 imageIndex);
-	
-	void DrawFrame(float dt, const RenderOptions& options,
+	std::optional<u32> StartFrame();
+	void EndFrame(u32 imageIndex);
+	void DrawFrame(const RenderOptions& options,
 	               const std::vector<RenderableResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
 	               const std::vector<Light>& lights,
 	               glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize);
+	
 	void CleanUp(); // TODO convert to RAII?
 
 	TextureResourceId CreateTextureResource(const std::string& path);
@@ -188,7 +188,6 @@ private:
 	void CreateSwapchainAndDependents(int width, int height);
 	void RecreateSwapchain();
 
-	void DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds, const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos, u32 imageIndex, glm::ivec2 regionPos, glm::ivec2 regionSize);
 
 	
 	#pragma region Shared

@@ -340,7 +340,11 @@ private:
 
 		auto& camera = _scene->GetCamera();
 		const auto view = camera.GetViewMatrix();
-		_renderer->DrawFrame(dt, _renderOptions, renderables, transforms, lights, view, camera.Position, _ui->ViewportPos(), _ui->ViewportSize());
+		
+		//const auto index = _renderer->StartFrame();
+		_renderer->DrawFrame(_renderOptions, renderables, transforms, lights, view, camera.Position, _ui->ViewportPos(), _ui->ViewportSize());
+		//_renderer->EndFrame(*index);
+		
 	}
 
 	

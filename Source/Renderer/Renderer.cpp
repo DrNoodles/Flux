@@ -26,8 +26,6 @@
 
 
 using vkh = VulkanHelpers;
-
-
 bool flip = true;
 
 Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir,
@@ -46,7 +44,7 @@ Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, const std
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-std::optional<u32> Renderer::PreFrame()
+std::optional<u32> Renderer::StartFrame()
 {
 	// Sync CPU-GPU
 	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
@@ -80,9 +78,8 @@ std::optional<u32> Renderer::PreFrame()
 	return imageIndex;
 }
 
-void Renderer::PostFrame(u32 imageIndex)
+void Renderer::EndFrame(u32 imageIndex)
 {
-
 	// Execute command buffer with the image as an attachment in the framebuffer
 	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 	VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
@@ -140,18 +137,20 @@ void Renderer::PostFrame(u32 imageIndex)
 }
 
 
-void Renderer::DrawFrame(float dt, const RenderOptions& options,
+void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
                          const std::vector<RenderableResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
                          glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
-	const auto imageIndex = PreFrame();
+	const auto imageIndex = StartFrame();
 	if (!imageIndex.has_value())
 	{
 		return;
 	}
 	
+	const auto frameIndex = *imageIndex;
+
 	const auto startBench = std::chrono::steady_clock::now();
 
 	
@@ -180,173 +179,136 @@ void Renderer::DrawFrame(float dt, const RenderOptions& options,
 
 	assert(renderableIds.size() == transforms.size());
 
-	DrawEverything(options, renderableIds, transforms, lights, view, camPos, *imageIndex, regionPos, regionSize);
-
-
 	
-	const std::chrono::duration<double, std::chrono::milliseconds::period> duration
-		= std::chrono::steady_clock::now() - startBench;
-	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
-
-	
-	PostFrame(*imageIndex);
-}
-
-
-void Renderer::DrawEverything(const RenderOptions& options, const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms, const std::vector<Light>& lights, glm::mat4 view, glm::vec3 camPos,
-	u32 imageIndex, glm::ivec2 regionPos, glm::ivec2 regionSize)
-{
-	// Calc Projection
-	const auto vfov = 45.f;
-	const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
-	auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
-	if (flip)
 	{
-		// flip Y to convert glm from OpenGL coord system to Vulkan
-		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
-	}
-
-	// Update light buffers
-	{
-		auto lightsUbo = LightUbo::Create(lights);
-
-		void* data;
-		auto size = sizeof(lightsUbo);
-		vkMapMemory(_device, _lightBuffersMemory[imageIndex], 0, size, 0, &data);
-		memcpy(data, &lightsUbo, size);
-		vkUnmapMemory(_device, _lightBuffersMemory[imageIndex]);
-	}
-
-
-
-	// Update skybox buffer
-	const Skybox* skybox = GetCurrentSkyboxOrNull();
-	if (skybox)
-	{
-		// Vert ubo
+		// Calc Projection
+		const auto vfov = 45.f;
+		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
+		if (flip)
 		{
-			// Populate ubo
-			auto skyboxVertUbo = SkyboxVertUbo{};
-			skyboxVertUbo.Projection = projection; // same as camera
-			skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
-			skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
-
-			// Copy to gpu
-			void* data;
-			auto size = sizeof(skyboxVertUbo);
-			vkMapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory, 0, size, 0, &data);
-			memcpy(data, &skyboxVertUbo, size);
-			vkUnmapMemory(_device, skybox->FrameResources[imageIndex].VertUniformBufferMemory);
+			// flip Y to convert glm from OpenGL coord system to Vulkan
+			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 		}
 
-		// Frab ubo
+		// Update light buffers
 		{
-			// Populate ubo
-			auto skyboxFragUbo = SkyboxFragUbo{};
-			skyboxFragUbo.ExposureBias_ShowClipping[0] = options.ExposureBias;
-			skyboxFragUbo.ExposureBias_ShowClipping[1] = options.ShowClipping;
+			auto lightsUbo = LightUbo::Create(lights);
 
-			// Copy to gpu
 			void* data;
-			auto size = sizeof(skyboxFragUbo);
-			vkMapMemory(_device, skybox->FrameResources[imageIndex].FragUniformBufferMemory, 0, size, 0, &data);
-			memcpy(data, &skyboxFragUbo, size);
-			vkUnmapMemory(_device, skybox->FrameResources[imageIndex].FragUniformBufferMemory);
+			auto size = sizeof(lightsUbo);
+			vkMapMemory(_device, _lightBuffersMemory[frameIndex], 0, size, 0, &data);
+			memcpy(data, &lightsUbo, size);
+			vkUnmapMemory(_device, _lightBuffersMemory[frameIndex]);
 		}
-	}
 
 
-	// Update Model
-	for (size_t i = 0; i < renderableIds.size(); i++)
-	{
-		UniversalUboCreateInfo info = {};
-		info.Model = transforms[i];
-		info.View = view;
-		info.Projection = projection;
-		info.CamPos = camPos;
-		info.ExposureBias = options.ExposureBias;
-		info.ShowClipping = options.ShowClipping;
-		info.ShowNormalMap = false;
-		info.CubemapRotation = options.SkyboxRotation;
 
-		const auto& renderable = _renderables[renderableIds[i].Id].get();
-
-		auto& modelBufferMemory = renderable->FrameResources[imageIndex].UniformBufferMemory;
-		auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
-
-		// Update model ubo
-		void* data;
-		auto size = sizeof(modelUbo);
-		vkMapMemory(_device, modelBufferMemory, 0, size, 0, &data);
-		memcpy(data, &modelUbo, size);
-		vkUnmapMemory(_device, modelBufferMemory);
-	}
-
-
-	// Record Command Buffer
-
-	auto frameIndex = imageIndex;
-	auto renderPass = _renderPass;
-	auto swapchainExtent = _swapchainExtent;
-	auto commandBuffer = _commandBuffers[imageIndex];
-	auto swapchainFramebuffer = _swapchainFramebuffers[imageIndex];
-	auto pbrPipeline = _pbrPipeline;
-	auto pbrPipelineLayout = _pbrPipelineLayout;
-	auto skyboxPipeline = _skyboxPipeline;
-	auto skyboxPipelineLayout = _skyboxPipelineLayout;
-	auto& meshes = _meshes;
-
-	// Start command buffer
-	const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
-	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
-	{
-		// Record renderpass
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
-			vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
-
-
-		// Render region
-		auto viewport = vki::Viewport(0, 0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0, 1);
-		auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
-
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		// Update skybox buffer
+		const Skybox* skybox = GetCurrentSkyboxOrNull();
+		if (skybox)
 		{
-			// Skybox
-			if (skybox)
+			// Vert ubo
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+				// Populate ubo
+				auto skyboxVertUbo = SkyboxVertUbo{};
+				skyboxVertUbo.Projection = projection; // same as camera
+				skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
+				skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
 
-				const auto& mesh = *meshes[skybox->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
-					0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+				// Copy to gpu
+				void* data;
+				auto size = sizeof(skyboxVertUbo);
+				vkMapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
+				memcpy(data, &skyboxVertUbo, size);
+				vkUnmapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory);
 			}
 
-
-			// Objects
+			// Frab ubo
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
+				// Populate ubo
+				auto skyboxFragUbo = SkyboxFragUbo{};
+				skyboxFragUbo.ExposureBias_ShowClipping[0] = options.ExposureBias;
+				skyboxFragUbo.ExposureBias_ShowClipping[1] = options.ShowClipping;
 
-				for (const auto& renderableId : renderableIds)
+				// Copy to gpu
+				void* data;
+				auto size = sizeof(skyboxFragUbo);
+				vkMapMemory(_device, skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
+				memcpy(data, &skyboxFragUbo, size);
+				vkUnmapMemory(_device, skybox->FrameResources[frameIndex].FragUniformBufferMemory);
+			}
+		}
+
+
+		// Update Model
+		for (size_t i = 0; i < renderableIds.size(); i++)
+		{
+			UniversalUboCreateInfo info = {};
+			info.Model = transforms[i];
+			info.View = view;
+			info.Projection = projection;
+			info.CamPos = camPos;
+			info.ExposureBias = options.ExposureBias;
+			info.ShowClipping = options.ShowClipping;
+			info.ShowNormalMap = false;
+			info.CubemapRotation = options.SkyboxRotation;
+
+			const auto& renderable = _renderables[renderableIds[i].Id].get();
+
+			auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
+			auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
+
+			// Update model ubo
+			void* data;
+			auto size = sizeof(modelUbo);
+			vkMapMemory(_device, modelBufferMemory, 0, size, 0, &data);
+			memcpy(data, &modelUbo, size);
+			vkUnmapMemory(_device, modelBufferMemory);
+		}
+
+
+		// Record Command Buffer
+
+		auto renderPass = _renderPass;
+		auto swapchainExtent = _swapchainExtent;
+		auto commandBuffer = _commandBuffers[frameIndex];
+		auto swapchainFramebuffer = _swapchainFramebuffers[frameIndex];
+		auto pbrPipeline = _pbrPipeline;
+		auto pbrPipelineLayout = _pbrPipelineLayout;
+		auto skyboxPipeline = _skyboxPipeline;
+		auto skyboxPipelineLayout = _skyboxPipelineLayout;
+		auto& meshes = _meshes;
+
+		// Start command buffer
+		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
+		{
+			// Record renderpass
+			std::vector<VkClearValue> clearColors(2);
+			clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
+			clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
+				vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
+
+
+			// Render region
+			auto viewport = vki::Viewport(0, 0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0, 1);
+			auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
+
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+
+			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				// Skybox
+				if (skybox)
 				{
-					const auto& renderable = _renderables[renderableId.Id].get();
-					const auto& mesh = *meshes[renderable->MeshId.Id];
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+
+					const auto& mesh = *meshes[skybox->MeshId.Id];
 
 					// Draw mesh
 					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
@@ -354,36 +316,67 @@ void Renderer::DrawEverything(const RenderOptions& options, const std::vector<Re
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 					vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
-						0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-					/*const void* pValues;
-					vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
+						VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
+						0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 				}
-			}
 
 
-			// ImGui
-			{
-				_delegate.BuildGui();
-				DrawImgui(commandBuffer);
+				// Objects
+				{
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
+
+					for (const auto& renderableId : renderableIds)
+					{
+						const auto& renderable = _renderables[renderableId.Id].get();
+						const auto& mesh = *meshes[renderable->MeshId.Id];
+
+						// Draw mesh
+						VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+						VkDeviceSize offsets[] = { 0 };
+						vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+						vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+						vkCmdBindDescriptorSets(commandBuffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
+							0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+						/*const void* pValues;
+						vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+						vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+					}
+				}
+
+
+				// ImGui
+				{
+					_delegate.BuildGui();
+					DrawImgui(commandBuffer);
+				}
 			}
+			vkCmdEndRenderPass(commandBuffer);
 		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
-	else
-	{
-		throw std::runtime_error("Failed to begin recording command buffer");
+		else
+		{
+			throw std::runtime_error("Failed to begin recording command buffer");
+		}
+
+		// End command buffer
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to end recording command buffer");
+		}
 	}
 
-	// End command buffer
-	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to end recording command buffer");
-	}
+	
+	const std::chrono::duration<double, std::chrono::milliseconds::period> duration
+		= std::chrono::steady_clock::now() - startBench;
+	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
+
+	
+	EndFrame(frameIndex);
 }
+
 
 
 void Renderer::CleanUp()
