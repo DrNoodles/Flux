@@ -385,7 +385,7 @@ private:
 
 
 		RenderPrefilterMap(device, transferPool, transferQueue, renderPass, pipeline, pipelineLayout, descSet,
-			prefilterCubemap, skyboxMesh, renderTarget);
+			prefilterCubemap, skyboxMesh, renderTarget, envMap.Width(), envMap.Height());
 
 
 		// Cleanup
@@ -407,7 +407,7 @@ private:
 
 	static void RenderPrefilterMap(VkDevice device, VkCommandPool transferPool, VkQueue transferQueue,
 		VkRenderPass renderPass, VkPipeline pipeline, VkPipelineLayout pipelineLayout, VkDescriptorSet descSet,
-		TextureResource& targetTex, const MeshResource& skyboxMesh, RenderTarget& renderTarget)
+		TextureResource& targetTex, const MeshResource& skyboxMesh, RenderTarget& renderTarget, u32 envWidth, u32 envHeight)
 	{
 		std::vector<VkClearValue> clearValues(1);
 		clearValues[0].color = { 0.0f, 0.2f, 0.0f, 0.0f };
@@ -462,7 +462,7 @@ private:
 			viewport.height = mipDim;
 			vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
 
-			pushBlock.EnvMapResPerFace = mipDim;
+			pushBlock.EnvMapResPerFace = (f32)std::max(envWidth, envHeight);
 			pushBlock.Roughness = mip / f32(targetTex.MipLevels() - 1); // mip 0 = 0, max mip = 1
 
 			for (u32 face = 0; face < 6; face++)
