@@ -132,7 +132,7 @@ public:
 	void LoadDefaultScene()
 	{
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadSphereArray();
+		LoadMaterialArray();
 
 		/*
 		auto entity = _library->CreateBlob();
@@ -157,11 +157,19 @@ public:
 		std::cout << "Loading scene\n";
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
-		LoadSphereArray({0,4,0});
+		LoadMaterialArray({0,4,0});
 		LoadRailgun();
 		//LoadLighting();
 	}
 
+	void LoadDemoSceneHeavy() override
+	{
+		std::cout << "Loading scene\n";
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		LoadAxis();
+		LoadMaterialArray({ 0,0,0 }, 30, 30);
+	}
+	
 	RenderOptions& GetRenderOptions() override
 	{
 		return _renderOptions;
@@ -350,15 +358,15 @@ private:
 	
 	#pragma region Scene Management
 
-	void LoadSphereArray(const glm::vec3& offset = glm::vec3{ 0,0,0 })
+	void LoadMaterialArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
-		std::cout << "Loading sphere array" << std::endl;
+		std::cout << "Loading material array" << std::endl;
 
 		glm::vec3 center = offset;
-		auto numRows = 2;
-		auto numColumns = 6;
 		auto rowSpacing = 2.1f;
 		auto colSpacing = 2.1f;
+
+		u32 count = 0;
 		
 		for (int row = 0; row < numRows; row++)
 		{
@@ -377,7 +385,7 @@ private:
 				f32 x = center.x + wStart + colSpacing * col;
 
 				char name[256];
-				sprintf_s(name, 256, "Blob M:%.2f R:%.2f", metalness, roughness);
+				sprintf_s(name, 256, "Obj M:%.2f R:%.2f", metalness, roughness);
 				
 				auto entity = _library->CreateBlob();
 				entity->Name = name;
@@ -393,8 +401,12 @@ private:
 				_scene->SetMaterial(*entity->Renderable, mat);
 
 				_scene->AddEntity(std::move(entity));
+
+				++count;
 			}
 		}
+
+		std::cout << "Material array obj count: " << count << std::endl; 
 	}
 	
 	void LoadRailgun()

@@ -1,12 +1,11 @@
 #pragma once
 
-#include "ScenePane.h"
+#include "SceneView.h"
 #include "IblVm.h"
 #include "PropsView/PropsView.h"
 #include "PropsView/TransformVm.h"
 #include "PropsView/LightVm.h"
 #include "PropsView/MaterialViewState.h"
-//#include "PropsView/PropsPresenter.h"
 
 #include <App/LibraryManager.h>
 
@@ -25,6 +24,7 @@ public:
 	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
 	virtual void LoadDemoScene() = 0;
+	virtual void LoadDemoSceneHeavy() = 0;
 	virtual RenderOptions& GetRenderOptions() = 0;
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
@@ -38,7 +38,7 @@ public:
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
-	_scenePane{ScenePane{this}},
+	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}}
 	{
 	}
@@ -160,7 +160,7 @@ public:
 			//ImGui::ShowDemoWindow(&show_demo_window);
 
 			
-			// Scene Pane
+			// Scene View
 			{
 				ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
 				ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
@@ -172,11 +172,11 @@ public:
 						return pe.get();
 					});
 				IblVm iblVm{ &_scene, &_delegate.GetRenderOptions() };
-				_scenePane.DrawUI(allEnts, _selection, iblVm);
+				_sceneView.DrawUI(allEnts, _selection, iblVm);
 			}
 
 			
-			// Properties Pane
+			// Properties View
 			{
 				ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
 				ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
@@ -230,8 +230,8 @@ public:
 	}
 
 	// Fit to middle
-	glm::ivec2 ViewportPos() const { return { _scenePanelWidth, 0 }; }
-	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsPanelWidth - _scenePanelWidth, WindowHeight() }; }
+	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
+	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
 	
 private:
 	// Dependencies
@@ -241,9 +241,8 @@ private:
 
 	
 	// Views
-	ScenePane _scenePane;
+	SceneView _sceneView;
 	PropsView _propsView;
-	//PropsPresenter _propsPresenter;
 
 	
 	// PropsView helpers
@@ -255,8 +254,8 @@ private:
 
 	
 	// Layout
-	int _scenePanelWidth = 250;
-	int _propsPanelWidth = 300;
+	int _sceneViewWidth = 250;
+	int _propsViewWidth = 300;
 
 	int WindowWidth() const { return _delegate.GetWindowSize().x; }
 	int WindowHeight() const { return _delegate.GetWindowSize().y; }
@@ -265,12 +264,12 @@ private:
 	glm::ivec2 SceneSize() const
 	{
 		int i = _delegate.GetWindowSize().y;
-		return { _scenePanelWidth, i };
+		return { _sceneViewWidth, i };
 	}
 
 	// Anchor right
-	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsPanelWidth,0 }; }
-	glm::ivec2 PropsSize() const { return { _propsPanelWidth, WindowHeight() }; }
+	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsViewWidth,0 }; }
+	glm::ivec2 PropsSize() const { return { _propsViewWidth, WindowHeight() }; }
 
 	
 	// Selection
@@ -284,6 +283,13 @@ private:
 	{
 		printf("LoadDemoScene()\n");
 		_delegate.LoadDemoScene();
+		ClearSelection();
+		FrameSelectionOrAll();
+	}
+	void LoadHeavyDemoScene() override
+	{
+		printf("LoadHeavyDemoScene()\n");
+		_delegate.LoadDemoSceneHeavy();
 		ClearSelection();
 		FrameSelectionOrAll();
 	}

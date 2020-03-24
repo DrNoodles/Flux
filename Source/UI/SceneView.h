@@ -15,6 +15,7 @@ class ISceneViewDelegate
 public:
 	virtual ~ISceneViewDelegate() = default;
 	virtual void LoadDemoScene() = 0;
+	virtual void LoadHeavyDemoScene() = 0;
 	virtual void LoadModel(const std::string& path) = 0;
 	virtual void CreateDirectionalLight() = 0;
 	virtual void CreatePointLight() = 0;
@@ -35,11 +36,11 @@ public:
 	virtual void SetActiveSkybox(u32 idx) = 0;
 };
 
-class ScenePane
+class SceneView
 {
 public:
-	ScenePane() = delete;
-	explicit ScenePane(ISceneViewDelegate* delegate) : _delegate{ delegate } {}
+	SceneView() = delete;
+	explicit SceneView(ISceneViewDelegate* delegate) : _delegate{ delegate } {}
 	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
 
 private:

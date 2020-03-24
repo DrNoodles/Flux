@@ -1,5 +1,5 @@
 
-#include "ScenePane.h"
+#include "SceneView.h"
 #include "IblVm.h"
 
 #include "Shared/FileService.h"
@@ -14,7 +14,7 @@
 
 
 
-void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
+void SceneView::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
 {
 	assert(_delegate); // Delegate must be set
 	
@@ -29,7 +29,7 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 		// Scene Load/Unload
 		if (ImGui::CollapsingHeader("Load", headerFlags))
 		{
-			if (ImGui::BeginChild("Load", ImVec2{ 0,35 }, true))
+			if (ImGui::BeginChild("Load", ImVec2{ 0,/*35*/60 }, true))
 			{
 				if (ImGui::Button("Demo Scene"))
 				{
@@ -43,6 +43,11 @@ void ScenePane::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Enti
 					{
 						_delegate->LoadModel(path);
 					}
+				}
+
+				if (ImGui::Button("Heavy Demo Scene"))
+				{
+					_delegate->LoadHeavyDemoScene();
 				}
 			}
 			ImGui::EndChild();

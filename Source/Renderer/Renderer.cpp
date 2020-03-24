@@ -731,7 +731,7 @@ void Renderer::RecreateSwapchain()
 
 VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
-	const u32 maxPbrObjects = 1000; // Max scene objects! This is gross, but it'll do for now.
+	const u32 maxPbrObjects = 10000; // Max scene objects! This is gross, but it'll do for now.
 	const u32 maxSkyboxObjects = 1;
 
 	// Match these to CreatePbrDescriptorSetLayout
