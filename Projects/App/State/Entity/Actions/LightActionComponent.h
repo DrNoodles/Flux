@@ -1,6 +1,7 @@
 #pragma once
-#include "App/Entity/IActionComponent.h"
-#include "App/Entity/LightComponent.h"
+
+#include <State/Entity/IActionComponent.h>
+#include <State/Entity/LightComponent.h>
 #include <functional>
 
 class LightAction final : public IActionComponent

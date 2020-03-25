@@ -1,6 +1,7 @@
 #pragma once
-#include "App/Entity/IActionComponent.h"
-#include "App/Entity/TransformComponent.h"
+
+#include <State/Entity/IActionComponent.h>
+#include <State/Entity/TransformComponent.h>
 #include <functional>
 
 class TransformAction final : public IActionComponent

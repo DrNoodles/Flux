@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/vec3.hpp>
+
 #include "Renderer/GpuTypes.h"
 
 struct LightComponent

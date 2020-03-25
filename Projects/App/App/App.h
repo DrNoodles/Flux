@@ -3,11 +3,11 @@
 #include "AppTypes.h"
 #include "FpsCounter.h"
 #include "IModelLoaderService.h"
-#include "SceneManager.h"
 #include "AssImpModelLoaderService.h"
 
 #include "UI/UiPresenter.h"
 
+#include <State/SceneManager.h>
 #include <State/Entity/Actions/TurntableActionComponent.h>
 
 #include <Renderer/Renderer.h>
