@@ -6,6 +6,7 @@ workspace "Vulkan"
 	architecture "x86_64"
 	location "Build"
 	cppdialect "C++17"
+	startproject "Renderer"
 
 
 -------------------------------------------------------------------------------
@@ -19,12 +20,13 @@ project "Framework"
 
 	includedirs {
 		"Projects/Framework/Include/Framework/",
-
 		"External/tinyfiledialogs/",
 	}
 	files {
+		"Projects/Framework/Include/Framework/**.h",
 		"Projects/Framework/Source/**.h",
 		"Projects/Framework/Source/**.cpp",
+		"External/tinyfiledialogs/tinyfiledialogs/tinyfiledialogs.c",
 	}
 
 	filter "configurations:Debug"
@@ -49,10 +51,9 @@ project "Test"
 		"Projects/Test/Include/Test/",
 	}
 	files {
-		"Projects/Test/**.h",
-		"Projects/Test/**.cpp",
-
-		"External/tinyfiledialogs/**",
+		"Projects/Test/Include/Test/**.h",
+		"Projects/Test/Source/**.h",
+		"Projects/Test/Source/**.cpp",
 	}
 
 	filter "configurations:Debug"
@@ -114,11 +115,25 @@ project "Renderer"
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
-		links { "glfw3_x64_debug.lib", "vulkan-1.lib", "assimp-vc142-mtd.lib", "IrrXMLd.lib", "zlibstaticd.lib", "Test_Debug.lib", "Framework_Debug.lib", }
+		links { 
+			"glfw3_x64_debug.lib", 
+			"vulkan-1.lib", 
+			"assimp-vc142-mtd.lib", 
+			"IrrXMLd.lib", 
+			"zlibstaticd.lib", 
+			"Test_Debug.lib", 
+			"Framework_Debug.lib", }
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"
-		links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", "Test_Release.lib", "Framework_Release.lib", }
+		links { 
+			"glfw3_x64_release.lib", 
+			"vulkan-1.lib", 
+			"assimp-vc142-mt.lib", 
+			"IrrXML.lib", 
+			"zlibstatic.lib", 
+			"Test_Release.lib", 
+			"Framework_Release.lib", }
 
 
