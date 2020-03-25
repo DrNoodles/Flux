@@ -10,6 +10,7 @@
 #include <App/LibraryManager.h>
 
 #include <Shared/FileService.h>
+#include <Test/Test.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -67,6 +68,9 @@ public:
 
 	void FrameSelectionOrAll()
 	{
+		const auto t = Test2D{};
+		auto tid = t.GetId();
+		
 		std::vector<Entity*> targets = {};
 
 		

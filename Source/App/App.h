@@ -368,7 +368,7 @@ private:
 
 		u32 count = 0;
 		
-		for (int row = 0; row < numRows; row++)
+		for (u32 row = 0; row < numRows; row++)
 		{
 			f32 metalness = row / f32(numRows - 1);
 
@@ -376,7 +376,7 @@ private:
 			f32 hStart = height / 2.f;
 			f32 y = center.y + hStart + -rowSpacing * row;
 
-			for (int col = 0; col < numColumns; col++)
+			for (u32 col = 0; col < numColumns; col++)
 			{
 				f32 roughness = col / f32(numColumns - 1);
 

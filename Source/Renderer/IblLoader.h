@@ -122,7 +122,7 @@ private:
 		const std::string& shaderDir, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
 		VkDevice device)
 	{
-		std::cout << "Generating irradianc cubemap\n";
+		std::cout << "Generating irradiance cubemap\n";
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
 		const VkFormat irrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
