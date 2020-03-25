@@ -77,7 +77,7 @@ project "Renderer"
 	includedirs {
 		"Projects/App",
 		"Projects/Renderer",
-		"Projects/UI",
+		
 		"Projects/Test/Include/",
 		"Projects/Framework/Include/",
 
@@ -105,8 +105,6 @@ project "Renderer"
 		"Projects/Renderer/**.cpp",
 		"Projects/Renderer/**.frag",
 		"Projects/Renderer/**.vert",
-		"Projects/UI/**.h",
-		"Projects/UI/**.cpp",
 
 		"External/stbi/src/stb_image.cpp",
 		"External/imgui/**",
