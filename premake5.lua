@@ -1,3 +1,5 @@
+
+-------------------------------------------------------------------------------
 workspace "Vulkan"
 	configurations {"Debug", "Release"}
 	--prebuildcommands { 'path "($SolutionDir)../compile-shaders.bat"' }
@@ -6,48 +8,48 @@ workspace "Vulkan"
 	cppdialect "C++17"
 
 
+-------------------------------------------------------------------------------
 project "Test"
 	location "Build"
 	kind "StaticLib"
 	language "C++"
 	targetname "Test_%{cfg.buildcfg}"
-	targetdir "Test/Lib"
-	objdir "Build/Intermediate/Test/%{cfg.buildcfg}" -- todo add project. eg. intermediate/project/config/
+	targetdir "Projects/Test/Lib"
+	objdir "Build/Intermediate/Test/%{cfg.buildcfg}"
 
 	includedirs {
-		"Test/Include/Test/",
+		"Projects/Test/Include/Test/",
 	}
 	files {
-		"Test/**.h",
-		"Test/**.cpp"
+		"Projects/Test/**.h",
+		"Projects/Test/**.cpp"
 	}
 
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
-		--links { "glfw3_x64_debug.lib", "vulkan-1.lib", "assimp-vc142-mtd.lib", "IrrXMLd.lib", "zlibstaticd.lib", }
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"
-		--links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", }
 
 
--- TODO Fix linking
--- TODO Project dependencies?
-
-
+-------------------------------------------------------------------------------
 project "Renderer"
+	dependson { "Test", }
 	location "Build"
 	kind "ConsoleApp"
 	language "C++"
 	targetname "Flux_%{cfg.buildcfg}"
 	targetdir "Bin"
 	objdir "Build/Intermediate/Renderer/%{cfg.buildcfg}"
-	dependson { "Test", }
 
 	includedirs {
-		"Source/", -- for <app/*.h> <renderer/*.h> <shared/*.h> includes
+		"Projects/App",
+		"Projects/Framework",
+		"Projects/Renderer",
+		"Projects/UI",
+		"Projects/Test/Include/",
 		"External/assimp/include",
 		"External/glfw/include",
 		"External/glm/include",
@@ -55,21 +57,26 @@ project "Renderer"
 		"External/vulkan/include",
 		"External/tinyfiledialogs/",
 		"External/imgui/",
-		"Test/Include/",
 	}
 
 	libdirs { 
 		"External/assimp/lib",
 		"External/glfw/lib",
 		"External/vulkan/lib",
-		"Test/Lib/"
+		"Projects/Test/Lib/"
 	}
 
 	files {
-		"Source/**.h",
-		"Source/**.cpp",
-		"Source/**.frag",
-		"Source/**.vert",
+		"Projects/App/**.h",
+		"Projects/App/**.cpp",
+		"Projects/Framework/**.h",
+		"Projects/Framework/**.cpp",
+		"Projects/Renderer/**.h",
+		"Projects/Renderer/**.cpp",
+		"Projects/Renderer/**.frag",
+		"Projects/Renderer/**.vert",
+		"Projects/UI/**.h",
+		"Projects/UI/**.cpp",
 		"External/stbi/src/stb_image.cpp",
 		"External/tinyfiledialogs/**",
 		"External/imgui/**",
@@ -89,3 +96,5 @@ project "Renderer"
 		defines { "NDEBUG" }
 		optimize "On"
 		links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", "Test_Release.lib",}
+
+
