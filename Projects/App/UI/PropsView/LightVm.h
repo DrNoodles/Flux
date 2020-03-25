@@ -1,7 +1,8 @@
 #pragma once
 
-#include "App/Entity/LightComponent.h"
+#include <State/Entity/LightComponent.h>
 #include <algorithm>
+
 
 
 class LightVm

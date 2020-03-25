@@ -2,7 +2,6 @@
 #include "SceneView.h"
 #include "IblVm.h"
 
-#include "App/Entity/Entity.h"
 #include <Framework/FileService.h>
 
 #include <imgui/imgui.h>

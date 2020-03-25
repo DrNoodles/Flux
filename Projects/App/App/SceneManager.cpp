@@ -1,6 +1,5 @@
 
 #include "SceneManager.h"
-#include "Entity/RenderableComponent.h"
 
 #include <vector>
 #include <unordered_map>

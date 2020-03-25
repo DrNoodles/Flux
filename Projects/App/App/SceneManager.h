@@ -1,12 +1,14 @@
 #pragma once
 
 #include "IModelLoaderService.h"
-#include "Entity/Entity.h"
+
+#include <State/Camera.h>
+#include <State/Entity/Entity.h>
 
 #include <Renderer/Renderer.h>
 
 #include <unordered_map>
-#include "Camera.h"
+
 
 class RenderableComponent;
 

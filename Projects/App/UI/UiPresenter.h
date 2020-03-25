@@ -9,6 +9,7 @@
 
 #include <App/LibraryManager.h>
 
+#include <State/Entity/Actions/TurntableActionComponent.h>
 #include <Framework/FileService.h>
 #include <Test/Test.h>
 

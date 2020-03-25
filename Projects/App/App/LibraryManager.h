@@ -1,13 +1,15 @@
 #pragma once
 
-#include "Entity/Actions/TurntableActionComponent.h"
-#include "Entity/Entity.h"
+
 #include "Renderer/Renderer.h"
+
+#include <State/Entity/Entity.h>
 
 #include <utility>
 #include <vector>
 #include <memory>
 #include <chrono>
+
 
 struct SkyboxInfo
 {
