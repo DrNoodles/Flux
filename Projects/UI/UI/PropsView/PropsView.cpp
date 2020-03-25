@@ -4,7 +4,8 @@
 #include "MaterialViewState.h"
 #include "TransformVm.h"
 #include "LightVm.h"
-#include "Shared/FileService.h"
+
+#include <Framework/FileService.h>
 
 #include <imgui/imgui.h>
 #include <glm/common.hpp>

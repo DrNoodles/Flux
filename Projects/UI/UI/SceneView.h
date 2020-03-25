@@ -2,7 +2,7 @@
 
 #include "App/LibraryManager.h" //SkyboxInfo
 
-#include <Shared/CommonTypes.h>
+#include <Framework/CommonTypes.h>
 
 #include <unordered_set>
 

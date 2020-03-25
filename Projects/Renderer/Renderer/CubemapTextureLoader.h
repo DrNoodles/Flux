@@ -5,7 +5,7 @@
 #include "TextureResource.h"
 #include "Texels.h"
 
-#include <Shared/CommonTypes.h>
+#include <Framework/CommonTypes.h>
 
 #include <vulkan/vulkan.h>
 

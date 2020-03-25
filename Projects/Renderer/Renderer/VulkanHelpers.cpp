@@ -4,7 +4,7 @@
 #include "App/IModelLoaderService.h"
 #include "RenderableMesh.h"
 
-#include <Shared/FileService.h>
+#include <Framework/FileService.h>
 
 #include <stbi/stb_image.h>
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h

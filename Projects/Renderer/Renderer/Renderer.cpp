@@ -8,7 +8,7 @@
 #include "CubemapTextureLoader.h"
 #include "IblLoader.h"
 
-#include <Shared/FileService.h>
+#include <Framework/FileService.h>
 
 // TODO Remove all notion of imgui in Renderer
 #include <imgui/imgui.h>

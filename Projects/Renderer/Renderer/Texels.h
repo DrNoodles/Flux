@@ -1,7 +1,7 @@
 #pragma once
 #include "VulkanHelpers.h"
 
-#include <Shared/CommonTypes.h>
+#include <Framework/CommonTypes.h>
 
 #include <stbi/stb_image.h>
 

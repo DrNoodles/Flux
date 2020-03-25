@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Shared/AABB.h"
+#include <Framework/AABB.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

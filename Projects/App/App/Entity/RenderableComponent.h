@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Framework/AABB.h>
+
 #include "Renderer/GpuTypes.h"
 #include "Renderer/RenderableMesh.h"
 

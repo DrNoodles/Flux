@@ -267,3 +267,5 @@ __pycache__/
 
 .mayaSwatches/
 Data/AssetsEx/
+/Projects/Framework/Lib/*
+/Projects/Test/Lib/*

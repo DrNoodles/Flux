@@ -9,6 +9,34 @@ workspace "Vulkan"
 
 
 -------------------------------------------------------------------------------
+project "Framework"
+	location "Build"
+	kind "StaticLib"
+	language "C++"
+	targetname "Framework_%{cfg.buildcfg}"
+	targetdir "Projects/Framework/Lib"
+	objdir "Build/Intermediate/Framework/%{cfg.buildcfg}"
+
+	includedirs {
+		"Projects/Framework/Include/Framework/",
+
+		"External/tinyfiledialogs/",
+	}
+	files {
+		"Projects/Framework/Source/**.h",
+		"Projects/Framework/Source/**.cpp",
+	}
+
+	filter "configurations:Debug"
+		defines { "DEBUG" }
+		symbols "On"
+
+	filter "configurations:Release"
+		defines { "NDEBUG" }
+		optimize "On"
+
+
+-------------------------------------------------------------------------------
 project "Test"
 	location "Build"
 	kind "StaticLib"
@@ -22,7 +50,9 @@ project "Test"
 	}
 	files {
 		"Projects/Test/**.h",
-		"Projects/Test/**.cpp"
+		"Projects/Test/**.cpp",
+
+		"External/tinyfiledialogs/**",
 	}
 
 	filter "configurations:Debug"
@@ -36,7 +66,7 @@ project "Test"
 
 -------------------------------------------------------------------------------
 project "Renderer"
-	dependson { "Test", }
+	dependson { "Framework", "Test", }
 	location "Build"
 	kind "ConsoleApp"
 	language "C++"
@@ -46,39 +76,39 @@ project "Renderer"
 
 	includedirs {
 		"Projects/App",
-		"Projects/Framework",
 		"Projects/Renderer",
 		"Projects/UI",
 		"Projects/Test/Include/",
+		"Projects/Framework/Include/",
+
 		"External/assimp/include",
 		"External/glfw/include",
 		"External/glm/include",
 		"External/stbi/include",
 		"External/vulkan/include",
-		"External/tinyfiledialogs/",
 		"External/imgui/",
 	}
 
 	libdirs { 
+		"Projects/Framework/Lib/",
+		"Projects/Test/Lib/",
+
 		"External/assimp/lib",
 		"External/glfw/lib",
 		"External/vulkan/lib",
-		"Projects/Test/Lib/"
 	}
 
 	files {
 		"Projects/App/**.h",
 		"Projects/App/**.cpp",
-		"Projects/Framework/**.h",
-		"Projects/Framework/**.cpp",
 		"Projects/Renderer/**.h",
 		"Projects/Renderer/**.cpp",
 		"Projects/Renderer/**.frag",
 		"Projects/Renderer/**.vert",
 		"Projects/UI/**.h",
 		"Projects/UI/**.cpp",
+
 		"External/stbi/src/stb_image.cpp",
-		"External/tinyfiledialogs/**",
 		"External/imgui/**",
 		--"External/imgui-filebrowser/**",
 	}
@@ -90,11 +120,11 @@ project "Renderer"
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
-		links { "glfw3_x64_debug.lib", "vulkan-1.lib", "assimp-vc142-mtd.lib", "IrrXMLd.lib", "zlibstaticd.lib", "Test_Debug.lib", }
+		links { "glfw3_x64_debug.lib", "vulkan-1.lib", "assimp-vc142-mtd.lib", "IrrXMLd.lib", "zlibstaticd.lib", "Test_Debug.lib", "Framework_Debug.lib", }
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"
-		links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", "Test_Release.lib",}
+		links { "glfw3_x64_release.lib", "vulkan-1.lib", "assimp-vc142-mt.lib", "IrrXML.lib", "zlibstatic.lib", "Test_Release.lib", "Framework_Release.lib", }
 
 

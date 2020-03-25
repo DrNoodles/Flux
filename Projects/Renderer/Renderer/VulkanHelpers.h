@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Shared/CommonTypes.h>
+#include <Framework/CommonTypes.h>
 
 #include <vulkan/vulkan.h>
 
