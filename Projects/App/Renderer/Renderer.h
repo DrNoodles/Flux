@@ -1,11 +1,13 @@
 #pragma once
 
 #include "GpuTypes.h"
-#include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
 #include "RenderableMesh.h"
 #include "Material.h"
 #include "TextureResource.h"
 #include "CubemapTextureLoader.h"
+
+#include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
+#include <Framework/CommonTypes.h>
 
 #include <vector>
 

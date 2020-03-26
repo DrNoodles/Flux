@@ -12,28 +12,6 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template <typename T>
-struct ResourceId
-{
-	u32 Id = u32_max;
-	ResourceId() = default;
-	ResourceId(u32 id) : Id{ id } {}
-	//bool IsValid() const { return Id != u32_max; }
-	// TODO equality checks
-};
-
-struct SkyboxIdType;
-struct RenderableIdType;
-struct MeshIdType;
-struct TextureIdType;
-//struct ShaderIdType;
-typedef ResourceId<SkyboxIdType> SkyboxResourceId;
-typedef ResourceId<RenderableIdType> RenderableResourceId;
-typedef ResourceId<MeshIdType> MeshResourceId;
-typedef ResourceId<TextureIdType> TextureResourceId;
-//typedef ResourceId<ShaderIdType> ShaderResourceId;
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Light
 {
 	enum class LightType : i32

@@ -1,9 +1,8 @@
 #pragma once
 
 
-#include <Renderer/Renderer.h>
-
 #include <State/Entity/Entity.h>
+#include <Framework/CommonTypes.h>
 
 #include <utility>
 #include <vector>
@@ -18,13 +17,21 @@ struct SkyboxInfo
 	std::string Name;
 };
 
-class LibraryManager
+class ILibraryManagerDelegate
+{
+public:
+	~ILibraryManagerDelegate() = default;
+	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) = 0;
+	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
+};
+
+class LibraryManager final
 {
 public:
 	
 	
-	LibraryManager(Renderer& resources, IModelLoaderService* modelLoaderService, std::string assetsDir)
-		: _modelLoaderService{modelLoaderService}, _resources{resources}, _libraryDir{std::move(assetsDir)}
+	LibraryManager(ILibraryManagerDelegate* resources, IModelLoaderService* modelLoaderService, std::string assetsDir)
+		: _delegate{ resources }, _modelLoaderService{modelLoaderService}, _libraryDir{std::move(assetsDir)}
 	{
 		srand(unsigned(std::chrono::system_clock::now().time_since_epoch().count()));
 
@@ -55,7 +62,7 @@ public:
 			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Sphere/Sphere.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 
-			_sphereModelId = _resources.CreateMeshResource(meshDefinition);
+			_sphereModelId = _delegate->CreateMeshResource(meshDefinition);
 			_sphereBounds = meshDefinition.Bounds;
 			
 			_spherePrimitiveLoaded = true;
@@ -71,7 +78,7 @@ public:
 			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Cube/Cube.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 			
-			_cubeModelId = _resources.CreateMeshResource(meshDefinition);
+			_cubeModelId = _delegate->CreateMeshResource(meshDefinition);
 			_cubeBounds = meshDefinition.Bounds;
 
 			_cubePrimitiveLoaded = true;
@@ -87,7 +94,7 @@ public:
 			auto modelDefinition = _modelLoaderService->LoadModel(_libraryDir + "Models/Blob/Blob.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 			
-			_blobModelId = _resources.CreateMeshResource(meshDefinition);
+			_blobModelId = _delegate->CreateMeshResource(meshDefinition);
 			_blobBounds = meshDefinition.Bounds;
 
 			_blobPrimitiveLoaded = true;
@@ -125,8 +132,8 @@ public:
 	
 private:
 	// Dependencies
-	IModelLoaderService* _modelLoaderService;
-	Renderer& _resources; // TODO Replace Renderer inclusion once a gpu resource service exists (that the renderer relies on also)
+	ILibraryManagerDelegate* _delegate = nullptr;
+	IModelLoaderService* _modelLoaderService = nullptr;
 	const std::string _libraryDir;
 
 	bool _cubePrimitiveLoaded = false;
@@ -149,10 +156,11 @@ private:
 	
 	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
 	{
-		const auto renderableResId = _resources.CreateRenderable(meshId, Material{});
+		const auto renderableResId = _delegate->CreateRenderable(meshId, Material{});
 
 		// Create renderable component
-		RenderableComponent comp{ {renderableResId, name}, bounds };
+		const RenderableComponentSubmesh submesh = { renderableResId, name };
+		RenderableComponent comp{ submesh, bounds };
 
 		// Create entity
 		auto entity = std::make_unique<Entity>();

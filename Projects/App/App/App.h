@@ -39,7 +39,7 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 // TODO Extract IWindow interface and VulkanWindow impl from App
-class App final : public IRendererDelegate, public IUiPresenterDelegate
+class App final : public IRendererDelegate, public IUiPresenterDelegate, public ILibraryManagerDelegate
 {
 public:
 
@@ -57,7 +57,7 @@ public:
 		// Controllers
 		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
-		auto library = std::make_unique<LibraryManager>(*renderer, modelLoaderService.get(), options.AssetsDir);
+		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
 		auto ui = std::make_unique<UiPresenter>(*this, library.get(), *scene/*dependencies*/);
@@ -371,6 +371,7 @@ private:
 		
 	}
 
+
 	
 	#pragma region Scene Management
 
@@ -621,6 +622,7 @@ private:
 	
 	#pragma endregion
 
+
 	
 	#pragma region GLFW Callbacks, event handling
 
@@ -743,6 +745,21 @@ private:
 		FramebufferResized = true;
 		_windowSize.x = width;
 		_windowSize.y = height;
+	}
+
+	#pragma endregion 
+
+
+	
+	#pragma region ILibraryManagerDelegate
+
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
+	{
+		return _renderer->CreateRenderable(meshId, material);
+	}
+	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
+	{
+		return _renderer->CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion 

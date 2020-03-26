@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 typedef float    f32;
 typedef double   f64;
 
@@ -29,3 +30,30 @@ constexpr u8  u8_max  = UINT8_MAX;
 constexpr u16 u16_max = UINT16_MAX;
 constexpr u32 u32_max = UINT32_MAX;
 constexpr u64 u64_max = UINT64_MAX;
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template <typename T>
+struct TypedId
+{
+	u32 Id = u32_max;
+	TypedId() = default;
+	TypedId(u32 id) : Id{ id } {}
+	//bool IsValid() const { return Id != u32_max; }
+	// TODO equality checks
+};
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TODO Move these back to the Renderer layer - will require decoupling from State layer
+struct SkyboxIdType;
+struct RenderableIdType;
+struct MeshIdType;
+struct TextureIdType;
+//struct ShaderIdType;
+typedef TypedId<SkyboxIdType> SkyboxResourceId;
+typedef TypedId<RenderableIdType> RenderableResourceId;
+typedef TypedId<MeshIdType> MeshResourceId;
+typedef TypedId<TextureIdType> TextureResourceId;
+//typedef ResourceId<ShaderIdType> ShaderResourceId;
