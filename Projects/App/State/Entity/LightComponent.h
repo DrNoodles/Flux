@@ -1,7 +1,6 @@
 #pragma once
 #include <glm/vec3.hpp>
 
-#include "Renderer/GpuTypes.h"
 
 struct LightComponent
 {
@@ -30,21 +29,4 @@ struct LightComponent
 
 	// Spotlight radius
 //	float CutOff{ 0 };
-
-	Light ToLight()
-	{
-		Light light{};
-		light.Color = Color;
-		light.Intensity = Intensity;
-		switch (Type) {
-			case Types::point:       light.Type = Light::LightType::Point;       break;
-			case Types::directional: light.Type = Light::LightType::Directional; break;
-
-			//case Types::spot: break;
-			default:
-				throw std::invalid_argument("Unsupport light component type");
-		}
-
-		return light;
-	}
 };

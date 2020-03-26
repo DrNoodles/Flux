@@ -341,7 +341,21 @@ private:
 
 			if (entity->Light.has_value())
 			{
-				auto light = entity->Light->ToLight();
+				// Convert from LightComponent to Light
+				
+				auto& lightComp = *entity->Light;
+				Light light{};
+
+				light.Color = lightComp.Color;
+				light.Intensity = lightComp.Intensity;
+				switch (lightComp.Type) {
+				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+				//case Types::spot: 
+				default:
+					throw std::invalid_argument("Unsupport light component type");
+				}
+				
 				light.Pos = entity->Transform.GetPos();
 				lights.emplace_back(light);
 			}
