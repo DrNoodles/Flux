@@ -2,11 +2,10 @@
 
 #include "GpuTypes.h"
 #include "RenderableMesh.h"
-#include "Material.h"
 #include "TextureResource.h"
 #include "CubemapTextureLoader.h"
 
-#include <App/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency on App layer
+#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
 
 #include <vector>
@@ -98,8 +97,9 @@ public:
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 
-	const RenderableMesh& GetRenderableMesh(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
+	//const RenderableMesh& GetRenderableMesh(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
 	
+	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);
 

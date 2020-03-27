@@ -1,22 +1,42 @@
 #pragma once
 
-#include <App/IModelLoaderService.h> // TODO remove dependency
-#include <Renderer/Renderer.h> // TODO remove dependency
 
-#include <State/Camera.h>
-#include <State/Entity/Entity.h>
+#include "Camera.h"
+#include "Entity/Entity.h"
+
+#include <Framework/IModelLoaderService.h> 
+#include <Framework/CommonRenderer.h>
 
 #include <unordered_map>
 
 
+
+struct Material;
 class RenderableComponent;
+
+class ISceneManagerDelegate
+{
+public:
+	virtual ~ISceneManagerDelegate() = default;
+	
+	virtual std::optional<ModelDefinition> LoadModel(const std::string& path) = 0;
+	
+	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
+	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& mat) = 0;
+	virtual TextureResourceId CreateTextureResource(const std::string& path) = 0;
+	virtual const Material& GetMaterial(const RenderableResourceId& id) = 0;
+	virtual void SetMaterial(const RenderableResourceId& id, const Material& newMat) = 0;
+	virtual IblTextureResourceIds CreateIblTextureResources(const std::string& path) = 0;
+	virtual SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) = 0;
+	virtual void SetSkybox(const SkyboxResourceId& resourceId) = 0;
+};
 
 // GPU loaded resources
 class SceneManager
 {
 public:
-	SceneManager(IModelLoaderService& modelLoaderService, Renderer& renderer)
-		: _modelLoaderService(modelLoaderService), _renderer(renderer)
+	SceneManager(ISceneManagerDelegate* delegate)
+		: _delegate(delegate)
 	{}
 
 	
@@ -42,10 +62,10 @@ public:
 	void RemoveEntity(int entId)
 	{
 		// Find item
-		auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
-			{
-				return entId == e->Id;
-			});
+		const auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
+		{
+			return entId == e->Id;
+		});
 
 		if (iterator == _entities.end())
 		{
@@ -73,8 +93,7 @@ public:
 
 private:
 	// Dependencies
-	IModelLoaderService& _modelLoaderService;
-	Renderer& _renderer;
+	ISceneManagerDelegate* _delegate = nullptr;
 
 	// Scene
 	Camera _camera;

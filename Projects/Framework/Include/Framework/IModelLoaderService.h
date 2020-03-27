@@ -1,16 +1,13 @@
 #pragma once
 
-
-#include "AppTypes.h"
-
-#include "Renderer/GpuTypes.h" // Vertex
-
 #include <Framework/AABB.h>
+#include <Framework/CommonRenderer.h>
+#include <Framework/Material.h>
+#include <Framework/Vertex.h>
 
 #include <vector>
 #include <string>
 #include <optional>
-
 
 struct TextureDefinition
 {

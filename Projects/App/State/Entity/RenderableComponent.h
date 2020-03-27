@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Framework/CommonTypes.h>
+#include <Framework/CommonRenderer.h>
 #include <Framework/AABB.h>
 
 

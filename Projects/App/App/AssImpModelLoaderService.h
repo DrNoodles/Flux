@@ -1,6 +1,8 @@
 #pragma once
 
-#include "IModelLoaderService.h"
+#include <Framework/IModelLoaderService.h>
+#include <Framework/Material.h>
+#include <Framework/Vertex.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -9,6 +11,9 @@
 #include <vector>
 #include <string>
 #include <iostream>
+
+
+
 
 class AssimpModelLoaderService final : public IModelLoaderService
 {

@@ -942,8 +942,8 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-	auto vertBindingDesc = Vertex::BindingDescription();
-	auto vertAttrDesc = Vertex::AttributeDescriptions();
+	auto vertBindingDesc = VertexHelper::BindingDescription();
+	auto vertAttrDesc = VertexHelper::AttributeDescriptions();
 	VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
 	{
 		vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1312,8 +1312,8 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-	auto vertBindingDesc = Vertex::BindingDescription();
-	auto vertAttrDesc = Vertex::AttributeDescriptions();
+	auto vertBindingDesc = VertexHelper::BindingDescription();
+	auto vertAttrDesc = VertexHelper::AttributeDescriptions();
 	VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
 	{
 		vertexInputCI.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

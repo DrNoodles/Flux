@@ -20,7 +20,7 @@ struct SkyboxInfo
 class ILibraryManagerDelegate
 {
 public:
-	~ILibraryManagerDelegate() = default;
+	virtual ~ILibraryManagerDelegate() = default;
 	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) = 0;
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
 };

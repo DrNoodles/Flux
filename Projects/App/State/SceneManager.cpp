@@ -1,13 +1,18 @@
 
 #include "SceneManager.h"
 
+#include <Framework/Material.h>
+#include <Framework/CommonRenderer.h>
+
 #include <vector>
 #include <unordered_map>
 #include <iostream>
 
+
+
 RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
-	auto modelDefinition = _modelLoaderService.LoadModel(path);
+	auto modelDefinition = _delegate->LoadModel(path);
 	if (!modelDefinition.has_value())
 	{
 		throw std::invalid_argument("Couldn't load model");
@@ -20,7 +25,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
 		// Create the Mesh resource
-		auto meshId = _renderer.CreateMeshResource(meshDef); 
+		auto meshId = _delegate->CreateMeshResource(meshDef); 
 
 
 		// Create Texture resources and config Material
@@ -68,7 +73,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 		}
 
 
-		RenderableComponentSubmesh submesh = { _renderer.CreateRenderable(meshId, mat), meshDef.Name };
+		RenderableComponentSubmesh submesh = { _delegate->CreateRenderable(meshId, mat), meshDef.Name };
 		submeshes.emplace_back(submesh);
 
 		
@@ -98,7 +103,7 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 		return it->second;
 	}
 
-	auto texResId = _renderer.CreateTextureResource(path);
+	auto texResId = _delegate->CreateTextureResource(path);
 
 	_loadedTexturesCache.emplace(path, texResId);
 
@@ -107,20 +112,20 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 
 const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
 {
-	return _renderer.GetRenderableMesh(resourceId).Mat;
+	return _delegate->GetMaterial(resourceId);
 }
 
 void SceneManager::SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const
 {
 	for (const auto& submesh : renderableComp.GetSubmeshes())
 	{
-		_renderer.SetMaterial(submesh.Id, newMat);
+		_delegate->SetMaterial(submesh.Id, newMat);
 	}
 }
 
 void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
 {
-	_renderer.SetMaterial(renderableResId, newMat);
+	_delegate->SetMaterial(renderableResId, newMat);
 }
 
 SkyboxResourceId SceneManager::LoadSkybox(const std::string& path)
@@ -139,10 +144,10 @@ SkyboxResourceId SceneManager::LoadSkybox(const std::string& path)
 		std::cout << "Creating skybox " << path << std::endl;
 
 		// Create new resource
-		const auto ids = _renderer.CreateIblTextureResources(path);
+		const auto ids = _delegate->CreateIblTextureResources(path);
 		SkyboxCreateInfo createInfo = {};
 		createInfo.IblTextureIds = ids;
-		skyboxResourceId = _renderer.CreateSkybox(createInfo);
+		skyboxResourceId = _delegate->CreateSkybox(createInfo);
 
 		_loadedSkyboxesCache.emplace(path, skyboxResourceId);
 	}
@@ -153,7 +158,7 @@ SkyboxResourceId SceneManager::LoadSkybox(const std::string& path)
 void SceneManager::SetSkybox(const SkyboxResourceId& id)
 {
 	_skybox = id;
-	_renderer.SetSkybox(id);
+	_delegate->SetSkybox(id);
 }
 
 SkyboxResourceId SceneManager::GetSkybox() const

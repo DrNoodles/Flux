@@ -1,7 +1,6 @@
 #include "VulkanHelpers.h"
 #include "VulkanInitializers.h"
 #include "UniformBufferObjects.h"
-#include "App/IModelLoaderService.h"
 #include "RenderableMesh.h"
 
 #include <Framework/FileService.h>

@@ -1,12 +1,27 @@
 #pragma once
-#include "GpuTypes.h"
 
-#include <glm/detail/type_vec3.hpp>
-#include <glm/vec3.hpp>
-
+#include <Framework/CommonRenderer.h>
+#include <glm/glm.hpp>
 #include <optional>
-#include "App/AppTypes.h"
 
+
+// TODO Move type to Renderer layer
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DO NOT CHANGE ORDER
+enum class TextureType : char
+{
+	Undefined = 0,
+	Basecolor = 1,
+	Normals = 2,
+	Roughness = 3,
+	Metalness = 4,
+	AmbientOcclusion = 5,
+};
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Material
 {
 	enum class Channel

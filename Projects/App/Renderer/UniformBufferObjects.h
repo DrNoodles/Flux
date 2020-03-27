@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Material.h"
-
+#include "GpuTypes.h"
 #include <Framework/CommonTypes.h>
+#include <Framework/Material.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtx/rotate_vector.hpp>

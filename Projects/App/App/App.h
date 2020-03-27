@@ -2,7 +2,6 @@
 
 #include "AppTypes.h"
 #include "FpsCounter.h"
-#include "IModelLoaderService.h"
 #include "AssImpModelLoaderService.h"
 
 #include "UI/UiPresenter.h"
@@ -39,7 +38,11 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 // TODO Extract IWindow interface and VulkanWindow impl from App
-class App final : public IRendererDelegate, public IUiPresenterDelegate, public ILibraryManagerDelegate
+class App final :
+	public IRendererDelegate,
+	public IUiPresenterDelegate,
+	public ILibraryManagerDelegate,
+	public ISceneManagerDelegate
 {
 public:
 
@@ -56,7 +59,7 @@ public:
 
 		// Controllers
 		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
-		auto scene = std::make_unique<SceneManager>(*modelLoaderService, *renderer);
+		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
@@ -762,5 +765,41 @@ private:
 		return _renderer->CreateMeshResource(meshDefinition);
 	}
 
+	#pragma endregion
+
+
+	
+	#pragma region ILibraryManagerDelegate
+
+private:
+	std::optional<ModelDefinition> LoadModel(const std::string& path) override
+	{
+		return _modelLoaderService->LoadModel(path);
+	}
+	TextureResourceId CreateTextureResource(const std::string& path) override
+	{
+		return _renderer->CreateTextureResource(path);
+	}
+	const Material& GetMaterial(const RenderableResourceId& id) override
+	{
+		return _renderer->GetMaterial(id);
+	}
+	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
+	{
+		return _renderer->SetMaterial(id, newMat);
+	}
+	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
+	{
+		return _renderer->CreateIblTextureResources(path);
+	}
+	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
+	{
+		return _renderer->CreateSkybox(createInfo);
+	}
+	void SetSkybox(const SkyboxResourceId& resourceId) override
+	{
+		return _renderer->SetSkybox(resourceId);
+	}
+	
 	#pragma endregion 
 };

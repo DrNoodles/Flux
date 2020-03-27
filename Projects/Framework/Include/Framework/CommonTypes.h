@@ -44,16 +44,3 @@ struct TypedId
 	// TODO equality checks
 };
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TODO Move these back to the Renderer layer - will require decoupling from State layer
-struct SkyboxIdType;
-struct RenderableIdType;
-struct MeshIdType;
-struct TextureIdType;
-//struct ShaderIdType;
-typedef TypedId<SkyboxIdType> SkyboxResourceId;
-typedef TypedId<RenderableIdType> RenderableResourceId;
-typedef TypedId<MeshIdType> MeshResourceId;
-typedef TypedId<TextureIdType> TextureResourceId;
-//typedef ResourceId<ShaderIdType> ShaderResourceId;

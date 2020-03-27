@@ -964,7 +964,7 @@ private:
 
 
 		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-		VkVertexInputBindingDescription vertBindingDesc = Vertex::BindingDescription();
+		VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
 
 		VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 		vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
