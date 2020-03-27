@@ -39,21 +39,24 @@ project "Framework"
 
 
 -------------------------------------------------------------------------------
-project "Test"
+project "State"
+	dependson { "Framework", }
 	location "Build"
 	kind "StaticLib"
 	language "C++"
-	targetname "Test_%{cfg.buildcfg}"
-	targetdir "Projects/Test/Lib"
-	objdir "Build/Intermediate/Test/%{cfg.buildcfg}"
+	targetname "State_%{cfg.buildcfg}"
+	targetdir "Projects/State/Lib"
+	objdir "Build/Intermediate/State/%{cfg.buildcfg}"
 
 	includedirs {
-		"Projects/Test/Include/Test/",
+		"Projects/State/Include/State/",
+		"Projects/Framework/Include/",
+		"External/glm/include",
 	}
 	files {
-		"Projects/Test/Include/Test/**.h",
-		"Projects/Test/Source/**.h",
-		"Projects/Test/Source/**.cpp",
+		"Projects/State/Include/State/**.h",
+		"Projects/State/Source/**.h",
+		"Projects/State/Source/**.cpp",
 	}
 
 	filter "configurations:Debug"
@@ -64,10 +67,9 @@ project "Test"
 		defines { "NDEBUG" }
 		optimize "On"
 
-
 -------------------------------------------------------------------------------
 project "Renderer"
-	dependson { "Framework", "Test", }
+	dependson { "Framework", "State", }
 	location "Build"
 	kind "ConsoleApp"
 	language "C++"
@@ -77,8 +79,8 @@ project "Renderer"
 
 	includedirs {
 		"Projects/App",
-		"Projects/Test/Include/",
 		"Projects/Framework/Include/",
+		"Projects/State/Include/",
 
 		"External/assimp/include",
 		"External/glfw/include",
@@ -90,7 +92,7 @@ project "Renderer"
 
 	libdirs { 
 		"Projects/Framework/Lib/",
-		"Projects/Test/Lib/",
+		"Projects/State/Lib/",
 
 		"External/assimp/lib",
 		"External/glfw/lib",
@@ -121,7 +123,7 @@ project "Renderer"
 			"assimp-vc142-mtd.lib", 
 			"IrrXMLd.lib", 
 			"zlibstaticd.lib", 
-			"Test_Debug.lib", 
+			"State_Debug.lib", 
 			"Framework_Debug.lib", }
 
 	filter "configurations:Release"
@@ -133,7 +135,7 @@ project "Renderer"
 			"assimp-vc142-mt.lib", 
 			"IrrXML.lib", 
 			"zlibstatic.lib", 
-			"Test_Release.lib", 
+			"State_Release.lib", 
 			"Framework_Release.lib", }
 
 
