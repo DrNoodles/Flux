@@ -1,12 +1,12 @@
 
 -------------------------------------------------------------------------------
-workspace "Vulkan"
+workspace "Flux"
 	configurations {"Debug", "Release"}
 	--prebuildcommands { 'path "($SolutionDir)../compile-shaders.bat"' }
 	architecture "x86_64"
 	location "Build"
 	cppdialect "C++17"
-	startproject "Renderer"
+	startproject "App"
 
 
 -------------------------------------------------------------------------------
@@ -68,14 +68,14 @@ project "State"
 		optimize "On"
 
 -------------------------------------------------------------------------------
-project "Renderer"
+project "App"
 	dependson { "Framework", "State", }
 	location "Build"
 	kind "ConsoleApp"
 	language "C++"
 	targetname "Flux_%{cfg.buildcfg}"
 	targetdir "Bin"
-	objdir "Build/Intermediate/Renderer/%{cfg.buildcfg}"
+	objdir "Build/Intermediate/App/%{cfg.buildcfg}"
 
 	includedirs {
 		"Projects/App",
