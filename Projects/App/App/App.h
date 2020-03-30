@@ -7,6 +7,7 @@
 #include "UI/UiPresenter.h"
 
 #include <State/SceneManager.h>
+#include <State/LibraryManager.h>
 #include <State/Entity/Actions/TurntableActionComponent.h>
 
 #include <Renderer/Renderer.h>

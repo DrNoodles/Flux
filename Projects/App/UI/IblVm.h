@@ -1,6 +1,7 @@
 #pragma once
 
-#include <State/SceneManager.h>
+#include <State/LibraryManager.h> //SkyboxInfo
+#include <Renderer/Renderer.h> //RenderOptions
 
 #include <cassert>
 
@@ -13,9 +14,8 @@ public:
 	bool ShowIrradiance = false;
 
 	IblVm() = default;
-	IblVm(SceneManager* sc, RenderOptions* ro) : _sc{ sc }, _ro{ ro }
+	IblVm(RenderOptions* ro) : _ro{ ro }
 	{
-		assert(sc);
 		assert(ro);
 		Update();
 	}
@@ -36,6 +36,5 @@ public:
 	}
 	
 private:
-	SceneManager* _sc = nullptr;
 	RenderOptions* _ro = nullptr;
 };

@@ -1,16 +1,14 @@
 #pragma once
 
 #include <Framework/CommonTypes.h>
-#include <Renderer/Renderer.h>
-#include <State/LibraryManager.h> //SkyboxInfo
 
 #include <unordered_set>
 
 
-
-
-class IblVm;
+struct SkyboxInfo;
+struct RenderOptions;
 struct Entity;
+class IblVm;
 
 class ISceneViewDelegate
 {

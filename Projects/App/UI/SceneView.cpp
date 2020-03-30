@@ -2,6 +2,8 @@
 #include "SceneView.h"
 #include "IblVm.h"
 
+#include <Renderer/Renderer.h>
+#include <State/LibraryManager.h> //SkyboxInfo
 #include <Framework/FileService.h>
 
 #include <imgui/imgui.h>

@@ -3,6 +3,7 @@
 
 #include <State/Entity/Entity.h>
 #include <Framework/CommonTypes.h>
+#include <Framework/IModelLoaderService.h>
 
 #include <utility>
 #include <vector>

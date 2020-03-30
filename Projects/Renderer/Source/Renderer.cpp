@@ -191,7 +191,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 		}
 
-		// Update light buffers
+		// Update light buffers - TODO PERF Keep mem mapped
 		{
 			auto lightsUbo = LightUbo::Create(lights);
 
@@ -216,7 +216,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
 				skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
 
-				// Copy to gpu
+				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
 				auto size = sizeof(skyboxVertUbo);
 				vkMapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
@@ -224,14 +224,14 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				vkUnmapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory);
 			}
 
-			// Frab ubo
+			// Frag ubo
 			{
 				// Populate ubo
 				auto skyboxFragUbo = SkyboxFragUbo{};
 				skyboxFragUbo.ExposureBias_ShowClipping[0] = options.ExposureBias;
 				skyboxFragUbo.ExposureBias_ShowClipping[1] = options.ShowClipping;
 
-				// Copy to gpu
+				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
 				auto size = sizeof(skyboxFragUbo);
 				vkMapMemory(_device, skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
@@ -259,7 +259,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 			auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
 			auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
 
-			// Update model ubo
+			// Update model ubo - TODO PERF Keep mem mapped 
 			void* data;
 			auto size = sizeof(modelUbo);
 			vkMapMemory(_device, modelBufferMemory, 0, size, 0, &data);
@@ -1554,21 +1554,19 @@ void Renderer::InitImgui()
 	const auto imageCount = (u32)_swapchainImages.size();
 	
 	// Create descriptor pool - from main_vulkan.cpp imgui example code
-	{
-		_imguiDescriptorPool = vkh::CreateDescriptorPool({
-			 { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-			 { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-			 { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-			 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-			}, imageCount, _device); 
-	}
+	_imguiDescriptorPool = vkh::CreateDescriptorPool({
+		 { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+		 { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+		 { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+		 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+		 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+		 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+		}, imageCount, _device);
 
 
 	// Get the min image count
