@@ -10,18 +10,9 @@
 
 #include <vector>
 
+class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//struct IblTextureResourceIds
-//{
-//	TextureResourceId EnvironmentCubemapId;
-//	TextureResourceId IrradianceCubemapId;
-//	TextureResourceId PrefilterCubemapId;
-//	TextureResourceId BrdfLutId;
-//};
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +51,7 @@ class Renderer
 public:
 	bool FramebufferResized = false;
 
-	explicit Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir, 
+	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
 	std::optional<u32> StartFrame();
@@ -106,11 +97,11 @@ public:
 
 private:
 	// Dependencies
+	VulkanService* _vulkanService = nullptr;
 	IRendererDelegate& _delegate;
 
 	const size_t _maxFramesInFlight = 2;
 	std::string _shaderDir{};
-	bool _enableValidationLayers = false;
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
 	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 

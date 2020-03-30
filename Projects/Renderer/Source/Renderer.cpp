@@ -7,6 +7,7 @@
 #include "RenderableMesh.h"
 #include "CubemapTextureLoader.h"
 #include "IblLoader.h"
+#include "VulkanService.h"
 
 #include <Framework/FileService.h>
 
@@ -28,12 +29,12 @@
 using vkh = VulkanHelpers;
 bool flip = true;
 
-Renderer::Renderer(bool enableValidationLayers, std::string shaderDir, const std::string& assetsDir,
+Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
 	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
-	_enableValidationLayers = enableValidationLayers;
+	_vulkanService = vulkanService;
+
 	InitVulkan();
-	
 	InitImgui();
 
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
@@ -415,7 +416,7 @@ void Renderer::CleanUp()
 
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
 		vkDestroyDevice(_device, nullptr);
-		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+		if (_vulkanService->_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkDestroyInstance(_instance, nullptr);
 	}
@@ -582,9 +583,9 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 
 void Renderer::InitVulkan()
 {
-	_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
+	_instance = vkh::CreateInstance(_vulkanService->_enableValidationLayers, _validationLayers);
 
-	if (_enableValidationLayers)
+	if (_vulkanService->_enableValidationLayers)
 	{
 		_debugMessenger = vkh::SetupDebugMessenger(_instance);
 	}

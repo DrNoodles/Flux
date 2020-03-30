@@ -11,6 +11,7 @@
 #include <State/Entity/Actions/TurntableActionComponent.h>
 
 #include <Renderer/Renderer.h>
+#include <Renderer/VulkanService.h>
 #include <Renderer/CubemapTextureLoader.h>
 
 #include <imgui/imgui.h>
@@ -59,7 +60,8 @@ public:
 
 
 		// Controllers
-		auto renderer = std::make_unique<Renderer>(options.EnabledVulkanValidationLayers, options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
+		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers);
+		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
@@ -74,6 +76,7 @@ public:
 		_scene = std::move(scene);
 		_ui = std::move(ui);
 		_library = std::move(library);
+		_vulkanService = std::move(vulkan);
 	}
 	~App()
 	{
@@ -243,10 +246,12 @@ public:
 private:
 	// Dependencies
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+	std::unique_ptr<VulkanService> _vulkanService = nullptr;
 	std::unique_ptr<SceneManager> _scene = nullptr;
 	std::unique_ptr<LibraryManager> _library = nullptr;;
 	std::unique_ptr<UiPresenter> _ui = nullptr;
 	std::unique_ptr<Renderer> _renderer = nullptr;
+
 	
 	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
