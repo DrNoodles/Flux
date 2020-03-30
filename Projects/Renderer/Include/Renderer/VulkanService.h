@@ -14,14 +14,18 @@ public:
 	VulkanService(bool enableValidationLayers)
 	{
 		_enableValidationLayers = enableValidationLayers;
-		//InitVulkan();
 	}
 
 	void CleanUp()
 	{
 		
 	}
-	
+
+	void Init()
+	{
+		
+	}
+
 	bool _enableValidationLayers = false;
 private:
 

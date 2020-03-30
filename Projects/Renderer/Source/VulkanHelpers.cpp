@@ -5,7 +5,6 @@
 
 #include <Framework/FileService.h>
 
-#include <stbi/stb_image.h>
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
@@ -325,9 +324,9 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	// Create QueueCreateInfo for each queue family
 
 	QueueFamilyIndices indices = FindQueueFamilies(physicalDevice, surface);
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = { indices.GraphicsFamily.value(), indices.PresentFamily.value() };
 
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	float queuePriority = 1.0f;
 	for (uint32_t queueFamily : uniqueQueueFamilies)
 	{
@@ -337,6 +336,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 		queueCreateInfo.queueFamilyIndex = queueFamily;
 		queueCreateInfo.queueCount = 1;
 		queueCreateInfo.pQueuePriorities = &queuePriority;
+		
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 
@@ -417,7 +417,7 @@ VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, VkPh
 	// Specify how to use swap chain images across multiple queue families
 	QueueFamilyIndices indicies = FindQueueFamilies(physicalDevice, surface);
 	const uint32_t queueCount = 2;
-	// Code smell: will break as more are added to indicies
+	// TODO Code smell: will break as more are added to indicies?
 	uint32_t queueFamiliesIndices[queueCount] = { indicies.GraphicsFamily.value(), indicies.PresentFamily.value() };
 	if (indicies.GraphicsFamily != indicies.PresentFamily)
 	{
@@ -499,7 +499,6 @@ VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const V
 	return e;
 }
 
-// TODO Move to Renderer - it isn't a helper.
 VkRenderPass VulkanHelpers::CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
 	VkDevice device, VkPhysicalDevice physicalDevice)
 {

@@ -99,22 +99,31 @@ private:
 	// Dependencies
 	VulkanService* _vulkanService = nullptr;
 	IRendererDelegate& _delegate;
+	std::string _shaderDir{};
+
+	// A setting?
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	const size_t _maxFramesInFlight = 2;
-	std::string _shaderDir{};
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
 	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
+
+private: 
 	VkInstance _instance = nullptr;
-	VkSurfaceKHR _surface = nullptr;
 	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
 	VkPhysicalDevice _physicalDevice = nullptr;
 	VkDevice _device = nullptr;
+	VkCommandPool _commandPool = nullptr;
+
 	VkQueue _graphicsQueue = nullptr;
 	VkQueue _presentQueue = nullptr;
 
-	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-
+	
+	// Swapchain
+private:
+	VkSurfaceKHR _surface = nullptr; // ?
+	
 	VkSwapchainKHR _swapchain = nullptr;
 	VkFormat _swapchainImageFormat{};
 	VkExtent2D _swapchainExtent{};
@@ -122,20 +131,22 @@ private:
 	std::vector<VkImage> _swapchainImages{};
 	std::vector<VkImageView> _swapchainImageViews{};
 
-	// Color image
+	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
 	VkImage _colorImage = nullptr;
 	VkDeviceMemory _colorImageMemory = nullptr;
 	VkImageView _colorImageView = nullptr;
-	
-	// Depth image - one instance paired with each swapchain instance for use in the framebuffer
+
+	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
 	VkImage _depthImage = nullptr;
 	VkDeviceMemory _depthImageMemory = nullptr;
 	VkImageView _depthImageView = nullptr;
-	
+
 	VkRenderPass _renderPass = nullptr;
+
+
+
 	
 	VkDescriptorPool _descriptorPool = nullptr;
-	VkCommandPool _commandPool = nullptr;
 	std::vector<VkCommandBuffer> _commandBuffers{};
 	
 	// Synchronization

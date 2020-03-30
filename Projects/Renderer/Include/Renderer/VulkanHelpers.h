@@ -6,7 +6,6 @@
 
 #include <array>
 #include <vector>
-#include <memory>
 #include <cassert>
 
 struct QueueFamilyIndices;

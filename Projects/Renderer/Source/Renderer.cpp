@@ -184,7 +184,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 	{
 		// Calc Projection
 		const auto vfov = 45.f;
-		const float aspect = _swapchainExtent.width / (float)_swapchainExtent.height;
+		const float aspect = regionSize.x / (float)regionSize.y;
 		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
 		if (flip)
 		{
@@ -270,7 +270,6 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 
 
 		// Record Command Buffer
-
 		auto renderPass = _renderPass;
 		auto swapchainExtent = _swapchainExtent;
 		auto commandBuffer = _commandBuffers[frameIndex];
@@ -292,19 +291,17 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 
 			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
 				vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
-
-
-			// Render region
-			auto viewport = vki::Viewport(0, 0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0, 1);
-			auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
-
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-
+			
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				// Skybox
+				// Render region - Note: this region is the 3d viewport only. ImGui below defines its own viewport
+				auto viewport = vki::Viewport((f32)regionPos.x,(f32)regionPos.y, (f32)regionSize.x,(f32)regionSize.y, 0,1);
+				auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
+				vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+				vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+				
+				// Draw Skybox
 				if (skybox)
 				{
 					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
@@ -323,7 +320,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				}
 
 
-				// Objects
+				// Draw Objects
 				{
 					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
 
@@ -349,7 +346,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				}
 
 
-				// ImGui
+				// Draw GUI - TODO This should be removed
 				{
 					_delegate.BuildGui();
 					DrawImgui(commandBuffer);
@@ -583,6 +580,7 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 
 void Renderer::InitVulkan()
 {
+	
 	_instance = vkh::CreateInstance(_vulkanService->_enableValidationLayers, _validationLayers);
 
 	if (_vulkanService->_enableValidationLayers)
@@ -665,6 +663,7 @@ void Renderer::CleanupSwapchainAndDependents()
 
 void Renderer::CreateSwapchainAndDependents(int width, int height)
 {
+	// General
 	_swapchain = vkh::CreateSwapchain({(uint32_t)width, (uint32_t)height}, _physicalDevice, _surface, _device,
 	                                  _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
@@ -679,8 +678,10 @@ void Renderer::CreateSwapchainAndDependents(int width, int height)
 		= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
 		                            _physicalDevice);
 
+
 	_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
+	// Renderer
 	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
 		_swapchainExtent);
 
