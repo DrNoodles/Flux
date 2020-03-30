@@ -34,7 +34,14 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 {
 	_vulkanService = vulkanService;
 
+	const auto size = _delegate.GetFramebufferSize();
+
 	InitVulkan();
+	InitVulkanSwapchain(size.width, size.height);
+	
+	InitRenderer();
+	InitRendererResourcesDependentOnSwapchain((u32)_swapchainImages.size());
+	
 	InitImgui();
 
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
@@ -375,48 +382,15 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 	EndFrame(frameIndex);
 }
 
-
-
 void Renderer::CleanUp()
 {
 	vkDeviceWaitIdle(_device);
-
 	
-	CleanupImgui();
-
-
-	// Cleanup Renderer & Vulkan
-	{
-		CleanupSwapchainAndDependents();
-
-		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
-		for (auto& mesh : _meshes)
-		{
-			//mesh.Vertices.clear();
-			//mesh.Indices.clear();
-			vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
-			vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
-			vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
-			vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
-		}
-
-		_textures.clear(); // RAII will cleanup
-
-		vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
-
-		vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
-
-		vkDestroyCommandPool(_device, _commandPool, nullptr);
-		vkDestroyDevice(_device, nullptr);
-		if (_vulkanService->_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-		vkDestroyInstance(_instance, nullptr);
-	}
+	DestroyImgui();
+	DestroyRenderResourcesDependentOnSwapchain();
+	DestroyRenderer();
+	DestroyVulkanSwapchain();
+	DestroyVulkan();
 }
 
 IblTextureResourceIds
@@ -578,9 +552,9 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 	_refreshRenderableDescriptorSets = true;	
 }
 
+
 void Renderer::InitVulkan()
 {
-	
 	_instance = vkh::CreateInstance(_vulkanService->_enableValidationLayers, _validationLayers);
 
 	if (_vulkanService->_enableValidationLayers)
@@ -596,26 +570,58 @@ void Renderer::InitVulkan()
 		= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
 
 	_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
+}
+void Renderer::DestroyVulkan()
+{
+	vkDestroyCommandPool(_device, _commandPool, nullptr);
+	vkDestroyDevice(_device, nullptr);
+	if (_vulkanService->_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+	vkDestroySurfaceKHR(_instance, _surface, nullptr);
+	vkDestroyInstance(_instance, nullptr);
+}
 
+void Renderer::InitVulkanSwapchain(int width, int height)
+{
+	_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device,
+		_swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
-	// PBR pipe
-	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_device);
-	_pbrPipelineLayout = vkh::CreatePipelineLayout(_device, { _pbrDescriptorSetLayout });
+	_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
+		VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
-	// Skybox pipe
-	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_device);
-	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_device, { _skyboxDescriptorSetLayout });
+	std::tie(_colorImage, _colorImageMemory, _colorImageView)
+		= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
+			_commandPool, _graphicsQueue, _device, _physicalDevice);
+
+	std::tie(_depthImage, _depthImageMemory, _depthImageView)
+		= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
+			_physicalDevice);
+
+	_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
+
+	_swapchainFramebuffers
+		= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
+			_swapchainExtent, _renderPass);
+
+	_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
 
 	
-	const auto size = _delegate.GetFramebufferSize();
-	CreateSwapchainAndDependents(size.width, size.height);
-
+	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 	std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 		= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
 }
-
-void Renderer::CleanupSwapchainAndDependents()
+void Renderer::DestroyVulkanSwapchain()
 {
+	for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+	for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+	for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+
+	
+	vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+
+
+	for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
+
+	// Swapchain attachments
 	vkDestroyImageView(_device, _colorImageView, nullptr);
 	vkDestroyImage(_device, _colorImage, nullptr);
 	vkFreeMemory(_device, _colorImageMemory, nullptr);
@@ -624,6 +630,76 @@ void Renderer::CleanupSwapchainAndDependents()
 	vkDestroyImage(_device, _depthImage, nullptr);
 	vkFreeMemory(_device, _depthImageMemory, nullptr);
 
+
+	vkDestroyRenderPass(_device, _renderPass, nullptr);
+	for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
+	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+}
+
+void Renderer::InitRenderer()
+{
+	// PBR pipe
+	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_device);
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_device, { _pbrDescriptorSetLayout });
+
+	// Skybox pipe
+	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_device);
+	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_device, { _skyboxDescriptorSetLayout });
+}
+void Renderer::DestroyRenderer()
+{
+	// Resources
+	for (auto& mesh : _meshes)
+	{
+		//mesh.Vertices.clear();
+		//mesh.Indices.clear();
+		vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
+		vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
+		vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
+		vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
+	}
+
+	_textures.clear(); // RAII will cleanup
+
+
+	// Renderer
+	vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
+
+	vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
+}
+
+void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
+{
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
+		_swapchainExtent);
+
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _msaaSamples, _renderPass, _device,
+		_swapchainExtent);
+
+
+	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _device);
+
+
+	// Create light uniform buffers per swapchain image
+	std::tie(_lightBuffers, _lightBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _device, _physicalDevice);
+
+	// Create model uniform buffers and descriptor sets per swapchain image
+	for (auto& renderable : _renderables)
+	{
+		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight, *renderable);
+	}
+
+	// Create frame resources for skybox
+	for (auto& skybox : _skyboxes)
+	{
+		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
+	}
+}
+void Renderer::DestroyRenderResourcesDependentOnSwapchain()
+{
 	for (auto& skybox : _skyboxes)
 	{
 		for (auto& info : skybox->FrameResources)
@@ -635,7 +711,7 @@ void Renderer::CleanupSwapchainAndDependents()
 			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
-	
+
 	for (auto& renderable : _renderables)
 	{
 		for (auto& info : renderable->FrameResources)
@@ -649,74 +725,10 @@ void Renderer::CleanupSwapchainAndDependents()
 	for (auto& x : _lightBuffers) { vkDestroyBuffer(_device, x, nullptr); }
 	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
 
-	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
-	for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-	vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
-	
+	vkDestroyDescriptorPool(_device, _rendererDescriptorPool, nullptr);
+
 	vkDestroyPipeline(_device, _pbrPipeline, nullptr);
 	vkDestroyPipeline(_device, _skyboxPipeline, nullptr);
-	
-	vkDestroyRenderPass(_device, _renderPass, nullptr);
-	for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
-	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-}
-
-void Renderer::CreateSwapchainAndDependents(int width, int height)
-{
-	// General
-	_swapchain = vkh::CreateSwapchain({(uint32_t)width, (uint32_t)height}, _physicalDevice, _surface, _device,
-	                                  _swapchainImages, _swapchainImageFormat, _swapchainExtent);
-
-	_swapchainImageViews= vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D, 
-		VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
-
-	std::tie(_colorImage, _colorImageMemory, _colorImageView)
-		= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
-		                            _commandPool, _graphicsQueue, _device, _physicalDevice);
-
-	std::tie(_depthImage, _depthImageMemory, _depthImageView)
-		= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
-		                            _physicalDevice);
-
-
-	_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
-
-	// Renderer
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
-		_swapchainExtent);
-
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _msaaSamples, _renderPass, _device,
-		_swapchainExtent);
-
-	_swapchainFramebuffers
-		= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews, 
-			_swapchainExtent, _renderPass);
-
-
-	const u32 numImagesInFlight = (u32)_swapchainImages.size();
-
-	_descriptorPool = CreateDescriptorPool(numImagesInFlight, _device);
-
-
-	// Create light uniform buffers per swapchain image
-	std::tie(_lightBuffers, _lightBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _device, _physicalDevice);
-
-	// Create model uniform buffers and descriptor sets per swapchain image
-	for (auto& renderable : _renderables)
-	{
-		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight , *renderable);
-	}
-
-	// Create frame resources for skybox
-	for (auto& skybox : _skyboxes)
-	{
-		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
-	}
-
-	_commandBuffers = vkh::AllocateCommandBuffers(numImagesInFlight, _commandPool, _device);
-
-	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 }
 
 void Renderer::RecreateSwapchain()
@@ -724,9 +736,14 @@ void Renderer::RecreateSwapchain()
 	auto size = _delegate.WaitTillFramebufferHasSize();
 
 	vkDeviceWaitIdle(_device);
-	CleanupSwapchainAndDependents();
-	CreateSwapchainAndDependents(size.width, size.height);
+
+	DestroyRenderResourcesDependentOnSwapchain();
+	DestroyVulkanSwapchain();
+
+	InitVulkanSwapchain(size.width, size.height);
+	InitRendererResourcesDependentOnSwapchain((u32)_swapchainImages.size());
 }
+
 
 
 #pragma region Shared
@@ -777,7 +794,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 
 
 	// Create descriptor sets
-	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _descriptorPool, _device);
+	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _device);
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -1177,7 +1194,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 {
 	// Allocate descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
-		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _descriptorPool, _device);
+		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _rendererDescriptorPool, _device);
 
 
 	// Vert Uniform buffers
@@ -1625,7 +1642,7 @@ void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
 {
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
-void Renderer::CleanupImgui()
+void Renderer::DestroyImgui()
 {
 	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);
 	ImGui_ImplVulkan_Shutdown();

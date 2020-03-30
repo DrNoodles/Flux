@@ -94,6 +94,8 @@ public:
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
+	
+
 
 private:
 	// Dependencies
@@ -146,7 +148,6 @@ private:
 
 
 	
-	VkDescriptorPool _descriptorPool = nullptr;
 	std::vector<VkCommandBuffer> _commandBuffers{};
 	
 	// Synchronization
@@ -155,6 +156,8 @@ private:
 	std::vector<VkFence> _inFlightFences{};
 	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
+
+	VkDescriptorPool _rendererDescriptorPool = nullptr;
 
 	// PBR
 	VkPipeline _pbrPipeline = nullptr;
@@ -187,9 +190,17 @@ private:
 	RenderOptions _lastOptions;
 
 	void InitVulkan();
-	void CleanupSwapchainAndDependents();
+	void DestroyVulkan();
 
-	void CreateSwapchainAndDependents(int width, int height);
+	void InitVulkanSwapchain(int width, int height);
+	void DestroyVulkanSwapchain();
+	
+	void InitRenderer();
+	void DestroyRenderer();
+
+	void InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight);
+	void DestroyRenderResourcesDependentOnSwapchain();
+
 	void RecreateSwapchain();
 
 
@@ -297,7 +308,7 @@ private:
 	VkDescriptorPool _imguiDescriptorPool = nullptr;
 	void InitImgui();
 	void DrawImgui(VkCommandBuffer commandBuffer);
-	void CleanupImgui();
+	void DestroyImgui();
 
 	#pragma endregion
 };
