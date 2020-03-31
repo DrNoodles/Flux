@@ -59,8 +59,6 @@ public:
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
-	std::optional<u32> StartFrame();
-	void EndFrame(u32 imageIndex);
 	void DrawFrame(const RenderOptions& options,
 	               const std::vector<RenderableResourceId>& renderableIds,
 	               const std::vector<glm::mat4>& transforms,
@@ -99,16 +97,13 @@ public:
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
 	void SetSkybox(const SkyboxResourceId& resourceId);
 
-	
+	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 
 
 private: // Dependencies
 	VulkanService* _vk = nullptr;
 	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
-
-	
-	size_t _currentFrame = 0;
 
 	VkDescriptorPool _rendererDescriptorPool = nullptr;
 
@@ -148,7 +143,6 @@ private: // Dependencies
 	void InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight);
 	void DestroyRenderResourcesDependentOnSwapchain();
 
-	void RecreateSwapchain();
 
 
 	

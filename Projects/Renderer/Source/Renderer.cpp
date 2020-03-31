@@ -52,106 +52,13 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-std::optional<u32> Renderer::StartFrame()
-{
-	// Sync CPU-GPU
-	vkWaitForFences(_vk->LogicalDevice(), 1, &_vk->InFlightFences()[_currentFrame], true, UINT64_MAX);
-
-	// Aquire an image from the swap chain
-	u32 imageIndex;
-	VkResult result = vkAcquireNextImageKHR(_vk->LogicalDevice(), _vk->Swapchain(), UINT64_MAX, _vk->ImageAvailableSemaphores()[_currentFrame],
-		nullptr, &imageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		RecreateSwapchain();
-		return std::nullopt;
-	}
-	const auto isUsable = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
-	if (!isUsable)
-	{
-		throw std::runtime_error("Failed to acquire swapchain image!");
-	}
-
-
-	// If the image is still used by a previous frame, wait for it to finish!
-	if (_vk->ImagesInFlight()[imageIndex] != nullptr)
-	{
-		vkWaitForFences(_vk->LogicalDevice(), 1, &_vk->ImagesInFlight()[imageIndex], true, UINT64_MAX);
-	}
-	
-	// Mark the image as now being in use by this frame
-	_vk->ImagesInFlight()[imageIndex] = _vk->InFlightFences()[_currentFrame];
-
-	return imageIndex;
-}
-
-void Renderer::EndFrame(u32 imageIndex)
-{
-	// Execute command buffer with the image as an attachment in the framebuffer
-	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
-	VkSemaphore waitSemaphores[waitCount] = { _vk->ImageAvailableSemaphores()[_currentFrame] };
-	VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-	const uint32_t signalCount = 1;
-	VkSemaphore signalSemaphores[signalCount] = { _vk->RenderFinishedSemaphores()[_currentFrame] };
-
-	VkSubmitInfo submitInfo = {};
-	{
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_vk->CommandBuffers()[imageIndex];
-		// cmdbuf that binds the swapchain image we acquired as color attachment
-		submitInfo.waitSemaphoreCount = waitCount;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
-		submitInfo.signalSemaphoreCount = signalCount;
-		submitInfo.pSignalSemaphores = signalSemaphores;
-	}
-
-	vkResetFences(_vk->LogicalDevice(), 1, &_vk->InFlightFences()[_currentFrame]);
-
-	if (vkQueueSubmit(_vk->GraphicsQueue(), 1, &submitInfo, _vk->InFlightFences()[_currentFrame]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to submit Draw Command Buffer");
-	}
-
-
-	// Return the image to the swap chain for presentation
-	std::array<VkSwapchainKHR, 1> swapchains = { _vk->Swapchain() };
-	VkPresentInfoKHR presentInfo = {};
-	{
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphores;
-		presentInfo.swapchainCount = (uint32_t)swapchains.size();
-		presentInfo.pSwapchains = swapchains.data();
-		presentInfo.pImageIndices = &imageIndex;
-		presentInfo.pResults = nullptr;
-	}
-
-	VkResult result = vkQueuePresentKHR(_vk->PresentQueue(), &presentInfo);
-	if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
-		FramebufferResized = false;
-		RecreateSwapchain();
-	}
-	else if (result != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed ot present swapchain image!");
-	}
-
-	_currentFrame = (_currentFrame + 1) % _vk->MaxFramesInFlight();
-}
-
-
 void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
                          const std::vector<RenderableResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
                          glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
-	const auto imageIndex = StartFrame();
+	const auto imageIndex = _vk->StartFrame();
 	if (!imageIndex.has_value())
 	{
 		return;
@@ -379,7 +286,7 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 
 	
-	EndFrame(frameIndex);
+	_vk->EndFrame(frameIndex);
 }
 
 void Renderer::CleanUp()
@@ -647,17 +554,10 @@ void Renderer::DestroyRenderResourcesDependentOnSwapchain()
 	vkDestroyPipeline(_vk->LogicalDevice(), _skyboxPipeline, nullptr);
 }
 
-void Renderer::RecreateSwapchain()
+void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	auto size = _delegate.WaitTillFramebufferHasSize();
-
-	vkDeviceWaitIdle(_vk->LogicalDevice());
-
 	DestroyRenderResourcesDependentOnSwapchain();
-	_vk->DestroyVulkanSwapchain();
-
-	_vk->InitVulkanSwapchainAndDependants(size.width, size.height);
-	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
+	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
 }
 
 

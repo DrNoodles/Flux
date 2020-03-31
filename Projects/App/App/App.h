@@ -48,7 +48,6 @@ class App final :
 	public IVulkanServiceDelegate
 {
 public:
-
 	bool FramebufferResized = false;
 
 	explicit App(AppOptions options)
@@ -194,6 +193,11 @@ public:
 
 	
 	#pragma region IRendererDelegate
+	
+	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
+	{
+		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
+	}
 	
 	VkSurfaceKHR CreateSurface(VkInstance instance) const override
 	{
