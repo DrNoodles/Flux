@@ -2,11 +2,11 @@
 
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
-#include "VulkanInitializers.h"
 
 #include <Framework/CommonTypes.h>
 
 #include <vulkan/vulkan.h>
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19,32 +19,81 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//struct Device
+//{
+//	VkDevice _logicalDevice = nullptr;
+//	VkPhysicalDevice _physicalDevice = nullptr;
+//	// TODO Keep all the useful device queries here
+//};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//struct SwapchainAndCo
+//{
+//	//struct Framebuffer
+//	//{
+//	//	VkFramebuffer _framebuffer = nullptr;
+//	//	VkImage _image = nullptr;
+//	//	VkImageView _imageView = nullptr;
+//	//};
+//	//std::vector<Framebuffer> _framebuffers;
+//
+//	VkSwapchainKHR _swapchain = nullptr;
+//	VkFormat _format{};
+//	VkExtent2D _extent{};
+//
+//	std::vector<VkFramebuffer> _framebuffers;
+//	std::vector<VkImage> _images;
+//	std::vector<VkImageView> _imageViews;
+//
+//	// Swapchain Color image - one instance paired with each swapchain instance for use in the framebuffer
+//	VkImage _colorImage = nullptr;
+//	VkDeviceMemory _colorImageMemory = nullptr;
+//	VkImageView _colorImageView = nullptr;
+//
+//	// Swapchain Depth image - one instance paired with each swapchain instance for use in the framebuffer
+//	VkImage _depthImage = nullptr;
+//	VkDeviceMemory _depthImageMemory = nullptr;
+//	VkImageView _depthImageView = nullptr;
+//
+//	VkRenderPass _renderPass = nullptr;
+//};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class VulkanService
 {
 public:
-	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-	const size_t _maxFramesInFlight = 2;
-	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
-	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	VkDevice LogicalDevice() const { return _device; }
+	VkInstance Instance() const { return _instance; }
+	VkSurfaceKHR Surface() const { return _surface; }
+	VkPhysicalDevice PhysicalDevice() const { return _physicalDevice; }
+	VkCommandPool CommandPool() const { return _commandPool; }
+	VkQueue GraphicsQueue() const { return _graphicsQueue; }
+	VkQueue PresentQueue() const { return _presentQueue; }
+	
+	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
+	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
 
-	VkInstance _instance = nullptr;
-	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
-	VkPhysicalDevice _physicalDevice = nullptr;
-	VkDevice _device = nullptr;
-	VkCommandPool _commandPool = nullptr;
 
-	VkQueue _graphicsQueue = nullptr;
-	VkQueue _presentQueue = nullptr;
+	VkSwapchainKHR Swapchain() const { return _swapchain; }
+	u32 SwapchainImageCount() const { return _swapchainImages.size(); }
+	VkExtent2D SwapchainExtent() const { return _swapchainExtent; }
+	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchainFramebuffers; }
+	VkRenderPass RenderPass() const { return _renderPass; }
+	const std::vector<VkCommandBuffer>& CommandBuffers() const { return _commandBuffers; }
 
-	VkSurfaceKHR _surface = nullptr; // ?
+	// Frame rendering
+	const std::vector<VkSemaphore>& RenderFinishedSemaphores() const { return _renderFinishedSemaphores; }
+	const std::vector<VkSemaphore>& ImageAvailableSemaphores() const { return _imageAvailableSemaphores; }
+	const std::vector<VkFence>& InFlightFences() const { return _inFlightFences; }
+	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
 	
-	VulkanService(bool enableValidationLayers/*, IVulkanServiceDelegate* delegate*/) /*:_delegate{delegate}*/
+	VulkanService(bool enableValidationLayers, IVulkanServiceDelegate* delegate) : _delegate{ delegate }
 	{
 		_enableValidationLayers = enableValidationLayers;
 	}
 
-	/*void InitVulkan()
+	void InitVulkan()
 	{
 		_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
 
@@ -61,21 +110,20 @@ public:
 			= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
 
 		_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
-	}*/
-
-	/*void DestroyVulkan()
+	}
+	void DestroyVulkan()
 	{
 		vkDestroyCommandPool(_device, _commandPool, nullptr);
 		vkDestroyDevice(_device, nullptr);
 		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkDestroyInstance(_instance, nullptr);
-	}*/
+	}
 
-	//void InitSwapchain()
-	//{
-		/*_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device,
-			_swapchainImages, _swapchainImageFormat, _swapchainExtent);
+	void InitVulkanSwapchainAndDependants(int width, int height)
+	{
+			
+		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
 		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
@@ -88,14 +136,48 @@ public:
 			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
 				_physicalDevice);
 
+		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
-		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);*/
-	//}
+		_swapchainFramebuffers
+			= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
+				_swapchainExtent, _renderPass);
 
-	/*void DestroySwapchain()
-	{
+		_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
+
 		
-	}*/
+		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
+		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
+			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
+	}
+	void DestroyVulkanSwapchain()
+	{
+		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+
+		
+		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+
+
+		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
+
+		// Swapchain attachments
+		vkDestroyImageView(_device, _colorImageView, nullptr);
+		vkDestroyImage(_device, _colorImage, nullptr);
+		vkFreeMemory(_device, _colorImageMemory, nullptr);
+
+		vkDestroyImageView(_device, _depthImageView, nullptr);
+		vkDestroyImage(_device, _depthImage, nullptr);
+		vkFreeMemory(_device, _depthImageMemory, nullptr);
+
+
+		vkDestroyRenderPass(_device, _renderPass, nullptr);
+		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	}
+
+
+	
 	
 	//std::optional<u32> StartFrame()
 	//{
@@ -188,8 +270,60 @@ public:
 
 	//	_currentFrame = (_currentFrame + 1) % _maxFramesInFlight;
 	//}
-	
-	bool _enableValidationLayers = false;
+
+
 private:
+	// Dependencies
 	IVulkanServiceDelegate* _delegate = nullptr;
+
+	// Data
+	bool _enableValidationLayers = false;
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	const size_t _maxFramesInFlight = 2;
+	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
+	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+	// Core vulkan
+	VkInstance _instance = nullptr;
+	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
+	VkPhysicalDevice _physicalDevice = nullptr;
+	VkDevice _device = nullptr;
+	VkCommandPool _commandPool = nullptr;
+
+	VkQueue _graphicsQueue = nullptr;
+	VkQueue _presentQueue = nullptr;
+
+	VkSurfaceKHR _surface = nullptr;
+
+
+	// Swapchain and dependencies
+
+	VkSwapchainKHR _swapchain = nullptr;
+	VkFormat _swapchainImageFormat{};
+	VkExtent2D _swapchainExtent{};
+	std::vector<VkFramebuffer> _swapchainFramebuffers{};
+	std::vector<VkImage> _swapchainImages{};
+	std::vector<VkImageView> _swapchainImageViews{};
+	
+
+	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _colorImage = nullptr;
+	VkDeviceMemory _colorImageMemory = nullptr;
+	VkImageView _colorImageView = nullptr;
+
+	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _depthImage = nullptr;
+	VkDeviceMemory _depthImageMemory = nullptr;
+	VkImageView _depthImageView = nullptr;
+
+	VkRenderPass _renderPass = nullptr;
+
+	std::vector<VkCommandBuffer> _commandBuffers{};
+
+	// Synchronization
+	std::vector<VkSemaphore> _renderFinishedSemaphores{};
+	std::vector<VkSemaphore> _imageAvailableSemaphores{};
+	std::vector<VkFence> _inFlightFences{};
+	std::vector<VkFence> _imagesInFlight{};
+	
 };

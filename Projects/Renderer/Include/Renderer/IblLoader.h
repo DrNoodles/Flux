@@ -84,6 +84,8 @@ private:
 
 		void Destroy(VkDevice device)
 		{
+			assert(device);
+			
 			vkDestroyFramebuffer(device, Framebuffer, nullptr);
 			vkFreeMemory(device, Memory, nullptr);
 			vkDestroyImageView(device, View, nullptr);

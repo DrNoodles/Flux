@@ -32,15 +32,15 @@ bool flip = true;
 Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
 	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
-	_vulkanService = vulkanService;
+	_vk = vulkanService;
 
 	const auto size = _delegate.GetFramebufferSize();
 
-	InitVulkan();
-	InitVulkanSwapchain(size.width, size.height);
+	_vk->InitVulkan();
+	_vk->InitVulkanSwapchainAndDependants(size.width, size.height);
 	
 	InitRenderer();
-	InitRendererResourcesDependentOnSwapchain((u32)_swapchainImages.size());
+	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
 	
 	InitImgui();
 
@@ -55,11 +55,11 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 std::optional<u32> Renderer::StartFrame()
 {
 	// Sync CPU-GPU
-	vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
+	vkWaitForFences(_vk->LogicalDevice(), 1, &_vk->InFlightFences()[_currentFrame], true, UINT64_MAX);
 
 	// Aquire an image from the swap chain
 	u32 imageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+	VkResult result = vkAcquireNextImageKHR(_vk->LogicalDevice(), _vk->Swapchain(), UINT64_MAX, _vk->ImageAvailableSemaphores()[_currentFrame],
 		nullptr, &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -75,13 +75,13 @@ std::optional<u32> Renderer::StartFrame()
 
 
 	// If the image is still used by a previous frame, wait for it to finish!
-	if (_imagesInFlight[imageIndex] != nullptr)
+	if (_vk->ImagesInFlight()[imageIndex] != nullptr)
 	{
-		vkWaitForFences(_device, 1, &_imagesInFlight[imageIndex], true, UINT64_MAX);
+		vkWaitForFences(_vk->LogicalDevice(), 1, &_vk->ImagesInFlight()[imageIndex], true, UINT64_MAX);
 	}
 	
 	// Mark the image as now being in use by this frame
-	_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+	_vk->ImagesInFlight()[imageIndex] = _vk->InFlightFences()[_currentFrame];
 
 	return imageIndex;
 }
@@ -90,17 +90,17 @@ void Renderer::EndFrame(u32 imageIndex)
 {
 	// Execute command buffer with the image as an attachment in the framebuffer
 	const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
-	VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
+	VkSemaphore waitSemaphores[waitCount] = { _vk->ImageAvailableSemaphores()[_currentFrame] };
 	VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 	const uint32_t signalCount = 1;
-	VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
+	VkSemaphore signalSemaphores[signalCount] = { _vk->RenderFinishedSemaphores()[_currentFrame] };
 
 	VkSubmitInfo submitInfo = {};
 	{
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_commandBuffers[imageIndex];
+		submitInfo.pCommandBuffers = &_vk->CommandBuffers()[imageIndex];
 		// cmdbuf that binds the swapchain image we acquired as color attachment
 		submitInfo.waitSemaphoreCount = waitCount;
 		submitInfo.pWaitSemaphores = waitSemaphores;
@@ -109,16 +109,16 @@ void Renderer::EndFrame(u32 imageIndex)
 		submitInfo.pSignalSemaphores = signalSemaphores;
 	}
 
-	vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
+	vkResetFences(_vk->LogicalDevice(), 1, &_vk->InFlightFences()[_currentFrame]);
 
-	if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[_currentFrame]) != VK_SUCCESS)
+	if (vkQueueSubmit(_vk->GraphicsQueue(), 1, &submitInfo, _vk->InFlightFences()[_currentFrame]) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to submit Draw Command Buffer");
 	}
 
 
 	// Return the image to the swap chain for presentation
-	std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
+	std::array<VkSwapchainKHR, 1> swapchains = { _vk->Swapchain() };
 	VkPresentInfoKHR presentInfo = {};
 	{
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -130,7 +130,7 @@ void Renderer::EndFrame(u32 imageIndex)
 		presentInfo.pResults = nullptr;
 	}
 
-	VkResult result = vkQueuePresentKHR(_presentQueue, &presentInfo);
+	VkResult result = vkQueuePresentKHR(_vk->PresentQueue(), &presentInfo);
 	if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
 		FramebufferResized = false;
@@ -141,7 +141,7 @@ void Renderer::EndFrame(u32 imageIndex)
 		throw std::runtime_error("Failed ot present swapchain image!");
 	}
 
-	_currentFrame = (_currentFrame + 1) % _maxFramesInFlight;
+	_currentFrame = (_currentFrame + 1) % _vk->MaxFramesInFlight();
 }
 
 
@@ -205,9 +205,9 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 
 			void* data;
 			auto size = sizeof(lightsUbo);
-			vkMapMemory(_device, _lightBuffersMemory[frameIndex], 0, size, 0, &data);
+			vkMapMemory(_vk->LogicalDevice(), _lightBuffersMemory[frameIndex], 0, size, 0, &data);
 			memcpy(data, &lightsUbo, size);
-			vkUnmapMemory(_device, _lightBuffersMemory[frameIndex]);
+			vkUnmapMemory(_vk->LogicalDevice(), _lightBuffersMemory[frameIndex]);
 		}
 
 
@@ -227,9 +227,9 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
 				auto size = sizeof(skyboxVertUbo);
-				vkMapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
+				vkMapMemory(_vk->LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
 				memcpy(data, &skyboxVertUbo, size);
-				vkUnmapMemory(_device, skybox->FrameResources[frameIndex].VertUniformBufferMemory);
+				vkUnmapMemory(_vk->LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory);
 			}
 
 			// Frag ubo
@@ -242,9 +242,9 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
 				auto size = sizeof(skyboxFragUbo);
-				vkMapMemory(_device, skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
+				vkMapMemory(_vk->LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
 				memcpy(data, &skyboxFragUbo, size);
-				vkUnmapMemory(_device, skybox->FrameResources[frameIndex].FragUniformBufferMemory);
+				vkUnmapMemory(_vk->LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory);
 			}
 		}
 
@@ -270,17 +270,17 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 			// Update model ubo - TODO PERF Keep mem mapped 
 			void* data;
 			auto size = sizeof(modelUbo);
-			vkMapMemory(_device, modelBufferMemory, 0, size, 0, &data);
+			vkMapMemory(_vk->LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
 			memcpy(data, &modelUbo, size);
-			vkUnmapMemory(_device, modelBufferMemory);
+			vkUnmapMemory(_vk->LogicalDevice(), modelBufferMemory);
 		}
 
 
 		// Record Command Buffer
-		auto renderPass = _renderPass;
-		auto swapchainExtent = _swapchainExtent;
-		auto commandBuffer = _commandBuffers[frameIndex];
-		auto swapchainFramebuffer = _swapchainFramebuffers[frameIndex];
+		auto renderPass = _vk->RenderPass();
+		auto swapchainExtent = _vk->SwapchainExtent();
+		auto commandBuffer = _vk->CommandBuffers()[frameIndex];
+		auto swapchainFramebuffer = _vk->SwapchainFramebuffers()[frameIndex];
 		auto pbrPipeline = _pbrPipeline;
 		auto pbrPipelineLayout = _pbrPipelineLayout;
 		auto skyboxPipeline = _skyboxPipeline;
@@ -384,20 +384,20 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 
 void Renderer::CleanUp()
 {
-	vkDeviceWaitIdle(_device);
+	vkDeviceWaitIdle(_vk->LogicalDevice());
 	
 	DestroyImgui();
 	DestroyRenderResourcesDependentOnSwapchain();
 	DestroyRenderer();
-	DestroyVulkanSwapchain();
-	DestroyVulkan();
+	_vk->DestroyVulkanSwapchain();
+	_vk->DestroyVulkan();
 }
 
 IblTextureResourceIds
 Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 {
 	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, *_meshes[_skyboxMesh.Id], _shaderDir, 
-		_commandPool, _graphicsQueue, _physicalDevice, _device);
+		_vk->CommandPool(), _vk->GraphicsQueue(), _vk->PhysicalDevice(), _vk->LogicalDevice());
 
 	IblTextureResourceIds ids = {};
 
@@ -420,7 +420,7 @@ IblTextureResourceIds
 Renderer::CreateIblTextureResources(const std::string& path)
 {
 	IblTextureResources iblRes = IblLoader::LoadIblFromEquirectangularPath(path, *_meshes[_skyboxMesh.Id], _shaderDir,
-		_commandPool, _graphicsQueue, _physicalDevice, _device);
+		_vk->CommandPool(), _vk->GraphicsQueue(), _vk->PhysicalDevice(), _vk->LogicalDevice());
 
 	IblTextureResourceIds ids = {};
 
@@ -446,7 +446,7 @@ TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::s
 
 	_textures.emplace_back(std::make_unique<TextureResource>(
 		CubemapTextureLoader::LoadFromFacePaths(
-			sidePaths, format, _commandPool, _graphicsQueue, _physicalDevice, _device)));
+			sidePaths, format, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->PhysicalDevice(), _vk->LogicalDevice())));
 	
 	return id;
 }
@@ -454,7 +454,7 @@ TextureResourceId Renderer::CreateCubemapTextureResource(const std::array<std::s
 TextureResourceId Renderer::CreateTextureResource(const std::string& path)
 {
 	const TextureResourceId id = (u32)_textures.size();
-	auto texRes = TextureResourceHelpers::LoadTexture(path, _commandPool, _graphicsQueue, _physicalDevice, _device);
+	auto texRes = TextureResourceHelpers::LoadTexture(path, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->PhysicalDevice(), _vk->LogicalDevice());
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
 	return id;
 }
@@ -469,10 +469,10 @@ MeshResourceId Renderer::CreateMeshResource(const MeshDefinition& meshDefinition
 	//mesh->Bounds = meshDefinition.Bounds;
 
 	std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
-		= vkh::CreateVertexBuffer(meshDefinition.Vertices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		= vkh::CreateVertexBuffer(meshDefinition.Vertices, _vk->GraphicsQueue(), _vk->CommandPool(), _vk->PhysicalDevice(), _vk->LogicalDevice());
 
 	std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
-		= vkh::CreateIndexBuffer(meshDefinition.Indices, _graphicsQueue, _commandPool, _physicalDevice, _device);
+		= vkh::CreateIndexBuffer(meshDefinition.Indices, _vk->GraphicsQueue(), _vk->CommandPool(), _vk->PhysicalDevice(), _vk->LogicalDevice());
 
 
 	const MeshResourceId id = (u32)_meshes.size();
@@ -486,7 +486,7 @@ SkyboxResourceId Renderer::CreateSkybox(const SkyboxCreateInfo& createInfo)
 	auto skybox = std::make_unique<Skybox>();
 	skybox->MeshId = _skyboxMesh;
 	skybox->IblTextureIds = createInfo.IblTextureIds;
-	skybox->FrameResources = CreateSkyboxModelFrameResources((u32)_swapchainImages.size(), *skybox);
+	skybox->FrameResources = CreateSkyboxModelFrameResources(_vk->SwapchainImageCount(), *skybox);
 
 	const SkyboxResourceId id = (u32)_skyboxes.size();
 	_skyboxes.emplace_back(std::move(skybox));
@@ -499,7 +499,7 @@ RenderableResourceId Renderer::CreateRenderable(const MeshResourceId& meshId, co
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
 	model->Mat = material;
-	model->FrameResources = CreatePbrModelFrameResources((u32)_swapchainImages.size(), *model);
+	model->FrameResources = CreatePbrModelFrameResources(_vk->SwapchainImageCount(), *model);
 
 	const RenderableResourceId id = (u32)_renderables.size();
 	_renderables.emplace_back(std::move(model));
@@ -552,99 +552,15 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 	_refreshRenderableDescriptorSets = true;	
 }
 
-
-void Renderer::InitVulkan()
-{
-	_instance = vkh::CreateInstance(_vulkanService->_enableValidationLayers, _validationLayers);
-
-	if (_vulkanService->_enableValidationLayers)
-	{
-		_debugMessenger = vkh::SetupDebugMessenger(_instance);
-	}
-
-	_surface = _delegate.CreateSurface(_instance);
-
-	std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
-
-	std::tie(_device, _graphicsQueue, _presentQueue)
-		= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
-
-	_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
-}
-void Renderer::DestroyVulkan()
-{
-	vkDestroyCommandPool(_device, _commandPool, nullptr);
-	vkDestroyDevice(_device, nullptr);
-	if (_vulkanService->_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-	vkDestroySurfaceKHR(_instance, _surface, nullptr);
-	vkDestroyInstance(_instance, nullptr);
-}
-
-void Renderer::InitVulkanSwapchain(int width, int height)
-{
-	_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device,
-		_swapchainImages, _swapchainImageFormat, _swapchainExtent);
-
-	_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
-		VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
-
-	std::tie(_colorImage, _colorImageMemory, _colorImageView)
-		= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
-			_commandPool, _graphicsQueue, _device, _physicalDevice);
-
-	std::tie(_depthImage, _depthImageMemory, _depthImageView)
-		= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
-			_physicalDevice);
-
-	_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
-
-	_swapchainFramebuffers
-		= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
-			_swapchainExtent, _renderPass);
-
-	_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
-
-	
-	// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
-	std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
-		= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
-}
-void Renderer::DestroyVulkanSwapchain()
-{
-	for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-	for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-	for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
-	
-	vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
-
-
-	for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-
-	// Swapchain attachments
-	vkDestroyImageView(_device, _colorImageView, nullptr);
-	vkDestroyImage(_device, _colorImage, nullptr);
-	vkFreeMemory(_device, _colorImageMemory, nullptr);
-
-	vkDestroyImageView(_device, _depthImageView, nullptr);
-	vkDestroyImage(_device, _depthImage, nullptr);
-	vkFreeMemory(_device, _depthImageMemory, nullptr);
-
-
-	vkDestroyRenderPass(_device, _renderPass, nullptr);
-	for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
-	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-}
-
 void Renderer::InitRenderer()
 {
 	// PBR pipe
-	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_device);
-	_pbrPipelineLayout = vkh::CreatePipelineLayout(_device, { _pbrDescriptorSetLayout });
+	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk->LogicalDevice());
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk->LogicalDevice(), { _pbrDescriptorSetLayout });
 
 	// Skybox pipe
-	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_device);
-	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_device, { _skyboxDescriptorSetLayout });
+	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_vk->LogicalDevice());
+	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_vk->LogicalDevice(), { _skyboxDescriptorSetLayout });
 }
 void Renderer::DestroyRenderer()
 {
@@ -653,38 +569,38 @@ void Renderer::DestroyRenderer()
 	{
 		//mesh.Vertices.clear();
 		//mesh.Indices.clear();
-		vkDestroyBuffer(_device, mesh->IndexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->IndexBufferMemory, nullptr);
-		vkDestroyBuffer(_device, mesh->VertexBuffer, nullptr);
-		vkFreeMemory(_device, mesh->VertexBufferMemory, nullptr);
+		vkDestroyBuffer(_vk->LogicalDevice(), mesh->IndexBuffer, nullptr);
+		vkFreeMemory(_vk->LogicalDevice(), mesh->IndexBufferMemory, nullptr);
+		vkDestroyBuffer(_vk->LogicalDevice(), mesh->VertexBuffer, nullptr);
+		vkFreeMemory(_vk->LogicalDevice(), mesh->VertexBufferMemory, nullptr);
 	}
 
 	_textures.clear(); // RAII will cleanup
 
 
 	// Renderer
-	vkDestroyPipelineLayout(_device, _pbrPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _pbrDescriptorSetLayout, nullptr);
+	vkDestroyPipelineLayout(_vk->LogicalDevice(), _pbrPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk->LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
 
-	vkDestroyPipelineLayout(_device, _skyboxPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_device, _skyboxDescriptorSetLayout, nullptr);
+	vkDestroyPipelineLayout(_vk->LogicalDevice(), _skyboxPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk->LogicalDevice(), _skyboxDescriptorSetLayout, nullptr);
 }
 
 void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _msaaSamples, _renderPass, _device,
-		_swapchainExtent);
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice(),
+		_vk->SwapchainExtent());
 
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _msaaSamples, _renderPass, _device,
-		_swapchainExtent);
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice(),
+		_vk->SwapchainExtent());
 
 
-	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _device);
+	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk->LogicalDevice());
 
 
 	// Create light uniform buffers per swapchain image
 	std::tie(_lightBuffers, _lightBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _device, _physicalDevice);
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 	// Create model uniform buffers and descriptor sets per swapchain image
 	for (auto& renderable : _renderables)
@@ -704,11 +620,11 @@ void Renderer::DestroyRenderResourcesDependentOnSwapchain()
 	{
 		for (auto& info : skybox->FrameResources)
 		{
-			vkDestroyBuffer(_device, info.VertUniformBuffer, nullptr);
-			vkFreeMemory(_device, info.VertUniformBufferMemory, nullptr);
-			vkDestroyBuffer(_device, info.FragUniformBuffer, nullptr);
-			vkFreeMemory(_device, info.FragUniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+			vkDestroyBuffer(_vk->LogicalDevice(), info.VertUniformBuffer, nullptr);
+			vkFreeMemory(_vk->LogicalDevice(), info.VertUniformBufferMemory, nullptr);
+			vkDestroyBuffer(_vk->LogicalDevice(), info.FragUniformBuffer, nullptr);
+			vkFreeMemory(_vk->LogicalDevice(), info.FragUniformBufferMemory, nullptr);
+			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
 
@@ -716,32 +632,32 @@ void Renderer::DestroyRenderResourcesDependentOnSwapchain()
 	{
 		for (auto& info : renderable->FrameResources)
 		{
-			vkDestroyBuffer(_device, info.UniformBuffer, nullptr);
-			vkFreeMemory(_device, info.UniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_device, _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+			vkDestroyBuffer(_vk->LogicalDevice(), info.UniformBuffer, nullptr);
+			vkFreeMemory(_vk->LogicalDevice(), info.UniformBufferMemory, nullptr);
+			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
 
-	for (auto& x : _lightBuffers) { vkDestroyBuffer(_device, x, nullptr); }
-	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_device, x, nullptr); }
+	for (auto& x : _lightBuffers) { vkDestroyBuffer(_vk->LogicalDevice(), x, nullptr); }
+	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_vk->LogicalDevice(), x, nullptr); }
 
-	vkDestroyDescriptorPool(_device, _rendererDescriptorPool, nullptr);
+	vkDestroyDescriptorPool(_vk->LogicalDevice(), _rendererDescriptorPool, nullptr);
 
-	vkDestroyPipeline(_device, _pbrPipeline, nullptr);
-	vkDestroyPipeline(_device, _skyboxPipeline, nullptr);
+	vkDestroyPipeline(_vk->LogicalDevice(), _pbrPipeline, nullptr);
+	vkDestroyPipeline(_vk->LogicalDevice(), _skyboxPipeline, nullptr);
 }
 
 void Renderer::RecreateSwapchain()
 {
 	auto size = _delegate.WaitTillFramebufferHasSize();
 
-	vkDeviceWaitIdle(_device);
+	vkDeviceWaitIdle(_vk->LogicalDevice());
 
 	DestroyRenderResourcesDependentOnSwapchain();
-	DestroyVulkanSwapchain();
+	_vk->DestroyVulkanSwapchain();
 
-	InitVulkanSwapchain(size.width, size.height);
-	InitRendererResourcesDependentOnSwapchain((u32)_swapchainImages.size());
+	_vk->InitVulkanSwapchainAndDependants(size.width, size.height);
+	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
 }
 
 
@@ -790,11 +706,11 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	std::vector<VkBuffer> modelBuffers;
 	std::vector<VkDeviceMemory> modelBuffersMemory;
 	std::tie(modelBuffers, modelBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(UniversalUbo), _device, _physicalDevice);
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(UniversalUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 
 	// Create descriptor sets
-	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _device);
+	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk->LogicalDevice());
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -816,7 +732,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
-		_device
+		_vk->LogicalDevice()
 	);
 
 
@@ -1180,7 +1096,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),
-			_device);
+			_vk->LogicalDevice());
 	}
 }
 
@@ -1194,7 +1110,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 {
 	// Allocate descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
-		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _rendererDescriptorPool, _device);
+		= vkh::AllocateDescriptorSets(numImagesInFlight, _skyboxDescriptorSetLayout, _rendererDescriptorPool, _vk->LogicalDevice());
 
 
 	// Vert Uniform buffers
@@ -1202,7 +1118,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 	std::vector<VkDeviceMemory> skyboxVertBuffersMemory;
 	
 	std::tie(skyboxVertBuffers, skyboxVertBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxVertUbo), _device, _physicalDevice);
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxVertUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 	
 	// Frag Uniform buffers
@@ -1210,7 +1126,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 	std::vector<VkDeviceMemory> skyboxFragBuffersMemory;
 	
 	std::tie(skyboxFragBuffers, skyboxFragBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxFragUbo), _device, _physicalDevice);
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxFragUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 
 	const auto textureId = _lastOptions.ShowIrradiance
@@ -1218,7 +1134,7 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 		: skybox.IblTextureIds.EnvironmentCubemapId.Id;
 	
 	WriteSkyboxDescriptorSets(
-		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[textureId], _device);
+		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[textureId], _vk->LogicalDevice());
 
 
 	// Group data for return
@@ -1539,7 +1455,7 @@ void Renderer::UpdateSkyboxesDescriptorSets()
 			? skybox->IblTextureIds.IrradianceCubemapId.Id
 			: skybox->IblTextureIds.EnvironmentCubemapId.Id;
 
-		WriteSkyboxDescriptorSets((u32)count, descriptorSets, vertUbos, fragUbos, *_textures[textureId], _device);
+		WriteSkyboxDescriptorSets((u32)count, descriptorSets, vertUbos, fragUbos, *_textures[textureId], _vk->LogicalDevice());
 	}
 }
 
@@ -1570,7 +1486,7 @@ void Renderer::InitImgui()
 	_delegate.InitImguiWithGlfwVulkan();
 
 
-	const auto imageCount = (u32)_swapchainImages.size();
+	const auto imageCount = _vk->SwapchainImageCount();
 	
 	// Create descriptor pool - from main_vulkan.cpp imgui example code
 	_imguiDescriptorPool = vkh::CreateDescriptorPool({
@@ -1585,14 +1501,14 @@ void Renderer::InitImgui()
 		 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
 		 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
 		 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-		}, imageCount, _device);
+		}, imageCount, _vk->LogicalDevice());
 
 
 	// Get the min image count
 	u32 minImageCount;
 	{
 		// Copied from VulkanHelpers::CreateSwapchain - TODO either store minImageCount or make it a separate func
-		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_physicalDevice, _surface);
+		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_vk->PhysicalDevice(), _vk->Surface());
 		
 		minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
 		const auto maxImageCount = deets.Capabilities.maxImageCount;
@@ -1607,16 +1523,16 @@ void Renderer::InitImgui()
 	// Init device info
 	ImGui_ImplVulkan_InitInfo initInfo = {};
 	{
-		initInfo.Instance = _instance;
-		initInfo.PhysicalDevice = _physicalDevice;
-		initInfo.Device = _device;
-		initInfo.QueueFamily = vkh::FindQueueFamilies(_physicalDevice, _surface).GraphicsFamily.value(); // vomit
-		initInfo.Queue = _graphicsQueue;
+		initInfo.Instance = _vk->Instance();
+		initInfo.PhysicalDevice = _vk->PhysicalDevice();
+		initInfo.Device = _vk->LogicalDevice();
+		initInfo.QueueFamily = vkh::FindQueueFamilies(_vk->PhysicalDevice(), _vk->Surface()).GraphicsFamily.value(); // vomit
+		initInfo.Queue = _vk->GraphicsQueue();
 		initInfo.PipelineCache = nullptr;
 		initInfo.DescriptorPool = _imguiDescriptorPool;
 		initInfo.MinImageCount = minImageCount;
 		initInfo.ImageCount = imageCount;
-		initInfo.MSAASamples = _msaaSamples;
+		initInfo.MSAASamples = _vk->MsaaSamples();
 		initInfo.Allocator = nullptr;
 		initInfo.CheckVkResultFn = [](VkResult err)
 		{
@@ -1627,14 +1543,14 @@ void Renderer::InitImgui()
 		};
 	}
 
-	ImGui_ImplVulkan_Init(&initInfo, _renderPass);
+	ImGui_ImplVulkan_Init(&initInfo, _vk->RenderPass());
 
 
 	// Upload Fonts
 	{
-		const auto cmdBuf = vkh::BeginSingleTimeCommands(_commandPool, _device);
+		const auto cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
 		ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
-		vkh::EndSingeTimeCommands(cmdBuf, _commandPool, _graphicsQueue, _device);
+		vkh::EndSingeTimeCommands(cmdBuf, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->LogicalDevice());
 		ImGui_ImplVulkan_DestroyFontUploadObjects();
 	}
 }
@@ -1644,7 +1560,7 @@ void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
 }
 void Renderer::DestroyImgui()
 {
-	vkDestroyDescriptorPool(_device, _imguiDescriptorPool, nullptr);
+	vkDestroyDescriptorPool(_vk->LogicalDevice(), _imguiDescriptorPool, nullptr);
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();

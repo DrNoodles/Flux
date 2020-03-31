@@ -44,7 +44,8 @@ class App final :
 	public IRendererDelegate,
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
-	public ISceneManagerDelegate
+	public ISceneManagerDelegate,
+	public IVulkanServiceDelegate
 {
 public:
 
@@ -60,7 +61,7 @@ public:
 
 
 		// Controllers
-		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers);
+		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, this);
 		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);

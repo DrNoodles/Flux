@@ -3,6 +3,7 @@
 #include "GpuTypes.h"
 #include "RenderableMesh.h"
 #include "TextureResource.h"
+#include "VulkanService.h" // TODO Investigate why compilation breaks if above TextureResource.h
 #include "CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
@@ -10,9 +11,13 @@
 
 #include <vector>
 
+
+
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
+
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,64 +102,12 @@ public:
 	
 
 
-private:
-	// Dependencies
-	VulkanService* _vulkanService = nullptr;
+private: // Dependencies
+	VulkanService* _vk = nullptr;
 	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
 
-	// A setting?
-	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-
-	const size_t _maxFramesInFlight = 2;
-	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
-	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-
-private: 
-	VkInstance _instance = nullptr;
-	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
-	VkPhysicalDevice _physicalDevice = nullptr;
-	VkDevice _device = nullptr;
-	VkCommandPool _commandPool = nullptr;
-
-	VkQueue _graphicsQueue = nullptr;
-	VkQueue _presentQueue = nullptr;
-
 	
-	// Swapchain
-private:
-	VkSurfaceKHR _surface = nullptr; // ?
-	
-	VkSwapchainKHR _swapchain = nullptr;
-	VkFormat _swapchainImageFormat{};
-	VkExtent2D _swapchainExtent{};
-	std::vector<VkFramebuffer> _swapchainFramebuffers{};
-	std::vector<VkImage> _swapchainImages{};
-	std::vector<VkImageView> _swapchainImageViews{};
-
-	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _colorImage = nullptr;
-	VkDeviceMemory _colorImageMemory = nullptr;
-	VkImageView _colorImageView = nullptr;
-
-	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _depthImage = nullptr;
-	VkDeviceMemory _depthImageMemory = nullptr;
-	VkImageView _depthImageView = nullptr;
-
-	VkRenderPass _renderPass = nullptr;
-
-
-
-	
-	std::vector<VkCommandBuffer> _commandBuffers{};
-	
-	// Synchronization
-	std::vector<VkSemaphore> _renderFinishedSemaphores{};
-	std::vector<VkSemaphore> _imageAvailableSemaphores{};
-	std::vector<VkFence> _inFlightFences{};
-	std::vector<VkFence> _imagesInFlight{};
 	size_t _currentFrame = 0;
 
 	VkDescriptorPool _rendererDescriptorPool = nullptr;
@@ -188,12 +141,6 @@ private:
 	MeshResourceId _skyboxMesh;
 
 	RenderOptions _lastOptions;
-
-	void InitVulkan();
-	void DestroyVulkan();
-
-	void InitVulkanSwapchain(int width, int height);
-	void DestroyVulkanSwapchain();
 	
 	void InitRenderer();
 	void DestroyRenderer();
