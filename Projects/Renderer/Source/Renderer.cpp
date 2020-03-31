@@ -52,23 +52,14 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
+void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
                          const std::vector<RenderableResourceId>& renderableIds,
                          const std::vector<glm::mat4>& transforms,
                          const std::vector<Light>& lights,
                          glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
-	const auto imageIndex = _vk->StartFrame();
-	if (!imageIndex.has_value())
-	{
-		return;
-	}
-	
-	const auto frameIndex = *imageIndex;
-
 	const auto startBench = std::chrono::steady_clock::now();
 
-	
 	// Diff render options and force state updates where needed
 	{
 		// Process whether refreshing is required
@@ -284,9 +275,6 @@ void Renderer::DrawFrame(/*u32 frameIndex, */const RenderOptions& options,
 	const std::chrono::duration<double, std::chrono::milliseconds::period> duration
 		= std::chrono::steady_clock::now() - startBench;
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
-
-	
-	_vk->EndFrame(frameIndex);
 }
 
 void Renderer::CleanUp()

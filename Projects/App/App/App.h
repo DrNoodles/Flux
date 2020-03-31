@@ -379,10 +379,22 @@ private:
 		auto& camera = _scene->GetCamera();
 		const auto view = camera.GetViewMatrix();
 		
-		//const auto index = _renderer->StartFrame();
-		_renderer->DrawFrame(_renderOptions, renderables, transforms, lights, view, camera.Position, _ui->ViewportPos(), _ui->ViewportSize());
-		//_renderer->EndFrame(*index);
-		
+
+		// Draw
+		{
+			const auto imageIndex = _vulkanService->StartFrame();
+			if (!imageIndex.has_value())
+			{
+				return;
+			}
+
+			_renderer->DrawFrame(*imageIndex, _renderOptions, 
+				renderables, transforms, lights, view, camera.Position, 
+				_ui->ViewportPos(), _ui->ViewportSize());
+
+			
+			_vulkanService->EndFrame(*imageIndex);
+		}
 	}
 
 
