@@ -7,13 +7,12 @@
 #include "ViewportView/IViewportViewDelegate.h"
 #include "ViewportView/ViewportView.h"
 
-#include <Renderer/Renderer.h>
-
 #include <chrono>
 
 
 class LibraryManager;
 class SceneManager;
+class Renderer;
 
 class IUiPresenterDelegate
 {

@@ -125,7 +125,7 @@ public:
 
 		const auto camDirection = glm::normalize(Position - Target);
 		Target = midWldSpc;
-		Position = midWldSpc + camDirection * dist * 0.5f; // magic # to adjust zoom a bit
+		Position = midWldSpc + camDirection * dist * 0.4f; // magic # to adjust zoom a bit
 
 		// NOTE: No need to recompute axis as they're positionless 
 	}
