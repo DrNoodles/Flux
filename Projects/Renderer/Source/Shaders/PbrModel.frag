@@ -137,10 +137,11 @@ void main()
 	UnpackUbos();
 
 	vec3 normal = GetNormal();
-	vec3 basecolor = GetBasecolor();
-	float metalness = GetMetalness();
-	float roughness = GetRoughness();
+	vec3 basecolor = vec3(0);//GetBasecolor();
+	float metalness = 1;//GetMetalness();
+	float roughness = 0.3;//GetRoughness();
 	float ao = GetAmbientOcclusion();
+	vec3 emissive = GetBasecolor();
 	
 	if (uShowNormalMap)
 	{
@@ -240,12 +241,12 @@ void main()
 
 
 		// Compute ambient term
-		iblAmbient = (kD * diffuse + specular) * ao; 
+		iblAmbient = (kD * diffuse + specular) * ao * uMetalness; 
 	}
 
 
 
-	vec3 color = iblAmbient + Lo;
+	vec3 color = iblAmbient + Lo + emissive*uRoughness;
 	
 	// Post-processing - TODO Move to post pass shader
 	color *= uExposureBias;	// Exposure
