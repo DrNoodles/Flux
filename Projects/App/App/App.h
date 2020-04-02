@@ -47,8 +47,44 @@ class App final :
 	public ISceneManagerDelegate,
 	public IVulkanServiceDelegate
 {
-public:
+public: // DATA
 	bool FramebufferResized = false;
+
+	
+private: // DATA
+
+	// Dependencies
+	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
+	std::unique_ptr<VulkanService> _vulkanService = nullptr;
+	std::unique_ptr<SceneManager> _scene = nullptr;
+	std::unique_ptr<LibraryManager> _library = nullptr;;
+	std::unique_ptr<UiPresenter> _ui = nullptr;
+	std::unique_ptr<Renderer> _renderer = nullptr;
+
+	// Window
+	glm::ivec2 _windowSize = { 1280,720 };
+	GLFWwindow* _window = nullptr;
+	AppOptions _appOptions;
+	bool _firstCursorInput = true;
+	double _lastCursorX{}, _lastCursorY{};
+
+	// Time
+	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
+	float _totalTime = 0;
+
+	std::chrono::steady_clock::time_point _lastFpsUpdate;
+	const std::chrono::duration<float, std::chrono::seconds::period> _reportFpsRate{ 1 };
+	FpsCounter _fpsCounter{};
+
+	// ImGui
+	VkDescriptorPool _imguiDescriptorPool = nullptr;
+
+	// State
+	std::vector<int> _deletionQueue{};
+
+
+public: // METHODS
 
 	explicit App(AppOptions options)
 	{
@@ -76,6 +112,7 @@ public:
 		_vulkanService = std::move(vulkan);
 
 	}
+	
 	~App()
 	{
 		_renderer->CleanUp();
@@ -86,7 +123,6 @@ public:
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
-
 
 	void Run()
 	{
@@ -125,132 +161,7 @@ public:
 	}
 
 
-	#pragma region IUiPresenterDelegate
-	
-	glm::ivec2 GetWindowSize() const override
-	{
-		return _windowSize;
-	}
-	void Delete(const std::vector<int>& entityIds) override
-	{
-		for (auto id : entityIds)
-		{
-			_deletionQueue.push_back(id);
-		}
-	}
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadDefaultScene()
-	{
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadMaterialArray();
-
-		/*
-		auto entity = _library->CreateBlob();
-		Material mat = {};
-		mat.Basecolor = glm::vec3{ 1 };
-		mat.Metalness = 1;
-		mat.Roughness = 0;
-		_scene->SetMaterial(entity->Renderable->RenderableId, mat);
-		_scene->AddEntity(std::move(entity));
-		*/
-		
-	/*	auto blob = _library->CreateBlob();
-		blob->Action = std::make_unique<TurntableAction>(blob->Transform);
-		_scene->AddEntity(std::move(blob));*/
-
-		_ui->FrameSelectionOrAll();
-	}
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadDemoScene() override
-	{
-		std::cout << "Loading scene\n";
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadAxis();
-		LoadMaterialArray({0,4,0});
-		LoadRailgun();
-		//LoadLighting();
-	}
-
-	void LoadDemoSceneHeavy() override
-	{
-		std::cout << "Loading scene\n";
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadAxis();
-		LoadMaterialArray({ 0,0,0 }, 30, 30);
-	}
-	
-	#pragma endregion
-
-	
-	#pragma region IRendererDelegate
-	
-	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
-	{
-		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
-	}
-	
-	VkSurfaceKHR CreateSurface(VkInstance instance) const override
-	{
-		VkSurfaceKHR surface;
-		if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create window surface");
-		}
-		return surface;
-	}
-	VkExtent2D GetFramebufferSize() override
-	{
-		i32 width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		return { (u32)width, (u32)height };
-	}
-
-	VkExtent2D WaitTillFramebufferHasSize() override
-	{
-		// This handles a minimized window. Wait until it has size > 0
-		i32 width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		while (width == 0 || height == 0)
-		{
-			glfwGetFramebufferSize(_window, &width, &height);
-			glfwWaitEvents();
-		}
-
-		return { (u32)width, (u32)height };
-	}
-
-	#pragma endregion
-
-	
-private:
-	// Dependencies
-	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
-	std::unique_ptr<VulkanService> _vulkanService = nullptr;
-	std::unique_ptr<SceneManager> _scene = nullptr;
-	std::unique_ptr<LibraryManager> _library = nullptr;;
-	std::unique_ptr<UiPresenter> _ui = nullptr;
-	std::unique_ptr<Renderer> _renderer = nullptr;
-
-	
-	glm::ivec2 _windowSize = { 1280,720 };
-	GLFWwindow* _window = nullptr;
-	AppOptions _appOptions;
-	
-
-	// Time
-	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
-	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
-	float _totalTime = 0;
-	
-	std::chrono::steady_clock::time_point _lastFpsUpdate;
-	const std::chrono::duration<float, std::chrono::seconds::period> _reportFpsRate{ 1 };
-	FpsCounter _fpsCounter{};
-
-	VkDescriptorPool _imguiDescriptorPool = nullptr;
-
-
+private: // METHODS
 	void InitWindow()
 	{
 		glfwInit();
@@ -273,8 +184,6 @@ private:
 		glfwSetScrollCallback(_window, ScrollCallback);
 	}
 
-	
-	std::vector<int> _deletionQueue{};
 	void ProcessDeletionQueue()
 	{
 		for (auto& entId : _deletionQueue)
@@ -285,15 +194,6 @@ private:
 
 		_deletionQueue.clear();
 	}
-
-	
-	// TODO Move to utils class
-	static float RandF(float min, float max)
-	{
-		const auto base = float(rand()) / RAND_MAX;
-		return min + base * (max - min);
-	}
-
 
 	void Update(const float dt)
 	{
@@ -307,7 +207,6 @@ private:
 			}
 		}
 	}
-
 
 	void Draw(const float dt) const
 	{
@@ -326,6 +225,12 @@ private:
 		_vulkanService->EndFrame(imageIndex, cmdBuf);
 	}
 
+	// TODO Move to utils class
+	static float RandF(float min, float max)
+	{
+		const auto base = float(rand()) / RAND_MAX;
+		return min + base * (max - min);
+	}
 
 
 	#pragma region ImGui
@@ -333,7 +238,7 @@ private:
 	void InitImgui()
 	{
 		auto& _vk = _vulkanService;
-		
+
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 
@@ -350,10 +255,10 @@ private:
 		style.ChildRounding = rounding;
 
 
-		
+
 		// Here Imgui is coupled to Glfw and Vulkan
 		ImGui_ImplGlfw_InitForVulkan(_window, true);
-		
+
 
 
 		const auto imageCount = _vk->SwapchainImageCount();
@@ -434,9 +339,108 @@ private:
 
 	#pragma endregion
 
+
+	
+	#pragma region IUiPresenterDelegate
+
+	glm::ivec2 GetWindowSize() const override
+	{
+		return _windowSize;
+	}
+	void Delete(const std::vector<int>& entityIds) override
+	{
+		for (auto id : entityIds)
+		{
+			_deletionQueue.push_back(id);
+		}
+	}
+
+	// TODO Move to _ui layer to make a single spot where UI drives state
+	void LoadDefaultScene()
+	{
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		LoadMaterialArray();
+
+		/*
+		auto entity = _library->CreateBlob();
+		Material mat = {};
+		mat.Basecolor = glm::vec3{ 1 };
+		mat.Metalness = 1;
+		mat.Roughness = 0;
+		_scene->SetMaterial(entity->Renderable->RenderableId, mat);
+		_scene->AddEntity(std::move(entity));
+		*/
+
+		/*	auto blob = _library->CreateBlob();
+			blob->Action = std::make_unique<TurntableAction>(blob->Transform);
+			_scene->AddEntity(std::move(blob));*/
+
+		_ui->FrameSelectionOrAll();
+	}
+
+	// TODO Move to _ui layer to make a single spot where UI drives state
+	void LoadDemoScene() override
+	{
+		std::cout << "Loading scene\n";
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		LoadAxis();
+		LoadMaterialArray({ 0,4,0 });
+		LoadRailgun();
+		//LoadLighting();
+	}
+
+	void LoadDemoSceneHeavy() override
+	{
+		std::cout << "Loading scene\n";
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		LoadAxis();
+		LoadMaterialArray({ 0,0,0 }, 30, 30);
+	}
+
+	#pragma endregion
+
+	
+
+	#pragma region IRendererDelegate
+
+	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
+	{
+		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
+	}
+	VkSurfaceKHR CreateSurface(VkInstance instance) const override
+	{
+		VkSurfaceKHR surface;
+		if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create window surface");
+		}
+		return surface;
+	}
+	VkExtent2D GetFramebufferSize() override
+	{
+		i32 width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		return { (u32)width, (u32)height };
+	}
+	VkExtent2D WaitTillFramebufferHasSize() override
+	{
+		// This handles a minimized window. Wait until it has size > 0
+		i32 width, height;
+		glfwGetFramebufferSize(_window, &width, &height);
+		while (width == 0 || height == 0)
+		{
+			glfwGetFramebufferSize(_window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		return { (u32)width, (u32)height };
+	}
+
+	#pragma endregion
+
 	
 	
-	#pragma region Scene Management
+	#pragma region Scene Management // TODO move out of App.h
 
 	void LoadMaterialArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
@@ -711,9 +715,6 @@ private:
 		g_windowMap[window]->OnWindowSizeChanged(width, height);
 	}
 
-	bool _firstCursorInput = true;
-	double _lastCursorX{}, _lastCursorY{};
-	
 	// Event handlers
 	void OnScrollChanged(double xOffset, double yOffset)
 	{
@@ -830,7 +831,6 @@ private:
 	
 	#pragma region ILibraryManagerDelegate
 
-private:
 	std::optional<ModelDefinition> LoadModel(const std::string& path) override
 	{
 		return _modelLoaderService->LoadModel(path);
