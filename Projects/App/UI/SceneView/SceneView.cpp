@@ -2,7 +2,6 @@
 #include "SceneView.h"
 #include "IblVm.h"
 
-#include <Renderer/Renderer.h>
 #include <State/LibraryManager.h> //SkyboxInfo
 #include <Framework/FileService.h>
 
@@ -14,8 +13,7 @@
 
 
 
-
-void SceneView::DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
+void SceneView::BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const
 {
 	assert(_delegate); // Delegate must be set
 	

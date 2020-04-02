@@ -41,7 +41,7 @@ class SceneView
 public:
 	SceneView() = delete;
 	explicit SceneView(ISceneViewDelegate* delegate) : _delegate{ delegate } {}
-	void DrawUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
+	void BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
 
 private:
 	ISceneViewDelegate* _delegate = nullptr;

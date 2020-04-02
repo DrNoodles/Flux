@@ -24,7 +24,7 @@ std::string FormatMapPath(const std::string& path, int limit = 30)
 
 const ImGuiWindowFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen;
 
-void PropsView::DrawUI(int selectionCount, 
+void PropsView::BuildUI(int selectionCount, 
 	TransformVm& tvm,
 	std::optional<LightVm>& lvm) const
 {

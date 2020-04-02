@@ -253,8 +253,8 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 
 				// Draw GUI - TODO This should be removed
 				{
-					_delegate.BuildGui();
-					DrawImgui(commandBuffer);
+					//_delegate.BuildGui();
+					//DrawImgui(commandBuffer);
 				}
 			}
 			vkCmdEndRenderPass(commandBuffer);

@@ -78,7 +78,7 @@ public:
 
 
 	VkSwapchainKHR Swapchain() const { return _swapchain; }
-	u32 SwapchainImageCount() const { return _swapchainImages.size(); }
+	u32 SwapchainImageCount() const { return (u32)_swapchainImages.size(); }
 	VkExtent2D SwapchainExtent() const { return _swapchainExtent; }
 	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchainFramebuffers; }
 	VkRenderPass RenderPass() const { return _renderPass; }

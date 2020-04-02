@@ -1,7 +1,7 @@
 #pragma once
 
 #include <State/LibraryManager.h> //SkyboxInfo
-#include <Renderer/Renderer.h> //RenderOptions
+#include <Framework/CommonRenderer.h> //RenderOptions
 
 #include <cassert>
 

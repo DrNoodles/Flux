@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Framework/AABB.h>
-#include <Framework/CommonRenderer.h>
 #include <Framework/Material.h>
 #include <Framework/Vertex.h>
+#include <Framework/CommonTypes.h>
 
 #include <vector>
 #include <string>

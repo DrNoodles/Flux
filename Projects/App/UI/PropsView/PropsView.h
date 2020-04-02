@@ -33,7 +33,7 @@ class PropsView
 public:
 	PropsView() = delete;
 	explicit PropsView(IPropsViewDelegate* delegate) : _delegate{delegate} {}
-	void DrawUI(int selectionCount, TransformVm& tvm, std::optional<LightVm>& lvm) const;
+	void BuildUI(int selectionCount, TransformVm& tvm, std::optional<LightVm>& lvm) const;
 
 private:
 	// Dependencies

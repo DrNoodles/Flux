@@ -54,20 +54,17 @@ public:
 	{
 		InitWindow();
 
-
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
-
+		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, this);
 
 		// Controllers
-		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, this);
-		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
 		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
-		auto ui = std::make_unique<UiPresenter>(*this, library.get(), *scene/*dependencies*/);
-
+		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer);
 
 		// Set all teh things
 		_appOptions = std::move(options);
@@ -237,11 +234,12 @@ public:
 	
 	void BuildGui() override
 	{
+		
 		const auto currentTime = std::chrono::high_resolution_clock::now();
 		if (currentTime - _lastUiUpdate > _uiUpdateRate)
 		{
 			_lastUiUpdate = currentTime;
-			_ui->Draw();
+			_ui->Build();
 		}
 	}
 
@@ -337,64 +335,16 @@ private:
 
 	void Draw(const float dt) const
 	{
-		auto& entities = _scene->EntitiesView();
-		std::vector<RenderableResourceId> renderables;
-		std::vector<Light> lights;
-		std::vector<glm::mat4> transforms;
-
-		for (auto& entity : entities)
+		const auto imageIndex = _vulkanService->StartFrame();
+		if (!imageIndex.has_value())
 		{
-			if (entity->Renderable.has_value())
-			{
-				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
-				{
-					renderables.emplace_back(componentSubmesh.Id);
-					transforms.emplace_back(entity->Transform.GetMatrix());
-				}
-			}
-
-			if (entity->Light.has_value())
-			{
-				// Convert from LightComponent to Light
-				
-				auto& lightComp = *entity->Light;
-				Light light{};
-
-				light.Color = lightComp.Color;
-				light.Intensity = lightComp.Intensity;
-				switch (lightComp.Type) {
-				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-				//case Types::spot: 
-				default:
-					throw std::invalid_argument("Unsupport light component type");
-				}
-				
-				light.Pos = entity->Transform.GetPos();
-				lights.emplace_back(light);
-			}
+			return;
 		}
 
-
-		auto& camera = _scene->GetCamera();
-		const auto view = camera.GetViewMatrix();
+		//_ui->Build();
+		_ui->Draw(*imageIndex);
 		
-
-		// Draw
-		{
-			const auto imageIndex = _vulkanService->StartFrame();
-			if (!imageIndex.has_value())
-			{
-				return;
-			}
-
-			_renderer->DrawFrame(*imageIndex, _renderOptions, 
-				renderables, transforms, lights, view, camera.Position, 
-				_ui->ViewportPos(), _ui->ViewportSize());
-
-			
-			_vulkanService->EndFrame(*imageIndex);
-		}
+		_vulkanService->EndFrame(*imageIndex);
 	}
 
 
@@ -673,7 +623,6 @@ private:
 	{
 		g_windowMap[window]->OnWindowSizeChanged(width, height);
 	}
-
 
 	bool _firstCursorInput = true;
 	double _lastCursorX{}, _lastCursorY{};

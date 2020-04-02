@@ -1,22 +1,33 @@
 #include "UiPresenter.h"
 
-#include "IblVm.h"
-#include "PropsView/PropsView.h"
 #include "PropsView/MaterialViewState.h"
+#include "PropsView/PropsView.h"
+#include "SceneView/IblVm.h"
 
-#include <State/LibraryManager.h>
-#include <State/Entity/Actions/TurntableActionComponent.h>
 #include <Framework/FileService.h>
-
+#include <State/Entity/Actions/TurntableActionComponent.h>
+#include <State/LibraryManager.h>
+#include <State/SceneManager.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer):
+	_delegate(dgate),
+	_scene{scene},
+	_library{library},
+	_renderer{renderer},
+	_sceneView{SceneView{this}},
+	_propsView{PropsView{this}},
+	_viewportView{ViewportView{this, renderer}}
+{
+}
+
 void UiPresenter::NextSkybox()
 {
-	_activeSkybox = ++_activeSkybox % _library->GetSkyboxes().size();
-	LoadSkybox(_library->GetSkyboxes()[_activeSkybox].Path);
+	_activeSkybox = ++_activeSkybox % _library.GetSkyboxes().size();
+	LoadSkybox(_library.GetSkyboxes()[_activeSkybox].Path);
 }
 
 void UiPresenter::LoadSkybox(const std::string& path) const
@@ -109,7 +120,7 @@ void UiPresenter::ClearSelection()
 	_selection.clear();
 }
 
-void UiPresenter::Draw()
+void UiPresenter::Build()
 {
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
@@ -118,7 +129,6 @@ void UiPresenter::Draw()
 	{
 		//auto show_demo_window = true;
 		//ImGui::ShowDemoWindow(&show_demo_window);
-
 
 		// Scene View
 		{
@@ -132,7 +142,7 @@ void UiPresenter::Draw()
 				return pe.get();
 			});
 			IblVm iblVm{&_delegate.GetRenderOptions()};
-			_sceneView.DrawUI(allEnts, _selection, iblVm);
+			_sceneView.BuildUI(allEnts, _selection, iblVm);
 		}
 
 
@@ -182,11 +192,61 @@ void UiPresenter::Draw()
 				// Same selection as last frame
 			}
 
-			_propsView.DrawUI(selectionCount, _tvm, _lvm);
+			_propsView.BuildUI(selectionCount, _tvm, _lvm);
 		}
 	}
 	ImGui::EndFrame();
-	ImGui::Render();
+}
+
+void UiPresenter::Draw(u32 imageIndex) const
+{
+	auto& entities = _scene.EntitiesView();
+	std::vector<RenderableResourceId> renderables;
+	std::vector<Light> lights;
+	std::vector<glm::mat4> transforms;
+
+	for (auto& entity : entities)
+	{
+		if (entity->Renderable.has_value())
+		{
+			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+			{
+				renderables.emplace_back(componentSubmesh.Id);
+				transforms.emplace_back(entity->Transform.GetMatrix());
+			}
+		}
+
+		if (entity->Light.has_value())
+		{
+			// Convert from LightComponent to Light
+
+			auto& lightComp = *entity->Light;
+			Light light{};
+
+			light.Color = lightComp.Color;
+			light.Intensity = lightComp.Intensity;
+			switch (lightComp.Type) {
+			case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+			case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+				//case Types::spot: 
+			default:
+				throw std::invalid_argument("Unsupport light component type");
+			}
+
+			light.Pos = entity->Transform.GetPos();
+			lights.emplace_back(light);
+		}
+	}
+
+
+	auto& camera = _scene.GetCamera();
+	const auto view = camera.GetViewMatrix();
+
+	_renderer.DrawFrame(imageIndex, RenderOptions(), renderables, transforms, lights, view, camera.Position,
+		ViewportPos(), ViewportSize());
+
+	// Draw UI
+	//ImGui::Render();
 }
 
 void UiPresenter::LoadDemoScene()
@@ -262,7 +322,7 @@ void UiPresenter::CreateSphere()
 {
 	printf("CreateSphere()\n");
 
-	auto entity = _library->CreateSphere();
+	auto entity = _library.CreateSphere();
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 	ReplaceSelection(entity.get());
@@ -273,7 +333,7 @@ void UiPresenter::CreateBlob()
 {
 	printf("CreateBlob()\n");
 
-	auto entity = _library->CreateBlob();
+	auto entity = _library.CreateBlob();
 	entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 	ReplaceSelection(entity.get());
@@ -284,7 +344,7 @@ void UiPresenter::CreateCube()
 {
 	printf("CreateCube()\n");
 
-	auto entity = _library->CreateCube();
+	auto entity = _library.CreateCube();
 	entity->Transform.SetScale(glm::vec3{1.5f});
 	entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
@@ -328,12 +388,12 @@ void UiPresenter::SetSkyboxRotation(float rotation)
 
 const std::vector<SkyboxInfo>& UiPresenter::GetSkyboxList()
 {
-	return _library->GetSkyboxes();
+	return _library.GetSkyboxes();
 }
 
 void UiPresenter::SetActiveSkybox(u32 idx)
 {
-	const auto& skyboxInfo = _library->GetSkyboxes()[idx];
+	const auto& skyboxInfo = _library.GetSkyboxes()[idx];
 	const auto resourceId = _scene.LoadSkybox(skyboxInfo.Path);
 	_scene.SetSkybox(resourceId);
 
