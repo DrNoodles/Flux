@@ -23,14 +23,7 @@ class IRendererDelegate
 {
 public:
 	virtual ~IRendererDelegate() = default;
-	virtual VkSurfaceKHR CreateSurface(VkInstance instance) const = 0;
-
-	// Renderer stuff
 	virtual VkExtent2D GetFramebufferSize() = 0;
-	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
-
-	virtual void InitImguiWithGlfwVulkan() = 0; // TODO remove this temp crap;
-	virtual void BuildGui() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -225,15 +218,5 @@ private: // Dependencies
 	void UpdateSkyboxesDescriptorSets();
 
 	#pragma endregion Skybox
-
-
 	
-	#pragma region ImGui
-	
-	VkDescriptorPool _imguiDescriptorPool = nullptr;
-	void InitImgui();
-	void DrawImgui(VkCommandBuffer commandBuffer);
-	void DestroyImgui();
-
-	#pragma endregion
 };

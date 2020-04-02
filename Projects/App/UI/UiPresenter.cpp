@@ -120,7 +120,7 @@ void UiPresenter::ClearSelection()
 	_selection.clear();
 }
 
-void UiPresenter::Build()
+void UiPresenter::BuildImGui()
 {
 	// Start the Dear ImGui frame
 	ImGui_ImplVulkan_NewFrame();
@@ -241,22 +241,29 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			}
 		}
 
-
 		auto& camera = _scene.GetCamera();
 		const auto view = camera.GetViewMatrix();
 
+		
 		_renderer.DrawFrame(
 			commandBuffer, imageIndex, RenderOptions(),
 			renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
 	}
 	
-	
+
 	// Draw UI
 	{
-		Build();
+		// Update Ui
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		if (currentTime - _lastUiUpdate > _uiUpdateRate)
+		{
+			_lastUiUpdate = currentTime;
+			BuildImGui();
+		}
+
+		// Draw
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 	}
-	
 }
 
 void UiPresenter::LoadDemoScene()

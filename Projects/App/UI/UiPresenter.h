@@ -9,6 +9,7 @@
 
 #include <Renderer/Renderer.h>
 
+#include <chrono>
 
 
 class LibraryManager;
@@ -58,6 +59,10 @@ private: // DATA
 	int _sceneViewWidth = 250;
 	int _propsViewWidth = 300;
 
+	// UI Timer
+	std::chrono::steady_clock::time_point _lastUiUpdate;
+	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
+
 	
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer);
@@ -76,7 +81,6 @@ public: // METHODS
 	void ReplaceSelection(Entity* const entity);
 	void ClearSelection();
 	
-	void Build();
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
 	// Fit to middle
@@ -95,6 +99,7 @@ private: // METHODS
 	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsViewWidth,0 }; }
 	glm::ivec2 PropsSize() const { return { _propsViewWidth, WindowHeight() }; }
 
+	void BuildImGui();
 	
 	#pragma region ISceneViewDelegate
 

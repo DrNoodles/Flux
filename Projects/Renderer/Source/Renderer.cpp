@@ -11,12 +11,8 @@
 
 #include <Framework/FileService.h>
 
-// TODO Remove all notion of imgui in Renderer
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_vulkan.h>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
@@ -42,8 +38,6 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
 	
-	InitImgui();
-
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 
 	// Load a cube
@@ -242,11 +236,8 @@ void Renderer::CleanUp()
 {
 	vkDeviceWaitIdle(_vk->LogicalDevice());
 	
-	DestroyImgui();
 	DestroyRenderResourcesDependentOnSwapchain();
 	DestroyRenderer();
-	_vk->DestroyVulkanSwapchain();
-	_vk->DestroyVulkan();
 }
 
 IblTextureResourceIds
@@ -1310,109 +1301,3 @@ void Renderer::UpdateSkyboxesDescriptorSets()
 
 #pragma endregion Skybox
 
-
-#pragma region ImGui
-
-void Renderer::InitImgui()
-{
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-
-	
-	// UI Style
-	const float rounding = 3;
-
-	ImGui::StyleColorsLight();
-	ImGuiStyle& style = ImGui::GetStyle();
-	style.WindowRounding = 0;
-	style.WindowBorderSize = 0;
-	style.WindowRounding = 0;
-	style.FrameRounding = rounding;
-	style.ChildRounding = rounding;
-
-	
-	// This is required as this layer doesn't have access to GLFW. // TODO Refactor so Renderer has no logical coupling to GLFW at all
-	_delegate.InitImguiWithGlfwVulkan();
-
-
-	const auto imageCount = _vk->SwapchainImageCount();
-	
-	// Create descriptor pool - from main_vulkan.cpp imgui example code
-	_imguiDescriptorPool = vkh::CreateDescriptorPool({
-		 { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-		 { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-		 { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-		 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-		 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-		 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-		}, imageCount, _vk->LogicalDevice());
-
-
-	// Get the min image count
-	u32 minImageCount;
-	{
-		// Copied from VulkanHelpers::CreateSwapchain - TODO either store minImageCount or make it a separate func
-		const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_vk->PhysicalDevice(), _vk->Surface());
-		
-		minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
-		const auto maxImageCount = deets.Capabilities.maxImageCount;
-		const auto maxImageCountExists = maxImageCount != 0;
-		if (maxImageCountExists && minImageCount > maxImageCount)
-		{
-			minImageCount = maxImageCount;
-		}
-	}
-
-	
-	// Init device info
-	ImGui_ImplVulkan_InitInfo initInfo = {};
-	{
-		initInfo.Instance = _vk->Instance();
-		initInfo.PhysicalDevice = _vk->PhysicalDevice();
-		initInfo.Device = _vk->LogicalDevice();
-		initInfo.QueueFamily = vkh::FindQueueFamilies(_vk->PhysicalDevice(), _vk->Surface()).GraphicsFamily.value(); // vomit
-		initInfo.Queue = _vk->GraphicsQueue();
-		initInfo.PipelineCache = nullptr;
-		initInfo.DescriptorPool = _imguiDescriptorPool;
-		initInfo.MinImageCount = minImageCount;
-		initInfo.ImageCount = imageCount;
-		initInfo.MSAASamples = _vk->MsaaSamples();
-		initInfo.Allocator = nullptr;
-		initInfo.CheckVkResultFn = [](VkResult err)
-		{
-			if (err == VK_SUCCESS) return;
-			printf("VkResult %d\n", err);
-			if (err < 0)
-				abort();
-		};
-	}
-
-	ImGui_ImplVulkan_Init(&initInfo, _vk->RenderPass());
-
-
-	// Upload Fonts
-	{
-		const auto cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
-		ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
-		vkh::EndSingeTimeCommands(cmdBuf, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->LogicalDevice());
-		ImGui_ImplVulkan_DestroyFontUploadObjects();
-	}
-}
-void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
-{
-	//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-}
-void Renderer::DestroyImgui()
-{
-	vkDestroyDescriptorPool(_vk->LogicalDevice(), _imguiDescriptorPool, nullptr);
-	ImGui_ImplVulkan_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-}
-
-#pragma endregion
