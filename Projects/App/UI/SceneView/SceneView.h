@@ -27,10 +27,10 @@ public:
 	
 	virtual const RenderOptions& GetRenderOptions() = 0;
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
-	
+
+	virtual void LoadSkybox() = 0;
 	virtual float GetSkyboxRotation() const = 0;
 	virtual void SetSkyboxRotation(float skyboxRotation) = 0;
-	
 	virtual const std::vector<SkyboxInfo>& GetSkyboxList() = 0;
 	virtual u32 GetActiveSkybox() const = 0;
 	virtual void SetActiveSkybox(u32 idx) = 0;

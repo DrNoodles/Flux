@@ -192,8 +192,13 @@ void SceneView::BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Ent
 			auto& ibls = _delegate->GetSkyboxList();
 			auto activeIbl = _delegate->GetActiveSkybox();
 			
-			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,82 }, true))
+			if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,105 }, true))
 			{
+				if (ImGui::Button("Load Skybox"))
+				{
+					_delegate->LoadSkybox();
+				}
+
 				
 				if (ImGui::BeginCombo("Map", ibls[activeIbl].Name.c_str()))
 				{
