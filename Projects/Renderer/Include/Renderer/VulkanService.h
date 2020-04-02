@@ -2,11 +2,13 @@
 
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
+#include "VulkanInitializers.h"
 
 #include <Framework/CommonTypes.h>
 
 #include <vulkan/vulkan.h>
 
+//using vkh = VulkanHelpers;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +194,7 @@ public:
 		_delegate->NotifySwapchainUpdated(size.width, size.height, SwapchainImageCount());
 	}
 
-	std::optional<u32> StartFrame()
+	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
 	{
 		// Sync CPU-GPU
 		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
@@ -223,11 +225,41 @@ public:
 		// Mark the image as now being in use by this frame
 		_imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
-		return imageIndex;
+
+		
+		// Start command buffer
+		auto commandBuffer = _commandBuffers[imageIndex];
+		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to begin recording command buffer");
+		}
+
+		// Begin recording renderpass
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
+	
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderPass, _swapchainFramebuffers[imageIndex],
+			vki::Rect2D(vki::Offset2D(0, 0), _swapchainExtent), clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+
+		
+		return std::tuple<u32, VkCommandBuffer>{ imageIndex, commandBuffer };
 	}
 
-	void EndFrame(u32 imageIndex)
+	void EndFrame(u32 imageIndex, VkCommandBuffer commandBuffer)
 	{
+		// End rendering
+		vkCmdEndRenderPass(commandBuffer);
+		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to end recording command buffer");
+		}
+
+		
 		// Execute command buffer with the image as an attachment in the framebuffer
 		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
 		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };

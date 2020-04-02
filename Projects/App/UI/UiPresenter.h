@@ -77,7 +77,7 @@ public: // METHODS
 	void ClearSelection();
 	
 	void Build();
-	void Draw(u32 imageIndex) const; // TODO pass in render buffer
+	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
 	// Fit to middle
 	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }

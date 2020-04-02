@@ -335,16 +335,19 @@ private:
 
 	void Draw(const float dt) const
 	{
-		const auto imageIndex = _vulkanService->StartFrame();
-		if (!imageIndex.has_value())
+		const auto frameInfo = _vulkanService->StartFrame();
+		if (!frameInfo.has_value())
 		{
 			return;
 		}
 
-		//_ui->Build();
-		_ui->Draw(*imageIndex);
+		u32 imageIndex;
+		VkCommandBuffer cmdBuf;
+		std::tie(imageIndex, cmdBuf) = *frameInfo;
 		
-		_vulkanService->EndFrame(*imageIndex);
+		_ui->Draw(imageIndex, cmdBuf);
+		
+		_vulkanService->EndFrame(imageIndex, cmdBuf);
 	}
 
 

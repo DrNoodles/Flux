@@ -196,57 +196,67 @@ void UiPresenter::Build()
 		}
 	}
 	ImGui::EndFrame();
+	ImGui::Render();
 }
 
-void UiPresenter::Draw(u32 imageIndex) const
+void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	auto& entities = _scene.EntitiesView();
-	std::vector<RenderableResourceId> renderables;
-	std::vector<Light> lights;
-	std::vector<glm::mat4> transforms;
-
-	for (auto& entity : entities)
+	// Draw viewport
 	{
-		if (entity->Renderable.has_value())
+		auto& entities = _scene.EntitiesView();
+		std::vector<RenderableResourceId> renderables;
+		std::vector<Light> lights;
+		std::vector<glm::mat4> transforms;
+
+		for (auto& entity : entities)
 		{
-			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+			if (entity->Renderable.has_value())
 			{
-				renderables.emplace_back(componentSubmesh.Id);
-				transforms.emplace_back(entity->Transform.GetMatrix());
+				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+				{
+					renderables.emplace_back(componentSubmesh.Id);
+					transforms.emplace_back(entity->Transform.GetMatrix());
+				}
+			}
+
+			if (entity->Light.has_value())
+			{
+				// Convert from LightComponent to Light
+
+				auto& lightComp = *entity->Light;
+				Light light{};
+
+				light.Color = lightComp.Color;
+				light.Intensity = lightComp.Intensity;
+				switch (lightComp.Type) {
+				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+					//case Types::spot: 
+				default:
+					throw std::invalid_argument("Unsupport light component type");
+				}
+
+				light.Pos = entity->Transform.GetPos();
+				lights.emplace_back(light);
 			}
 		}
 
-		if (entity->Light.has_value())
-		{
-			// Convert from LightComponent to Light
 
-			auto& lightComp = *entity->Light;
-			Light light{};
+		auto& camera = _scene.GetCamera();
+		const auto view = camera.GetViewMatrix();
 
-			light.Color = lightComp.Color;
-			light.Intensity = lightComp.Intensity;
-			switch (lightComp.Type) {
-			case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-			case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-				//case Types::spot: 
-			default:
-				throw std::invalid_argument("Unsupport light component type");
-			}
-
-			light.Pos = entity->Transform.GetPos();
-			lights.emplace_back(light);
-		}
+		_renderer.DrawFrame(
+			commandBuffer, imageIndex, RenderOptions(),
+			renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
 	}
-
-
-	auto& camera = _scene.GetCamera();
-	const auto view = camera.GetViewMatrix();
-
-	_renderer.DrawFrame(imageIndex, RenderOptions(), renderables, transforms, lights, view, camera.Position,
-		ViewportPos(), ViewportSize());
-
+	
+	
 	// Draw UI
-	//ImGui::Render();
+	{
+		Build();
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+	}
+	
 }
 
 void UiPresenter::LoadDemoScene()

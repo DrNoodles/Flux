@@ -52,12 +52,16 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
-                         const std::vector<RenderableResourceId>& renderableIds,
-                         const std::vector<glm::mat4>& transforms,
-                         const std::vector<Light>& lights,
-                         glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
+void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
+	const RenderOptions& options,
+	const std::vector<RenderableResourceId>& renderableIds,
+	const std::vector<glm::mat4>& transforms,
+	const std::vector<Light>& lights,
+	glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
+	assert(renderableIds.size() == transforms.size());
+
+	
 	const auto startBench = std::chrono::steady_clock::now();
 
 	// Diff render options and force state updates where needed
@@ -83,7 +87,6 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 	}
 	
 
-	assert(renderableIds.size() == transforms.size());
 
 	
 	{
@@ -97,7 +100,8 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
 		}
 
-		// Update light buffers - TODO PERF Keep mem mapped
+
+		// Update light ubo - TODO PERF Keep mem mapped
 		{
 			auto lightsUbo = LightUbo::Create(lights);
 
@@ -109,8 +113,7 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 		}
 
 
-
-		// Update skybox buffer
+		// Update skybox ubos
 		const Skybox* skybox = GetCurrentSkyboxOrNull();
 		if (skybox)
 		{
@@ -147,7 +150,7 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 		}
 
 
-		// Update Model
+		// Update Pbr Model ubos
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
 			UniversalUboCreateInfo info = {};
@@ -174,100 +177,58 @@ void Renderer::DrawFrame(u32 frameIndex, const RenderOptions& options,
 		}
 
 
+		
 		// Record Command Buffer
-		auto renderPass = _vk->RenderPass();
-		auto swapchainExtent = _vk->SwapchainExtent();
-		auto commandBuffer = _vk->CommandBuffers()[frameIndex];
-		auto swapchainFramebuffer = _vk->SwapchainFramebuffers()[frameIndex];
-		auto pbrPipeline = _pbrPipeline;
-		auto pbrPipelineLayout = _pbrPipelineLayout;
-		auto skyboxPipeline = _skyboxPipeline;
-		auto skyboxPipelineLayout = _skyboxPipelineLayout;
-		auto& meshes = _meshes;
 
-		// Start command buffer
-		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
-		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) == VK_SUCCESS)
+		// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
+		auto viewport = vki::Viewport((f32)regionPos.x,(f32)regionPos.y, (f32)regionSize.x,(f32)regionSize.y, 0,1);
+		auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		
+		// Draw Skybox
+		if (skybox)
 		{
-			// Record renderpass
-			std::vector<VkClearValue> clearColors(2);
-			clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-			clearColors[1].depthStencil = { 1.f, 0ui32 };
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
 
-			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(renderPass, swapchainFramebuffer,
-				vki::Rect2D(vki::Offset2D(0, 0), swapchainExtent), clearColors);
-			
-			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			const auto& mesh = *_meshes[skybox->MeshId.Id];
+
+			// Draw mesh
+			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(commandBuffer,
+				VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipelineLayout,
+				0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+		}
+
+
+		// Draw Pbr Objects
+		{
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
+
+			for (const auto& renderableId : renderableIds)
 			{
-				// Render region - Note: this region is the 3d viewport only. ImGui below defines its own viewport
-				auto viewport = vki::Viewport((f32)regionPos.x,(f32)regionPos.y, (f32)regionSize.x,(f32)regionSize.y, 0,1);
-				auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
-				vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-				vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+				const auto& renderable = _renderables[renderableId.Id].get();
+				const auto& mesh = *_meshes[renderable->MeshId.Id];
 
-				
-				// Draw Skybox
-				if (skybox)
-				{
-					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipeline);
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
+					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 
-					const auto& mesh = *meshes[skybox->MeshId.Id];
+				/*const void* pValues;
+				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
 
-					// Draw mesh
-					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-					VkDeviceSize offsets[] = { 0 };
-					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS, skyboxPipelineLayout,
-						0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-				}
-
-
-				// Draw Objects
-				{
-					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipeline);
-
-					for (const auto& renderableId : renderableIds)
-					{
-						const auto& renderable = _renderables[renderableId.Id].get();
-						const auto& mesh = *meshes[renderable->MeshId.Id];
-
-						// Draw mesh
-						VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-						VkDeviceSize offsets[] = { 0 };
-						vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-						vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-						vkCmdBindDescriptorSets(commandBuffer,
-							VK_PIPELINE_BIND_POINT_GRAPHICS, pbrPipelineLayout,
-							0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-						/*const void* pValues;
-						vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
-						vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-					}
-				}
-
-
-				// Draw GUI - TODO This should be removed
-				{
-					//_delegate.BuildGui();
-					//DrawImgui(commandBuffer);
-				}
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 			}
-			vkCmdEndRenderPass(commandBuffer);
-		}
-		else
-		{
-			throw std::runtime_error("Failed to begin recording command buffer");
-		}
-
-		// End command buffer
-		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to end recording command buffer");
 		}
 	}
 
@@ -1444,7 +1405,7 @@ void Renderer::InitImgui()
 }
 void Renderer::DrawImgui(VkCommandBuffer commandBuffer)
 {
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+	//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
 void Renderer::DestroyImgui()
 {

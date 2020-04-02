@@ -42,11 +42,12 @@ public:
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
-	void DrawFrame(u32 frameIndex, const RenderOptions& options,
-	               const std::vector<RenderableResourceId>& renderableIds,
-	               const std::vector<glm::mat4>& transforms,
-	               const std::vector<Light>& lights,
-	               glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize);
+	void DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex, 
+		const RenderOptions& options,
+		const std::vector<RenderableResourceId>& renderableIds,
+		const std::vector<glm::mat4>& transforms,
+		const std::vector<Light>& lights,
+		glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize);
 	
 	void CleanUp(); // TODO convert to RAII?
 
