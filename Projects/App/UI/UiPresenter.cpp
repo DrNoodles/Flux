@@ -141,7 +141,7 @@ void UiPresenter::BuildImGui()
 			{
 				return pe.get();
 			});
-			IblVm iblVm{&_delegate.GetRenderOptions()};
+			IblVm iblVm{ &_renderOptions };
 			_sceneView.BuildUI(allEnts, _selection, iblVm);
 		}
 
@@ -246,7 +246,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		
 		_renderer.DrawFrame(
-			commandBuffer, imageIndex, RenderOptions(),
+			commandBuffer, imageIndex, _renderOptions,
 			renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
 	}
 	
@@ -381,26 +381,23 @@ void UiPresenter::DeleteAll()
 
 const RenderOptions& UiPresenter::GetRenderOptions()
 {
-	return _delegate.GetRenderOptions();
+	return _renderOptions;
 }
 
 void UiPresenter::SetRenderOptions(const RenderOptions& ro)
 {
-	_delegate.SetRenderOptions(ro);
+	_renderOptions = ro;
 }
 
 float UiPresenter::GetSkyboxRotation() const
 {
-	return _delegate.GetRenderOptions().SkyboxRotation;
+	return _renderOptions.SkyboxRotation;
 }
 
 void UiPresenter::SetSkyboxRotation(float rotation)
 {
 	printf("SetSkyboxRotation(%f)\n", rotation);
-
-	auto ro = _delegate.GetRenderOptions();
-	ro.SkyboxRotation = rotation;
-	_delegate.SetRenderOptions(ro);
+	_renderOptions.SkyboxRotation = rotation;
 }
 
 const std::vector<SkyboxInfo>& UiPresenter::GetSkyboxList()

@@ -23,8 +23,6 @@ public:
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
 	virtual void LoadDemoScene() = 0;
 	virtual void LoadDemoSceneHeavy() = 0;
-	virtual RenderOptions& GetRenderOptions() = 0;
-	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate, public IViewportViewDelegate
@@ -37,7 +35,8 @@ private: // DATA
 	SceneManager& _scene;
 	LibraryManager& _library;
 	Renderer& _renderer; // temp, move to ViewportView
-	
+
+
 	// Views
 	SceneView _sceneView;
 	PropsView _propsView;
@@ -51,8 +50,7 @@ private: // DATA
 	std::optional<LightVm> _lvm = std::nullopt;
 
 	u32 _activeSkybox = 0;
-
-	// Selection
+	RenderOptions _renderOptions;
 	std::unordered_set<Entity*> _selection{};
 
 	// Layout

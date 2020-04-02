@@ -181,16 +181,6 @@ public:
 		LoadMaterialArray({ 0,0,0 }, 30, 30);
 	}
 	
-	RenderOptions& GetRenderOptions() override
-	{
-		return _renderOptions;
-	}
-	
-	void SetRenderOptions(const RenderOptions& ro) override
-	{
-		_renderOptions = ro;
-	}
-	
 	#pragma endregion
 
 	
@@ -247,7 +237,6 @@ private:
 	glm::ivec2 _windowSize = { 1280,720 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _appOptions;
-	RenderOptions _renderOptions;
 	
 
 	// Time
