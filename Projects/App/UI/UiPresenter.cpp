@@ -467,6 +467,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	mat.Basecolor = state.Basecolor;
 	mat.Metalness = state.Metalness;
 	mat.Roughness = state.Roughness;
+	mat.EmissiveIntensity = state.EmissiveIntensity;
 
 	mat.InvertNormalMapZ = state.InvertNormalMapZ;
 	mat.InvertAoMap = state.InvertAoMap;
@@ -490,6 +491,8 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	case 4: mat.ActiveSolo = TextureType::AmbientOcclusion;
 		break;
 	case 5: mat.ActiveSolo = TextureType::Normals;
+		break;
+	case 6: mat.ActiveSolo = TextureType::Emissive;
 		break;
 	default:
 		throw std::out_of_range("");
@@ -522,6 +525,10 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 			pMap = &targetMat.AoMap;
 			pMapPath = &targetMat.AoMapPath;
 			break;
+		case TextureType::Emissive:
+			pMap = &targetMat.EmissiveMap;
+			pMapPath = &targetMat.EmissiveMapPath;
+			break;
 
 		case TextureType::Undefined:
 		default:
@@ -549,6 +556,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	UpdateMap(state.MetalnessMapPath, mat, TextureType::Metalness);
 	UpdateMap(state.RoughnessMapPath, mat, TextureType::Roughness);
 	UpdateMap(state.AoMapPath, mat, TextureType::AmbientOcclusion);
+	UpdateMap(state.EmissiveMapPath, mat, TextureType::Emissive);
 
 
 	_scene.SetMaterial(componentSubmesh.Id, mat);
@@ -567,6 +575,7 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.Basecolor = mat.Basecolor;
 	rvm.Metalness = mat.Metalness;
 	rvm.Roughness = mat.Roughness;
+	rvm.EmissiveIntensity = mat.EmissiveIntensity;
 
 	rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
 	rvm.InvertAoMap = mat.InvertAoMap;
@@ -591,6 +600,8 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 		break;
 	case TextureType::Normals: rvm.ActiveSolo = 5;
 		break;
+	case TextureType::Emissive: rvm.ActiveSolo = 6;
+		break;
 	default:
 		throw std::out_of_range("");
 	}
@@ -600,6 +611,7 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
 	rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
 	rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
+	rvm.EmissiveMapPath = mat.HasEmissiveMap() ? mat.EmissiveMapPath : "";
 
 	return rvm;
 }

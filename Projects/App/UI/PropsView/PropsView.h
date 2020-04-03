@@ -46,10 +46,11 @@ private:
 	void DrawRenderablePanel(MaterialViewState& rvm) const;
 	
 	void Basecolor(MaterialViewState& rvm) const;
+	void Normals(MaterialViewState& rvm) const;
 	void Metalness(MaterialViewState& rvm) const;
 	void Roughness(MaterialViewState& rvm) const;
 	void AmbientOcclusion(MaterialViewState& rvm) const;
-	void Normals(MaterialViewState& rvm) const;
+	void Emissive(MaterialViewState& rvm) const;
 };
 
 

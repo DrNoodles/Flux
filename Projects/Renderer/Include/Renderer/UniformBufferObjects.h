@@ -150,8 +150,8 @@ struct UniversalUbo
 		ubo.InvertAoMap[0] = float(material.InvertAoMap);
 		ubo.AoMapChannel[0] = float(material.AoMapChannel);
 
-		ubo.Emissivity[0] = 1.f;       // TODO Put this in a material :)
-		ubo.UseEmissiveMap[0] = false; // TODO Put this in a material :)
+		ubo.Emissivity[0] = material.EmissiveIntensity;
+		ubo.UseEmissiveMap[0] = float(material.UsingEmissiveMap());
 		
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);

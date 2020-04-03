@@ -90,7 +90,7 @@ void PropsView::DrawLightPanel(LightVm& lvm) const
 	{
 		ImGui::Spacing();
 		if (ImGui::ColorEdit3("Color##Light", &lvm.Color[0])) lvm.CommitChanges();
-		if (ImGui::DragFloat("Intensity##Light", &lvm.Intensity, 10, 0, 1000000)) lvm.CommitChanges();
+		if (ImGui::DragFloat("Intensity##Light", &lvm.Intensity, 10, 0, 1000000, "%.3f", 2)) lvm.CommitChanges();
 	}
 }
 
@@ -155,6 +155,9 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 			Basecolor(rvm);
 			SubSectionSpacing();
 
+			Normals(rvm);
+			SubSectionSpacing();
+
 			Metalness(rvm);
 			SubSectionSpacing();
 
@@ -164,7 +167,7 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 			AmbientOcclusion(rvm);
 			SubSectionSpacing();
 
-			Normals(rvm);
+			Emissive(rvm);
 		}
 		ImGui::EndChild();
 	}
@@ -224,6 +227,48 @@ void PropsView::Basecolor(MaterialViewState& rvm) const
 	{
 		if (ImGui::ColorEdit3((valueName + "##" + valueName).c_str(), col)) _delegate->CommitMaterialChanges(rvm);
 	}
+}
+
+void PropsView::Normals(MaterialViewState& rvm) const
+{
+	const std::string title = "NORMALS";
+	const std::string valueName = "Normals";
+	//bool& useMap = rvm.UseNormalMap;
+	std::string& mapPath = rvm.NormalMapPath;
+	bool& invertMap = rvm.InvertNormalMapZ;
+
+
+	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+	ImGui::Text(title.c_str());
+	ImGui::PopStyleColor(1);
+
+
+	ImGui::Spacing();
+
+
+	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
+
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+	{
+		const auto newPath = FileService::TexturePicker();
+		if (!newPath.empty())
+		{
+			mapPath = newPath;
+			_delegate->CommitMaterialChanges(rvm);
+		}
+	}
+	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
+
+	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
+	{
+		mapPath = "";
+		_delegate->CommitMaterialChanges(rvm);
+	}
+
+	ImGui::Spacing();
+
+	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 }
 
 void PropsView::Metalness(MaterialViewState& rvm) const
@@ -451,13 +496,13 @@ void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 	if (ImGui::Checkbox(("Invert##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
 }
 
-void PropsView::Normals(MaterialViewState& rvm) const
+void PropsView::Emissive(MaterialViewState& rvm) const
 {
-	const std::string title = "NORMALS";
-	const std::string valueName = "Normals";
+	const std::string title = "EMISSIVE";
+	const std::string valueName = "Strength";
 	//bool& useMap = rvm.UseNormalMap;
-	std::string& mapPath = rvm.NormalMapPath;
-	bool& invertMap = rvm.InvertNormalMapZ;
+	std::string& mapPath = rvm.EmissiveMapPath;
+	float& value = rvm.EmissiveIntensity;
 
 
 	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
@@ -490,5 +535,6 @@ void PropsView::Normals(MaterialViewState& rvm) const
 
 	ImGui::Spacing();
 
-	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
+	if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 20, "%.2f", 2)) 
+		_delegate->CommitMaterialChanges(rvm);
 }

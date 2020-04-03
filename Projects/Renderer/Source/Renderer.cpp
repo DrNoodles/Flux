@@ -367,6 +367,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	const auto currentRoughnessMapId = oldMat.RoughnessMap.value_or(_placeholderTexture).Id;
 	const auto currentMetalnessMapId = oldMat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto currentAoMapId = oldMat.AoMap.value_or(_placeholderTexture).Id;
+	const auto currentEmissiveMapId = oldMat.EmissiveMap.value_or(_placeholderTexture).Id;
 
 	// New ids
 	const auto basecolorMapId = newMat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -374,6 +375,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	const auto roughnessMapId = newMat.RoughnessMap.value_or(_placeholderTexture).Id;
 	const auto metalnessMapId = newMat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = newMat.AoMap.value_or(_placeholderTexture).Id;
+	const auto emissiveMapId = newMat.EmissiveMap.value_or(_placeholderTexture).Id;
 
 
 	// Store new mat
@@ -386,7 +388,8 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		currentNormalMapId == normalMapId &&
 		currentRoughnessMapId == roughnessMapId &&
 		currentMetalnessMapId == metalnessMapId &&
-		currentAoMapId == aoMapId;
+		currentAoMapId == aoMapId &&
+		currentEmissiveMapId == emissiveMapId;
 
 	if (!descriptorSetsMatch)
 	{
