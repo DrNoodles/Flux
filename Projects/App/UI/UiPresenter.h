@@ -114,7 +114,8 @@ private: // METHODS
 	
 	const RenderOptions& GetRenderOptions() override;
 	void SetRenderOptions(const RenderOptions& ro) override;
-	
+
+	void LoadSkybox() override;
 	float GetSkyboxRotation() const override;
 	void SetSkyboxRotation(float rotation) override;
 	const std::vector<SkyboxInfo>& GetSkyboxList() override;

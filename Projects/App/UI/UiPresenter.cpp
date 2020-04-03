@@ -389,6 +389,22 @@ void UiPresenter::SetRenderOptions(const RenderOptions& ro)
 	_renderOptions = ro;
 }
 
+void UiPresenter::LoadSkybox()
+{
+	printf("LoadSkybox()\n");
+
+	const auto path = FileService::FilePicker("Load equirectangular map", { "*.hdr" }, "HDR");
+
+	if (path.empty())
+		return;
+	
+	const auto resourceId = _scene.LoadSkybox(path);
+	_scene.SetSkybox(resourceId);
+
+	// TODO Figure out what to do with the active skybox. Need to design the UI solution first.
+	//_activeSkybox = idx;
+}
+
 float UiPresenter::GetSkyboxRotation() const
 {
 	return _renderOptions.SkyboxRotation;
