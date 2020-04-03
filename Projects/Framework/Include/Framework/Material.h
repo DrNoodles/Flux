@@ -55,6 +55,7 @@ struct Material
 	std::optional<TextureResourceId> MetalnessMap = std::nullopt;
 	std::optional<TextureResourceId> RoughnessMap = std::nullopt;
 	std::optional<TextureResourceId> AoMap = std::nullopt;
+	std::optional<TextureResourceId> EmissiveMap = std::nullopt;
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;

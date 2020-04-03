@@ -62,7 +62,7 @@ private: // DATA
 	std::unique_ptr<Renderer> _renderer = nullptr;
 
 	// Window
-	glm::ivec2 _windowSize = { 1280,720 };
+	glm::ivec2 _windowSize = { 1600,900 };
 	GLFWwindow* _window = nullptr;
 	AppOptions _appOptions;
 	bool _firstCursorInput = true;

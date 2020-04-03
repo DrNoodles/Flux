@@ -149,6 +149,7 @@ private: // Dependencies
 		const TextureResource& roughnessMap,
 		const TextureResource& metalnessMap,
 		const TextureResource& aoMap,
+		const TextureResource& emissiveMap,
 		const TextureResource& irradianceMap,
 		const TextureResource& prefilterMap,
 		const TextureResource& brdfMap,

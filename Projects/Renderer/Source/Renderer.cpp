@@ -131,8 +131,9 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			{
 				// Populate ubo
 				auto skyboxFragUbo = SkyboxFragUbo{};
-				skyboxFragUbo.ExposureBias_ShowClipping[0] = options.ExposureBias;
-				skyboxFragUbo.ExposureBias_ShowClipping[1] = options.ShowClipping;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[0] = options.ExposureBias;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[1] = options.ShowClipping;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[2] = options.IblStrength;
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
@@ -153,6 +154,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.Projection = projection;
 			info.CamPos = camPos;
 			info.ExposureBias = options.ExposureBias;
+			info.IblStrength = options. IblStrength;
 			info.ShowClipping = options.ShowClipping;
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
@@ -558,6 +560,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	const auto roughnessMapId = renderable.Mat.RoughnessMap.value_or(_placeholderTexture).Id;
 	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
+	const auto emissiveMapId = renderable.Mat.EmissiveMap.value_or(_placeholderTexture).Id;
 
 	WritePbrDescriptorSets(
 		numImagesInFlight,
@@ -569,6 +572,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		*_textures[roughnessMapId],
 		*_textures[metalnessMapId],
 		*_textures[aoMapId],
+		*_textures[emissiveMapId],
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
@@ -605,14 +609,16 @@ VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// aoMap
 		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// emissiveMap
+		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// light ubo
-		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT),
+		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT),
 		// irradiance map
-		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// prefilter map
 		vki::DescriptorSetLayoutBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// brdf map
+		// prefilter map
 		vki::DescriptorSetLayoutBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// brdf map
+		vki::DescriptorSetLayoutBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
 }
 
@@ -626,6 +632,7 @@ void Renderer::WritePbrDescriptorSets(
 	const TextureResource& roughnessMap,
 	const TextureResource& metalnessMap,
 	const TextureResource& aoMap,
+	const TextureResource& emissiveMap,
 	const TextureResource& irradianceMap,
 	const TextureResource& prefilterMap,
 	const TextureResource& brdfMap,
@@ -661,10 +668,11 @@ void Renderer::WritePbrDescriptorSets(
 			vki::WriteDescriptorSet(set, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
-			vki::WriteDescriptorSet(set, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 7, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
+			vki::WriteDescriptorSet(set, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.DescriptorImageInfo()),
 		};
 
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
@@ -922,6 +930,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
 		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
+		const auto emissiveMapId = renderable->Mat.EmissiveMap.value_or(_placeholderTexture).Id;
 
 
 		// Write updated descriptor sets
@@ -933,6 +942,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 			*_textures[roughnessMapId],
 			*_textures[metalnessMapId],
 			*_textures[aoMapId],
+			*_textures[emissiveMapId],
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),
