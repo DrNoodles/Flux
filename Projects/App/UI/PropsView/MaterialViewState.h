@@ -20,10 +20,12 @@ struct MaterialViewState
 	std::string MetalnessMapPath{};
 	std::string RoughnessMapPath{};
 	std::string AoMapPath{};
+	std::string EmissiveMapPath{};
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
+	float EmissiveIntensity = 1.0f;
 
 	bool InvertNormalMapZ = false;
 	bool InvertAoMap = false;

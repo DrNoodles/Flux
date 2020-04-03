@@ -18,6 +18,7 @@ enum class TextureType : char
 	Roughness = 3,
 	Metalness = 4,
 	AmbientOcclusion = 5,
+	Emissive = 6,
 };
 
 
@@ -43,22 +44,19 @@ struct Material
 	std::string MetalnessMapPath = {};
 	std::string RoughnessMapPath = {};
 	std::string AoMapPath = {};
-	
-	bool HasBasecolorMap() const { return BasecolorMap.has_value(); }
-	bool HasNormalMap() const { return NormalMap.has_value(); }
-	bool HasMetalnessMap() const { return MetalnessMap.has_value(); }
-	bool HasRoughnessMap() const { return RoughnessMap.has_value(); }
-	bool HasAoMap() const { return AoMap.has_value(); }
-	
+	std::string EmissiveMapPath = {};
+
 	std::optional<TextureResourceId> BasecolorMap = std::nullopt;
 	std::optional<TextureResourceId> NormalMap = std::nullopt;
 	std::optional<TextureResourceId> MetalnessMap = std::nullopt;
 	std::optional<TextureResourceId> RoughnessMap = std::nullopt;
 	std::optional<TextureResourceId> AoMap = std::nullopt;
+	std::optional<TextureResourceId> EmissiveMap = std::nullopt;
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
+	float EmissiveIntensity = 1;
 
 	bool InvertNormalMapZ = false;
 	bool InvertAoMap = false;
@@ -70,6 +68,15 @@ struct Material
 	Channel AoMapChannel = Channel::Red;
 
 	TextureType ActiveSolo = TextureType::Undefined;
+
+	
+	bool HasBasecolorMap() const { return BasecolorMap.has_value(); }
+	bool HasNormalMap() const { return NormalMap.has_value(); }
+	bool HasMetalnessMap() const { return MetalnessMap.has_value(); }
+	bool HasRoughnessMap() const { return RoughnessMap.has_value(); }
+	bool HasAoMap() const { return AoMap.has_value(); }
+	bool HasEmissiveMap() const { return EmissiveMap.has_value(); }
+
 
 	bool UsingBasecolorMap() const
 	{
@@ -99,5 +106,11 @@ struct Material
 	{
 		return /*UseAoMap && */HasAoMap() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::AmbientOcclusion);
+	}
+
+	bool UsingEmissiveMap() const
+	{
+		return HasEmissiveMap() &&
+			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Emissive);
 	}
 };

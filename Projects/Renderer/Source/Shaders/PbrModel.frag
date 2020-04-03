@@ -23,36 +23,43 @@ layout(std140, binding = 0) uniform UniversalUbo
 
 	// Material
 	vec3 basecolor;
-	vec4 roughness;          // float in [0]
-	vec4 metalness;          // float in [0]
-
 	vec4 useBasecolorMap;    // bool in [0] 
-	vec4 useNormalMap;		 // bool in [0]
-	vec4 useRoughnessMap;	 // bool in [0]
-	vec4 useMetalnessMap;    // bool in [0]
-	vec4 useAoMap;				 // bool in [0]
 
+	vec4 useNormalMap;       // bool in [0]
 	vec4 invertNormalMapZ;	 // bool in [0]
+
+	vec4 roughness;          // float in [0]
+	vec4 useRoughnessMap;	 // bool in [0]
 	vec4 invertRoughnessMap; // bool in [0]
-	vec4 invertMetalnessMap; // bool in [0]
-	vec4 invertAoMap;			 // bool in [0]
-	 
 	vec4 roughnessMapChannel;// int in [0] R=0,G,B,A
+
+	vec4 metalness;          // float in [0]
+	vec4 useMetalnessMap;    // bool in [0]
+	vec4 invertMetalnessMap; // bool in [0]
 	vec4 metalnessMapChannel;// int in [0] R=0,G,B,A
+
+	vec4 useAoMap;           // bool in [0]
+	vec4 invertAoMap;        // bool in [0]
 	vec4 aoMapChannel;       // int in [0] R=0,G,B,A
+
+	vec4 emissivity;         // float in [0]
+	vec4 useEmissiveMap;     // bool in [0]
 
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
-	vec4 showClipping;      // bool in [0]
+	vec4 showClipping;       // bool in [0]
 	vec4 exposureBias;       // float in [0]
+	vec4 iblStrength;        // float in [0]
 	mat4 cubemapRotation;
 } ubo;
+
 layout(binding = 1) uniform sampler2D BasecolorMap;
 layout(binding = 2) uniform sampler2D NormalMap;
 layout(binding = 3) uniform sampler2D RoughnessMap;
 layout(binding = 4) uniform sampler2D MetalnessMap;
 layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
-layout(std140, binding = 6) uniform LightUbo
+layout(binding = 6) uniform sampler2D EmissiveMap;
+layout(std140, binding = 7) uniform LightUbo
 {
 	LightPacked[MAX_LIGHT_COUNT] lights;
 	// TODO see this post about dealing with N number of lights
@@ -60,9 +67,9 @@ layout(std140, binding = 6) uniform LightUbo
 } lightUbo;
 
 
-layout(binding = 7) uniform samplerCube IrradianceMap; // diffuse
-layout(binding = 8) uniform samplerCube PrefilterMap; // spec
-layout(binding = 9) uniform sampler2D BrdfLUT; // spec
+layout(binding = 8) uniform samplerCube IrradianceMap; // diffuse
+layout(binding = 9) uniform samplerCube PrefilterMap; // spec
+layout(binding = 10) uniform sampler2D BrdfLUT; // spec
 
 
 layout(location = 0) in vec3 fragPos;
@@ -78,12 +85,14 @@ layout(location = 0) out vec4 outColor;
 vec3 uBasecolor;
 float uRoughness;        
 float uMetalness;         
+float uEmissivity;
 
 bool uUseBasecolorMap;  
 bool uUseNormalMap;		 
 bool uUseRoughnessMap;	 
 bool uUseMetalnessMap;		 
 bool uUseAoMap;				 
+bool uUseEmissiveMap;
 
 bool uInvertNormalMapZ;	 
 bool uInvertAoMap;			 
@@ -98,6 +107,7 @@ int uAoMapChannel;
 bool uShowNormalMap;
 bool uShowClipping;
 float uExposureBias;
+float uIblStrength;
 
 
 
@@ -119,6 +129,7 @@ vec3 GetNormal();
 float GetRoughness();
 float GetMetalness();
 float GetAmbientOcclusion();
+vec3 GetEmissive();
 
 bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001f)
 {
@@ -141,6 +152,7 @@ void main()
 	float metalness = GetMetalness();
 	float roughness = GetRoughness();
 	float ao = GetAmbientOcclusion();
+	vec3 emissive = GetEmissive();
 	
 	if (uShowNormalMap)
 	{
@@ -240,12 +252,13 @@ void main()
 
 
 		// Compute ambient term
-		iblAmbient = (kD * diffuse + specular) * ao; 
+		iblAmbient = (kD * diffuse + specular) * ao * uIblStrength; 
 	}
 
 
+	// PUT IT ALL TOGETHER BABY!
+	vec3 color = iblAmbient + Lo + emissive;
 
-	vec3 color = iblAmbient + Lo;
 	
 	// Post-processing - TODO Move to post pass shader
 	color *= uExposureBias;	// Exposure
@@ -338,6 +351,10 @@ float GetAmbientOcclusion()
 	}
 
 	return ao;
+}
+vec3 GetEmissive()
+{
+	return uUseEmissiveMap ? texture(EmissiveMap, fragTexCoord).rgb * uEmissivity : vec3(0);
 }
 
 
@@ -432,12 +449,14 @@ void UnpackUbos()
 	uBasecolor = ubo.basecolor;
 	uRoughness = float(ubo.roughness[0]);
 	uMetalness = float(ubo.metalness[0]);
+	uEmissivity = ubo.emissivity[0];
 
 	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
 	uUseNormalMap = bool(ubo.useNormalMap[0]);
 	uUseRoughnessMap = bool(ubo.useRoughnessMap[0]);
 	uUseMetalnessMap = bool(ubo.useMetalnessMap[0]);
 	uUseAoMap = bool(ubo.useAoMap[0]);
+	uUseEmissiveMap = bool(ubo.useEmissiveMap[0]);
 	
 	uInvertNormalMapZ = bool(ubo.invertNormalMapZ[0]);
 	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
@@ -452,4 +471,5 @@ void UnpackUbos()
 	uShowNormalMap = bool(ubo.showNormalMap[0]);
 	uShowClipping = bool(ubo.showClipping[0]);
 	uExposureBias = ubo.exposureBias[0];
+	uIblStrength = ubo.iblStrength[0];
 }
