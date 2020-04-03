@@ -516,7 +516,7 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 
 	// Match these to CreatePbrDescriptorSetLayout
 	const auto numPbrUniformBuffers = 2;
-	const auto numPbrCombinedImageSamplers = 8;
+	const auto numPbrCombinedImageSamplers = 9;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
 	const auto numSkyboxUniformBuffers = 2;
