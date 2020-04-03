@@ -9,6 +9,7 @@ struct SkyboxInfo;
 struct RenderOptions;
 struct Entity;
 class IblVm;
+typedef int ImGuiTreeNodeFlags;
 
 class ISceneViewDelegate
 {
@@ -39,10 +40,18 @@ public:
 class SceneView
 {
 public:
+private:
+	ISceneViewDelegate* _delegate = nullptr;
+
+public:
 	SceneView() = delete;
 	explicit SceneView(ISceneViewDelegate* delegate) : _delegate{ delegate } {}
 	void BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
-
+	
 private:
-	ISceneViewDelegate* _delegate = nullptr;
+	void SceneLoadPanel(ImGuiTreeNodeFlags headerFlags) const;
+	void CreatePanel(ImGuiTreeNodeFlags headerFlags) const;
+	void OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, ImGuiTreeNodeFlags headerFlags) const;
+	void IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const;
+	void RenderOptionsPanel(ImGuiTreeNodeFlags headerFlags) const;
 };
