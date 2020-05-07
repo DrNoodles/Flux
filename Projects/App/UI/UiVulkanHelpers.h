@@ -23,7 +23,7 @@ namespace UiVulkanHelpers
 	};
 
 
-	inline RenderTargetResources CreateRendertargetResources(u32 width, u32 height, u32 imageCount, 
+	inline RenderTargetResources CreateRendertargetResources(const TextureResource& screenMap, /*u32 width, u32 height, */u32 imageCount, 
 		const std::string& shaderDir, VulkanService& vk)
 	{
 		MeshResource quad;
@@ -65,7 +65,6 @@ namespace UiVulkanHelpers
 		
 		VkDescriptorPool descPool;
 		{
-			//auto poolMultiplier = 3; // TODO This hack multiplies to ensure enough space. Fix as this should be deterministic 
 			const std::vector<VkDescriptorPoolSize> poolSizes = 
 			{
 				VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount }
@@ -86,6 +85,14 @@ namespace UiVulkanHelpers
 		std::vector<VkDescriptorSet> descSets;
 		{
 			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, vk.LogicalDevice());
+
+			std::vector<VkWriteDescriptorSet> writes(descSets.size());
+			for (size_t i = 0; i < descSets.size(); i++)
+			{
+				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap.DescriptorImageInfo());
+			}
+			
+			vkh::UpdateDescriptorSets(vk.LogicalDevice(), writes);
 		}
 		
 		

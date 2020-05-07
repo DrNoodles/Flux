@@ -5,6 +5,7 @@
 #include "UiVulkanHelpers.h"
 
 #include <Framework/FileService.h>
+#include <Renderer/TextureResource.h> // todo decouple renderer details from this layer
 #include <State/Entity/Actions/TurntableActionComponent.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
@@ -29,7 +30,13 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	auto size = vulkan.SwapchainExtent();
 	auto imageCount = vulkan.SwapchainImageCount();
-	_renderTarget = uvh::CreateRendertargetResources(size.width, size.height, imageCount, shaderDir, vulkan);
+	
+	auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
+		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());
+
+	_screenTexture = std::make_unique<TextureResource>(std::move(screenTexture));
+	
+	_renderTarget = uvh::CreateRendertargetResources(*_screenTexture, /*size.width, size.height, */imageCount, shaderDir, vulkan);
 	
 	
 }
