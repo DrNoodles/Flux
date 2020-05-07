@@ -3,6 +3,7 @@
 // Constants
 const float PI = 3.14159265359;
 const int MAX_LIGHT_COUNT = 8;
+const int PREFILTER_MIP_COUNT = 6; // Must match PrefilterMap's # mip levels
 
 // Types
 struct LightPacked
@@ -228,7 +229,7 @@ void main()
 		//// Compute ratio of diffuse/specular for IBL
 		vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
 		vec3 kS = F;
-		vec3 kD = 1.0 - kS;
+		vec3 kD = vec3(1.0) - kS;
 		kD *= 1.0 - metalness;	
 
 		mat3 cubemapRotationMat3 = mat3(ubo.cubemapRotation);
@@ -241,14 +242,14 @@ void main()
 		//// Compute specular IBL ////
 		// Sample the reflection color from the prefiltered map 
 		vec3 R = reflect(-V, normal); // reflection vector
-		const float MAX_REFLECTION_LOD = 4.0; // 6 mip levels when generating prefilter map - must match external mip gen
-		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*MAX_REFLECTION_LOD).rgb;
+		const float maxReflectionLod = PREFILTER_MIP_COUNT-1; 
+		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*maxReflectionLod).rgb;
 
 		// Sample BRDF LUT
 		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, 1-roughness)).rg;
 
 		// Final specular by combining prefilter color and BRDF LUT
-		vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
+		vec3 specular = prefilteredColor * (F*envBRDF.x + envBRDF.y);
 
 
 		// Compute ambient term

@@ -130,16 +130,20 @@ void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, cons
 
 SkyboxResourceId SceneManager::LoadSkybox(const std::string& path)
 {
-	SkyboxResourceId skyboxResourceId;
-
-	// See if skybox is already loaded
+	// Check if skybox is already loaded
 	const auto it = _loadedSkyboxesCache.find(path);
 	if (it != _loadedSkyboxesCache.end())
 	{
-		// Use existing resource
-		skyboxResourceId = it->second;
+		return it->second;
 	}
-	else
+
+
+	// TODO Check for disk cached ibl maps
+
+
+	
+
+	// Load and generate new ibl maps
 	{
 		std::cout << "Creating skybox " << path << std::endl;
 
@@ -147,12 +151,12 @@ SkyboxResourceId SceneManager::LoadSkybox(const std::string& path)
 		const auto ids = _delegate->CreateIblTextureResources(path);
 		SkyboxCreateInfo createInfo = {};
 		createInfo.IblTextureIds = ids;
-		skyboxResourceId = _delegate->CreateSkybox(createInfo);
+		auto skyboxResourceId = _delegate->CreateSkybox(createInfo);
 
 		_loadedSkyboxesCache.emplace(path, skyboxResourceId);
-	}
 
-	return skyboxResourceId;
+		return skyboxResourceId;
+	}
 }
 
 void SceneManager::SetSkybox(const SkyboxResourceId& id)
