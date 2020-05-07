@@ -25,15 +25,8 @@
 using vkh = VulkanHelpers;
 
 Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
-	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _delegate(delegate), _shaderDir(std::move(shaderDir))
+	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
-	_vk = vulkanService;
-
-	const auto size = _delegate.GetFramebufferSize();
-
-	_vk->InitVulkan();
-	_vk->InitVulkanSwapchainAndDependants(size.width, size.height);
-	
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
 	

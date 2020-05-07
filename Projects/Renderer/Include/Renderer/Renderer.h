@@ -23,7 +23,7 @@ class IRendererDelegate
 {
 public:
 	virtual ~IRendererDelegate() = default;
-	virtual VkExtent2D GetFramebufferSize() = 0;
+	//virtual VkExtent2D GetFramebufferSize() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
