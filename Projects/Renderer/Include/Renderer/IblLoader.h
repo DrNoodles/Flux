@@ -815,7 +815,7 @@ private:
 	static VkRenderPass Shared_CreateRenderPass(VkDevice device, VkFormat format)
 	{
 		// Use subpass dependencies for layout transitions
-		std::array<VkSubpassDependency, 2> dependencies{};
+		std::vector<VkSubpassDependency> dependencies(2);
 		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 		dependencies[0].dstSubpass = 0;
 		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
@@ -853,24 +853,8 @@ private:
 			subpassDescription.pColorAttachments = &colorReference;
 		}
 
-
-		// Renderpass
-		VkRenderPassCreateInfo renderPassCI = {};
-		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCI.attachmentCount = 1;
-		renderPassCI.pAttachments = &colorAttachmentDesc;
-		renderPassCI.subpassCount = 1;
-		renderPassCI.pSubpasses = &subpassDescription;
-		renderPassCI.dependencyCount = (u32)dependencies.size();
-		renderPassCI.pDependencies = dependencies.data();
-
-		VkRenderPass renderPass;
-		if (VK_SUCCESS != vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass))
-		{
-			throw std::runtime_error("Failed to create RenderPass");
-		}
-
-		return renderPass;
+		return vkh::CreateRenderPass(device, { colorAttachmentDesc }, { subpassDescription }, dependencies );
+	
 	}
 
 	static RenderTarget Shared_CreateRenderTarget(VkDevice device, VkPhysicalDevice physicalDevice, 

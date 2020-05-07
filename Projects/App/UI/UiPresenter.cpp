@@ -2,7 +2,7 @@
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
 #include "SceneView/IblVm.h"
-#include "UiVulkanHelpers.h"
+#include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
 #include <Renderer/TextureResource.h> // todo decouple renderer details from this layer
@@ -14,7 +14,7 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-namespace uvh = UiVulkanHelpers;
+namespace uvh = UiPresenterHelpers;
 
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir):
 	_delegate(dgate),
@@ -26,24 +26,27 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
 {
-	// Init Vulkan Resources for render passes - TODO Abstract Vulkan out of this layer
 
-	auto size = vulkan.SwapchainExtent();
-	auto imageCount = vulkan.SwapchainImageCount();
-	
-	auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
-		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());
+	/*auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
+		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());*/
 
-	_screenTexture = std::make_unique<TextureResource>(std::move(screenTexture));
+	// TODO Create a texture for teh offscreen buffers that's RGBA	16
+
+	auto width = _vulkan.SwapchainExtent().width;
+	auto height = _vulkan.SwapchainExtent().height;
 	
-	_renderTarget = uvh::CreateRendertargetResources(*_screenTexture, /*size.width, size.height, */imageCount, shaderDir, vulkan);
+	_screenTexture = std::make_unique<TextureResource>(UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan));
 	
+	_renderTarget = uvh::CreatePostPassResources(*_screenTexture, vulkan.SwapchainImageCount(), shaderDir, vulkan);
 	
+	_framebufferRes = UiPresenterHelpers::CreateScenePassResources(_screenTexture->DescriptorImageInfo().imageView, _renderer._renderPass, _vulkan);
 }
 
 void UiPresenter::Shutdown()
 {
-	uvh::DestroyRendertargetResources(_renderTarget, _vulkan);
+	_renderTarget.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_framebufferRes.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_screenTexture = nullptr;
 }
 
 void UiPresenter::NextSkybox()
@@ -292,22 +295,22 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-	//
-	//// Draw scene to gbuf
-	//{
-	//	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-	//		_renderTarget.RenderPass, 
-	//		_renderTarget.Framebuffer,
-	//		vki::Rect2D({0,0}, _renderTarget.Size), 
-	//		clearColors);
+	
+	// Draw scene to gbuf
+	{
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+			_renderer._renderPass, 
+			_framebufferRes.Framebuffer,
+			vki::Rect2D({0,0}, swapchainExtent), 
+			clearColors);
 
-	//	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	//	{
-	//		DrawViewport(imageIndex, commandBuffer);
-	//		DrawUi(commandBuffer);
-	//	}
-	//	vkCmdEndRenderPass(commandBuffer);
-	//}
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			DrawViewport(imageIndex, commandBuffer);
+			DrawUi(commandBuffer);
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
 
 
 	// Draw gbuf to screen
@@ -328,7 +331,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			
 			// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
 			
-			auto viewport = vki::Viewport(0,0, swapchainExtent.width, swapchainExtent.height, 0,1);
+			auto viewport = vki::Viewport(0,0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0,1);
 			auto scissor = vki::Rect2D({ 0,0 }, swapchainExtent);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);

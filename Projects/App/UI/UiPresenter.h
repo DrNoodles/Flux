@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UiPresenterHelpers.h"
+
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
 #include "PropsView/TransformVm.h"
@@ -9,7 +11,6 @@
 
 #include <chrono>
 
-#include "UiVulkanHelpers.h"
 
 
 class LibraryManager;
@@ -65,8 +66,10 @@ private: // DATA
 	
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	// Offscreen Render target
-	UiVulkanHelpers::RenderTargetResources _renderTarget;
+	UiPresenterHelpers::PostPassResources _renderTarget;
 	std::unique_ptr<TextureResource> _screenTexture = nullptr;
+	UiPresenterHelpers::FramebufferResources _framebufferRes;
+	
 
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir);
