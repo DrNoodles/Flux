@@ -212,26 +212,13 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		{
 			throw std::runtime_error("Failed to begin recording command buffer");
 		}
-
-		// Begin recording renderpass
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-	
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderPass, _swapchainFramebuffers[imageIndex],
-			vki::Rect2D(vki::Offset2D(0, 0), _swapchainExtent), clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-
 		
 		return std::tuple<u32, VkCommandBuffer>{ imageIndex, commandBuffer };
 	}
 
 	void EndFrame(u32 imageIndex, VkCommandBuffer commandBuffer)
 	{
-		// End rendering
-		vkCmdEndRenderPass(commandBuffer);
+		// End recording
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to end recording command buffer");
@@ -327,7 +314,6 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkanSwapchainAndDependants(int width, int height)
 	{
-			
 		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
 		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
@@ -354,7 +340,11 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
 			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
 	}
-	
+
+public:
+
+
+private:
 	void DestroyVulkanSwapchain()
 	{
 		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }

@@ -104,7 +104,7 @@ public: // METHODS
 
 		// UI
 		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan);
 
 		// Set all teh things
 		_appOptions = std::move(options);

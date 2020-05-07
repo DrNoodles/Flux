@@ -34,7 +34,7 @@ private: // DATA
 	SceneManager& _scene;
 	LibraryManager& _library;
 	Renderer& _renderer; // temp, move to ViewportView
-
+	VulkanService& _vulkan; // temp, remove
 
 	// Views
 	SceneView _sceneView;
@@ -62,7 +62,7 @@ private: // DATA
 
 	
 public: // METHODS
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan);
 	~UiPresenter() = default;
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
@@ -104,6 +104,9 @@ private: // METHODS
 	glm::ivec2 PropsSize() const { return { _propsViewWidth, WindowHeight() }; }
 
 	void BuildImGui();
+	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
+	void DrawUi(VkCommandBuffer commandBuffer);
+
 	
 	#pragma region ISceneViewDelegate
 
@@ -142,5 +145,4 @@ private: // METHODS
 	static MaterialViewState PopulateMaterialState(const Material& mat);
 
 	#pragma endregion
-	
 };

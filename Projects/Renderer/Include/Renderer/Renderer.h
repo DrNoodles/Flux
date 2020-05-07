@@ -35,7 +35,7 @@ public:
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
-	void DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex, 
+	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
 		const RenderOptions& options,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,

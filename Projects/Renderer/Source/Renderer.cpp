@@ -38,7 +38,7 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
+void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
@@ -46,10 +46,8 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 	glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
 	assert(renderableIds.size() == transforms.size());
-
-
-	
 	const auto startBench = std::chrono::steady_clock::now();
+
 
 	// Diff render options and force state updates where needed
 	{
@@ -75,7 +73,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 	
 
 
-	
+	// Update UBOs
 	{
 		// Calc Projection
 		const auto vfov = 45.f;
@@ -84,7 +82,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
 
-		// Update light ubo - TODO PERF Keep mem mapped
+		// Light ubo - TODO PERF Keep mem mapped
 		{
 			auto lightsUbo = LightUbo::Create(lights);
 
@@ -102,7 +100,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		{
 			// Vert ubo
 			{
-				// Populate ubo
+				// Populate
 				auto skyboxVertUbo = SkyboxVertUbo{};
 				skyboxVertUbo.Projection = projection; // same as camera
 				skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
@@ -118,7 +116,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 			// Frag ubo
 			{
-				// Populate ubo
+				// Populate
 				auto skyboxFragUbo = SkyboxFragUbo{};
 				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[0] = options.ExposureBias;
 				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[1] = options.ShowClipping;
@@ -138,6 +136,10 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		// Update Pbr Model ubos
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
+			// Populate
+			const auto& renderable = _renderables[renderableIds[i].Id].get();
+			auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
+			
 			UniversalUboCreateInfo info = {};
 			info.Model = transforms[i];
 			info.View = view;
@@ -148,13 +150,13 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.ShowClipping = options.ShowClipping;
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
-
 			const auto& renderable = *_renderables[renderableIds[i].Id];
 			
 			const auto& modelBufferMemory = renderable.FrameResources[frameIndex].UniformBufferMemory;
 			const auto modelUbo = UniversalUbo::Create(info, renderable.Mat);
 
-			// Update model ubo - TODO PERF Keep mem mapped 
+			
+			// Copy to gpu - TODO PERF Keep mem mapped 
 			void* data;
 			auto size = sizeof(modelUbo);
 			vkMapMemory(_vk->LogicalDevice(), modelBufferMemory, 0, size, 0, &data);

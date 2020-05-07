@@ -13,11 +13,12 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
 	_renderer{renderer},
+	_vulkan{vulkan},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
@@ -199,71 +200,99 @@ void UiPresenter::BuildImGui()
 	ImGui::Render();
 }
 
-void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
+void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	// Draw viewport
+	auto& entities = _scene.EntitiesView();
+	std::vector<RenderableResourceId> renderables;
+	std::vector<Light> lights;
+	std::vector<glm::mat4> transforms;
+
+	for (auto& entity : entities)
 	{
-		auto& entities = _scene.EntitiesView();
-		std::vector<RenderableResourceId> renderables;
-		std::vector<Light> lights;
-		std::vector<glm::mat4> transforms;
-
-		for (auto& entity : entities)
+		if (entity->Renderable.has_value())
 		{
-			if (entity->Renderable.has_value())
+			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
 			{
-				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
-				{
-					renderables.emplace_back(componentSubmesh.Id);
-					transforms.emplace_back(entity->Transform.GetMatrix());
-				}
-			}
-
-			if (entity->Light.has_value())
-			{
-				// Convert from LightComponent to Light
-
-				auto& lightComp = *entity->Light;
-				Light light{};
-
-				light.Color = lightComp.Color;
-				light.Intensity = lightComp.Intensity;
-				switch (lightComp.Type) {
-				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-					//case Types::spot: 
-				default:
-					throw std::invalid_argument("Unsupport light component type");
-				}
-
-				light.Pos = entity->Transform.GetPos();
-				lights.emplace_back(light);
+				renderables.emplace_back(componentSubmesh.Id);
+				transforms.emplace_back(entity->Transform.GetMatrix());
 			}
 		}
 
-		auto& camera = _scene.GetCamera();
-		const auto view = camera.GetViewMatrix();
+		if (entity->Light.has_value())
+		{
+			// Convert from LightComponent to Light
+
+			auto& lightComp = *entity->Light;
+			Light light{};
+
+			light.Color = lightComp.Color;
+			light.Intensity = lightComp.Intensity;
+			switch (lightComp.Type) {
+			case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+			case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+				//case Types::spot: 
+			default:
+				throw std::invalid_argument("Unsupport light component type");
+			}
+
+			light.Pos = entity->Transform.GetPos();
+			lights.emplace_back(light);
+		}
+	}
+
+	auto& camera = _scene.GetCamera();
+	const auto view = camera.GetViewMatrix();
 
 		
-		_renderer.DrawFrame(
-			commandBuffer, imageIndex, _renderOptions,
-			renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
+	_renderer.Draw(
+		commandBuffer, imageIndex, _renderOptions,
+		renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
+}
+
+void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
+{
+	// Update Ui
+	const auto currentTime = std::chrono::high_resolution_clock::now();
+	if (currentTime - _lastUiUpdate > _uiUpdateRate)
+	{
+		_lastUiUpdate = currentTime;
+		BuildImGui();
+	}
+
+	// Draw
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+}
+
+void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
+{
+	// Begin recording renderpass
+	std::vector<VkClearValue> clearColors(2);
+	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+	clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+	const auto extent = _vulkan.SwapchainExtent();
+	
+	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+		_vulkan.RenderPass(), 
+		_vulkan.SwapchainFramebuffers()[imageIndex],
+		vki::Rect2D(0,0, extent.width, extent.height), 
+		clearColors);
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	
+	// Draw viewport
+	{
+		DrawViewport(imageIndex, commandBuffer);
 	}
 	
 
 	// Draw UI
 	{
-		// Update Ui
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		if (currentTime - _lastUiUpdate > _uiUpdateRate)
-		{
-			_lastUiUpdate = currentTime;
-			BuildImGui();
-		}
-
-		// Draw
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+		DrawUi(commandBuffer);
 	}
+
+	vkCmdEndRenderPass(commandBuffer);
 }
 
 void UiPresenter::LoadDemoScene()
