@@ -2,7 +2,7 @@
 
 // Constants
 const float PI = 3.14159265359;
-const uint SAMPLE_COUNT = 4096u;
+const uint SAMPLE_COUNT = 4096;
 
 
 layout(push_constant) uniform PushConsts

@@ -334,8 +334,8 @@ private:
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
 		const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT; 
-		const i32 dim = 512;
-		const u32 numMips = 5;
+		const i32 dim = 1024;
+		const u32 numMips = 6;
 
 
 		TextureResource prefilterCubemap = Shared_CreateCubeTextureResource(physicalDevice, device, format, dim, numMips);
