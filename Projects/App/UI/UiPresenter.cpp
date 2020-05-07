@@ -266,19 +266,21 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	// Begin recording renderpass
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-	clearColors[1].depthStencil = { 1.f, 0ui32 };
+	{
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-	const auto extent = _vulkan.SwapchainExtent();
-	
-	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-		_vulkan.RenderPass(), 
-		_vulkan.SwapchainFramebuffers()[imageIndex],
-		vki::Rect2D(0,0, extent.width, extent.height), 
-		clearColors);
+		const auto extent = _vulkan.SwapchainExtent();
+		
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+			_vulkan.RenderPass(), 
+			_vulkan.SwapchainFramebuffers()[imageIndex],
+			vki::Rect2D(0,0, extent.width, extent.height), 
+			clearColors);
 
-	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	}
 
 	
 	// Draw viewport
