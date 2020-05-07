@@ -15,8 +15,7 @@ Flux is a real-time PBR asset renderer, written with Vulkan.
 
 ```
 
-Download a Binary from: 
-https://computermen.itch.io/flux-renderer
+[Download a Binary](https://computermen.itch.io/flux-renderer)
 
 Or continue here to build from source...
 
