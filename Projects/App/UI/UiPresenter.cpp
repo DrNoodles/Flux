@@ -314,8 +314,8 @@ void UiPresenter::CreateDirectionalLight()
 	entity->Name = "DirectionalLight" + std::to_string(entity->Id);
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::directional;
-	entity->Light->Intensity = 15;
-	entity->Transform.SetPos({1, 1, 1});
+	entity->Light->Intensity = 5;
+	entity->Transform.SetPos({0, -1, 0});
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -329,7 +329,7 @@ void UiPresenter::CreatePointLight()
 	entity->Name = "PointLight" + std::to_string(entity->Id);
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::point;
-	entity->Light->Intensity = 500;
+	entity->Light->Intensity = 250;
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
