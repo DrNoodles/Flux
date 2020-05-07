@@ -65,10 +65,12 @@ private: // DATA
 
 	
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	// Offscreen Render target
-	UiPresenterHelpers::PostPassResources _renderTarget;
-	std::unique_ptr<TextureResource> _screenTexture = nullptr;
-	UiPresenterHelpers::FramebufferResources _framebufferRes;
+
+	std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
+	UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
+	
+	UiPresenterHelpers::PostPassResources _postPassResources;
+
 	
 
 public: // METHODS

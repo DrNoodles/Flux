@@ -34,19 +34,26 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	auto width = _vulkan.SwapchainExtent().width;
 	auto height = _vulkan.SwapchainExtent().height;
+
+
+	// Offscreen renderpass setup
+	{
+		auto&& tex = UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan);
+		_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
+
+		_offscreenFramebuffer = UiPresenterHelpers::CreateSceneOffscreenFramebuffer(_offscreenTextureResource->DescriptorImageInfo().imageView, _renderer._renderPass, _vulkan);
+	}
 	
-	_screenTexture = std::make_unique<TextureResource>(UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan));
-	
-	_renderTarget = uvh::CreatePostPassResources(*_screenTexture, vulkan.SwapchainImageCount(), shaderDir, vulkan);
-	
-	_framebufferRes = UiPresenterHelpers::CreateScenePassResources(_screenTexture->DescriptorImageInfo().imageView, _renderer._renderPass, _vulkan);
+	_postPassResources = uvh::CreatePostPassResources(_offscreenTextureResource->DescriptorImageInfo(), vulkan.SwapchainImageCount(), shaderDir, vulkan);
+
 }
 
 void UiPresenter::Shutdown()
 {
-	_renderTarget.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_framebufferRes.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_screenTexture = nullptr;
+	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	
+	_offscreenFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_offscreenTextureResource = nullptr;
 }
 
 void UiPresenter::NextSkybox()
@@ -295,12 +302,27 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
+	auto& vk = _vulkan;
+	
+	// Prep offscreen texture for writing to 
+	{
+		const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+
+		vkh::TransitionImageLayout(cmdBuf,
+			_offscreenTextureResource->Image(),
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+			VK_IMAGE_ASPECT_COLOR_BIT);
+
+		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
+	}
+
 	
 	// Draw scene to gbuf
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
 			_renderer._renderPass, 
-			_framebufferRes.Framebuffer,
+			_offscreenFramebuffer.Framebuffer,
 			vki::Rect2D({0,0}, swapchainExtent), 
 			clearColors);
 
@@ -313,6 +335,20 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	}
 
 
+	// Prep offscreen texture for sampling from
+	{
+		const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+
+		vkh::TransitionImageLayout(cmdBuf,
+			_offscreenTextureResource->Image(),
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+			VK_IMAGE_ASPECT_COLOR_BIT);
+
+		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
+	}
+
+	
 	// Draw gbuf to screen
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
@@ -322,8 +358,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			clearColors);
 
 
-		// TODO Write UBO?
-		
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			// Need to draw a quad
@@ -338,15 +372,15 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 
 			
-			const MeshResource mesh = _renderTarget.Quad;
+			const MeshResource mesh = _postPassResources.Quad;
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderTarget.Pipeline);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
 			
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderTarget.PipelineLayout, 0, 1, &_renderTarget.DescriptorSets[imageIndex], 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.PipelineLayout, 0, 1, &_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 			
 		}

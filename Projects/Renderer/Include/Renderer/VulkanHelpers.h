@@ -299,13 +299,11 @@ public:
 	
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>
 		CreateColorResources(VkFormat format, VkExtent2D extent, VkSampleCountFlagBits msaaSamples,
-			VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device,
-			VkPhysicalDevice physicalDevice);
+			VkDevice device, VkPhysicalDevice physicalDevice);
 
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory, VkImageView>
-		CreateDepthResources(VkExtent2D extent, VkSampleCountFlagBits msaaSamples, VkCommandPool transferCommandPool,
-			VkQueue transferQueue, VkDevice device, VkPhysicalDevice physicalDevice);
+		CreateDepthResources(VkExtent2D extent, VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice);
 
 
 	static bool HasStencilComponent(VkFormat format);

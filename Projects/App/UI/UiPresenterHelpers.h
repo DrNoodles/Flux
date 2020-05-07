@@ -76,7 +76,7 @@ namespace UiPresenterHelpers
 	};
 
 
-	inline FramebufferResources CreateScenePassResources(VkImageView outputImageView, VkRenderPass renderPass, VulkanService& vk)
+	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkImageView outputImageView, VkRenderPass renderPass, VulkanService& vk)
 	{
 		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
 		const auto extent = vk.SwapchainExtent();
@@ -106,7 +106,7 @@ namespace UiPresenterHelpers
 		
 		// Create depth attachment resources
 		FramebufferAttachmentResources depthAttachment = {};
-		std::tie(depthAttachment.Image, depthAttachment.ImageMemory, depthAttachment.ImageView) = vkh::CreateDepthResources(extent, vk.MsaaSamples(), vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice(), vk.PhysicalDevice());
+		std::tie(depthAttachment.Image, depthAttachment.ImageMemory, depthAttachment.ImageView) = vkh::CreateDepthResources(extent, vk.MsaaSamples(), vk.LogicalDevice(), vk.PhysicalDevice());
 
 
 
@@ -126,7 +126,7 @@ namespace UiPresenterHelpers
 	}
 
 
-	inline PostPassResources CreatePostPassResources(const TextureResource& screenMap, u32 imageCount, 
+	inline PostPassResources CreatePostPassResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, 
 		const std::string& shaderDir, VulkanService& vk)
 	{
 		MeshResource quad;
@@ -192,7 +192,7 @@ namespace UiPresenterHelpers
 			std::vector<VkWriteDescriptorSet> writes(descSets.size());
 			for (size_t i = 0; i < descSets.size(); i++)
 			{
-				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap.DescriptorImageInfo());
+				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap);
 			}
 			
 			vkh::UpdateDescriptorSets(vk.LogicalDevice(), writes);
@@ -353,14 +353,14 @@ namespace UiPresenterHelpers
 			format,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // Used in offscreen framebuffer
-			VK_IMAGE_USAGE_TRANSFER_SRC_BIT |     // Need to convert layout to attachment optimal in prep for framebuffer writing
+			//VK_IMAGE_USAGE_TRANSFER_SRC_BIT |     // Need to convert layout to attachment optimal in prep for framebuffer writing
 			VK_IMAGE_USAGE_SAMPLED_BIT,           // Framebuffer result is used in later shader pass
 
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			vk.PhysicalDevice(), vk.LogicalDevice(),
 			layerCount);
 
-
+		
 		// Transition image layout
 		{
 			const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
@@ -373,14 +373,13 @@ namespace UiPresenterHelpers
 			subresourceRange.levelCount = mipLevels;
 
 			vkh::TransitionImageLayout(cmdBuf, image,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, subresourceRange);
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
 
 			vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
 		}
 
 
-		VkImageView view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1,
-			vk.LogicalDevice());
+		VkImageView view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, vk.LogicalDevice());
 
 		
 		VkSampler sampler = vkh::CreateSampler(vk.LogicalDevice());

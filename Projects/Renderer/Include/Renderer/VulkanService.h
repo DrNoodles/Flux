@@ -322,12 +322,10 @@ private: // METHODS ////////////////////////////////////////////////////////////
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
 		std::tie(_colorImage, _colorImageMemory, _colorImageView)
-			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
-				_commandPool, _graphicsQueue, _device, _physicalDevice);
+			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
 		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
-				_physicalDevice);
+			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
 		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 
