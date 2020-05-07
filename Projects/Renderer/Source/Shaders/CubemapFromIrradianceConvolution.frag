@@ -18,8 +18,8 @@ void main()
 
 
 	// Riemann sum adding radiance at fixed intervals on a hemisphere oriented about the normal.
-	float deltaPhi = 0.025;
-	float deltaTheta = 0.025;
+	float deltaPhi = (2.0f*PI) / 180.0f;
+	float deltaTheta = (0.5f*PI) / 64.0f;
 
 	float nrSamples = 0.0; 
 

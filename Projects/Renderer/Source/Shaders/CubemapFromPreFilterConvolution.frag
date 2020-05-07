@@ -2,7 +2,6 @@
 
 // Constants
 const float PI = 3.14159265359;
-const uint SAMPLE_COUNT = 4096;
 
 
 layout(push_constant) uniform PushConsts
@@ -10,6 +9,7 @@ layout(push_constant) uniform PushConsts
 	//layout (offset = 0) mat4 mvp; // not used in frag
 	layout (offset = 64) float envMapResPerFace;
 	layout (offset = 68) float roughness;
+	layout (offset = 72) int sampleCount;
 } u;
 layout(binding = 0) uniform samplerCube uEnvironmentMap;
 layout(location = 0) in vec3 fragWorldPos;
@@ -30,9 +30,9 @@ void main()
 	float totalWeight = 0.0;
 	vec3 prefilteredColor = vec3(0.0);
 
-	for (uint i = 0u; i < SAMPLE_COUNT; ++i)
+	for (uint i = 0u; i < u.sampleCount; ++i)
 	{
-		vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+		vec2 Xi = Hammersley(i, u.sampleCount);
 		vec3 halfway = ImportanceSampleGGX(Xi, normal, u.roughness);
 		vec3 lightVec = normalize(2.0*dot(toEye,halfway)*halfway - toEye);
 
@@ -50,7 +50,7 @@ void main()
 			float pdf = (D * NdotH / (4.0 * HdotV)) + 0.0001; 
 			
 			float saTexel = 4.0 * PI / (6.0 * u.envMapResPerFace * u.envMapResPerFace);
-			float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+			float saSample = 1.0 / (float(u.sampleCount) * pdf + 0.0001);
 			
 			float mipLevel = u.roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
 			
