@@ -496,9 +496,9 @@ void Renderer::DestroyRenderer()
 
 void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice());
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->SwapchainRenderPass(), _vk->LogicalDevice());
 
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice(),
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->SwapchainRenderPass(), _vk->LogicalDevice(),
 		_vk->SwapchainExtent());
 
 

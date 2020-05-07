@@ -134,6 +134,8 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	VkCommandPool CommandPool() const { return _commandPool; }
 	VkQueue GraphicsQueue() const { return _graphicsQueue; }
 	VkQueue PresentQueue() const { return _presentQueue; }
+
+	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
 	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
 	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
@@ -143,7 +145,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	u32 SwapchainImageCount() const { return (u32)_swapchainImages.size(); }
 	VkExtent2D SwapchainExtent() const { return _swapchainExtent; }
 	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchainFramebuffers; }
-	VkRenderPass RenderPass() const { return _renderPass; }
+	VkRenderPass SwapchainRenderPass() const { return _renderPass; }
 	const std::vector<VkCommandBuffer>& CommandBuffers() const { return _commandBuffers; }
 
 	// Frame rendering

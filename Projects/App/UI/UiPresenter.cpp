@@ -1,8 +1,8 @@
 #include "UiPresenter.h"
-
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
 #include "SceneView/IblVm.h"
+#include "UiVulkanHelpers.h"
 
 #include <Framework/FileService.h>
 #include <State/Entity/Actions/TurntableActionComponent.h>
@@ -13,7 +13,9 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan):
+namespace uvh = UiVulkanHelpers;
+
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
@@ -23,6 +25,18 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
 {
+	// Init Vulkan Resources for render passes - TODO Abstract Vulkan out of this layer
+
+	auto size = vulkan.SwapchainExtent();
+	auto imageCount = vulkan.SwapchainImageCount();
+	_renderTarget = uvh::CreateRendertargetResources(size.width, size.height, imageCount, shaderDir, vulkan);
+	
+	
+}
+
+void UiPresenter::Shutdown()
+{
+	uvh::DestroyRendertargetResources(_renderTarget, _vulkan);
 }
 
 void UiPresenter::NextSkybox()
@@ -265,36 +279,69 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	// Begin recording renderpass
-	{
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
+	const auto swapchainExtent = _vulkan.SwapchainExtent();
+	
+	std::vector<VkClearValue> clearColors(2);
+	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-		const auto extent = _vulkan.SwapchainExtent();
-		
+	//
+	//// Draw scene to gbuf
+	//{
+	//	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+	//		_renderTarget.RenderPass, 
+	//		_renderTarget.Framebuffer,
+	//		vki::Rect2D({0,0}, _renderTarget.Size), 
+	//		clearColors);
+
+	//	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	//	{
+	//		DrawViewport(imageIndex, commandBuffer);
+	//		DrawUi(commandBuffer);
+	//	}
+	//	vkCmdEndRenderPass(commandBuffer);
+	//}
+
+
+	// Draw gbuf to screen
+	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.RenderPass(), 
+			_vulkan.SwapchainRenderPass(), 
 			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D(0,0, extent.width, extent.height), 
+			vki::Rect2D({0,0}, swapchainExtent), 
 			clearColors);
 
+
+		// TODO Write UBO?
+		
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	}
+		{
+			// Need to draw a quad
+			// Need pipeline
+			
+			// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
+			
+			auto viewport = vki::Viewport(0,0, swapchainExtent.width, swapchainExtent.height, 0,1);
+			auto scissor = vki::Rect2D({ 0,0 }, swapchainExtent);
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-	
-	// Draw viewport
-	{
-		DrawViewport(imageIndex, commandBuffer);
-	}
-	
 
-	// Draw UI
-	{
-		DrawUi(commandBuffer);
+			
+			const MeshResource mesh = _renderTarget.Quad;
+			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderTarget.Pipeline);
+			
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderTarget.PipelineLayout, 0, 1, &_renderTarget.DescriptorSets[imageIndex], 0, nullptr);
+			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+			
+		}
+		vkCmdEndRenderPass(commandBuffer);
 	}
-
-	vkCmdEndRenderPass(commandBuffer);
 }
 
 void UiPresenter::LoadDemoScene()

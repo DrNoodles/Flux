@@ -9,6 +9,8 @@
 
 #include <chrono>
 
+#include "UiVulkanHelpers.h"
+
 
 class LibraryManager;
 class SceneManager;
@@ -61,9 +63,14 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	
+	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
+	// Offscreen Render target
+	UiVulkanHelpers::RenderTargetResources _renderTarget;
+
 public: // METHODS
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir);
 	~UiPresenter() = default;
+	void Shutdown();
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
