@@ -235,7 +235,8 @@ void PropsView::Normals(MaterialViewState& rvm) const
 	const std::string valueName = "Normals";
 	//bool& useMap = rvm.UseNormalMap;
 	std::string& mapPath = rvm.NormalMapPath;
-	bool& invertMap = rvm.InvertNormalMapZ;
+	bool& invertY = rvm.InvertNormalMapY;
+	bool& invertZ = rvm.InvertNormalMapZ;
 
 
 	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
@@ -268,7 +269,9 @@ void PropsView::Normals(MaterialViewState& rvm) const
 
 	ImGui::Spacing();
 
-	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertMap)) _delegate->CommitMaterialChanges(rvm);
+	if (ImGui::Checkbox(("Invert Y##" + valueName).c_str(), &invertY)) _delegate->CommitMaterialChanges(rvm);
+	ImGui::SameLine();
+	if (ImGui::Checkbox(("Invert Z##" + valueName).c_str(), &invertZ)) _delegate->CommitMaterialChanges(rvm);
 }
 
 void PropsView::Metalness(MaterialViewState& rvm) const

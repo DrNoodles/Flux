@@ -294,7 +294,7 @@ void UiPresenter::LoadModel(const std::string& path)
 	// Create new entity
 	auto entity = std::make_unique<Entity>();
 	entity->Name = filename;
-	entity->Transform.SetPos(glm::vec3{0, -3, 0});
+	entity->Transform.SetPos(glm::vec3{0, 0, 0});
 	entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
 
 	//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
@@ -469,6 +469,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	mat.Roughness = state.Roughness;
 	mat.EmissiveIntensity = state.EmissiveIntensity;
 
+	mat.InvertNormalMapY = state.InvertNormalMapY;
 	mat.InvertNormalMapZ = state.InvertNormalMapZ;
 	mat.InvertAoMap = state.InvertAoMap;
 	mat.InvertRoughnessMap = state.InvertRoughnessMap;
@@ -577,6 +578,7 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.Roughness = mat.Roughness;
 	rvm.EmissiveIntensity = mat.EmissiveIntensity;
 
+	rvm.InvertNormalMapY = mat.InvertNormalMapY;
 	rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
 	rvm.InvertAoMap = mat.InvertAoMap;
 	rvm.InvertRoughnessMap = mat.InvertRoughnessMap;

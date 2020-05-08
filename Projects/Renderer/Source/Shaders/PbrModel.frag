@@ -27,7 +27,7 @@ layout(std140, binding = 0) uniform UniversalUbo
 	vec4 useBasecolorMap;    // bool in [0] 
 
 	vec4 useNormalMap;       // bool in [0]
-	vec4 invertNormalMapZ;	 // bool in [0]
+	vec3 scaleNormalMap;	    // Scales the normals after the map has been transformed to [-1,1] per channel.
 
 	vec4 roughness;          // float in [0]
 	vec4 useRoughnessMap;	 // bool in [0]
@@ -95,7 +95,7 @@ bool uUseMetalnessMap;
 bool uUseAoMap;				 
 bool uUseEmissiveMap;
 
-bool uInvertNormalMapZ;	 
+//vec3 uInvertNormalMap;	 
 bool uInvertAoMap;			 
 bool uInvertRoughnessMap; 
 bool uInvertMetalnessMap; 
@@ -293,9 +293,7 @@ vec3 GetNormal()
 	{
 		vec3 n = texture(NormalMap, fragTexCoord).xyz;
 		n = normalize(n*2 - 1); // map [0,1] to [-1,1]
-		
-		if (uInvertNormalMapZ)
-			n.z = -n.z;
+		n *= vec3(ubo.scaleNormalMap); 
 		
 		n = normalize(fragTBN*n); // transform from tangent to world space
 		return n;
@@ -459,7 +457,7 @@ void UnpackUbos()
 	uUseAoMap = bool(ubo.useAoMap[0]);
 	uUseEmissiveMap = bool(ubo.useEmissiveMap[0]);
 	
-	uInvertNormalMapZ = bool(ubo.invertNormalMapZ[0]);
+	
 	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
 	uInvertMetalnessMap = bool(ubo.invertMetalnessMap[0]);
 	uInvertAoMap = bool(ubo.invertAoMap[0]);

@@ -91,7 +91,7 @@ struct UniversalUbo
 	alignas(16) glm::vec4 UseBasecolorMap;    // bool in [0] 
 
 	alignas(16) glm::vec4 UseNormalMap;       // bool in [0]
-	alignas(16) glm::vec4 InvertNormalMapZ;   // bool in [0]
+	alignas(16) glm::vec3 ScaleNormalMap;     // 
 	
 	alignas(16) glm::vec4 Roughness;          // float in [0]
 	alignas(16) glm::vec4 UseRoughnessMap;    // bool in [0]
@@ -134,7 +134,7 @@ struct UniversalUbo
 		ubo.UseBasecolorMap[0] = float(material.UsingBasecolorMap());
 
 		ubo.UseNormalMap[0] = float(material.UsingNormalMap());
-		ubo.InvertNormalMapZ[0] = float(material.InvertNormalMapZ);
+		ubo.ScaleNormalMap = glm::vec3(1, material.InvertNormalMapY ? -1 : 1, material.InvertNormalMapZ ? -1 : 1);
 
 		ubo.Roughness[0] = material.Roughness;
 		ubo.UseRoughnessMap[0] = float(material.UsingRoughnessMap());
