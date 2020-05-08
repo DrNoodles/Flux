@@ -122,7 +122,7 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 			{
 				const auto& mesh = submeshes[i];
 
-				if (ImGui::Selectable((mesh + "##" + mesh).c_str(), i == _delegate->GetSelectedSubMesh()))
+				if (ImGui::Selectable((mesh + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedSubMesh()))
 				{
 					_delegate->SelectSubMesh(i);
 				}
