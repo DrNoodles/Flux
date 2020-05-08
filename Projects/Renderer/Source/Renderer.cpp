@@ -87,7 +87,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		// Calc Projection
 		const auto vfov = 45.f;
 		const float aspect = regionSize.x / (float)regionSize.y;
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.1f, 1000.f);
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 		if (flip)
 		{
 			// flip Y to convert glm from OpenGL coord system to Vulkan

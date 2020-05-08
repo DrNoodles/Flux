@@ -58,6 +58,7 @@ struct Material
 	float Roughness = 0.3f;
 	float EmissiveIntensity = 1;
 
+	bool InvertNormalMapY = false;
 	bool InvertNormalMapZ = false;
 	bool InvertAoMap = false;
 	bool InvertRoughnessMap = false;
