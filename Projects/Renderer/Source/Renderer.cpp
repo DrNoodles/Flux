@@ -23,7 +23,6 @@
 #include <map>
 
 using vkh = VulkanHelpers;
-bool flip = true;
 
 Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
 	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _delegate(delegate), _shaderDir(std::move(shaderDir))
@@ -54,6 +53,7 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 	glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
 {
 	assert(renderableIds.size() == transforms.size());
+
 
 	
 	const auto startBench = std::chrono::steady_clock::now();
@@ -86,13 +86,9 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		// Calc Projection
 		const auto vfov = 45.f;
-		const float aspect = regionSize.x / (float)regionSize.y;
+		const auto aspect = regionSize.x / (f32)regionSize.y;
 		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-		if (flip)
-		{
-			// flip Y to convert glm from OpenGL coord system to Vulkan
-			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });
-		}
+		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
 
 		// Update light ubo - TODO PERF Keep mem mapped
@@ -457,6 +453,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 
 	if (!descriptorSetsMatch)
 	{
+		// NOTE: This is heavy handed as it rebuilds ALL object descriptor sets, not just those using this material
 		_refreshRenderableDescriptorSets = true;
 	}
 }
@@ -465,7 +462,7 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 {
 	// Set skybox
 	_activeSkybox = resourceId;
-	_refreshRenderableDescriptorSets = true;	
+	_refreshRenderableDescriptorSets = true; // Renderables depend on skybox resources for IBL
 }
 
 void Renderer::InitRenderer()
@@ -504,8 +501,7 @@ void Renderer::DestroyRenderer()
 
 void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice(),
-		_vk->SwapchainExtent());
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice());
 
 	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->RenderPass(), _vk->LogicalDevice(),
 		_vk->SwapchainExtent());
@@ -757,8 +753,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	VkPipelineLayout pipelineLayout,
 	VkSampleCountFlagBits msaaSamples,
 	VkRenderPass renderPass,
-	VkDevice device,
-	const VkExtent2D& swapchainExtent)
+	VkDevice device)
 {
 	//// SHADER MODULES ////
 
@@ -821,18 +816,13 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 
 
 	// Viewports and scissor  -  The region of the framebuffer we render output to
+	
 	//VkViewport viewport = {}; // the output is stretch-fitted into these viewport bounds
 	//{
 	//	viewport.x = 0;
 	//	viewport.y = 0;
 	//	viewport.width = 100;// (f32)swapchainExtent.width;
 	//	viewport.height = 100;// (f32)swapchainExtent.height;
-	//	
-	///*	viewport.x = 0;
-	//	viewport.y = (float)swapchainExtent.height;
-	//	viewport.width = (float)swapchainExtent.width;
-	//	viewport.height = -(float)swapchainExtent.height;*/
-	//	
 	//	viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
 	//	viewport.maxDepth = 1;
 	//}
@@ -856,7 +846,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	{
 		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = flip ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_FRONT_BIT;
+		rasterizationCI.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 		rasterizationCI.depthBiasEnable = VK_FALSE;
@@ -984,7 +974,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 
 void Renderer::UpdateRenderableDescriptorSets()
 {
-	// Rebuild all objects dependent on skybox
+	// Rebuild all objects descriptor sets
 	for (auto& renderable : _renderables)
 	{
 		// Gather descriptor sets and uniform buffers
@@ -1230,7 +1220,7 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	{
 		rasterizationCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCI.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationCI.cullMode = flip ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_BACK_BIT; // SKYBOX: flipped from norm
+		rasterizationCI.cullMode = VK_CULL_MODE_FRONT_BIT; // SKYBOX: flipped from norm
 		rasterizationCI.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCI.lineWidth = 1; // > 1 requires wideLines GPU feature
 		rasterizationCI.depthBiasEnable = VK_FALSE;

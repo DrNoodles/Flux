@@ -158,8 +158,7 @@ private: // Dependencies
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
-			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
-			const VkExtent2D& swapchainExtent);
+			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
 	const TextureResource& GetIrradianceTextureResource() const
 	{
