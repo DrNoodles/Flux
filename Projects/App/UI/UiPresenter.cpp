@@ -546,7 +546,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 			const bool pathIsDifferent = !(pMapPath && *pMapPath == newPath);
 			if (pathIsDifferent)
 			{
-				*pMap = _scene.LoadTexture(newPath);;
+				*pMap = _scene.LoadTexture(newPath);
 				*pMapPath = newPath;
 			}
 		}

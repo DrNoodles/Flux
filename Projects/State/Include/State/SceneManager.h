@@ -35,7 +35,7 @@ public:
 class SceneManager
 {
 public:
-	SceneManager(ISceneManagerDelegate* delegate)
+	explicit SceneManager(ISceneManagerDelegate* delegate)
 		: _delegate(delegate)
 	{}
 
@@ -45,7 +45,7 @@ public:
 
 	
 	RenderableComponent LoadRenderableComponentFromFile(const std::string& path);
-	TextureResourceId LoadTexture(const std::string& path);
+	std::optional<TextureResourceId> LoadTexture(const std::string& path);
 	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
 	
 	void SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const;

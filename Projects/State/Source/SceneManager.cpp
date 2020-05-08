@@ -94,7 +94,7 @@ RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::str
 	return RenderableComponent{ submeshes, renderableBounds };
 }
 
-TextureResourceId SceneManager::LoadTexture(const std::string& path)
+std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& path)
 {
 	// Is teh tex already loaded?
 	const auto it = _loadedTexturesCache.find(path);
@@ -103,11 +103,20 @@ TextureResourceId SceneManager::LoadTexture(const std::string& path)
 		return it->second;
 	}
 
-	auto texResId = _delegate->CreateTextureResource(path);
+	TextureResourceId resId;
+	try
+	{
+		resId = _delegate->CreateTextureResource(path);
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Failed to load texture " << path << std::endl;
+		return std::nullopt;
+	}
+	
+	_loadedTexturesCache.emplace(path, resId);
 
-	_loadedTexturesCache.emplace(path, texResId);
-
-	return texResId;
+	return resId;
 }
 
 const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const

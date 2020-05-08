@@ -86,13 +86,28 @@ private:
 			v.Pos = { vert.x,vert.y,vert.z };
 
 			// get normal
-			auto norm = mesh->mNormals[i];
-			v.Normal = { norm.x,norm.y,norm.z };
-
+			if (mesh->HasNormals())
+			{
+				auto norm = mesh->mNormals[i];
+				v.Normal = { norm.x,norm.y,norm.z };
+			}
+			else
+			{
+				std::cout << "Failed to load mesh normals\n";
+			}
+			
 			// get tangent
-			auto tangent = mesh->mTangents[i];
-			auto direction = 1; // TODO compute -1 if the normal direction is inverted
-			v.Tangent = glm::vec4{ tangent.x, tangent.y, tangent.z, direction };
+			if (mesh->HasTangentsAndBitangents())
+			{
+				auto tangent = mesh->mTangents[i];
+				auto direction = 1; // TODO compute -1 if the normal direction is inverted
+				v.Tangent = glm::vec4{ tangent.x, tangent.y, tangent.z, direction };
+			}
+			else
+			{
+				std::cout << "Failed to load mesh tangents\n";
+			}
+		
 			
 			// get uvs
 			if (mesh->mTextureCoords[0] != nullptr)
