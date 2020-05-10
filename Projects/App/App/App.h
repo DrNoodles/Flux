@@ -559,16 +559,16 @@ private: // METHODS
 			_scene->AddEntity(std::move(entity));
 		}
 		
-		{  // Cork
+		{  // GreasyPan
 			auto entity = _library->CreateBlob();
-			entity->Name = "Cork";
+			entity->Name = "GreasyPan";
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
-			basecolorPath = _appOptions.AssetsDir + "Materials/Corkboard/BaseColor.jpg";
-			ormPath = _appOptions.AssetsDir + "Materials/Corkboard/ORM.jpg";
-			normalPath = _appOptions.AssetsDir + "Materials/Corkboard/Normal.jpg";
+			basecolorPath = _appOptions.AssetsDir + "Materials/GreasyPan/BaseColor.png";
+			ormPath = _appOptions.AssetsDir + "Materials/GreasyPan/ORM.png";
+			normalPath = _appOptions.AssetsDir + "Materials/GreasyPan/Normal.png";
 			ApplyMat(*entity->Renderable);
 			
 			_scene->AddEntity(std::move(entity));
@@ -591,7 +591,7 @@ private: // METHODS
 
 		{  // Rusted Metal
 			auto entity = _library->CreateBlob();
-			entity->Name = "Rusted Metal";
+			entity->Name = "RustedMetal";
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -606,7 +606,7 @@ private: // METHODS
 
 		{  // Bumpy Plastic
 			auto entity = _library->CreateBlob();
-			entity->Name = "Bumpy Plastic";
+			entity->Name = "BumpyPlastic";
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -633,13 +633,12 @@ private: // METHODS
 			throw std::invalid_argument("Couldn't load model"); // Throwing here cuz this is a bug, not user data error
 		}
 
-		
 		auto entity = std::make_unique<Entity>();
-		entity->Name = "Grapple Hook";
+		entity->Name = "GrappleHook";
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
 		entity->Transform.SetRot(glm::vec3{ 0, 30, 0 });
 		entity->Renderable = std::move(renderableComponent);
-		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+		//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 		RenderableResourceId resourceId;
 		std::string basecolorPath;
