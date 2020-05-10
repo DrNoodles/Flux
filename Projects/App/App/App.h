@@ -382,11 +382,17 @@ private: // METHODS
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
 		LoadMaterialArray({ 0,4,0 });
-		LoadRailgun();
+		LoadGrapple();
 		//LoadLighting();
+
+		// Configure render options
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		auto ro = _ui->GetRenderOptions();
+		ro.IblStrength = 2;
+		ro.SkyboxRotation = 180;
+		_ui->SetRenderOptions(ro);
 	}
 
 	void LoadDemoSceneHeavy() override
@@ -492,41 +498,105 @@ private: // METHODS
 
 		std::cout << "Material array obj count: " << count << std::endl; 
 	}
+
 	
-	void LoadRailgun()
+	void LoadGrapple()
 	{
-		const auto path = _appOptions.ModelsDir + "railgun/q2railgun.gltf";
+		const auto path = _appOptions.ModelsDir + "grapple/export/grapple.gltf";
 		std::cout << "Loading model:" << path << std::endl;
 
 
+		// Load renderable
+		auto renderableComponent = _scene->LoadRenderableComponentFromFile(path);
+		if (!renderableComponent.has_value())
+		{
+			throw std::invalid_argument("Couldn't load model"); // Throwing here cuz this is a bug, not user data error
+		}
+
+		
 		auto entity = std::make_unique<Entity>();
-		entity->Name = "Railgun";
+		entity->Name = "Grapple Hook";
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
-		entity->Renderable = _scene->LoadRenderableComponentFromFile(path);
+		entity->Renderable = std::move(renderableComponent);
 		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
+		RenderableResourceId resourceId;
+		std::string basecolorPath;
+		std::string normalPath;
+		std::string ormPath;
+		std::string emissivePath;
 
-		// Add more maps to the material
+		auto ApplyMat = [&]()
 		{
-			const RenderableResourceId resourceId = entity->Renderable->GetSubmeshes()[0].Id;
+			auto matCopy = _scene->GetMaterial(resourceId);
 			
-			Material matCopy = _scene->GetMaterial(resourceId);
+			// Load basecolor map
+			matCopy.BasecolorMapPath = basecolorPath;
+			matCopy.BasecolorMap = _scene->LoadTexture(basecolorPath);
+			matCopy.UseBasecolorMap = true;
 
+			// Load normal map
+			matCopy.NormalMapPath = normalPath;
+			matCopy.NormalMap = _scene->LoadTexture(normalPath);
+
+			// Load occlusion map
+			matCopy.AoMapPath = ormPath;
+			matCopy.AoMap = _scene->LoadTexture(ormPath);
+			matCopy.AoMapChannel = Material::Channel::Red;
+			
 			// Load roughness map
-			matCopy.RoughnessMap = _scene->LoadTexture(_appOptions.ModelsDir + "railgun/ORM.png");
+			matCopy.RoughnessMapPath = ormPath;
+			matCopy.RoughnessMap = _scene->LoadTexture(ormPath);
 			matCopy.UseRoughnessMap = true;
 			matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMap = _scene->LoadTexture(_appOptions.ModelsDir + "railgun/ORM.png");
+			matCopy.MetalnessMapPath = ormPath;
+			matCopy.MetalnessMap = _scene->LoadTexture(ormPath);
 			matCopy.UseMetalnessMap = true;
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
-			// Set material
+			// Load emissive map
+			matCopy.EmissiveMapPath = emissivePath;
+			matCopy.EmissiveMap = _scene->LoadTexture(emissivePath);
+			matCopy.EmissiveIntensity = 5;
+
 			_scene->SetMaterial(resourceId, matCopy);
+		};
+
+		
+		// Add maps to material
+		{
+			// Barrel
+			{
+				resourceId = entity->Renderable->GetSubmeshes()[0].Id;
+				basecolorPath = _appOptions.ModelsDir + "grapple/export/Barrel_Basecolor.png";
+				normalPath = _appOptions.ModelsDir + "grapple/export/Barrel_Normal.png";
+				ormPath = _appOptions.ModelsDir + "grapple/export/Barrel_ORM.png";
+				emissivePath = _appOptions.ModelsDir + "grapple/export/Barrel_Emissive.png";
+				ApplyMat();
+			}
+			// Hook
+			{
+				resourceId = entity->Renderable->GetSubmeshes()[1].Id;
+				basecolorPath = _appOptions.ModelsDir + "grapple/export/Hook_Basecolor.png";
+				normalPath = _appOptions.ModelsDir + "grapple/export/Hook_Normal.png";
+				ormPath = _appOptions.ModelsDir + "grapple/export/Hook_ORM.png";
+				emissivePath = "";
+				ApplyMat();
+			}
+			// Stock
+			{
+				resourceId = entity->Renderable->GetSubmeshes()[2].Id;
+				basecolorPath = _appOptions.ModelsDir + "grapple/export/Stock_Basecolor.png";
+				normalPath = _appOptions.ModelsDir + "grapple/export/Stock_Normal.png";
+				ormPath = _appOptions.ModelsDir + "grapple/export/Stock_ORM.png";
+				emissivePath = _appOptions.ModelsDir + "grapple/export/Stock_Emissive.png";
+				ApplyMat();
+			}
 		}
 
-
+		
 		_scene->AddEntity(std::move(entity));
 	}
 

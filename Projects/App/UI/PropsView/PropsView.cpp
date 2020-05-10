@@ -276,7 +276,7 @@ void PropsView::Normals(MaterialViewState& rvm) const
 
 void PropsView::Metalness(MaterialViewState& rvm) const
 {
-	const std::string title = "METALLIC";
+	const std::string title = "METALNESS";
 	const std::string valueName = "Metalness";
 	bool& useMap = rvm.UseMetalnessMap;
 	std::string& mapPath = rvm.MetalnessMapPath;

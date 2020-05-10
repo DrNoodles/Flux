@@ -291,11 +291,19 @@ void UiPresenter::LoadModel(const std::string& path)
 	std::tie(dir, filename) = FileService::SplitPathAsDirAndFilename(path);
 
 
+	// Load asset
+	auto renderableComponent = _scene.LoadRenderableComponentFromFile(path);
+	if (!renderableComponent.has_value())
+	{
+		// TODO User facing prompt about failure to load
+		return;
+	}
+	
 	// Create new entity
 	auto entity = std::make_unique<Entity>();
 	entity->Name = filename;
 	entity->Transform.SetPos(glm::vec3{0, 0, 0});
-	entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
+	entity->Renderable = std::move(renderableComponent);
 
 	//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 

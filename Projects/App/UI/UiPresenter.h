@@ -84,6 +84,9 @@ public: // METHODS
 	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
 	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
 
+	// Temp public - just pub so App can build a scene up and set render options. TODO remove scene buildng from App alltogether
+	const RenderOptions& GetRenderOptions() override;
+	void SetRenderOptions(const RenderOptions& ro) override;
 	
 private: // METHODS
 	int WindowWidth() const { return _delegate.GetWindowSize().x; }
@@ -112,8 +115,8 @@ private: // METHODS
 
 	void DeleteAll() override;
 	
-	const RenderOptions& GetRenderOptions() override;
-	void SetRenderOptions(const RenderOptions& ro) override;
+	//const RenderOptions& GetRenderOptions() override;
+	//void SetRenderOptions(const RenderOptions& ro) override;
 
 	void LoadSkybox() override;
 	float GetSkyboxRotation() const override;
