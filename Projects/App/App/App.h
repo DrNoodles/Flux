@@ -123,11 +123,11 @@ public: // METHODS
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
-
+	bool _defaultSceneLoaded = false;
 	void Run()
 	{
 		InitImgui();
-		LoadDefaultScene();
+		LoadEmptyScene();
 
 		// Update UI only as quickly as the monitor's refresh rate
 		//auto vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
@@ -157,6 +157,13 @@ public: // METHODS
 
 			Update(dt);
 			Draw(dt);
+
+			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
+			if (!_defaultSceneLoaded)
+			{
+				_defaultSceneLoaded = true;
+				LoadDefaultScene();
+			}
 		}
 	}
 
@@ -199,7 +206,7 @@ private: // METHODS
 	{
 		ProcessDeletionQueue();
 
-		for (auto& entity : _scene->EntitiesView())
+		for (const auto& entity : _scene->EntitiesView())
 		{
 			if (entity->Action)
 			{
@@ -356,24 +363,16 @@ private: // METHODS
 	}
 
 	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadDefaultScene()
+	void LoadEmptyScene()
 	{
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadMaterialArray();
-
-		/*
-		auto entity = _library->CreateBlob();
-		Material mat = {};
-		mat.Basecolor = glm::vec3{ 1 };
-		mat.Metalness = 1;
-		mat.Roughness = 0;
-		_scene->SetMaterial(entity->Renderable->RenderableId, mat);
-		_scene->AddEntity(std::move(entity));
-		*/
-
-		/*	auto blob = _library->CreateBlob();
-			blob->Action = std::make_unique<TurntableAction>(blob->Transform);
-			_scene->AddEntity(std::move(blob));*/
+	}
+	void LoadDefaultScene()
+	{
+		LoadDemoScene();
+		
+		//_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		//LoadMaterialArray();
 
 		_ui->FrameSelectionOrAll();
 	}
@@ -382,16 +381,19 @@ private: // METHODS
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
-		LoadAxis();
-		LoadMaterialArray({ 0,4,0 });
+		//LoadAxis();
+		//LoadMaterialArray({ 0,4,0 });
+
+		LoadMaterialVariety();
 		LoadGrapple();
 		//LoadLighting();
 
+		
 		// Configure render options
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		auto ro = _ui->GetRenderOptions();
 		ro.IblStrength = 2;
-		ro.SkyboxRotation = 180;
+		ro.SkyboxRotation = 230;
 		_ui->SetRenderOptions(ro);
 	}
 
@@ -500,6 +502,124 @@ private: // METHODS
 	}
 
 	
+	void LoadMaterialVariety()
+	{
+		std::cout << "Loading axis" << std::endl;
+
+		std::string basecolorPath;
+		std::string normalPath;
+		std::string ormPath;
+
+		auto ApplyMat = [&](RenderableComponent& renComp)
+		{
+			Material mat;
+			
+			// Load basecolor map
+			mat.BasecolorMapPath = basecolorPath;
+			mat.BasecolorMap = _scene->LoadTexture(basecolorPath);
+			mat.UseBasecolorMap = true;
+
+			// Load normal map
+			mat.NormalMapPath = normalPath;
+			mat.NormalMap = _scene->LoadTexture(normalPath);
+
+			// Load occlusion map
+			mat.AoMapPath = ormPath;
+			mat.AoMap = _scene->LoadTexture(ormPath);
+			mat.AoMapChannel = Material::Channel::Red;
+			
+			// Load roughness map
+			mat.RoughnessMapPath = ormPath;
+			mat.RoughnessMap = _scene->LoadTexture(ormPath);
+			mat.UseRoughnessMap = true;
+			mat.RoughnessMapChannel = Material::Channel::Green;
+
+			// Load metalness map
+			mat.MetalnessMapPath = ormPath;
+			mat.MetalnessMap = _scene->LoadTexture(ormPath);
+			mat.UseMetalnessMap = true;
+			mat.MetalnessMapChannel = Material::Channel::Blue;
+
+			_scene->SetMaterial(renComp, mat);
+		};
+
+		
+		{  // Sphere
+			auto entity = _library->CreateSphere();
+			entity->Name = "Sphere";
+			entity->Transform.SetScale(glm::vec3(1));
+			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+			basecolorPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png";
+			ormPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png";
+			normalPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png";
+			ApplyMat(*entity->Renderable);
+			
+			_scene->AddEntity(std::move(entity));
+		}
+		
+		{  // Cork
+			auto entity = _library->CreateBlob();
+			entity->Name = "Cork";
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+			basecolorPath = _appOptions.AssetsDir + "Materials/Corkboard/BaseColor.jpg";
+			ormPath = _appOptions.AssetsDir + "Materials/Corkboard/ORM.jpg";
+			normalPath = _appOptions.AssetsDir + "Materials/Corkboard/Normal.jpg";
+			ApplyMat(*entity->Renderable);
+			
+			_scene->AddEntity(std::move(entity));
+		}
+
+		{  // Gold
+			auto entity = _library->CreateBlob();
+			entity->Name = "Gold";
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+			basecolorPath = _appOptions.AssetsDir + "Materials/GoldScuffed/BaseColor.png";
+			ormPath = _appOptions.AssetsDir + "Materials/GoldScuffed/ORM.png";
+			normalPath = _appOptions.AssetsDir + "Materials/GoldScuffed/Normal.png";
+			ApplyMat(*entity->Renderable);
+			
+			_scene->AddEntity(std::move(entity));
+		}
+
+		{  // Rusted Metal
+			auto entity = _library->CreateBlob();
+			entity->Name = "Rusted Metal";
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+			basecolorPath = _appOptions.AssetsDir + "Materials/RustedMetal/BaseColor.png";
+			ormPath = _appOptions.AssetsDir + "Materials/RustedMetal/ORM.png";
+			normalPath = _appOptions.AssetsDir + "Materials/RustedMetal/Normal.png";
+			ApplyMat(*entity->Renderable);
+			
+			_scene->AddEntity(std::move(entity));
+		}
+
+		{  // Bumpy Plastic
+			auto entity = _library->CreateBlob();
+			entity->Name = "Bumpy Plastic";
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+
+			basecolorPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/BaseColor.png";
+			ormPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png";
+			normalPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png";
+			ApplyMat(*entity->Renderable);
+			
+			_scene->AddEntity(std::move(entity));
+		}
+	}
+
 	void LoadGrapple()
 	{
 		const auto path = _appOptions.ModelsDir + "grapple/export/grapple.gltf";
@@ -517,6 +637,7 @@ private: // METHODS
 		auto entity = std::make_unique<Entity>();
 		entity->Name = "Grapple Hook";
 		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
+		entity->Transform.SetRot(glm::vec3{ 0, 30, 0 });
 		entity->Renderable = std::move(renderableComponent);
 		entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
@@ -838,7 +959,7 @@ private: // METHODS
 
 		const auto windowSize = GetFramebufferSize();
 		const glm::vec2 diffRatio{ xDiff / windowSize.width, yDiff / windowSize.height };
-		const auto window = _window;
+		auto* const window = _window;
 		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
 		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
 		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
