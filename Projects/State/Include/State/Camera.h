@@ -28,7 +28,7 @@ public:
 	glm::vec3 Up		 = glm::vec3{ 0, 1, 0 }; // y
 	glm::vec3 Forward  = glm::vec3{ 0, 0, 1 }; // z - z+ looks at the target
 	
-	glm::vec3 Position = glm::vec3{ 0, 2, 5 };
+	glm::vec3 Position = glm::vec3{ 0, 1, 5 };
 	glm::vec3 Target   = glm::vec3{ 0 }; // todo change camera to always have a target
 
 	// Constructor with vectors

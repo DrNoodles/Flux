@@ -396,6 +396,7 @@ private: // METHODS
 		auto ro = _ui->GetRenderOptions();
 		ro.IblStrength = 2;
 		ro.SkyboxRotation = 230;
+		ro.BackdropBrightness = 0.25;
 		_ui->SetRenderOptions(ro);
 	}
 
