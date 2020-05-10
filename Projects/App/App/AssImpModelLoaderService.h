@@ -143,10 +143,12 @@ private:
 			auto basecolor = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
 			auto normals = LoadMaterialTextures(aiMat, aiTextureType_NORMALS, directory);
 			auto ao = LoadMaterialTextures(aiMat, aiTextureType_LIGHTMAP, directory);
+			auto emissive = LoadMaterialTextures(aiMat, aiTextureType_EMISSIVE, directory);
 
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), basecolor.begin(), basecolor.end());
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), normals.begin(), normals.end());
 			meshDefinition.Textures.insert(meshDefinition.Textures.end(), ao.begin(), ao.end());
+			meshDefinition.Textures.insert(meshDefinition.Textures.end(), emissive.begin(), emissive.end());
 		}
 
 		// Compute AABB
@@ -180,13 +182,13 @@ private:
 		switch (aiType)
 		{
 		case aiTextureType_DIFFUSE: return TextureType::Basecolor;
+		case aiTextureType_EMISSIVE: return TextureType::Emissive;
 		case aiTextureType_NORMALS: return TextureType::Normals;
 		case aiTextureType_LIGHTMAP: return TextureType::AmbientOcclusion;
-
+		
 		case aiTextureType_NONE:
 		case aiTextureType_SPECULAR:
 		case aiTextureType_AMBIENT:
-		case aiTextureType_EMISSIVE:
 		case aiTextureType_HEIGHT:
 		case aiTextureType_SHININESS:
 		case aiTextureType_OPACITY:
@@ -194,7 +196,7 @@ private:
 		case aiTextureType_REFLECTION:
 		case aiTextureType_BASE_COLOR:
 		case aiTextureType_NORMAL_CAMERA:
-		case aiTextureType_EMISSION_COLOR:
+		case aiTextureType_EMISSION_COLOR: 
 		case aiTextureType_METALNESS:
 		case aiTextureType_DIFFUSE_ROUGHNESS:
 		case aiTextureType_AMBIENT_OCCLUSION:
