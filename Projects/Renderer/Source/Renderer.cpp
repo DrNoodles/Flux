@@ -131,9 +131,10 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			{
 				// Populate ubo
 				auto skyboxFragUbo = SkyboxFragUbo{};
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[0] = options.ExposureBias;
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[1] = options.ShowClipping;
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength[2] = options.IblStrength;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[0] = options.ExposureBias;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[1] = options.ShowClipping;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[2] = options.IblStrength;
+				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[3] = options.BackdropBrightness;
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;

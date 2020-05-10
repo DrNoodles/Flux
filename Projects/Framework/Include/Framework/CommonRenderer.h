@@ -10,6 +10,7 @@ struct RenderOptions
 {
 	float ExposureBias = 1;
 	float IblStrength = 1.0f;;
+	float BackdropBrightness = 1.0f;;
 	float SkyboxRotation = 0; // degrees
 	bool ShowIrradiance = true;
 	bool ShowClipping = false;
