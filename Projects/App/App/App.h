@@ -68,6 +68,8 @@ private: // DATA
 	bool _firstCursorInput = true;
 	double _lastCursorX{}, _lastCursorY{};
 
+	bool _enableUpdate = true;
+	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point _lastFrameTime = std::chrono::high_resolution_clock::now();
@@ -155,7 +157,7 @@ public: // METHODS
 				_lastFpsUpdate = currentTime;
 			}
 
-			Update(dt);
+			if (_enableUpdate) { Update(dt); }
 			Draw(dt);
 
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
@@ -931,6 +933,7 @@ private: // METHODS
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
+		if (key == GLFW_KEY_N)      { _enableUpdate = !_enableUpdate; }
 		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
