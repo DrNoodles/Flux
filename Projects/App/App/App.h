@@ -68,7 +68,7 @@ private: // DATA
 	double _lastCursorX{}, _lastCursorY{};
 
 	bool _defaultSceneLoaded = false;
-	bool _enableUpdate = true;
+	bool _updateEntities = true;
 	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
@@ -129,7 +129,6 @@ public: // METHODS
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
-
 	
 	void Run()
 	{
@@ -162,7 +161,7 @@ public: // METHODS
 				_lastFpsUpdate = currentTime;
 			}
 
-			if (_enableUpdate) { Update(dt); }
+			Update(dt);
 			Draw(dt);
 
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
@@ -173,7 +172,6 @@ public: // METHODS
 			}
 		}
 	}
-
 
 private: // METHODS
 	void InitWindow(const AppOptions& options)
@@ -232,13 +230,17 @@ private: // METHODS
 	{
 		ProcessDeletionQueue();
 
-		for (const auto& entity : _scene->EntitiesView())
+		if (_updateEntities) 
 		{
-			if (entity->Action)
+			for (const auto& entity : _scene->EntitiesView()) 
 			{
-				entity->Action->Update(dt);
+				if (entity->Action) 
+				{
+					entity->Action->Update(dt);
+				}
 			}
 		}
+		
 	}
 
 	void Draw(const float dt) const
@@ -389,33 +391,15 @@ private: // METHODS
 	}
 
 	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadEmptyScene()
-	{
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-	}
-	void LoadDefaultScene()
-	{
-		LoadDemoScene();
-		
-		//_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		//LoadMaterialArray();
-
-		_ui->FrameSelectionOrAll();
-	}
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
-		//LoadAxis();
-		//LoadMaterialArray({ 0,4,0 });
 
-		LoadMaterialVariety();
+		LoadMaterialExamples();
 		LoadGrapple();
-		//LoadLighting();
 		
-		// Configure render options
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		
 		auto ro = _ui->GetRenderOptions();
 		ro.IblStrength = 2.5f;
 		ro.SkyboxRotation = 230;
@@ -428,7 +412,7 @@ private: // METHODS
 		std::cout << "Loading scene\n";
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
-		LoadMaterialArray({ 0,0,0 }, 30, 30);
+		LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
 	#pragma endregion
@@ -476,7 +460,29 @@ private: // METHODS
 	
 	#pragma region Scene Management // TODO move out of App.h
 
-	void LoadMaterialArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
+	// TODO Move to _ui layer to make a single spot where UI drives state
+	void LoadEmptyScene()
+	{
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+	}
+	
+	void LoadDefaultScene()
+	{
+		const bool heavy = false;
+		if (heavy)
+		{
+			LoadDemoScene();
+		}
+		else
+		{
+			_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+			LoadObjectArray();
+		}
+		
+		_ui->FrameSelectionOrAll();
+	}
+
+	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
 		std::cout << "Loading material array" << std::endl;
 
@@ -527,7 +533,7 @@ private: // METHODS
 		std::cout << "Material array obj count: " << count << std::endl; 
 	}
 
-	void LoadMaterialVariety()
+	void LoadMaterialExamples()
 	{
 		std::cout << "Loading axis" << std::endl;
 
@@ -956,7 +962,7 @@ private: // METHODS
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
-		if (key == GLFW_KEY_N)      { _enableUpdate = !_enableUpdate; }
+		if (key == GLFW_KEY_N)      { _updateEntities = !_updateEntities; }
 		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)
