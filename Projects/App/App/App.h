@@ -91,7 +91,7 @@ public: // METHODS
 	// Lifetime
 	explicit App(AppOptions options)
 	{
-		InitWindow();
+		InitWindow(options);
 
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
@@ -176,7 +176,7 @@ public: // METHODS
 
 
 private: // METHODS
-	void InitWindow()
+	void InitWindow(const AppOptions& options)
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
@@ -196,6 +196,25 @@ private: // METHODS
 		glfwSetKeyCallback(_window, KeyCallback);
 		glfwSetCursorPosCallback(_window, CursorPosCallback);
 		glfwSetScrollCallback(_window, ScrollCallback);
+
+
+		// Load icon
+		{
+			const auto iconPath = options.AssetsDir + "icon_32.png";
+
+			int outChannelsInFile;
+			GLFWimage icon;
+			icon.pixels = stbi_load(iconPath.c_str(), &icon.width, &icon.height, &outChannelsInFile, 4);
+			if (!icon.pixels)
+			{
+				stbi_image_free(icon.pixels);
+				throw std::runtime_error("Failed to load texture image: " + iconPath);
+			}
+			
+			glfwSetWindowIcon(window, 1, &icon);
+			
+			stbi_image_free(icon.pixels);
+		}
 	}
 
 	void ProcessDeletionQueue()
