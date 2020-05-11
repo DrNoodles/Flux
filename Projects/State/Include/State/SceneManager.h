@@ -44,7 +44,7 @@ public:
 	Camera& GetCamera() { return _camera; }
 
 	
-	RenderableComponent LoadRenderableComponentFromFile(const std::string& path);
+	std::optional<RenderableComponent> LoadRenderableComponentFromFile(const std::string& path);
 	std::optional<TextureResourceId> LoadTexture(const std::string& path);
 	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
 	

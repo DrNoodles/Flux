@@ -291,11 +291,19 @@ void UiPresenter::LoadModel(const std::string& path)
 	std::tie(dir, filename) = FileService::SplitPathAsDirAndFilename(path);
 
 
+	// Load asset
+	auto renderableComponent = _scene.LoadRenderableComponentFromFile(path);
+	if (!renderableComponent.has_value())
+	{
+		// TODO User facing prompt about failure to load
+		return;
+	}
+	
 	// Create new entity
 	auto entity = std::make_unique<Entity>();
 	entity->Name = filename;
 	entity->Transform.SetPos(glm::vec3{0, 0, 0});
-	entity->Renderable = _scene.LoadRenderableComponentFromFile(path);
+	entity->Renderable = std::move(renderableComponent);
 
 	//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
@@ -351,7 +359,7 @@ void UiPresenter::CreateBlob()
 	printf("CreateBlob()\n");
 
 	auto entity = _library.CreateBlob();
-	entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -363,7 +371,7 @@ void UiPresenter::CreateCube()
 
 	auto entity = _library.CreateCube();
 	entity->Transform.SetScale(glm::vec3{1.5f});
-	entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));

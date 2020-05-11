@@ -10,12 +10,14 @@
 
 
 
-RenderableComponent SceneManager::LoadRenderableComponentFromFile(const std::string& path)
+std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
 	auto modelDefinition = _delegate->LoadModel(path);
 	if (!modelDefinition.has_value())
 	{
-		throw std::invalid_argument("Couldn't load model");
+		std::cerr << "Failed to load renderable component from file: " << path << std::endl;
+		return std::nullopt;
+		//throw std::invalid_argument("Couldn't load model");
 	}
 
 	bool first = true;

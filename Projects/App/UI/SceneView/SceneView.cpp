@@ -234,7 +234,7 @@ void SceneView::IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 			}
 
 			ImGui::PushItemWidth(50);
-			if (ImGui::DragFloat("Strength", &roCopy.IblStrength, .01f, 0, 1, "%0.2f")) {
+			if (ImGui::DragFloat("Strength", &roCopy.IblStrength, .01f, 0, 10, "%0.2f")) {
 				_delegate->SetRenderOptions(roCopy);
 			}
 			ImGui::PopItemWidth();
@@ -250,6 +250,9 @@ void SceneView::IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 
 }
 
+/*void SceneView::AnimatePanel(ImGuiTreeNodeFlags headerFlags) const
+{
+}*/
 void SceneView::RenderOptionsPanel(ImGuiTreeNodeFlags headerFlags) const
 {
 	if (ImGui::CollapsingHeader("Render Options", headerFlags))
