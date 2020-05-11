@@ -281,47 +281,49 @@ private: // METHODS
 		// UI Style
 		{
 			// Colors
-			ImGui::StyleColorsDark();
-			auto& colors = ImGui::GetStyle().Colors;
-			colors[ImGuiCol_WindowBg]               = ImVec4(0.22f, 0.22f, 0.22f, 1.00f);
-			colors[ImGuiCol_Text]                   = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
+			{
+				ImGui::StyleColorsDark();
+				auto& colors = ImGui::GetStyle().Colors;
+				colors[ImGuiCol_WindowBg]               = ImVec4(0.22f, 0.22f, 0.22f, 1.00f);
+				colors[ImGuiCol_Text]                   = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
 
-			colors[ImGuiCol_Button]                 = ImVec4(0.33f, 0.33f, 0.33f, 1.00f);
+				colors[ImGuiCol_Button]                 = ImVec4(0.33f, 0.33f, 0.33f, 1.00f);
 
-			colors[ImGuiCol_Border]                 = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
-			colors[ImGuiCol_FrameBg]                = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
-			colors[ImGuiCol_Separator]              = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
+				colors[ImGuiCol_Border]                 = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
+				colors[ImGuiCol_FrameBg]                = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
+				colors[ImGuiCol_Separator]              = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
 
-			colors[ImGuiCol_SliderGrab]             = ImVec4(0.24f, 0.52f, 0.88f, 0.75f);
-			colors[ImGuiCol_Header]                 = ImVec4(0.24f, 0.52f, 0.88f, 0.75f);
+				colors[ImGuiCol_SliderGrab]             = ImVec4(0.24f, 0.52f, 0.88f, 0.75f);
+				colors[ImGuiCol_Header]                 = ImVec4(0.24f, 0.52f, 0.88f, 0.75f);
 
-			colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.24f, 0.52f, 0.88f, 0.25f);
-			colors[ImGuiCol_FrameBgActive]          = ImVec4(0.24f, 0.52f, 0.88f, 0.50f);
-
+				colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.24f, 0.52f, 0.88f, 0.25f);
+				colors[ImGuiCol_FrameBgActive]          = ImVec4(0.24f, 0.52f, 0.88f, 0.50f);
+			}
 			
 			// Form
-			const float rounding = 3;
-			ImGuiStyle& style = ImGui::GetStyle();
-
-			//Main
-			style.WindowPadding = {4,4};
-			style.FramePadding = {6,3};
-			style.ItemSpacing = {4,3};
-			style.ItemInnerSpacing = {4,4};
-			style.IndentSpacing = 21;
-			style.ScrollbarSize = 9;
-			style.GrabMinSize = 10;
-			//Borders
-			style.WindowBorderSize = 0;
-			style.ChildBorderSize = 1;
-			//style.PopupBorderSize = 1;
-			style.FrameBorderSize = 1;
-			style.TabBorderSize = 0;
-			//Rounding
-			style.WindowRounding = 0;
-			style.ChildRounding = rounding;
-			style.FrameRounding = rounding;
-			style.GrabRounding = 2;
+			{
+				const float rounding = 3;
+				ImGuiStyle& style = ImGui::GetStyle();
+				//Main
+				style.WindowPadding = {4,4};
+				style.FramePadding = {6,3};
+				style.ItemSpacing = {4,3};
+				style.ItemInnerSpacing = {4,4};
+				style.IndentSpacing = 21;
+				style.ScrollbarSize = 9;
+				style.GrabMinSize = 10;
+				//Borders
+				style.WindowBorderSize = 0;
+				style.ChildBorderSize = 1;
+				style.PopupBorderSize = 1;
+				style.FrameBorderSize = 1;
+				style.TabBorderSize = 0;
+				//Rounding
+				style.WindowRounding = 0;
+				style.ChildRounding = rounding;
+				style.FrameRounding = rounding;
+				style.GrabRounding = 2;
+			}
 		}
 
 		// Here Imgui is coupled to Glfw and Vulkan
@@ -435,7 +437,7 @@ private: // METHODS
 		
 		auto ro = _ui->GetRenderOptions();
 		ro.IblStrength = 2.5f;
-		ro.SkyboxRotation = 230;
+		ro.SkyboxRotation = 290;
 		ro.BackdropBrightness = 0.3f;
 		_ui->SetRenderOptions(ro);
 	}

@@ -77,7 +77,7 @@ void PropsView::DrawTransformPanel(TransformVm& tvm) const
 		if (ImGui::DragFloat3("Rotation", &tvm.Rot[0])) tvm.Commit();
 		if (ImGui::DragFloat3("Scale", &tvm.Scale[0], 0.1f)) tvm.Commit();
 		ImGui::PopItemWidth();
-		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 45);
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 50);
 		ImGui::SetNextItemWidth(40);
 		ImGui::Checkbox("Lock", &tvm.UniformScale);
 	}
@@ -105,6 +105,9 @@ void SubSectionSpacing()
 	ImGui::Spacing();
 	ImGui::Spacing();
 }
+
+float modeStart = 78;
+float buttonRight = 35;
 
 void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 {
@@ -140,7 +143,7 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 		
 		int soloSelection = (int)rvm.ActiveSolo;
 		// NOTE: The order must match TextureType
-		ImGui::SameLine(ImGui::GetContentRegionAvail().x-125);
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
 		ImGui::SetNextItemWidth(100);
 		if (ImGui::Combo("Solo Texture", &soloSelection, "All\0Base Color\0Metalness\0Roughness\0AO\0Normals"))
 		{
@@ -186,7 +189,7 @@ void PropsView::Basecolor(MaterialViewState& rvm) const
 	ImGui::PopStyleColor(1);
 
 	
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 70);
+	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
@@ -205,7 +208,7 @@ void PropsView::Basecolor(MaterialViewState& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
@@ -216,7 +219,7 @@ void PropsView::Basecolor(MaterialViewState& rvm) const
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-		ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+		ImGui::SameLine();
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
@@ -249,7 +252,7 @@ void PropsView::Normals(MaterialViewState& rvm) const
 
 	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 	{
 		const auto newPath = FileService::TexturePicker();
 		if (!newPath.empty())
@@ -260,7 +263,7 @@ void PropsView::Normals(MaterialViewState& rvm) const
 	}
 	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+	ImGui::SameLine();
 	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 	{
 		mapPath = "";
@@ -289,7 +292,7 @@ void PropsView::Metalness(MaterialViewState& rvm) const
 	ImGui::PopStyleColor(1);
 
 	
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 70);
+	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
@@ -308,7 +311,7 @@ void PropsView::Metalness(MaterialViewState& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 		
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
@@ -319,7 +322,7 @@ void PropsView::Metalness(MaterialViewState& rvm) const
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-		ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+		ImGui::SameLine();
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
@@ -370,7 +373,7 @@ void PropsView::Roughness(MaterialViewState& rvm) const
 	ImGui::Text(title.c_str());
 	ImGui::PopStyleColor(1);
 
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 70);
+	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
 	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
@@ -388,7 +391,7 @@ void PropsView::Roughness(MaterialViewState& rvm) const
 	{
 		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 		{
 			const auto newPath = FileService::TexturePicker();
 			if (!newPath.empty())
@@ -399,7 +402,7 @@ void PropsView::Roughness(MaterialViewState& rvm) const
 		}
 		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-		ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+		ImGui::SameLine();
 		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 		{
 			mapPath = "";
@@ -456,7 +459,7 @@ void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 
 	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 	{
 		const auto newPath = FileService::TexturePicker();
 		if (!newPath.empty())
@@ -467,7 +470,7 @@ void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 	}
 	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+	ImGui::SameLine();
 	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 	{
 		mapPath = "";
@@ -503,7 +506,6 @@ void PropsView::Emissive(MaterialViewState& rvm) const
 {
 	const std::string title = "EMISSIVE";
 	const std::string valueName = "Intensity";
-	//bool& useMap = rvm.UseNormalMap;
 	std::string& mapPath = rvm.EmissiveMapPath;
 	float& value = rvm.EmissiveIntensity;
 
@@ -518,7 +520,7 @@ void PropsView::Emissive(MaterialViewState& rvm) const
 
 	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
 
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - 35, 0 }))
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 	{
 		const auto newPath = FileService::TexturePicker();
 		if (!newPath.empty())
@@ -529,7 +531,7 @@ void PropsView::Emissive(MaterialViewState& rvm) const
 	}
 	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
 
-	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 20);
+	ImGui::SameLine();
 	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
 	{
 		mapPath = "";
