@@ -39,7 +39,6 @@ class App;
 inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
-// TODO Extract IWindow interface and VulkanWindow impl from App
 class App final :
 	public IRendererDelegate,
 	public IUiPresenterDelegate,
@@ -68,6 +67,7 @@ private: // DATA
 	bool _firstCursorInput = true;
 	double _lastCursorX{}, _lastCursorY{};
 
+	bool _defaultSceneLoaded = false;
 	bool _enableUpdate = true;
 	
 	// Time
@@ -85,9 +85,10 @@ private: // DATA
 	// State
 	std::vector<int> _deletionQueue{};
 
-
+	
 public: // METHODS
 
+	// Lifetime
 	explicit App(AppOptions options)
 	{
 		InitWindow();
@@ -114,7 +115,10 @@ public: // METHODS
 		_vulkanService = std::move(vulkan);
 
 	}
-	
+	App(const App& other) = delete;
+	App(App&& other) = delete;
+	App& operator=(const App& other) = delete;
+	App& operator=(App&& other) = delete;
 	~App()
 	{
 		_renderer->CleanUp();
@@ -125,7 +129,8 @@ public: // METHODS
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
-	bool _defaultSceneLoaded = false;
+
+	
 	void Run()
 	{
 		InitImgui();
