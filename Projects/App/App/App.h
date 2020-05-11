@@ -332,7 +332,7 @@ private: // METHODS
 
 		// Upload Fonts
 		{
-			const auto cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
+			auto* const cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
 			ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
 			vkh::EndSingeTimeCommands(cmdBuf, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->LogicalDevice());
 			ImGui_ImplVulkan_DestroyFontUploadObjects();
@@ -389,13 +389,13 @@ private: // METHODS
 		LoadMaterialVariety();
 		LoadGrapple();
 		//LoadLighting();
-
 		
 		// Configure render options
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		auto ro = _ui->GetRenderOptions();
-		ro.IblStrength = 2;
+		ro.IblStrength = 2.5f;
 		ro.SkyboxRotation = 230;
+		ro.BackdropBrightness = 0.3f;
 		_ui->SetRenderOptions(ro);
 	}
 
@@ -503,7 +503,6 @@ private: // METHODS
 		std::cout << "Material array obj count: " << count << std::endl; 
 	}
 
-	
 	void LoadMaterialVariety()
 	{
 		std::cout << "Loading axis" << std::endl;

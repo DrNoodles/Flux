@@ -5,7 +5,7 @@
 class TurntableAction final : public IActionComponent
 {
 public:
-	float RotationsPerSecond = 0.1f;
+	float RotationsPerSecond = 0.08f;
 
 	explicit TurntableAction(TransformComponent& transform): _pTransform(transform) 
 	{

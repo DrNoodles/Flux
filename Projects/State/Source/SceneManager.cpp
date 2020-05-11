@@ -68,6 +68,11 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 				mat.AoMapPath = texDef.Path;
 				break;
 
+			case TextureType::Emissive:
+				mat.EmissiveMap = texResId;
+				mat.EmissiveMapPath = texDef.Path;
+				break;
+
 			case TextureType::Undefined:
 			default:
 				std::cerr << "Discarding unknown texture type" << std::endl;

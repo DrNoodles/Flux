@@ -502,7 +502,7 @@ void PropsView::AmbientOcclusion(MaterialViewState& rvm) const
 void PropsView::Emissive(MaterialViewState& rvm) const
 {
 	const std::string title = "EMISSIVE";
-	const std::string valueName = "Strength";
+	const std::string valueName = "Intensity";
 	//bool& useMap = rvm.UseNormalMap;
 	std::string& mapPath = rvm.EmissiveMapPath;
 	float& value = rvm.EmissiveIntensity;
