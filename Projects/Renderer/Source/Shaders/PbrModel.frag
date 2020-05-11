@@ -284,6 +284,10 @@ void main()
 vec3 GetBasecolor()
 {
 	vec3 basecolor = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).rgb : uBasecolor; 
+	float alpha = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).a : 1; 
+	if (alpha < 0.1)
+		discard;
+	
 	basecolor = pow(basecolor, vec3(2.2)); // sRGB 2.2 -> Linear
 	return basecolor;
 }
