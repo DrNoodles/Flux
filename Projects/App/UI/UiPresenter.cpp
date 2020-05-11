@@ -349,6 +349,7 @@ void UiPresenter::CreateSphere()
 
 	auto entity = _library.CreateSphere();
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -360,6 +361,7 @@ void UiPresenter::CreateBlob()
 
 	auto entity = _library.CreateBlob();
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -370,7 +372,9 @@ void UiPresenter::CreateCube()
 	printf("CreateCube()\n");
 
 	auto entity = _library.CreateCube();
-	entity->Transform.SetScale(glm::vec3{1.5f});
+	entity->Transform.SetScale(glm::vec3{0.9f});
+	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMetalMaterial());
+
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 	ReplaceSelection(entity.get());
@@ -380,7 +384,7 @@ void UiPresenter::CreateCube()
 void UiPresenter::DeleteAll()
 {
 	printf("DeleteAll()\n");
-	auto& entities = _scene.EntitiesView();
+	const auto& entities = _scene.EntitiesView();
 	std::vector<int> ids{};
 	std::for_each(entities.begin(), entities.end(),
 	              [&ids](const std::unique_ptr<Entity>& e) { ids.emplace_back(e->Id); });

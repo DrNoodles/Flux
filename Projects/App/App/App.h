@@ -39,7 +39,6 @@ class App;
 inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
-// TODO Extract IWindow interface and VulkanWindow impl from App
 class App final :
 	public IRendererDelegate,
 	public IUiPresenterDelegate,
@@ -68,7 +67,8 @@ private: // DATA
 	bool _firstCursorInput = true;
 	double _lastCursorX{}, _lastCursorY{};
 
-	bool _enableUpdate = true;
+	bool _defaultSceneLoaded = false;
+	bool _updateEntities = true;
 	
 	// Time
 	std::chrono::steady_clock::time_point _startTime = std::chrono::high_resolution_clock::now();
@@ -85,12 +85,13 @@ private: // DATA
 	// State
 	std::vector<int> _deletionQueue{};
 
-
+	
 public: // METHODS
 
+	// Lifetime
 	explicit App(AppOptions options)
 	{
-		InitWindow();
+		InitWindow(options);
 
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
@@ -114,7 +115,10 @@ public: // METHODS
 		_vulkanService = std::move(vulkan);
 
 	}
-	
+	App(const App& other) = delete;
+	App(App&& other) = delete;
+	App& operator=(const App& other) = delete;
+	App& operator=(App&& other) = delete;
 	~App()
 	{
 		_renderer->CleanUp();
@@ -125,7 +129,7 @@ public: // METHODS
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
-	bool _defaultSceneLoaded = false;
+	
 	void Run()
 	{
 		InitImgui();
@@ -157,7 +161,7 @@ public: // METHODS
 				_lastFpsUpdate = currentTime;
 			}
 
-			if (_enableUpdate) { Update(dt); }
+			Update(dt);
 			Draw(dt);
 
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
@@ -169,9 +173,8 @@ public: // METHODS
 		}
 	}
 
-
 private: // METHODS
-	void InitWindow()
+	void InitWindow(const AppOptions& options)
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
@@ -191,6 +194,25 @@ private: // METHODS
 		glfwSetKeyCallback(_window, KeyCallback);
 		glfwSetCursorPosCallback(_window, CursorPosCallback);
 		glfwSetScrollCallback(_window, ScrollCallback);
+
+
+		// Load icon
+		{
+			const auto iconPath = options.AssetsDir + "icon_32.png";
+
+			int outChannelsInFile;
+			GLFWimage icon;
+			icon.pixels = stbi_load(iconPath.c_str(), &icon.width, &icon.height, &outChannelsInFile, 4);
+			if (!icon.pixels)
+			{
+				stbi_image_free(icon.pixels);
+				throw std::runtime_error("Failed to load texture image: " + iconPath);
+			}
+			
+			glfwSetWindowIcon(window, 1, &icon);
+			
+			stbi_image_free(icon.pixels);
+		}
 	}
 
 	void ProcessDeletionQueue()
@@ -208,13 +230,17 @@ private: // METHODS
 	{
 		ProcessDeletionQueue();
 
-		for (const auto& entity : _scene->EntitiesView())
+		if (_updateEntities) 
 		{
-			if (entity->Action)
+			for (const auto& entity : _scene->EntitiesView()) 
 			{
-				entity->Action->Update(dt);
+				if (entity->Action) 
+				{
+					entity->Action->Update(dt);
+				}
 			}
 		}
+		
 	}
 
 	void Draw(const float dt) const
@@ -365,33 +391,15 @@ private: // METHODS
 	}
 
 	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadEmptyScene()
-	{
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-	}
-	void LoadDefaultScene()
-	{
-		LoadDemoScene();
-		
-		//_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		//LoadMaterialArray();
-
-		_ui->FrameSelectionOrAll();
-	}
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
 	void LoadDemoScene() override
 	{
 		std::cout << "Loading scene\n";
-		//LoadAxis();
-		//LoadMaterialArray({ 0,4,0 });
 
-		LoadMaterialVariety();
+		LoadMaterialExamples();
 		LoadGrapple();
-		//LoadLighting();
 		
-		// Configure render options
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+		
 		auto ro = _ui->GetRenderOptions();
 		ro.IblStrength = 2.5f;
 		ro.SkyboxRotation = 230;
@@ -404,7 +412,7 @@ private: // METHODS
 		std::cout << "Loading scene\n";
 		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
 		LoadAxis();
-		LoadMaterialArray({ 0,0,0 }, 30, 30);
+		LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
 	#pragma endregion
@@ -452,7 +460,29 @@ private: // METHODS
 	
 	#pragma region Scene Management // TODO move out of App.h
 
-	void LoadMaterialArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
+	// TODO Move to _ui layer to make a single spot where UI drives state
+	void LoadEmptyScene()
+	{
+		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+	}
+	
+	void LoadDefaultScene()
+	{
+		const bool heavy = false;
+		if (heavy)
+		{
+			LoadDemoScene();
+		}
+		else
+		{
+			_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
+			LoadObjectArray();
+		}
+		
+		_ui->FrameSelectionOrAll();
+	}
+
+	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
 		std::cout << "Loading material array" << std::endl;
 
@@ -503,7 +533,7 @@ private: // METHODS
 		std::cout << "Material array obj count: " << count << std::endl; 
 	}
 
-	void LoadMaterialVariety()
+	void LoadMaterialExamples()
 	{
 		std::cout << "Loading axis" << std::endl;
 
@@ -932,7 +962,7 @@ private: // METHODS
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
 		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
-		if (key == GLFW_KEY_N)      { _enableUpdate = !_enableUpdate; }
+		if (key == GLFW_KEY_N)      { _updateEntities = !_updateEntities; }
 		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
 	void OnCursorPosChanged(double xPos, double yPos)

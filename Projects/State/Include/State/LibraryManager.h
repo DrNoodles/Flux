@@ -103,32 +103,29 @@ public:
 
 		return CreateEntity(_blobModelId, _blobBounds, "Blob");
 	}
+
+	static Material CreateRandomDielectricMaterial()
+	{
+		Material m{};
+		m.Roughness = RandF(0.f, 0.7f);
+		m.Metalness = 0;
+		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
+		return m;
+	}
+	
+	static Material CreateRandomMetalMaterial()
+	{
+		Material m{};
+		m.Roughness = RandF(0.f, 0.7f);
+		m.Metalness = 1;
+		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
+		return m;
+	}
 	
 	static Material CreateRandomMaterial()
 	{
-		const auto RandF = [](float min, float max)
-		{
-			const float r = float(rand()) / float(RAND_MAX);
-			const float range = max - min;
-			return min + r * range;
-		};
-
 		const auto isMetallic = bool(rand() % 2);
-
-		Material m{};
-		m.Roughness = RandF(0.f, 0.7f);
-		if (isMetallic)
-		{
-			m.Metalness = true;
-			m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
-		}
-		else
-		{
-			m.Metalness = false;
-			m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
-		}
-
-		return m;
+		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
 	}
 	
 private:
@@ -169,4 +166,12 @@ private:
 		entity->Renderable = std::make_optional(comp);
 		return entity;
 	}
+
+	// todo find a better home for this
+	static float RandF(float min, float max) 
+	{
+		const float r = float(rand()) / float(RAND_MAX);
+		const float range = max - min;
+		return min + r * range;
+	};
 };
