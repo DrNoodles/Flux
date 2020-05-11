@@ -113,7 +113,7 @@ void SceneView::OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_s
 		//ImGui::Text("Outliner");
 		//ImGui::Text("Actions");
 		
-		if (ImGui::BeginChild("Scene_Outliner", ImVec2{ 0,200 }, true))
+		if (ImGui::BeginChild("Scene_Outliner", ImVec2{ 0,170 }, true))
 		{
 
 			// Selection helper lambdas

@@ -332,7 +332,7 @@ private: // METHODS
 
 		// Upload Fonts
 		{
-			const auto cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
+			auto* const cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
 			ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
 			vkh::EndSingeTimeCommands(cmdBuf, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->LogicalDevice());
 			ImGui_ImplVulkan_DestroyFontUploadObjects();
