@@ -50,8 +50,9 @@ public:
 	
 private:
 	void SceneLoadPanel(ImGuiTreeNodeFlags headerFlags) const;
-	void CreatePanel(ImGuiTreeNodeFlags headerFlags) const;
+	void CreationPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, ImGuiTreeNodeFlags headerFlags) const;
 	void IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const;
-	void RenderOptionsPanel(ImGuiTreeNodeFlags headerFlags) const;
+	void BackdropPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const;
+	void CameraPanel(ImGuiTreeNodeFlags headerFlags) const;
 };

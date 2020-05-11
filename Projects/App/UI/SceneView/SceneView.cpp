@@ -28,19 +28,23 @@ void SceneView::BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Ent
 		ImGui::Spacing();
 		ImGui::Spacing();
 		
-		CreatePanel(headerFlags);
+		CreationPanel(headerFlags);
 		ImGui::Spacing();
 		ImGui::Spacing();
 		
 		OutlinerPanel(ents, selection, headerFlags);
 		ImGui::Spacing();
 		ImGui::Spacing();
+
+		CameraPanel(headerFlags);
+		ImGui::Spacing();
+		ImGui::Spacing();
 		
 		IblPanel(iblVm, headerFlags);
 		ImGui::Spacing();
 		ImGui::Spacing();
-		
-		RenderOptionsPanel(headerFlags);
+
+		BackdropPanel(iblVm, headerFlags);
 	}
 	ImGui::End();
 }
@@ -52,30 +56,20 @@ void SceneView::SceneLoadPanel(ImGuiTreeNodeFlags headerFlags) const
 	{
 		if (ImGui::BeginChild("Load", ImVec2{ 0,/*35*/60 }, true))
 		{
-			if (ImGui::Button("Demo Scene"))
-			{
-				_delegate->LoadDemoScene();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Object"))
-			{
+			if (ImGui::Button("Object")) {
 				const auto path = FileService::ModelPicker();
-				if (!path.empty())
-				{
-					_delegate->LoadModel(path);
-				}
+				if (!path.empty()) { _delegate->LoadModel(path); }
 			}
-
-			if (ImGui::Button("Heavy Demo Scene"))
-			{
-				_delegate->LoadHeavyDemoScene();
-			}
+			
+			if (ImGui::Button("Demo Scene")) { _delegate->LoadDemoScene(); }
+			ImGui::SameLine();
+			if (ImGui::Button("Heavy Demo Scene")) { _delegate->LoadHeavyDemoScene(); }
 		}
 		ImGui::EndChild();
 	}
 }
 
-void SceneView::CreatePanel(ImGuiTreeNodeFlags headerFlags) const
+void SceneView::CreationPanel(ImGuiTreeNodeFlags headerFlags) const
 {
 	// Create Panel
 	if (ImGui::CollapsingHeader("Create", headerFlags))
@@ -114,9 +108,11 @@ void SceneView::CreatePanel(ImGuiTreeNodeFlags headerFlags) const
 
 void SceneView::OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, const ImGuiTreeNodeFlags headerFlags) const
 {
-	if (ImGui::CollapsingHeader("Outliner", headerFlags))
+	if (ImGui::CollapsingHeader("Object List", headerFlags))
 	{
-		ImGui::Text("Outliner");
+		//ImGui::Text("Outliner");
+		//ImGui::Text("Actions");
+		
 		if (ImGui::BeginChild("Scene_Outliner", ImVec2{ 0,200 }, true))
 		{
 
@@ -156,10 +152,8 @@ void SceneView::OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_s
 			}
 		}
 		ImGui::EndChild();
-		ImGui::Spacing();
+		//ImGui::Spacing();
 
-
-		ImGui::Text("Actions");
 		if (ImGui::BeginChild("Scene_Actions", ImVec2{ 0,35 }, true))
 		{
 			// Delete selected button
@@ -198,6 +192,7 @@ void SceneView::OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_s
 			}
 		}
 		ImGui::EndChild();
+		
 	}
 }
 
@@ -206,27 +201,27 @@ void SceneView::IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 	if (ImGui::CollapsingHeader("Image Based Lighting", headerFlags))
 	{
 		auto roCopy = _delegate->GetRenderOptions();
-		auto& ibls = _delegate->GetSkyboxList();
+		const auto& ibls = _delegate->GetSkyboxList();
 		const auto activeIbl = _delegate->GetActiveSkybox();
 
-		if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,130 }, true))
+		if (ImGui::BeginChild("IBL Panel", ImVec2{ 0,85 }, true))
 		{
-			if (ImGui::Button("Load Skybox"))
-			{
+			if (ImGui::Button("Load")) {
 				_delegate->LoadSkybox();
 			}
-
+			
+			ImGui::SameLine();
 			if (ImGui::BeginCombo("Map", ibls[activeIbl].Name.c_str()))
 			{
 				for (u32 idx = 0; idx < ibls.size(); ++idx)
 				{
 					const bool isSelected = idx == activeIbl;
-					if (ImGui::Selectable(ibls[idx].Name.c_str(), isSelected))
-					{
+					
+					if (ImGui::Selectable(ibls[idx].Name.c_str(), isSelected)) {
 						_delegate->SetActiveSkybox(idx);
 					}
-					if (isSelected)
-					{
+					
+					if (isSelected) {
 						ImGui::SetItemDefaultFocus();
 					}
 				}
@@ -234,7 +229,7 @@ void SceneView::IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 			}
 
 			ImGui::PushItemWidth(50);
-			if (ImGui::DragFloat("Strength", &roCopy.IblStrength, .01f, 0, 10, "%0.2f")) {
+			if (ImGui::DragFloat("Intensity", &roCopy.IblStrength, .01f, 0, 10, "%0.2f")) {
 				_delegate->SetRenderOptions(roCopy);
 			}
 			ImGui::PopItemWidth();
@@ -242,22 +237,36 @@ void SceneView::IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 			ImGui::PushItemWidth(50);
 			if (ImGui::DragInt("Rotation", &iblVm.Rotation, 1, 0, 0)) iblVm.Commit();
 			ImGui::PopItemWidth();
-
-			if (ImGui::Checkbox("Show Irradiance", &iblVm.ShowIrradiance)) iblVm.Commit();
 		}
 		ImGui::EndChild();
 	}
-
 }
 
-/*void SceneView::AnimatePanel(ImGuiTreeNodeFlags headerFlags) const
+void SceneView::BackdropPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const
 {
-}*/
-void SceneView::RenderOptionsPanel(ImGuiTreeNodeFlags headerFlags) const
-{
-	if (ImGui::CollapsingHeader("Render Options", headerFlags))
+	if (ImGui::CollapsingHeader("Backdrop", headerFlags))
 	{
-		if (ImGui::BeginChild("Render Options all", ImVec2{ 0,60 }, true))
+		auto roCopy = _delegate->GetRenderOptions();
+
+		if (ImGui::BeginChild("Backdrop Panel", ImVec2{ 0,60 }, true))
+		{
+			ImGui::PushItemWidth(50);
+			if (ImGui::DragFloat("Brightness", &roCopy.BackdropBrightness, .01f, 0, 10, "%0.2f")) {
+				_delegate->SetRenderOptions(roCopy);
+			}
+			ImGui::PopItemWidth();
+			
+			if (ImGui::Checkbox("Ambient Sky", &iblVm.ShowIrradiance)) iblVm.Commit();
+		}
+		ImGui::EndChild();
+	}
+}
+
+void SceneView::CameraPanel(ImGuiTreeNodeFlags headerFlags) const
+{
+	if (ImGui::CollapsingHeader("Camera", headerFlags))
+	{
+		if (ImGui::BeginChild("Camera Options", ImVec2{ 0,60 }, true))
 		{
 			auto roCopy = _delegate->GetRenderOptions();
 
@@ -275,3 +284,7 @@ void SceneView::RenderOptionsPanel(ImGuiTreeNodeFlags headerFlags) const
 	}
 
 }
+
+/*void SceneView::AnimatePanel(ImGuiTreeNodeFlags headerFlags) const
+{
+}*/
