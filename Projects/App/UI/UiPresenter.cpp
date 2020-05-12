@@ -1,4 +1,5 @@
 #include "UiPresenter.h"
+#include <queue>
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
 #include "SceneView/IblVm.h"
@@ -154,6 +155,45 @@ void UiPresenter::ClearSelection()
 	_selection.clear();
 }
 
+enum class ModalResponse
+{
+	None, Ok, Cancel
+};
+
+ModalResponse ModalOkCancel(const std::string& title, const std::string& message)
+{
+	ModalResponse response = ModalResponse::None;
+
+	const auto name = title + "?";
+	
+	ImGui::OpenPopup(name.c_str());
+	if (ImGui::BeginPopupModal(name.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		const auto m = message + "\n\n";
+		ImGui::Text(message.c_str());
+		ImGui::Separator();
+
+		if (ImGui::Button("OK", ImVec2(120, 0))) { response = ModalResponse::Ok; }
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0))) { response = ModalResponse::Cancel; }
+		ImGui::EndPopup();
+	}
+
+	return response;
+}
+
+//enum class ModalTypes
+//{
+//	Close, DeleteAll
+//};
+//std::queue<
+bool _closeRequested = false;
+void UiPresenter::BeginQuitPrompt()
+{
+	_closeRequested = true;
+}
+
 void UiPresenter::BuildImGui()
 {
 	// Start the Dear ImGui frame
@@ -164,6 +204,19 @@ void UiPresenter::BuildImGui()
 		//auto show_demo_window = true;
 		//ImGui::ShowDemoWindow(&show_demo_window);
 
+		if (_closeRequested) // TODO Create a nice modal queue
+		{
+			const auto response = ModalOkCancel("Quit App", "Are you sure you want to quit? All work will be lost.");
+			if (response == ModalResponse::Ok) 
+			{
+				_delegate.CloseApp();
+			}
+			else if (response == ModalResponse::Cancel)
+			{
+				_closeRequested = false;
+			}
+		}
+		
 		// Scene View
 		{
 			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));

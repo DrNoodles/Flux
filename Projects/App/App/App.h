@@ -131,6 +131,8 @@ public: // METHODS
 		glfwTerminate();
 	}
 	
+
+	bool _runApp = true;
 	void Run()
 	{
 		// Init the things
@@ -139,14 +141,17 @@ public: // METHODS
 
 		
 		// Update UI only as quickly as the monitor's refresh rate
+		//auto vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		//_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>(1.f / (f32)vidMode->refreshRate);
+
 		const auto* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 		if (videoMode) {
 			_ui->SetUpdateRate(videoMode->refreshRate);
 		} else {
 			std::cerr << "Failed to set vsync\n";
 		}
-		
-		while (!glfwWindowShouldClose(_window))
+
+		while (_runApp)
 		{
 			glfwPollEvents();
 
@@ -236,6 +241,12 @@ private: // METHODS
 	{
 		ProcessDeletionQueue();
 
+		if (glfwWindowShouldClose(_window)) 
+		{
+			glfwSetWindowShouldClose(_window, false);
+			_ui->BeginQuitPrompt();
+		}
+		
 		if (_updateEntities) 
 		{
 			for (const auto& entity : _scene->EntitiesView()) 
@@ -419,6 +430,10 @@ private: // METHODS
 	
 	#pragma region IUiPresenterDelegate
 
+	void CloseApp() override
+	{
+		_runApp = false;
+	}
 	glm::ivec2 GetWindowSize() const override
 	{
 		return _windowSize;

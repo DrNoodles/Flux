@@ -25,6 +25,7 @@ public:
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
 	virtual void LoadDemoScene() = 0;
 	virtual void LoadDemoSceneHeavy() = 0;
+	virtual void CloseApp() = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate, public IViewportViewDelegate
@@ -90,6 +91,8 @@ public: // METHODS
 	void FrameSelectionOrAll();
 	void ReplaceSelection(Entity* const entity);
 	void ClearSelection();
+	
+	void BeginQuitPrompt();
 
 	void SetUpdateRate(int updatesPerSecond)
 	{
