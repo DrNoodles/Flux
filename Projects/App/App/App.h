@@ -503,7 +503,7 @@ private: // METHODS
 	
 	void LoadDefaultScene()
 	{
-		const bool heavy = false;
+		const bool heavy = true;
 		if (heavy)
 		{
 			LoadDemoScene();
