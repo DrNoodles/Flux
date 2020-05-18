@@ -503,7 +503,7 @@ private: // METHODS
 	
 	void LoadDefaultScene()
 	{
-		const bool heavy = true;
+		const bool heavy = false;
 		if (heavy)
 		{
 			LoadDemoScene();
@@ -1024,7 +1024,7 @@ private: // METHODS
 
 
 		const auto windowSize = GetFramebufferSize();
-		const glm::vec2 diffRatio{ xDiff / windowSize.width, yDiff / windowSize.height };
+		const glm::vec2 diffRatio{ xDiff / windowSize.height, yDiff / windowSize.height };
 		auto* const window = _window;
 		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
 		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
@@ -1035,7 +1035,7 @@ private: // METHODS
 		auto& camera = _scene->GetCamera();
 		if (isLmb)
 		{
-			const float arcSpeed = 3;
+			const float arcSpeed = 1.5*3.1415;
 			camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
 		}
 		if (isMmb || isRmb)
