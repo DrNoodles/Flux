@@ -13,7 +13,7 @@
 #include <set>
 
 
-VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const vector<const char*>& validationLayers)
+VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const std::vector<const char*>& validationLayers)
 {
 	VkInstance instance = nullptr;
 

@@ -54,23 +54,24 @@ layout(std140, binding = 0) uniform UniversalUbo
 	mat4 cubemapRotation;
 } ubo;
 
-layout(binding = 1) uniform sampler2D BasecolorMap;
-layout(binding = 2) uniform sampler2D NormalMap;
-layout(binding = 3) uniform sampler2D RoughnessMap;
-layout(binding = 4) uniform sampler2D MetalnessMap;
-layout(binding = 5) uniform sampler2D AmbientOcclusionMap;
-layout(binding = 6) uniform sampler2D EmissiveMap;
-layout(std140, binding = 7) uniform LightUbo
+layout(binding = 1) uniform samplerCube IrradianceMap; // diffuse
+layout(binding = 2) uniform samplerCube PrefilterMap; // spec
+layout(binding = 3) uniform sampler2D BrdfLUT; // spec
+layout(std140, binding = 4) uniform LightUbo
 {
 	LightPacked[MAX_LIGHT_COUNT] lights;
 	// TODO see this post about dealing with N number of lights
 	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
+layout(binding = 5) uniform sampler2D BasecolorMap;
+layout(binding = 6) uniform sampler2D NormalMap;
+layout(binding = 7) uniform sampler2D RoughnessMap;
+layout(binding = 8) uniform sampler2D MetalnessMap;
+layout(binding = 9) uniform sampler2D AmbientOcclusionMap;
+layout(binding = 10) uniform sampler2D EmissiveMap;
+//layout(binding = 11) uniform sampler2D TransparencyMap;
 
 
-layout(binding = 8) uniform samplerCube IrradianceMap; // diffuse
-layout(binding = 9) uniform samplerCube PrefilterMap; // spec
-layout(binding = 10) uniform sampler2D BrdfLUT; // spec
 
 
 layout(location = 0) in vec3 fragPos;
