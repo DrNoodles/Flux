@@ -517,7 +517,7 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 
 	// Match these to CreatePbrDescriptorSetLayout
 	const auto numPbrUniformBuffers = 2;
-	const auto numPbrCombinedImageSamplers = 9;
+	const auto numPbrCombinedImageSamplers = 10;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
 	const auto numSkyboxUniformBuffers = 2;
@@ -565,6 +565,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
 	const auto emissiveMapId = renderable.Mat.EmissiveMap.value_or(_placeholderTexture).Id;
+	const auto transparencyMapId = renderable.Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
 	WritePbrDescriptorSets(
 		numImagesInFlight,
@@ -577,6 +578,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		*_textures[metalnessMapId],
 		*_textures[aoMapId],
 		*_textures[emissiveMapId],
+		*_textures[transparencyMapId],
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
@@ -623,8 +625,8 @@ VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 		vki::DescriptorSetLayoutBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// emissiveMap
 		vki::DescriptorSetLayoutBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		
-		
+		// transparencyMap
+		vki::DescriptorSetLayoutBinding(11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
 }
 
@@ -639,6 +641,7 @@ void Renderer::WritePbrDescriptorSets(
 	const TextureResource& metalnessMap,
 	const TextureResource& aoMap,
 	const TextureResource& emissiveMap,
+	const TextureResource& transparencyMap,
 	const TextureResource& irradianceMap,
 	const TextureResource& prefilterMap,
 	const TextureResource& brdfMap,
@@ -679,6 +682,7 @@ void Renderer::WritePbrDescriptorSets(
 			vki::WriteDescriptorSet(set, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.DescriptorImageInfo()),
+			vki::WriteDescriptorSet(set, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.DescriptorImageInfo()),
 
 		};
 
@@ -938,6 +942,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
 		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
 		const auto emissiveMapId = renderable->Mat.EmissiveMap.value_or(_placeholderTexture).Id;
+		const auto transparencyMapId = renderable->Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
 
 		// Write updated descriptor sets
@@ -950,6 +955,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 			*_textures[metalnessMapId],
 			*_textures[aoMapId],
 			*_textures[emissiveMapId],
+			*_textures[transparencyMapId],
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),

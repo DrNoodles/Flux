@@ -46,6 +46,10 @@ layout(std140, binding = 0) uniform UniversalUbo
 	vec4 emissivity;         // float in [0]
 	vec4 useEmissiveMap;     // bool in [0]
 
+	vec4 transparencyCutoffThreshold; // float in [0]
+	vec4 useTransparencyMap; // bool in [0]
+	vec4 transparencyMapChannel; // int in [0]
+
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
 	vec4 showClipping;       // bool in [0]
@@ -69,7 +73,7 @@ layout(binding = 7) uniform sampler2D RoughnessMap;
 layout(binding = 8) uniform sampler2D MetalnessMap;
 layout(binding = 9) uniform sampler2D AmbientOcclusionMap;
 layout(binding = 10) uniform sampler2D EmissiveMap;
-//layout(binding = 11) uniform sampler2D TransparencyMap;
+layout(binding = 11) uniform sampler2D TransparencyMap;
 
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
@@ -85,6 +89,7 @@ vec3 uBasecolor;
 float uRoughness;        
 float uMetalness;         
 float uEmissivity;
+float uTransparencyCutoffThreshold;
 
 bool uUseBasecolorMap;  
 bool uUseNormalMap;		 
@@ -92,6 +97,7 @@ bool uUseRoughnessMap;
 bool uUseMetalnessMap;		 
 bool uUseAoMap;				 
 bool uUseEmissiveMap;
+bool uUseTransparencyMap;
 
 //vec3 uInvertNormalMap;	 
 bool uInvertAoMap;			 
@@ -101,6 +107,7 @@ bool uInvertMetalnessMap;
 int uRoughnessMapChannel;
 int uMetalnessMapChannel;
 int uAoMapChannel;       
+int uTransparencyMapChannel;
 
 // Render Options
 bool uShowNormalMap;
@@ -129,6 +136,7 @@ float GetRoughness();
 float GetMetalness();
 float GetAmbientOcclusion();
 vec3 GetEmissive();
+float GetTransparency();
 
 bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001f)
 {
@@ -152,6 +160,11 @@ void main()
 	float roughness = GetRoughness();
 	float ao = GetAmbientOcclusion();
 	vec3 emissive = GetEmissive();
+	float transparency = GetTransparency();
+
+	if (transparency < uTransparencyCutoffThreshold) {
+		discard;
+	}
 	
 	if (uShowNormalMap)
 	{
@@ -281,12 +294,7 @@ void main()
 vec3 GetBasecolor()
 {
 	vec3 basecolor = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).rgb : uBasecolor; 
-	float alpha = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).a : 1; 
-	if (alpha < 0.1)
-		discard;
-	
-	basecolor = pow(basecolor, vec3(2.2)); // sRGB 2.2 -> Linear
-	return basecolor;
+	return pow(basecolor, vec3(2.2)); // sRGB 2.2 -> Linear
 }
 vec3 GetNormal()
 {
@@ -315,7 +323,6 @@ float GetRoughness()
 		if (uInvertRoughnessMap)
 			roughness = 1-roughness;
 	}
-
 	return roughness;
 }
 float GetMetalness()
@@ -331,7 +338,6 @@ float GetMetalness()
 		if (uInvertMetalnessMap)
 			metalness = 1-metalness;
 	}
-
 	return metalness;
 }
 float GetAmbientOcclusion()
@@ -347,14 +353,24 @@ float GetAmbientOcclusion()
 		if (uInvertAoMap)
 			ao = 1-ao;
 	}
-
 	return ao;
 }
 vec3 GetEmissive()
 {
 	return uUseEmissiveMap ? texture(EmissiveMap, fragTexCoord).rgb * uEmissivity : vec3(0);
 }
-
+float GetTransparency()
+{
+	float alpha = 1;
+	if (uUseTransparencyMap)
+	{
+		if (uTransparencyMapChannel == 0) alpha = texture(TransparencyMap, fragTexCoord).r;
+		else if (uTransparencyMapChannel == 1) alpha = texture(TransparencyMap, fragTexCoord).g;
+		else if (uTransparencyMapChannel == 2) alpha = texture(TransparencyMap, fragTexCoord).b;
+		else alpha = texture(TransparencyMap, fragTexCoord).a; // assume == 3 
+	}
+	return alpha;
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -442,9 +458,10 @@ void UnpackUbos()
 {
 	// Material
 	uBasecolor = ubo.basecolor;
-	uRoughness = float(ubo.roughness[0]);
-	uMetalness = float(ubo.metalness[0]);
+	uRoughness = ubo.roughness[0];
+	uMetalness = ubo.metalness[0];
 	uEmissivity = ubo.emissivity[0];
+	uTransparencyCutoffThreshold = ubo.transparencyCutoffThreshold[0];
 
 	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
 	uUseNormalMap = bool(ubo.useNormalMap[0]);
@@ -452,8 +469,8 @@ void UnpackUbos()
 	uUseMetalnessMap = bool(ubo.useMetalnessMap[0]);
 	uUseAoMap = bool(ubo.useAoMap[0]);
 	uUseEmissiveMap = bool(ubo.useEmissiveMap[0]);
-	
-	
+	uUseTransparencyMap = bool(ubo.useTransparencyMap[0]);
+
 	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
 	uInvertMetalnessMap = bool(ubo.invertMetalnessMap[0]);
 	uInvertAoMap = bool(ubo.invertAoMap[0]);
@@ -461,6 +478,10 @@ void UnpackUbos()
 	uRoughnessMapChannel = int(ubo.roughnessMapChannel[0]);
 	uMetalnessMapChannel = int(ubo.metalnessMapChannel[0]);
 	uAoMapChannel = int(ubo.aoMapChannel[0]);
+	uTransparencyMapChannel = int(ubo.transparencyMapChannel[0]);
+
+	
+
 
 	// Render options
 	uShowNormalMap = bool(ubo.showNormalMap[0]);
