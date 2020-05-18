@@ -480,6 +480,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	mat.Metalness = state.Metalness;
 	mat.Roughness = state.Roughness;
 	mat.EmissiveIntensity = state.EmissiveIntensity;
+	mat.TransparencyCutoffThreshold = state.TransparencyCutoffThreshold;
 
 	mat.InvertNormalMapY = state.InvertNormalMapY;
 	mat.InvertNormalMapZ = state.InvertNormalMapZ;
@@ -589,7 +590,8 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.Metalness = mat.Metalness;
 	rvm.Roughness = mat.Roughness;
 	rvm.EmissiveIntensity = mat.EmissiveIntensity;
-
+	rvm.TransparencyCutoffThreshold = mat.TransparencyCutoffThreshold;
+	
 	rvm.InvertNormalMapY = mat.InvertNormalMapY;
 	rvm.InvertNormalMapZ = mat.InvertNormalMapZ;
 	rvm.InvertAoMap = mat.InvertAoMap;

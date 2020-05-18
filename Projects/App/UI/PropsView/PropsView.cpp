@@ -551,9 +551,10 @@ void PropsView::Emissive(MaterialViewState& rvm) const
 void PropsView::Transparency(MaterialViewState& rvm) const
 {
 	const std::string title = "TRANSPARENCY";
-	const std::string valueName = "TR";
+	const std::string valueName = "Threshold";
 	std::string& mapPath = rvm.TransparencyMapPath;
 	int& activeChannel = rvm.ActiveTransparencyChannel;
+	float& value = rvm.TransparencyCutoffThreshold;
 
 	
 	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
@@ -605,4 +606,9 @@ void PropsView::Transparency(MaterialViewState& rvm) const
 		ImGui::EndCombo();
 	}
 	ImGui::PopItemWidth();
+
+	ImGui::Spacing();
+
+	if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) 
+		_delegate->CommitMaterialChanges(rvm);
 }

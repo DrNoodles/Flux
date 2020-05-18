@@ -27,6 +27,7 @@ struct MaterialViewState
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
 	float EmissiveIntensity = 1.0f;
+	float TransparencyCutoffThreshold = 0;
 
 	bool InvertNormalMapY = false;
 	bool InvertNormalMapZ = false;
