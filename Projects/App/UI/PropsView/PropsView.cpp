@@ -145,7 +145,8 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 		// NOTE: The order must match TextureType
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
 		ImGui::SetNextItemWidth(100);
-		if (ImGui::Combo("Solo Texture", &soloSelection, "All\0Base Color\0Metalness\0Roughness\0AO\0Normals"))
+		if (ImGui::Combo("Solo Texture", &soloSelection, 
+			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency"))
 		{
 			rvm.ActiveSolo = soloSelection;
 			_delegate->CommitMaterialChanges(rvm);

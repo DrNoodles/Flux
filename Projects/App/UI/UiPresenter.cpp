@@ -494,22 +494,14 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 
 	switch (state.ActiveSolo)
 	{
-	case 0: mat.ActiveSolo = TextureType::Undefined;
-		break;
-	case 1: mat.ActiveSolo = TextureType::Basecolor;
-		break;
-	case 2: mat.ActiveSolo = TextureType::Metalness;
-		break;
-	case 3: mat.ActiveSolo = TextureType::Roughness;
-		break;
-	case 4: mat.ActiveSolo = TextureType::AmbientOcclusion;
-		break;
-	case 5: mat.ActiveSolo = TextureType::Normals;
-		break;
-	case 6: mat.ActiveSolo = TextureType::Emissive;
-		break;
-	case 7: mat.ActiveSolo = TextureType::Transparency;
-		break;
+	case 0: mat.ActiveSolo = TextureType::Undefined;        break;
+	case 1: mat.ActiveSolo = TextureType::Basecolor;        break;
+	case 2: mat.ActiveSolo = TextureType::Normals;          break;
+	case 3: mat.ActiveSolo = TextureType::Metalness;        break;
+	case 4: mat.ActiveSolo = TextureType::Roughness;        break;
+	case 5: mat.ActiveSolo = TextureType::AmbientOcclusion; break;
+	case 6: mat.ActiveSolo = TextureType::Emissive;         break;
+	case 7: mat.ActiveSolo = TextureType::Transparency;     break;
 	default:
 		throw std::out_of_range("");
 	}
@@ -611,16 +603,16 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 
 	switch (mat.ActiveSolo)
 	{
-	case TextureType::Undefined: rvm.ActiveSolo = 0; break;
-	case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
-	case TextureType::Metalness: rvm.ActiveSolo = 2; break;
-	case TextureType::Roughness: rvm.ActiveSolo = 3; break;
-	case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
-	case TextureType::Normals: rvm.ActiveSolo = 5; break;
-	case TextureType::Emissive: rvm.ActiveSolo = 6; break;
-	case TextureType::Transparency: rvm.ActiveSolo = 7; break;
+	case TextureType::Undefined:    rvm.ActiveSolo = 0;     break;
+	case TextureType::Basecolor:    rvm.ActiveSolo = 1;     break;
+	case TextureType::Normals:      rvm.ActiveSolo = 2;     break;
+	case TextureType::Metalness:    rvm.ActiveSolo = 3;     break;
+	case TextureType::Roughness:    rvm.ActiveSolo = 4;     break;
+	case TextureType::AmbientOcclusion: rvm.ActiveSolo = 5; break;
+	case TextureType::Emissive:     rvm.ActiveSolo = 6;     break;
+	case TextureType::Transparency: rvm.ActiveSolo = 7;     break;
 	default:
-		throw std::out_of_range("");
+		throw std::out_of_range("Unsupported ActiveSolo");
 	}
 
 	rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
