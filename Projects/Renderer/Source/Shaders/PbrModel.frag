@@ -3,7 +3,7 @@
 // Constants
 const float PI = 3.14159265359;
 const int MAX_LIGHT_COUNT = 8;
-const int PREFILTER_MIP_COUNT = 6; // Must match PrefilterMap's # mip levels
+const int PREFILTER_MIP_COUNT = 6; // Must match PrefilterMap's # mip levels // TODO Pass this in.
 
 // Types
 struct LightPacked
@@ -71,9 +71,6 @@ layout(binding = 9) uniform sampler2D AmbientOcclusionMap;
 layout(binding = 10) uniform sampler2D EmissiveMap;
 //layout(binding = 11) uniform sampler2D TransparencyMap;
 
-
-
-
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
 layout(location = 2) in vec2 fragTexCoord;
@@ -123,7 +120,7 @@ vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 vec3 FresnelSchlick(float cosTheta, vec3 F0);
 float DistributionGGX(float NdotH, float roughness);
 float GeometrySchlickGGX_Direct(float NdotV, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+float GeometrySmith(float NdotV, float NdotL, float roughness);
 
 // Material
 vec3 GetBasecolor();
@@ -165,57 +162,58 @@ void main()
 	}
 
 
-	vec3 V = normalize(ubo.camPos - fragPos); // view vector
+	const vec3 V = normalize(ubo.camPos - fragPos); // View vector
 
-	vec3 F0 = vec3(0.04); // good average value for common dielectrics
-	F0 = mix(F0, basecolor, metalness);
+	const vec3 F0Default = vec3(0.04); // Good average value for common dielectrics
+	vec3 F0 = mix(F0Default, basecolor, metalness); 
 
 	
 	// Reflectance equation for direct lighting
 	vec3 Lo = vec3(0.0);
 	
+	const float NdotV = max(dot(normal,V),0.0);
+
 	// Always looping max light count even if there aren't any (it's faster...)
 	for(int i = 0; i < MAX_LIGHT_COUNT; i++)
 	{
 		// Unpack light values
-		vec3 lightPos = lightUbo.lights[i].PosType.xyz;
-		int lightType = int(lightUbo.lights[i].PosType.w);
-		vec3 lightColor = lightUbo.lights[i].ColorIntensity.rgb; 
-		float lightIntensity = lightUbo.lights[i].ColorIntensity.w;
+		const vec3 lightPos = lightUbo.lights[i].PosType.xyz;
+		const int lightType = int(lightUbo.lights[i].PosType.w);
+		const vec3 lightColor = lightUbo.lights[i].ColorIntensity.rgb; 
+		const float lightIntensity = lightUbo.lights[i].ColorIntensity.w;
 
 		if (lightIntensity < 0.01) continue; // pretty good optimisation
 
-
 		// Incoming light direction - point or directional
-		vec3 pointDir = lightPos - fragPos;
-		vec3 directionalDir = -lightPos;
-		vec3 L = normalize(mix(pointDir, directionalDir, lightType));
+		const vec3 pointDir = lightPos - fragPos;
+		const vec3 directionalDir = -lightPos;
+		const vec3 L = normalize(mix(pointDir, directionalDir, lightType));
 		
-		vec3 H = normalize(V + L); // half vec
-
 
 		// Compute Radiance //
-		float dist = length(lightPos - fragPos);
-		float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
-		vec3 radiance = lightColor * lightIntensity * attenuation;
+		const float dist = length(lightPos - fragPos);
+		const float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
+		const vec3 radiance = lightColor * lightIntensity * attenuation;
 
 
 		// BRDF - Cook-Torrance//
-		float NdotH = max(dot(normal,H),0.0);
+		const vec3 H = normalize(V + L); // half vec
+		const float NdotH = max(dot(normal,H), 0.0);
+		const float NdotL = max(dot(normal,L), 0.0);
+		const float HdotV = max(dot(H, V), 0.0);
 
-		float NDF = DistributionGGX(NdotH, roughness);
-		float G = GeometrySmith(normal, V, L, roughness);
-		vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-		float denominator = 4.0 * max(dot(V,normal),0.0) * max(dot(L,normal),0.0);
-		vec3 specular = NDF*G*F / max(denominator, 0.0000001); // safe guard div0
+		const float NDF = DistributionGGX(NdotH, roughness);
+		const float G = GeometrySmith(NdotV, NdotL, roughness);
+		const vec3 F = FresnelSchlick(HdotV, F0);
+		const float denominator = 4.0 * NdotV * NdotL;
+		const vec3 specular = NDF*G*F / max(denominator, 0.0000001); // safe guard div0
 
 		// Spec/Diff contributions 
-		vec3 kS = F; // fresnel already represents spec contribution
+		const vec3 kS = F; // fresnel already represents spec contribution
 		vec3 kD = vec3(1.0) - kS; // ensure kS+kD=1
 		kD *= 1.0 - metalness; // remove diffuse contribution for metals
 
 		// Outgoing radiance due to light hitting surface
-		float NdotL = max(dot(normal,L), 0.0);
 		Lo += (kD*basecolor/PI + specular) * radiance * NdotL;
 	}
 
@@ -225,8 +223,6 @@ void main()
 	const bool useIbl = true;
 	if (useIbl)
 	{
-		float NdotV = max(dot(normal,V),0.0);
-
 		//// Compute ratio of diffuse/specular for IBL
 		vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
 		vec3 kS = F;
@@ -397,15 +393,12 @@ float GeometrySchlickGGX_Direct(float NdotV, float roughness)
 	float k = (r*r) / 8; // k computed for direct lighting. we use a diff constant for IBL
 	return NdotV / (NdotV * (1.0-k) + k); // bug: div0 if NdotV=0 and k=0?
 }
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+float GeometrySmith(float NdotV, float NdotL, float roughness)
 {
-	float NdotV = max(dot(N,V), 0.0);
-	float NdotL = max(dot(N,L), 0.0);
 	float ggx2 = GeometrySchlickGGX_Direct(NdotV,roughness);
 	float ggx1 = GeometrySchlickGGX_Direct(NdotL,roughness);
 	return ggx1*ggx2;
 }
-
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
