@@ -238,9 +238,9 @@ void main()
 
 		//// Compute specular IBL ////
 		// Sample the reflection color from the prefiltered map 
-		vec3 R = reflect(-V, normal); // reflection vector
+		const vec3 R = reflect(-V, normal); // reflection vector
 		const float maxReflectionLod = PREFILTER_MIP_COUNT-1; 
-		vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*maxReflectionLod).rgb;
+		const vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*maxReflectionLod).rgb;
 
 		// Sample BRDF LUT
 		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, 1-roughness)).rg;
@@ -293,9 +293,7 @@ vec3 GetNormal()
 	if (uUseNormalMap)
 	{
 		vec3 n = texture(NormalMap, fragTexCoord).xyz;
-		n = normalize(n*2 - 1); // map [0,1] to [-1,1]
-		n *= vec3(ubo.scaleNormalMap); 
-		
+		n = normalize((n*2 - 1) * ubo.scaleNormalMap); // map [0,1] to [-1,1] then apply any axis scaling.
 		n = normalize(fragTBN*n); // transform from tangent to world space
 		return n;
 	}
