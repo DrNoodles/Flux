@@ -13,7 +13,7 @@
 #include <set>
 
 
-VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const std::vector<const char*>& validationLayers)
+VkInstance VulkanHelpers::CreateInstance(bool enableValidationLayers, const vector<const char*>& validationLayers)
 {
 	VkInstance instance = nullptr;
 
@@ -376,7 +376,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	return { device, graphicsQueue, presentQueue };
 }
 
-VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, VkPhysicalDevice physicalDevice,
+VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, bool vsync, VkPhysicalDevice physicalDevice,
 	VkSurfaceKHR surface, VkDevice device,
 	std::vector<VkImage>& OUTswapchainImages,
 	VkFormat& OUTswapchainImageFormat,
@@ -385,7 +385,7 @@ VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, VkPh
 	const SwapChainSupportDetails deets = QuerySwapChainSupport(physicalDevice, surface);
 
 	const auto surfaceFormat = ChooseSwapSurfaceFormat(deets.Formats);
-	const auto presentMode = ChooseSwapPresentMode(deets.PresentModes);
+	const auto presentMode = ChooseSwapPresentMode(deets.PresentModes, vsync);
 	const auto extent = ChooseSwapExtent(windowSize, deets.Capabilities);
 
 	// Image count
@@ -467,17 +467,19 @@ VkSurfaceFormatKHR VulkanHelpers::ChooseSwapSurfaceFormat(const std::vector<VkSu
 	return availableFormats[0];
 }
 
-VkPresentModeKHR VulkanHelpers::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes)
+VkPresentModeKHR VulkanHelpers::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes, bool vsync)
 {
-	for (const auto& mode : presentModes)
-	{
-		if (mode == VK_PRESENT_MODE_MAILBOX_KHR) // triple buffering
-		{
+	if (vsync) {
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	for (const auto& mode : presentModes) {
+		if (mode == VK_PRESENT_MODE_MAILBOX_KHR) { // triple buffering
 			return mode;
 		}
 	}
-
-	return VK_PRESENT_MODE_FIFO_KHR; // use the only required format as fallback
+	
+	return VK_PRESENT_MODE_FIFO_KHR; // use the only required format as fallback - works as vsync
 }
 
 VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities)

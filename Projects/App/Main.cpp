@@ -11,6 +11,7 @@ int main()
 		options.AssetsDir = R"(../Data/Assets/)";
 		options.ModelsDir = R"(../Data/Assets/Models/)";
 		options.IblDir = R"(../Data/Assets/IBL/)";
+		options.VSync = true;
 
 		#ifdef DEBUG
 			options.EnabledVulkanValidationLayers = true;

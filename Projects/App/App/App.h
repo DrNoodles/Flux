@@ -95,7 +95,7 @@ public: // METHODS
 
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
-		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, this);
+		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this);
 
 		// Controllers
 		auto scene = std::make_unique<SceneManager>(this);
@@ -136,9 +136,12 @@ public: // METHODS
 		LoadEmptyScene();
 
 		// Update UI only as quickly as the monitor's refresh rate
-		//auto vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-		//_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>(1.f / (f32)vidMode->refreshRate);
-
+		const auto* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+		if (videoMode) {
+			_ui->SetUpdateRate(videoMode->refreshRate);
+		} else {
+			std::cerr << "Failed to set vsync\n";
+		}
 		
 		while (!glfwWindowShouldClose(_window))
 		{
