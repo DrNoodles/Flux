@@ -160,10 +160,10 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
 
-			const auto& renderable = _renderables[renderableIds[i].Id].get();
-
-			auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
-			auto modelUbo = UniversalUbo::Create(info, renderable->Mat);
+			const auto& renderable = *_renderables[renderableIds[i].Id];
+			
+			const auto& modelBufferMemory = renderable.FrameResources[frameIndex].UniformBufferMemory;
+			const auto modelUbo = UniversalUbo::Create(info, renderable.Mat);
 
 			// Update model ubo - TODO PERF Keep mem mapped 
 			void* data;
@@ -359,8 +359,8 @@ RenderableResourceId Renderer::CreateRenderable(const MeshResourceId& meshId, co
 
 void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
 {
-	auto renderable = _renderables[renderableResId.Id].get();
-	auto& oldMat = renderable->Mat;
+	auto& renderable = *_renderables[renderableResId.Id];
+	auto& oldMat = renderable.Mat;
 
 	// Existing ids
 	const auto currentBasecolorMapId = oldMat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -369,6 +369,7 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	const auto currentMetalnessMapId = oldMat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto currentAoMapId = oldMat.AoMap.value_or(_placeholderTexture).Id;
 	const auto currentEmissiveMapId = oldMat.EmissiveMap.value_or(_placeholderTexture).Id;
+	const auto currentTransparencyMapId = oldMat.TransparencyMap.value_or(_placeholderTexture).Id;
 
 	// New ids
 	const auto basecolorMapId = newMat.BasecolorMap.value_or(_placeholderTexture).Id;
@@ -377,10 +378,10 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	const auto metalnessMapId = newMat.MetalnessMap.value_or(_placeholderTexture).Id;
 	const auto aoMapId = newMat.AoMap.value_or(_placeholderTexture).Id;
 	const auto emissiveMapId = newMat.EmissiveMap.value_or(_placeholderTexture).Id;
-
+	const auto transparencyMapId = newMat.TransparencyMap.value_or(_placeholderTexture).Id;
 
 	// Store new mat
-	renderable->Mat = newMat;
+	renderable.Mat = newMat;
 
 
 	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
@@ -390,7 +391,8 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 		currentRoughnessMapId == roughnessMapId &&
 		currentMetalnessMapId == metalnessMapId &&
 		currentAoMapId == aoMapId &&
-		currentEmissiveMapId == emissiveMapId;
+		currentEmissiveMapId == emissiveMapId &&
+		currentTransparencyMapId == transparencyMapId;
 
 	if (!descriptorSetsMatch)
 	{

@@ -21,6 +21,7 @@ struct MaterialViewState
 	std::string RoughnessMapPath{};
 	std::string AoMapPath{};
 	std::string EmissiveMapPath{};
+	std::string TransparencyMapPath{};
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
@@ -39,5 +40,7 @@ struct MaterialViewState
 	int ActiveMetalnessChannel = 0;
 	int ActiveRoughnessChannel = 0;
 	int ActiveAoChannel = 0;
+	int ActiveTransparencyChannel = 0;
+	
 };
 

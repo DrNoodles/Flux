@@ -51,6 +51,7 @@ private:
 	void Roughness(MaterialViewState& rvm) const;
 	void AmbientOcclusion(MaterialViewState& rvm) const;
 	void Emissive(MaterialViewState& rvm) const;
+	void Transparency(MaterialViewState& rvm) const;
 };
 
 

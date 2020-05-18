@@ -490,6 +490,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	mat.MetalnessMapChannel = (Material::Channel)state.ActiveMetalnessChannel;
 	mat.RoughnessMapChannel = (Material::Channel)state.ActiveRoughnessChannel;
 	mat.AoMapChannel = (Material::Channel)state.ActiveAoChannel;
+	mat.TransparencyMapChannel = (Material::Channel)state.ActiveTransparencyChannel;
 
 	switch (state.ActiveSolo)
 	{
@@ -506,6 +507,8 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	case 5: mat.ActiveSolo = TextureType::Normals;
 		break;
 	case 6: mat.ActiveSolo = TextureType::Emissive;
+		break;
+	case 7: mat.ActiveSolo = TextureType::Transparency;
 		break;
 	default:
 		throw std::out_of_range("");
@@ -542,6 +545,10 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 			pMap = &targetMat.EmissiveMap;
 			pMapPath = &targetMat.EmissiveMapPath;
 			break;
+		case TextureType::Transparency:
+			pMap = &targetMat.TransparencyMap;
+			pMapPath = &targetMat.TransparencyMapPath;
+			break;
 
 		case TextureType::Undefined:
 		default:
@@ -570,6 +577,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	UpdateMap(state.RoughnessMapPath, mat, TextureType::Roughness);
 	UpdateMap(state.AoMapPath, mat, TextureType::AmbientOcclusion);
 	UpdateMap(state.EmissiveMapPath, mat, TextureType::Emissive);
+	UpdateMap(state.TransparencyMapPath, mat, TextureType::Transparency);
 
 
 	_scene.SetMaterial(componentSubmesh.Id, mat);
@@ -599,23 +607,18 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.ActiveMetalnessChannel = int(mat.MetalnessMapChannel);
 	rvm.ActiveRoughnessChannel = int(mat.RoughnessMapChannel);
 	rvm.ActiveAoChannel = int(mat.AoMapChannel);
+	rvm.ActiveTransparencyChannel = int(mat.TransparencyMapChannel);
 
 	switch (mat.ActiveSolo)
 	{
-	case TextureType::Undefined: rvm.ActiveSolo = 0;
-		break;
-	case TextureType::Basecolor: rvm.ActiveSolo = 1;
-		break;
-	case TextureType::Metalness: rvm.ActiveSolo = 2;
-		break;
-	case TextureType::Roughness: rvm.ActiveSolo = 3;
-		break;
-	case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4;
-		break;
-	case TextureType::Normals: rvm.ActiveSolo = 5;
-		break;
-	case TextureType::Emissive: rvm.ActiveSolo = 6;
-		break;
+	case TextureType::Undefined: rvm.ActiveSolo = 0; break;
+	case TextureType::Basecolor: rvm.ActiveSolo = 1; break;
+	case TextureType::Metalness: rvm.ActiveSolo = 2; break;
+	case TextureType::Roughness: rvm.ActiveSolo = 3; break;
+	case TextureType::AmbientOcclusion: rvm.ActiveSolo = 4; break;
+	case TextureType::Normals: rvm.ActiveSolo = 5; break;
+	case TextureType::Emissive: rvm.ActiveSolo = 6; break;
+	case TextureType::Transparency: rvm.ActiveSolo = 7; break;
 	default:
 		throw std::out_of_range("");
 	}
@@ -626,6 +629,7 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
 	rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
 	rvm.EmissiveMapPath = mat.HasEmissiveMap() ? mat.EmissiveMapPath : "";
+	rvm.TransparencyMapPath = mat.HasTransparencyMap() ? mat.TransparencyMapPath : "";
 
 	return rvm;
 }

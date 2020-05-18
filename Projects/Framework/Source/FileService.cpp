@@ -29,7 +29,7 @@ std::string FileService::FilePicker(const std::string& title, const std::vector<
 	}
 
 	const int isMultiSelect = 0;
-	const auto path = tinyfd_openFileDialog(title.c_str(), nullptr, (int)filterPatterns.size(), cFilterPatterns.data(),
+	const auto* path = tinyfd_openFileDialog(title.c_str(), nullptr, (int)filterPatterns.size(), cFilterPatterns.data(),
 		filterDescription.c_str(), isMultiSelect);
 	if (path == nullptr)
 	{
