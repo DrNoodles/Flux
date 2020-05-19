@@ -396,7 +396,7 @@ float Distribution_GGX(float NdotH, float roughness)
 	float denominator = NdotH2 * (a2-1.0) + 1.0;
 	denominator = PI * denominator * denominator;
 
-	return numerator / denominator; // TODO: safe guard div0
+	return numerator / max(denominator, 0.0000001);
 }
 float Geometry_SchlickGGX_Direct(float NdotV, float roughness)
 {
