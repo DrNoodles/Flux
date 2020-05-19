@@ -173,26 +173,38 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkUnmapMemory(_vk->LogicalDevice(), modelBufferMemory);
 		}
 
-
-		// Depth sort all objects
-		std::map<f32, RenderableResourceId> depthSorted = {};
+		
+		std::vector<RenderableResourceId> opaqueObjects = {};
+		std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {};
+		
+		// Split renderables into an opaque and ordered transparent collections.
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
-			// Get matching renderable and transform
 			const auto& id = renderableIds[i];
-			const auto& tf = transforms[i];
+			const auto& mat = _renderables[id.Id]->Mat;
 			
-			auto objPos = glm::vec3(tf[3]);
-			glm::vec3 diff = objPos-camPos;
-			float dist2 = glm::dot(diff,diff);
-
-			auto [it, success] = depthSorted.try_emplace(dist2, id);
-			while (!success)
+			if (mat.UsingTransparencyMap())
 			{
-				//std::cerr << "Failed to depth sort object\n";
+				// Depth sort transparent object
 				
-				dist2 += 0.001f * (float(rand())/RAND_MAX); // HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
-				std::tie(it, success) = depthSorted.try_emplace(dist2, id);
+				// Calc depth of from camera to object transform - this isn't fullproof!
+				const auto& tf = transforms[i];
+				auto objPos = glm::vec3(tf[3]);
+				glm::vec3 diff = objPos-camPos;
+				float dist2 = glm::dot(diff,diff);
+
+				auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
+				while (!success)
+				{
+					// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+					dist2 += 0.001f * (float(rand())/RAND_MAX);
+					std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
+					//std::cerr << "Failed to depth sort object\n";
+				}
+			}
+			else // Opaque
+			{
+				opaqueObjects.emplace_back(id);
 			}
 		}
 
@@ -230,8 +242,29 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
 
-			// Reverse iterate
-			for (auto it = depthSorted.rbegin(); it != depthSorted.rend(); ++it)
+			// Draw Opaque objects
+			for (const auto& opaqueObj : opaqueObjects)
+			{
+				const auto& renderable = _renderables[opaqueObj.Id].get();
+				const auto& mesh = *_meshes[renderable->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
+					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+				/*const void* pValues;
+				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+
+			// Draw transparent objects (reverse iterated)
+			for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
 			{
 				auto [dist2, renderableId] = *it;
 				
