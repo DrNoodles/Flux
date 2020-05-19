@@ -56,6 +56,9 @@ Light the scene
 4. By default the light is inside the model, so lets reposition the light using the `Transform` widget on the RHS and tweak the light 'Color' and 'Intensity'.
 5. Optionally: There is also a Directional Light with no falloff. This is difficult to position unless thinking like a coder. The Position defines the direction vector. Eg Pos(0,-1,0) will direct the light downwards.
 
+
+This is very early in development!
+
 MVP Items Remaining:
 - Selection picking in 3D
 - Selection outlines
@@ -64,4 +67,5 @@ MVP Items Remaining:
 - Material load/save
 - Scene load/save
 - Render and save high quality image at custom resolution
+- And a big refactor of the architecture and vulkan layers
 ```
