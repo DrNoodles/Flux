@@ -115,7 +115,7 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 	{
 		ImGui::Spacing();
 
-		auto& submeshes = _delegate->GetSubmeshes();
+		const auto& submeshes = _delegate->GetSubmeshes();
 
 		ImGui::Text("Sub-Mesh");
 		const auto height = glm::min(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
@@ -145,7 +145,8 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 		// NOTE: The order must match TextureType
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
 		ImGui::SetNextItemWidth(100);
-		if (ImGui::Combo("Solo Texture", &soloSelection, "All\0Base Color\0Metalness\0Roughness\0AO\0Normals"))
+		if (ImGui::Combo("Solo Texture", &soloSelection, 
+			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency"))
 		{
 			rvm.ActiveSolo = soloSelection;
 			_delegate->CommitMaterialChanges(rvm);
@@ -171,6 +172,9 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 			SubSectionSpacing();
 
 			Emissive(rvm);
+			SubSectionSpacing();
+
+			Transparency(rvm);
 		}
 		ImGui::EndChild();
 	}
@@ -541,5 +545,70 @@ void PropsView::Emissive(MaterialViewState& rvm) const
 	ImGui::Spacing();
 
 	if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 20, "%.2f", 2)) 
+		_delegate->CommitMaterialChanges(rvm);
+}
+
+void PropsView::Transparency(MaterialViewState& rvm) const
+{
+	const std::string title = "TRANSPARENCY";
+	const std::string valueName = "Threshold";
+	std::string& mapPath = rvm.TransparencyMapPath;
+	int& activeChannel = rvm.ActiveTransparencyChannel;
+	float& value = rvm.TransparencyCutoffThreshold;
+
+	
+	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+	ImGui::Text(title.c_str());
+	ImGui::PopStyleColor(1);
+
+
+	ImGui::Spacing();
+
+
+	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
+
+	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
+	{
+		const auto newPath = FileService::TexturePicker();
+		if (!newPath.empty())
+		{
+			mapPath = newPath;
+			_delegate->CommitMaterialChanges(rvm);
+		}
+	}
+	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
+
+	ImGui::SameLine();
+	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
+	{
+		mapPath = "";
+		_delegate->CommitMaterialChanges(rvm);
+	}
+
+	ImGui::Spacing();
+
+	ImGui::PushItemWidth(70);
+	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
+	{
+		for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
+		{
+			const bool isSelected = i == activeChannel;
+			if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
+			{
+				activeChannel = i;
+				_delegate->CommitMaterialChanges(rvm);
+			}
+			if (isSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::PopItemWidth();
+
+	ImGui::Spacing();
+
+	if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) 
 		_delegate->CommitMaterialChanges(rvm);
 }

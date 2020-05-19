@@ -77,7 +77,11 @@ public: // METHODS
 	void FrameSelectionOrAll();
 	void ReplaceSelection(Entity* const entity);
 	void ClearSelection();
-	
+
+	void SetUpdateRate(int updatesPerSecond)
+	{
+		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f/float(updatesPerSecond) };
+	}
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
 	// Fit to middle

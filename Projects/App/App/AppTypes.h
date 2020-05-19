@@ -11,5 +11,6 @@ struct AppOptions
 	std::string ModelsDir{};
 	std::string IblDir{};
 	bool EnabledVulkanValidationLayers = false;
+	bool VSync = false;
 };
 

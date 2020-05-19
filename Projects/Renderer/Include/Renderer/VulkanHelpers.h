@@ -56,11 +56,11 @@ public:
 
 	// TODO Remove OUT params, use tuple return
 	[[nodiscard]] static VkSwapchainKHR
-		CreateSwapchain(const VkExtent2D& windowSize, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
+		CreateSwapchain(const VkExtent2D& windowSize, bool vsync, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
 			VkDevice device, std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat,
 			VkExtent2D& OUTswapchainExtent);
 	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes);
+	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes, bool vsync);
 	static VkExtent2D ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities);
 
 

@@ -93,9 +93,10 @@ public:
 	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
 	
-	VulkanService(bool enableValidationLayers, IVulkanServiceDelegate* delegate) : _delegate{ delegate }
+	VulkanService(bool enableValidationLayers, bool vsync, IVulkanServiceDelegate* delegate) : _delegate{ delegate }
 	{
 		_enableValidationLayers = enableValidationLayers;
+		_vsync = vsync;
 	}
 
 	void InitVulkan()
@@ -125,10 +126,10 @@ public:
 		vkDestroyInstance(_instance, nullptr);
 	}
 
+
 	void InitVulkanSwapchainAndDependants(int width, int height)
 	{
-			
-		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
+		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
 		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
@@ -325,6 +326,7 @@ private:
 
 	// Data
 	bool _enableValidationLayers = false;
+	bool _vsync = false;
 	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	const size_t _maxFramesInFlight = 2;
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };

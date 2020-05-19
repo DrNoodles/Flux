@@ -19,6 +19,7 @@ enum class TextureType : char
 	Metalness = 4,
 	AmbientOcclusion = 5,
 	Emissive = 6,
+	Transparency = 7,
 };
 
 
@@ -45,6 +46,7 @@ struct Material
 	std::string RoughnessMapPath = {};
 	std::string AoMapPath = {};
 	std::string EmissiveMapPath = {};
+	std::string TransparencyMapPath = {};
 
 	std::optional<TextureResourceId> BasecolorMap = std::nullopt;
 	std::optional<TextureResourceId> NormalMap = std::nullopt;
@@ -52,11 +54,13 @@ struct Material
 	std::optional<TextureResourceId> RoughnessMap = std::nullopt;
 	std::optional<TextureResourceId> AoMap = std::nullopt;
 	std::optional<TextureResourceId> EmissiveMap = std::nullopt;
+	std::optional<TextureResourceId> TransparencyMap = std::nullopt;
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
 	float EmissiveIntensity = 1;
+	float TransparencyCutoffThreshold = 0.5f;
 
 	bool InvertNormalMapY = false;
 	bool InvertNormalMapZ = false;
@@ -67,6 +71,7 @@ struct Material
 	Channel MetalnessMapChannel = Channel::Red;
 	Channel RoughnessMapChannel = Channel::Red;
 	Channel AoMapChannel = Channel::Red;
+	Channel TransparencyMapChannel = Channel::Alpha;
 
 	TextureType ActiveSolo = TextureType::Undefined;
 
@@ -77,6 +82,7 @@ struct Material
 	bool HasRoughnessMap() const { return RoughnessMap.has_value(); }
 	bool HasAoMap() const { return AoMap.has_value(); }
 	bool HasEmissiveMap() const { return EmissiveMap.has_value(); }
+	bool HasTransparencyMap() const { return TransparencyMap.has_value(); }
 
 
 	bool UsingBasecolorMap() const
@@ -113,5 +119,11 @@ struct Material
 	{
 		return HasEmissiveMap() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Emissive);
+	}
+
+	bool UsingTransparencyMap() const
+	{
+		return HasTransparencyMap() &&
+			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Transparency);
 	}
 };

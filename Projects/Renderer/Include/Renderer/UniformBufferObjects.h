@@ -109,7 +109,11 @@ struct UniversalUbo
 
 	alignas(16) glm::vec4 Emissivity;         // float in [0]
 	alignas(16) glm::vec4 UseEmissiveMap;     // bool in [0]
-	
+
+	alignas(16) glm::vec4 TransparencyCutoffThreshold; // float in [0]
+	alignas(16) glm::vec4 UseTransparencyMap; // bool in [0]
+	alignas(16) glm::vec4 TransparencyMapChannel; // int in [0]
+
 	// Render options
 	alignas(16) glm::vec4 ShowNormalMap;      // bool in [0]
 	alignas(16) glm::vec4 ShowClipping;       // bool in [0]
@@ -152,6 +156,10 @@ struct UniversalUbo
 
 		ubo.Emissivity[0] = material.EmissiveIntensity;
 		ubo.UseEmissiveMap[0] = float(material.UsingEmissiveMap());
+
+		ubo.TransparencyCutoffThreshold[0] = material.TransparencyCutoffThreshold;
+		ubo.UseTransparencyMap[0] = float(material.UsingTransparencyMap());
+		ubo.TransparencyMapChannel[0] = float(material.TransparencyMapChannel);
 		
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
