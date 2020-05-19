@@ -123,11 +123,11 @@ void UnpackUbos();
 vec3 ACESFitted(vec3 color);
 
 // PBR 
-vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec3 FresnelSchlick(float cosTheta, vec3 F0);
-float DistributionGGX(float NdotH, float roughness);
-float GeometrySchlickGGX_Direct(float NdotV, float roughness);
-float GeometrySmith(float NdotV, float NdotL, float roughness);
+vec3 Fresnel_SchlickRoughness(float cosTheta, vec3 F0, float roughness);
+vec3 Fresnel_Schlick(float cosTheta, vec3 F0);
+float Distribution_GGX(float NdotH, float roughness);
+float Geometry_SchlickGGX_Direct(float NdotV, float roughness);
+float Geometry_Smith(float NdotV, float NdotL, float roughness);
 
 // Material
 vec3 GetBasecolor();
@@ -176,6 +176,7 @@ void main()
 
 
 	const vec3 V = normalize(ubo.camPos - fragPos); // View vector
+	const float NdotV = max(dot(normal,V),0.0);
 
 	const vec3 F0Default = vec3(0.04); // Good average value for common dielectrics
 	vec3 F0 = mix(F0Default, basecolor, metalness); 
@@ -183,11 +184,7 @@ void main()
 	
 	// Reflectance equation for direct lighting
 	vec3 Lo = vec3(0.0);
-	
-	const float NdotV = max(dot(normal,V),0.0);
-
-	// Always looping max light count even if there aren't any (it's faster...)
-	for(int i = 0; i < MAX_LIGHT_COUNT; i++)
+	for(int i = 0; i < MAX_LIGHT_COUNT; i++) // Always looping max light count even if there aren't any (it's faster...)
 	{
 		// Unpack light values
 		const vec3 lightPos = lightUbo.lights[i].PosType.xyz;
@@ -215,9 +212,9 @@ void main()
 		const float NdotL = max(dot(normal,L), 0.0);
 		const float HdotV = max(dot(H, V), 0.0);
 
-		const float NDF = DistributionGGX(NdotH, roughness);
-		const float G = GeometrySmith(NdotV, NdotL, roughness);
-		const vec3 F = FresnelSchlick(HdotV, F0);
+		const float NDF = Distribution_GGX(NdotH, roughness);
+		const float G = Geometry_Smith(NdotV, NdotL, roughness);
+		const vec3 F = Fresnel_Schlick(HdotV, F0); // Note: HdotV is correct for direct lighting, based on discussion in http://disq.us/p/1etzl77
 		const float denominator = 4.0 * NdotV * NdotL;
 		const vec3 specular = NDF*G*F / max(denominator, 0.0000001); // safe guard div0
 
@@ -237,7 +234,7 @@ void main()
 	if (useIbl)
 	{
 		//// Compute ratio of diffuse/specular for IBL
-		vec3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+		vec3 F = Fresnel_SchlickRoughness(NdotV, F0, roughness);
 		vec3 kS = F;
 		vec3 kD = vec3(1.0) - kS;
 		kD *= 1.0 - metalness;	
@@ -376,19 +373,20 @@ float GetTransparency()
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IBL
 
-vec3 FresnelSchlick(float cosTheta, vec3 F0)
+vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
 {
 	cosTheta = min(cosTheta,1); // fixes issue where cosTheta is slightly > 1.0. a floating point issue that causes black pixels where the half and view dirs align
 	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
-vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+vec3 Fresnel_SchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
 	cosTheta = min(cosTheta,1); // fixes issue where cosTheta is slightly > 1.0. a floating point issue that causes black pixels where the half and view dirs align
 	vec3 factor = max(vec3(1.0 - roughness), F0); // make rough surfaces reflect less strongly on glancing angles
 	return F0 + (factor - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float DistributionGGX(float NdotH, float roughness)
+// Calc how much of the microsurface area has its normal exactly aligned with H
+float Distribution_GGX(float NdotH, float roughness)
 {
 	float a = roughness*roughness; // disney found rough^2 had more realistic results
 	float a2 = a*a;
@@ -400,17 +398,17 @@ float DistributionGGX(float NdotH, float roughness)
 
 	return numerator / denominator; // TODO: safe guard div0
 }
-
-float GeometrySchlickGGX_Direct(float NdotV, float roughness)
+float Geometry_SchlickGGX_Direct(float NdotV, float roughness)
 {
 	float r = roughness + 1.0; 
 	float k = (r*r) / 8; // k computed for direct lighting. we use a diff constant for IBL
 	return NdotV / (NdotV * (1.0-k) + k); // bug: div0 if NdotV=0 and k=0?
 }
-float GeometrySmith(float NdotV, float NdotL, float roughness)
+// Calc how much the microsurface area is self shadowing or occluded in the viewing direction.
+float Geometry_Smith(float NdotV, float NdotL, float roughness)
 {
-	float ggx2 = GeometrySchlickGGX_Direct(NdotV,roughness);
-	float ggx1 = GeometrySchlickGGX_Direct(NdotL,roughness);
+	float ggx2 = Geometry_SchlickGGX_Direct(NdotV,roughness);
+	float ggx1 = Geometry_SchlickGGX_Direct(NdotL,roughness);
 	return ggx1*ggx2;
 }
 
