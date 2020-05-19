@@ -20,7 +20,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
-
+#include <map>
 
 using vkh = VulkanHelpers;
 bool flip = true;
@@ -174,6 +174,29 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		}
 
 
+		// Depth sort all objects
+		std::map<f32, RenderableResourceId> depthSorted = {};
+		for (size_t i = 0; i < renderableIds.size(); i++)
+		{
+			// Get matching renderable and transform
+			const auto& id = renderableIds[i];
+			const auto& tf = transforms[i];
+			
+			auto objPos = glm::vec3(tf[3]);
+			glm::vec3 diff = objPos-camPos;
+			float dist2 = glm::dot(diff,diff);
+
+			auto [it, success] = depthSorted.try_emplace(dist2, id);
+			while (!success)
+			{
+				//std::cerr << "Failed to depth sort object\n";
+				
+				dist2 += 0.001f * (float(rand())/RAND_MAX); // HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+				std::tie(it, success) = depthSorted.try_emplace(dist2, id);
+			}
+		}
+
+
 		
 		// Record Command Buffer
 
@@ -207,8 +230,11 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
 
-			for (const auto& renderableId : renderableIds)
+			// Reverse iterate
+			for (auto it = depthSorted.rbegin(); it != depthSorted.rend(); ++it)
 			{
+				auto [dist2, renderableId] = *it;
+				
 				const auto& renderable = _renderables[renderableId.Id].get();
 				const auto& mesh = *_meshes[renderable->MeshId.Id];
 
