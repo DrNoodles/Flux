@@ -962,7 +962,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	{
 		depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencilCI.depthTestEnable = true; // should compare new frags against depth to determine if discarding?
-		depthStencilCI.depthWriteEnable = true; // can new depth tests wrhite to buffer?
+		depthStencilCI.depthWriteEnable = true; // can new depth tests write to buffer?
 		depthStencilCI.depthCompareOp = VK_COMPARE_OP_LESS;
 
 		depthStencilCI.depthBoundsTestEnable = false; // optional test to keep only frags within a set bounds

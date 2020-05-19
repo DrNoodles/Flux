@@ -120,12 +120,13 @@ bool uShowClipping;
 float uExposureBias;
 float uIblStrength;
 
-
-
 void UnpackUbos();
 
-// Tonemapping
-vec3 ACESFitted(vec3 color);
+// ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+const mat3 ACESInputMat = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+const mat3 ACESOutputMat = mat3(1.60475, -0.10208, -0.00327,-0.53108, 1.10813, -0.07276, -0.07367, -0.00605,  1.07602);
+vec3 RRTAndODTFit(vec3 v) { return (v * (v + 0.0245786f) - 0.000090537f) / (v * (0.983729f * v + 0.4329510f) + 0.238081f); }
+vec3 ACESFitted(vec3 color) { return clamp(ACESOutputMat * RRTAndODTFit(ACESInputMat * color),0,1); }
 
 // PBR 
 vec3 Fresnel_SchlickRoughness(float cosTheta, vec3 F0, float roughness);
@@ -217,7 +218,7 @@ void main()
 		const vec3 radiance = lightColor * lightIntensity * attenuation;
 
 
-		// BRDF - Cook-Torrance//
+		// BRDF - Cook-Torrance //
 		const vec3 H = normalize(V + L); // half vec
 		const float NdotH = max(dot(normal,H), 0.0);
 		const float NdotL = max(dot(normal,L), 0.0);
@@ -252,12 +253,12 @@ void main()
 
 		mat3 cubemapRotationMat3 = mat3(ubo.cubemapRotation);
 
-		//// Compute diffuse IBL ////
+		// Compute diffuse IBL //
 		vec3 irradiance = texture(IrradianceMap, cubemapRotationMat3*normal).rgb;
 		vec3 diffuse    = irradiance * basecolor;
 
 
-		//// Compute specular IBL ////
+		// Compute specular IBL //
 		// Sample the reflection color from the prefiltered map 
 		const vec3 R = reflect(-V, normal); // reflection vector
 		const float maxReflectionLod = PREFILTER_MIP_COUNT-1; 
@@ -381,6 +382,7 @@ float GetTransparency()
 }
 
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IBL
 
@@ -402,11 +404,9 @@ float Distribution_GGX(float NdotH, float roughness)
 	float a = roughness*roughness; // disney found rough^2 had more realistic results
 	float a2 = a*a;
 	float NdotH2 = NdotH*NdotH;
-	
 	float numerator = a2;
 	float denominator = NdotH2 * (a2-1.0) + 1.0;
 	denominator = PI * denominator * denominator;
-
 	return numerator / max(denominator, 0.0000001);
 }
 float Geometry_SchlickGGX_Direct(float NdotV, float roughness)
@@ -422,41 +422,6 @@ float Geometry_Smith(float NdotV, float NdotL, float roughness)
 	float ggx1 = Geometry_SchlickGGX_Direct(NdotL,roughness);
 	return ggx1*ggx2;
 }
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
-
-const mat3 ACESInputMat = mat3(
-	0.59719, 0.07600, 0.02840, 
-	0.35458, 0.90834, 0.13383,
-	0.04823, 0.01566, 0.83777
-);
-const mat3 ACESOutputMat = mat3(
-	 1.60475, -0.10208, -0.00327,
-	-0.53108,  1.10813, -0.07276,
-	-0.07367, -0.00605,  1.07602
-);
-vec3 RRTAndODTFit(vec3 v)
-{
-	vec3 a = v * (v + 0.0245786f) - 0.000090537f;
-	vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-	return a / b;
-}
-vec3 ACESFitted(vec3 color)
-{
-	// Aces pipe: Input
-	// > InputDeviceTransform (IDT)
-	// > Look Modification Transform (LMT) 
-	// > Reference Rendering Transform (RRT) 
-	// > Output Device Transform (ODT) - per output type (eg, SDR, HDR10, etc..)
-	color = ACESInputMat * color;
-	color = RRTAndODTFit(color);
-	color = ACESOutputMat * color;
-	color = clamp(color,0,1);
-	return color;
-}
-
 
 
 
@@ -489,9 +454,7 @@ void UnpackUbos()
 	uMetalnessMapChannel = int(ubo.metalnessMapChannel[0]);
 	uAoMapChannel = int(ubo.aoMapChannel[0]);
 	uTransparencyMapChannel = int(ubo.transparencyMapChannel[0]);
-
 	
-
 
 	// Render options
 	uShowNormalMap = bool(ubo.showNormalMap[0]);
@@ -499,3 +462,4 @@ void UnpackUbos()
 	uExposureBias = ubo.exposureBias[0];
 	uIblStrength = ubo.iblStrength[0];
 }
+
