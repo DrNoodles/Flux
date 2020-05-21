@@ -20,7 +20,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
-
+#include <map>
 
 using vkh = VulkanHelpers;
 bool flip = true;
@@ -173,8 +173,45 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkUnmapMemory(_vk->LogicalDevice(), modelBufferMemory);
 		}
 
-
 		
+		std::vector<RenderableResourceId> opaqueObjects = {};
+		std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {};
+		
+		// Split renderables into an opaque and ordered transparent collections.
+		for (size_t i = 0; i < renderableIds.size(); i++)
+		{
+			const auto& id = renderableIds[i];
+			const auto& mat = _renderables[id.Id]->Mat;
+			
+			if (mat.UsingTransparencyMap())
+			{
+				// Depth sort transparent object
+				
+				// Calc depth of from camera to object transform - this isn't fullproof!
+				const auto& tf = transforms[i];
+				auto objPos = glm::vec3(tf[3]);
+				glm::vec3 diff = objPos-camPos;
+				float dist2 = glm::dot(diff,diff);
+
+				auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
+				while (!success)
+				{
+					// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+					dist2 += 0.001f * (float(rand())/RAND_MAX);
+					std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
+					//std::cerr << "Failed to depth sort object\n";
+				}
+			}
+			else // Opaque
+			{
+				opaqueObjects.emplace_back(id);
+			}
+		}
+
+
+		// TODO Once it's working, run a perf test where we only sort a few transparent objects with the majority opaque
+		
+
 		// Record Command Buffer
 
 		// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
@@ -207,8 +244,32 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
 
-			for (const auto& renderableId : renderableIds)
+			// Draw Opaque objects
+			for (const auto& opaqueObj : opaqueObjects)
 			{
+				const auto& renderable = _renderables[opaqueObj.Id].get();
+				const auto& mesh = *_meshes[renderable->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
+					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+				/*const void* pValues;
+				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
+				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			}
+
+			// Draw transparent objects (reverse iterated)
+			for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
+			{
+				auto [dist2, renderableId] = *it;
+				
 				const auto& renderable = _renderables[renderableId.Id].get();
 				const auto& mesh = *_meshes[renderable->MeshId.Id];
 
@@ -841,12 +902,12 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	// Color Blending  -  How colors output from frag shader are combined with existing colors
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {}; // Mix old with new to create a final color
 	{
-		colorBlendAttachment.blendEnable = VK_FALSE;
+		colorBlendAttachment.blendEnable = VK_TRUE;
 		colorBlendAttachment.colorWriteMask =
 			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;

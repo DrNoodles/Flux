@@ -554,61 +554,83 @@ void PropsView::Transparency(MaterialViewState& rvm) const
 	const std::string valueName = "Threshold";
 	std::string& mapPath = rvm.TransparencyMapPath;
 	int& activeChannel = rvm.ActiveTransparencyChannel;
+	int& activeMode = rvm.TransparencyMode;
 	float& value = rvm.TransparencyCutoffThreshold;
 
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+		ImGui::Text(title.c_str());
+		ImGui::PopStyleColor(1);
+	}
+
+
+	{
+		ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 88);
+		ImGui::PushItemWidth(90);
+		int current = activeMode;
+		if (ImGui::Combo(("##" + valueName).c_str(), &current, "Additive\0Cutoff"))
+		{
+			activeMode = current;
+			_delegate->CommitMaterialChanges(rvm);
+		}
+		const std::string tip = "\
+Set the blending mode\n\
+  Additive: linearly blends from transparent (black) to opaque (white)\n\
+  Cutoff: is transparent for all values below the threshold";
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip(tip.c_str());
+		ImGui::PopItemWidth();
+	}
 	
-	ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
-	ImGui::Text(title.c_str());
-	ImGui::PopStyleColor(1);
-
-
 	ImGui::Spacing();
 
-
-	const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
-
-	if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 	{
-		const auto newPath = FileService::TexturePicker();
-		if (!newPath.empty())
+		const std::string btnText = mapPath.empty() ? "Browse..." : FormatMapPath(mapPath);
+		if (ImGui::Button((btnText + "##" + valueName).c_str(), ImVec2{ ImGui::GetContentRegionAvail().x - buttonRight, 0 }))
 		{
-			mapPath = newPath;
+			const auto newPath = FileService::TexturePicker();
+			if (!newPath.empty())
+			{
+				mapPath = newPath;
+				_delegate->CommitMaterialChanges(rvm);
+			}
+		}
+		if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
+
+		ImGui::SameLine();
+		if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
+		{
+			mapPath = "";
 			_delegate->CommitMaterialChanges(rvm);
 		}
 	}
-	if (ImGui::IsItemHovered() && !mapPath.empty()) ImGui::SetTooltip(mapPath.c_str());
-
-	ImGui::SameLine();
-	if (ImGui::Button(("X##" + valueName).c_str(), ImVec2{ 30,0 }))
-	{
-		mapPath = "";
-		_delegate->CommitMaterialChanges(rvm);
-	}
-
+	
 	ImGui::Spacing();
 
-	ImGui::PushItemWidth(70);
-	if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 	{
-		for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
+		ImGui::PushItemWidth(70);
+		if (ImGui::BeginCombo(("Channel##" + valueName).c_str(), MaterialViewState::MapChannels[activeChannel].c_str()))
 		{
-			const bool isSelected = i == activeChannel;
-			if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
+			for (int i = 0; i < (int)MaterialViewState::MapChannels.size(); ++i)
 			{
-				activeChannel = i;
-				_delegate->CommitMaterialChanges(rvm);
+				const bool isSelected = i == activeChannel;
+				if (ImGui::Selectable(MaterialViewState::MapChannels[i].c_str(), isSelected))
+				{
+					activeChannel = i;
+					_delegate->CommitMaterialChanges(rvm);
+				}
+				if (isSelected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
 			}
-			if (isSelected)
-			{
-				ImGui::SetItemDefaultFocus();
-			}
+			ImGui::EndCombo();
 		}
-		ImGui::EndCombo();
+		ImGui::PopItemWidth();
 	}
-	ImGui::PopItemWidth();
-
+	
 	ImGui::Spacing();
 
-	if (ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) 
+	if (activeMode == 1 && ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) {
 		_delegate->CommitMaterialChanges(rvm);
+	}
 }

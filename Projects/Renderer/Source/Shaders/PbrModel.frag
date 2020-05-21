@@ -49,6 +49,7 @@ layout(std140, binding = 0) uniform UniversalUbo
 	vec4 transparencyCutoffThreshold; // float in [0]
 	vec4 useTransparencyMap; // bool in [0]
 	vec4 transparencyMapChannel; // int in [0]
+	vec4 transparencyMode;   // int in [0]. 0=Additive, 1=Cutoff
 
 	// Render options
 	vec4 showNormalMap;      // bool in [0]
@@ -90,6 +91,10 @@ float uRoughness;
 float uMetalness;         
 float uEmissivity;
 float uTransparencyCutoffThreshold;
+
+const int TransparencyMode_Additive = 0;
+const int TransparencyMode_Cutoff = 1;
+int uTransparencyMode = 0;
 
 bool uUseBasecolorMap;  
 bool uUseNormalMap;		 
@@ -161,10 +166,6 @@ void main()
 	float ao = GetAmbientOcclusion();
 	vec3 emissive = GetEmissive();
 	float transparency = GetTransparency();
-
-	if (transparency < uTransparencyCutoffThreshold) {
-		discard;
-	}
 	
 	if (uShowNormalMap)
 	{
@@ -172,6 +173,10 @@ void main()
 		vec3 mappedNormal = (normal * 0.5) + 0.5;
 		outColor = vec4(mappedNormal, 1.0);
 		return;
+	}
+	
+	if (uTransparencyMode == TransparencyMode_Cutoff && transparency < uTransparencyCutoffThreshold) {
+		discard;
 	}
 
 
@@ -280,7 +285,7 @@ void main()
 		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
 	}
 
-	outColor = vec4(color,1.0);
+	outColor = vec4(color, transparency);
 }
 
 
@@ -460,6 +465,7 @@ void UnpackUbos()
 	uMetalness = ubo.metalness[0];
 	uEmissivity = ubo.emissivity[0];
 	uTransparencyCutoffThreshold = ubo.transparencyCutoffThreshold[0];
+	uTransparencyMode = int(ubo.transparencyMode[0]);
 
 	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
 	uUseNormalMap = bool(ubo.useNormalMap[0]);

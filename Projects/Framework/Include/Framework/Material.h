@@ -9,9 +9,17 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// DO NOT CHANGE ORDER
+enum class TransparencyMode : char
+{
+	// DO NOT CHANGE ORDER
+	Additive = 0,
+	Cutoff = 1,
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 enum class TextureType : char
 {
+	// DO NOT CHANGE ORDER
 	Undefined = 0,
 	Basecolor = 1,
 	Normals = 2,
@@ -26,6 +34,7 @@ enum class TextureType : char
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Material
 {
+	// DO NOT CHANGE ORDER
 	enum class Channel
 	{
 		Red = 0,
@@ -74,8 +83,9 @@ struct Material
 	Channel TransparencyMapChannel = Channel::Alpha;
 
 	TextureType ActiveSolo = TextureType::Undefined;
+	TransparencyMode TransparencyMode = TransparencyMode::Additive;
 
-	
+
 	bool HasBasecolorMap() const { return BasecolorMap.has_value(); }
 	bool HasNormalMap() const { return NormalMap.has_value(); }
 	bool HasMetalnessMap() const { return MetalnessMap.has_value(); }
