@@ -175,8 +175,14 @@ void main()
 		return;
 	}
 	
-	if (uTransparencyMode == TransparencyMode_Cutoff && transparency < uTransparencyCutoffThreshold) {
-		discard;
+	// Handle cutoff transparency
+	if (uTransparencyMode == TransparencyMode_Cutoff)
+	{
+		if (transparency < uTransparencyCutoffThreshold) {
+			discard;
+		}
+
+		transparency = 1.;
 	}
 
 

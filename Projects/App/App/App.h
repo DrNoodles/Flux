@@ -506,8 +506,8 @@ private: // METHODS
 	
 	void LoadDefaultScene()
 	{
-		const bool heavy = false;
-		if (heavy)
+		const bool loadDemo = true;
+		if (loadDemo)
 		{
 			LoadDemoScene();
 		}

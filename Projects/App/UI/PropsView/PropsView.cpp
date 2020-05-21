@@ -146,7 +146,7 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
 		ImGui::SetNextItemWidth(100);
 		if (ImGui::Combo("Solo Texture", &soloSelection, 
-			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency"))
+			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency\0"))
 		{
 			rvm.ActiveSolo = soloSelection;
 			_delegate->CommitMaterialChanges(rvm);
@@ -196,7 +196,7 @@ void PropsView::Basecolor(MaterialViewState& rvm) const
 	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
-	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
+	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture\0"))
 	{
 		useMap = current;
 		_delegate->CommitMaterialChanges(rvm);
@@ -299,7 +299,7 @@ void PropsView::Metalness(MaterialViewState& rvm) const
 	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
-	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
+	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture\0"))
 	{
 		useMap = current;
 		_delegate->CommitMaterialChanges(rvm);
@@ -380,7 +380,7 @@ void PropsView::Roughness(MaterialViewState& rvm) const
 	ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - modeStart);
 	ImGui::PushItemWidth(80);
 	int current = useMap;
-	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture"))
+	if (ImGui::Combo(("##" + valueName).c_str(), &current, "Value\0Texture\0"))
 	{
 		useMap = current;
 		_delegate->CommitMaterialChanges(rvm);
@@ -554,7 +554,6 @@ void PropsView::Transparency(MaterialViewState& rvm) const
 	const std::string valueName = "Threshold";
 	std::string& mapPath = rvm.TransparencyMapPath;
 	int& activeChannel = rvm.ActiveTransparencyChannel;
-	int& activeMode = rvm.TransparencyMode;
 	float& value = rvm.TransparencyCutoffThreshold;
 
 	{
@@ -567,12 +566,11 @@ void PropsView::Transparency(MaterialViewState& rvm) const
 	{
 		ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 88);
 		ImGui::PushItemWidth(90);
-		int current = activeMode;
-		if (ImGui::Combo(("##" + valueName).c_str(), &current, "Additive\0Cutoff"))
+		if (ImGui::Combo(("##mode" + valueName).c_str(), &rvm.TransparencyMode, "Additive\0Cutoff\0"))
 		{
-			activeMode = current;
 			_delegate->CommitMaterialChanges(rvm);
 		}
+
 		const std::string tip = "\
 Set the blending mode\n\
   Additive: linearly blends from transparent (black) to opaque (white)\n\
@@ -580,7 +578,7 @@ Set the blending mode\n\
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip(tip.c_str());
 		ImGui::PopItemWidth();
 	}
-	
+
 	ImGui::Spacing();
 
 	{
@@ -630,7 +628,7 @@ Set the blending mode\n\
 	
 	ImGui::Spacing();
 
-	if (activeMode == 1 && ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) {
+	if (rvm.TransparencyMode == 1 && ImGui::SliderFloat((valueName + "##" + valueName).c_str(), &value, 0, 1, "%.2f", 1)) {
 		_delegate->CommitMaterialChanges(rvm);
 	}
 }
