@@ -14,6 +14,7 @@ struct MaterialViewState
 	bool UseMetalnessMap = false;
 	bool UseRoughnessMap = false;
 	//bool UseAoMap = false;
+	
 
 	std::string BasecolorMapPath{};
 	std::string NormalMapPath{};
@@ -36,6 +37,7 @@ struct MaterialViewState
 	bool InvertMetalnessMap = false;
 
 	int ActiveSolo = 0;
+	int TransparencyMode = 0;
 
 	inline static std::vector<std::string> MapChannels = { "Red", "Green", "Blue", "Alpha" };
 	int ActiveMetalnessChannel = 0;

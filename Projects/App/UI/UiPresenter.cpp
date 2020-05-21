@@ -507,6 +507,14 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 		throw std::out_of_range("");
 	}
 
+	switch (state.TransparencyMode)
+	{
+	case 0: mat.TransparencyMode = TransparencyMode::Additive; break;
+	case 1: mat.TransparencyMode = TransparencyMode::Cutoff; break;
+	default:
+		throw std::out_of_range("Unsupported TransparencyMode");
+	}
+	
 	auto UpdateMap = [&](const std::string& newPath, Material& targetMat, const TextureType type)
 	{
 		std::optional<TextureResourceId>* pMap = nullptr;
@@ -617,6 +625,14 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 		throw std::out_of_range("Unsupported ActiveSolo");
 	}
 
+	switch (mat.TransparencyMode)
+	{
+	case TransparencyMode::Additive: rvm.TransparencyMode = 0; break;
+	case TransparencyMode::Cutoff: rvm.TransparencyMode = 1; break;
+	default:
+		throw std::out_of_range("Unsupported TransparencyMode");
+	}
+	
 	rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
 	rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
 	rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";

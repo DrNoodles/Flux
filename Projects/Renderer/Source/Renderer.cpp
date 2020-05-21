@@ -209,7 +209,9 @@ void Renderer::DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex,
 		}
 
 
+		// TODO Once it's working, run a perf test where we only sort a few transparent objects with the majority opaque
 		
+
 		// Record Command Buffer
 
 		// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport

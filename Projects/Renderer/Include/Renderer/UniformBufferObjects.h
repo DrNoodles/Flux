@@ -113,6 +113,7 @@ struct UniversalUbo
 	alignas(16) glm::vec4 TransparencyCutoffThreshold; // float in [0]
 	alignas(16) glm::vec4 UseTransparencyMap; // bool in [0]
 	alignas(16) glm::vec4 TransparencyMapChannel; // int in [0]
+	alignas(16) glm::vec4 TransparencyMode;   // int in [0]. 0=Additive, 1=Cutoff
 
 	// Render options
 	alignas(16) glm::vec4 ShowNormalMap;      // bool in [0]
@@ -160,6 +161,7 @@ struct UniversalUbo
 		ubo.TransparencyCutoffThreshold[0] = material.TransparencyCutoffThreshold;
 		ubo.UseTransparencyMap[0] = float(material.UsingTransparencyMap());
 		ubo.TransparencyMapChannel[0] = float(material.TransparencyMapChannel);
+		ubo.TransparencyMode[0] = float(material.TransparencyMode);
 		
 		// Render options
 		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
