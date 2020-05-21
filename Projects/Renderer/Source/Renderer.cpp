@@ -136,10 +136,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		// Update Pbr Model ubos
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
-			// Populate
-			//const auto& renderable = _renderables[renderableIds[i].Id].get();
-			//auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
-			
 			UniversalUboCreateInfo info = {};
 			info.Model = transforms[i];
 			info.View = view;
@@ -150,11 +146,10 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.ShowClipping = options.ShowClipping;
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
+
 			const auto& renderable = *_renderables[renderableIds[i].Id];
-			
 			const auto& modelBufferMemory = renderable.FrameResources[frameIndex].UniformBufferMemory;
 			const auto modelUbo = UniversalUbo::Create(info, renderable.Mat);
-
 			
 			// Copy to gpu - TODO PERF Keep mem mapped 
 			void* data;
