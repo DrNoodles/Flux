@@ -151,7 +151,7 @@ public:
 		VkPipeline pipeline;
 		{
 			const auto vertPath = shaderDir + "Cubemap.vert.spv";
-			const auto fragPath = shaderDir + "CubemapFromEquirectangular.frag.spv";
+			const auto fragPath = shaderDir + "GenCubemapFromEquirectangular.frag.spv";
 			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 			{
 				// Pos

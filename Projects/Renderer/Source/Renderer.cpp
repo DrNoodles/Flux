@@ -850,8 +850,8 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	const auto numShaders = 2;
 	std::array<VkPipelineShaderStageCreateInfo, numShaders> shaderStageCIs{};
 	{
-		const auto vertShaderCode = FileService::ReadFile(shaderDir + "PbrModel.vert.spv");
-		const auto fragShaderCode = FileService::ReadFile(shaderDir + "PbrModel.frag.spv");
+		const auto vertShaderCode = FileService::ReadFile(shaderDir + "Pbr.vert.spv");
+		const auto fragShaderCode = FileService::ReadFile(shaderDir + "Pbr.frag.spv");
 
 		vertShaderModule = vkh::CreateShaderModule(vertShaderCode, device);
 		fragShaderModule = vkh::CreateShaderModule(fragShaderCode, device);

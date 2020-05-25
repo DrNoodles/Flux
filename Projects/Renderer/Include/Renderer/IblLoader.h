@@ -160,7 +160,7 @@ private:
 
 
 		const auto vertPath = shaderDir + "Cubemap.vert.spv";
-		const auto fragPath = shaderDir + "CubemapFromIrradianceConvolution.frag.spv";
+		const auto fragPath = shaderDir + "GenIblIrradianceCubemapFromEnvmap.frag.spv";
 		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 		{
 			// Pos
@@ -367,7 +367,7 @@ private:
 		
 		// Create Pipeline
 		const auto vertPath = shaderDir + "Cubemap.vert.spv";
-		const auto fragPath = shaderDir + "CubemapFromPreFilterConvolution.frag.spv";
+		const auto fragPath = shaderDir + "GenIblPrefilterCubemapFromEnvmap.frag.spv";
 		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 		{
 			// Pos
@@ -621,8 +621,8 @@ private:
 
 
 		// Create Pipeline
-		const auto vertPath = shaderDir + "BrdfIntegration.vert.spv";
-		const auto fragPath = shaderDir + "BrdfIntegration.frag.spv";
+		const auto vertPath = shaderDir + "GenIblBrdfMap.vert.spv";
+		const auto fragPath = shaderDir + "GenIblBrdfMap.frag.spv";
 		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(2);
 		{
 			// Pos
