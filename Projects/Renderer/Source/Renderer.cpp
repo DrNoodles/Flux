@@ -137,8 +137,8 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
 			// Populate
-			const auto& renderable = _renderables[renderableIds[i].Id].get();
-			auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
+			//const auto& renderable = _renderables[renderableIds[i].Id].get();
+			//auto& modelBufferMemory = renderable->FrameResources[frameIndex].UniformBufferMemory;
 			
 			UniversalUboCreateInfo info = {};
 			info.Model = transforms[i];
