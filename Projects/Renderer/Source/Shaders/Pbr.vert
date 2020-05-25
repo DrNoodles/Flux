@@ -1,6 +1,5 @@
 #version 450
 
-// TODO Optimise size via juicy packing
 layout(std140, binding = 0) uniform UniversalUbo
 {
 	mat4 model;

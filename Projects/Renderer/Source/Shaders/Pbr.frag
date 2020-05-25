@@ -2,8 +2,10 @@
 
 // Constants
 const float PI = 3.14159265359;
-const int MAX_LIGHT_COUNT = 8; // TODO Convert to specialization constant to support N lights?
-const int PREFILTER_MIP_COUNT = 6; // Must match PrefilterMap's # mip levels // TODO Pass this in.
+const int MAX_LIGHT_COUNT = 8;		// TODO Convert to specialization constant to support N lights?
+const int PREFILTER_MIP_COUNT = 6;  // Must match PrefilterMap's # mip levels // TODO Pass this in.
+const int TRANSPARENCY_MODE_ADDITIVE = 0;
+const int TRANSPARENCY_MODE_CUTOFF = 1;
 
 // Types
 struct LightPacked
@@ -12,52 +14,48 @@ struct LightPacked
 	vec4 PosType;       // floats [X,Y,Z], int [Type:Point=0,Directional=1]
 };
 
-// TODO Optimise size via juicy packing
 layout(std140, binding = 0) uniform UniversalUbo
 {
 	//mat4 model;
 	//mat4 view;
 	//mat4 projection;
-	
-	// PBR
-	layout(offset=192) vec3 camPos;
+	layout(offset=192) mat4 cubemapRotation;
+	layout(offset=256) vec3 camPos;
 
-	layout(offset=208) float metalness;          // float in [0]
-	int metalnessMapChannel;// int in [0] R=0,G,B,A
-	bool useMetalnessMap;    // bool 4bytes
-	bool invertMetalnessMap; // bool 4bytes
+	layout(offset=272) vec3 basecolor;
+	layout(offset=288) vec3 scaleNormalMap;	    // Scales the normals after the map has been transformed to [-1,1] per channel.
 
-	// Material
-	layout(offset=208) vec3 basecolor;
-	vec4 useBasecolorMap;    // bool in [0] 
+	layout(offset=304) 
+	bool  useBasecolorMap;   
+	bool  useNormalMap;      
 
-	vec4 useNormalMap;       // bool in [0]
-	vec3 scaleNormalMap;	    // Scales the normals after the map has been transformed to [-1,1] per channel.
+	float metalness; 
+	int   metalnessMapChannel;	// R=0,G,B,A
+	bool  useMetalnessMap;   
+	bool  invertMetalnessMap;
 
-	vec4 roughness;          // float in [0]
-	vec4 useRoughnessMap;	 // bool in [0]
-	vec4 invertRoughnessMap; // bool in [0]
-	vec4 roughnessMapChannel;// int in [0] R=0,G,B,A
+	float roughness;        
+	bool  useRoughnessMap;	
+	bool  invertRoughnessMap;
+	int   roughnessMapChannel;	// R=0,G,B,A
 
+	bool  useAoMap;          
+	bool  invertAoMap;       
+	int   aoMapChannel;        // R=0,G,B,A
 
-	vec4 useAoMap;           // bool in [0]
-	vec4 invertAoMap;        // bool in [0]
-	vec4 aoMapChannel;       // int in [0] R=0,G,B,A
+	float emissivity;      
+	bool  useEmissiveMap;   
 
-	vec4 emissivity;         // float in [0]
-	vec4 useEmissiveMap;     // bool in [0]
-
-	vec4 transparencyCutoffThreshold; // float in [0]
-	vec4 useTransparencyMap; // bool in [0]
-	vec4 transparencyMapChannel; // int in [0]
-	vec4 transparencyMode;   // int in [0]. 0=Additive, 1=Cutoff
+	float transparencyCutoffThreshold; 
+	bool  useTransparencyMap;
+	int   transparencyMapChannel;
+	int   transparencyMode;		// 0=Additive, 1=Cutoff
 
 	// Render options
-	vec4 showNormalMap;      // bool in [0]
-	vec4 showClipping;       // bool in [0]
-	vec4 exposureBias;       // float in [0]
-	vec4 iblStrength;        // float in [0]
-	mat4 cubemapRotation;
+	bool  showNormalMap;   
+	bool  showClipping;    
+	float exposureBias;   
+	float iblStrength;    
 } ubo;
 
 layout(binding = 1) uniform samplerCube IrradianceMap; // diffuse
@@ -66,14 +64,14 @@ layout(binding = 3) uniform sampler2D BrdfLUT; // spec
 layout(std140, binding = 4) uniform LightUbo
 {
 	LightPacked[MAX_LIGHT_COUNT] lights;
-	// TODO see this post about dealing with N number of lights
+	// TODO see this post about dealing with N number of lights OR just pass in N via a specialization constant?
 	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
-layout(binding = 5) uniform sampler2D BasecolorMap;
-layout(binding = 6) uniform sampler2D NormalMap;
-layout(binding = 7) uniform sampler2D RoughnessMap;
-layout(binding = 8) uniform sampler2D MetalnessMap;
-layout(binding = 9) uniform sampler2D AmbientOcclusionMap;
+layout(binding = 5)  uniform sampler2D BasecolorMap;
+layout(binding = 6)  uniform sampler2D NormalMap;
+layout(binding = 7)  uniform sampler2D RoughnessMap;
+layout(binding = 8)  uniform sampler2D MetalnessMap;
+layout(binding = 9)  uniform sampler2D AmbientOcclusionMap;
 layout(binding = 10) uniform sampler2D EmissiveMap;
 layout(binding = 11) uniform sampler2D TransparencyMap;
 
@@ -86,42 +84,6 @@ layout(location = 4) in mat3 fragTBN;
 layout(location = 0) out vec4 outColor;
 
 
-// Material
-vec3 uBasecolor;
-float uRoughness;        
-float uMetalness;         
-float uEmissivity;
-float uTransparencyCutoffThreshold;
-
-const int TransparencyMode_Additive = 0;
-const int TransparencyMode_Cutoff = 1;
-int uTransparencyMode = 0;
-
-bool uUseBasecolorMap;  
-bool uUseNormalMap;		 
-bool uUseRoughnessMap;	 
-bool uUseMetalnessMap;		 
-bool uUseAoMap;				 
-bool uUseEmissiveMap;
-bool uUseTransparencyMap;
-
-//vec3 uInvertNormalMap;	 
-bool uInvertAoMap;			 
-bool uInvertRoughnessMap; 
-bool uInvertMetalnessMap; 
-
-int uRoughnessMapChannel;
-int uMetalnessMapChannel;
-int uAoMapChannel;       
-int uTransparencyMapChannel;
-
-// Render Options
-bool uShowNormalMap;
-bool uShowClipping;
-float uExposureBias;
-float uIblStrength;
-
-void UnpackUbos();
 
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
 const mat3 ACESInputMat = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
@@ -159,8 +121,6 @@ bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001f)
 
 void main() 
 {
-	UnpackUbos();
-
 	vec3 normal = GetNormal();
 	vec3 basecolor = GetBasecolor();
 	float metalness = GetMetalness();
@@ -169,7 +129,7 @@ void main()
 	vec3 emissive = GetEmissive();
 	float transparency = GetTransparency();
 	
-	if (uShowNormalMap)
+	if (ubo.showNormalMap)
 	{
 		// map from [-1,1] > [0,1]
 		vec3 mappedNormal = (normal * 0.5) + 0.5;
@@ -178,9 +138,9 @@ void main()
 	}
 	
 	// Handle cutoff transparency
-	if (uTransparencyMode == TransparencyMode_Cutoff)
+	if (ubo.transparencyMode == TRANSPARENCY_MODE_CUTOFF)
 	{
-		if (transparency < uTransparencyCutoffThreshold) {
+		if (transparency < ubo.transparencyCutoffThreshold) {
 			discard;
 		}
 
@@ -284,7 +244,7 @@ void main()
 		}
 
 		// Compute ambient term
-		iblAmbient = (diffuse + specular) * ao * uIblStrength; 
+		iblAmbient = (diffuse + specular) * ao * ubo.iblStrength; 
 	}
 
 
@@ -293,12 +253,12 @@ void main()
 
 	
 	// Post-processing - TODO Move to post pass shader
-	color *= uExposureBias;	// Exposure
-	color = ACESFitted(color); // Tonemap  
+	color *= ubo.exposureBias;	      // Exposure
+	color = ACESFitted(color);       // Tonemap  
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
 	//	// Shows values clipped at white or black as bold colours
-	if (uShowClipping)
+	if (ubo.showClipping)
 	{
 		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
 		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
@@ -314,80 +274,88 @@ void main()
 
 vec3 GetBasecolor()
 {
-	vec3 basecolor = uUseBasecolorMap ? texture(BasecolorMap, fragTexCoord).rgb : uBasecolor; 
+	vec3 basecolor = ubo.useBasecolorMap ? texture(BasecolorMap, fragTexCoord).rgb : ubo.basecolor; 
 	return pow(basecolor, vec3(2.2)); // sRGB 2.2 -> Linear
 }
+
 vec3 GetNormal()
 {
-	if (uUseNormalMap)
+	if (ubo.useNormalMap)
 	{
 		vec3 n = texture(NormalMap, fragTexCoord).xyz;
 		n = normalize((n*2 - 1) * ubo.scaleNormalMap); // map [0,1] to [-1,1] then apply any axis scaling.
 		n = normalize(fragTBN*n); // transform from tangent to world space
 		return n;
 	}
-	else
-	{
+	else {
 		return fragNormal;
 	}
 }
+
 float GetRoughness()
 {
-	float roughness = uRoughness; 
-	if (uUseRoughnessMap)
+	float roughness = ubo.roughness; 
+	if (ubo.useRoughnessMap)
 	{	
-		if (uRoughnessMapChannel == 0) roughness = texture(RoughnessMap, fragTexCoord).r;
-		else if (uRoughnessMapChannel == 1) roughness = texture(RoughnessMap, fragTexCoord).g;
-		else if (uRoughnessMapChannel == 2) roughness = texture(RoughnessMap, fragTexCoord).b;
+		if (ubo.roughnessMapChannel == 0) roughness = texture(RoughnessMap, fragTexCoord).r;
+		else if (ubo.roughnessMapChannel == 1) roughness = texture(RoughnessMap, fragTexCoord).g;
+		else if (ubo.roughnessMapChannel == 2) roughness = texture(RoughnessMap, fragTexCoord).b;
 		else roughness = texture(RoughnessMap, fragTexCoord).a; // assume == 3
 
-		if (uInvertRoughnessMap)
+		if (ubo.invertRoughnessMap) {
 			roughness = 1-roughness;
+		}
 	}
 	return roughness;
 }
+
 float GetMetalness()
 {
-	float metalness = uMetalness; 
-	if (uUseMetalnessMap)
+	float metalness = ubo.metalness; 
+	if (ubo.useMetalnessMap)
 	{	
-		if (uMetalnessMapChannel == 0) metalness = texture(MetalnessMap, fragTexCoord).r;
-		else if (uMetalnessMapChannel == 1) metalness = texture(MetalnessMap, fragTexCoord).g;
-		else if (uMetalnessMapChannel == 2) metalness = texture(MetalnessMap, fragTexCoord).b;
+		if (ubo.metalnessMapChannel == 0) metalness = texture(MetalnessMap, fragTexCoord).r;
+		else if (ubo.metalnessMapChannel == 1) metalness = texture(MetalnessMap, fragTexCoord).g;
+		else if (ubo.metalnessMapChannel == 2) metalness = texture(MetalnessMap, fragTexCoord).b;
 		else metalness = texture(MetalnessMap, fragTexCoord).a; // assume == 3
 
-		if (uInvertMetalnessMap)
-			metalness = 1-metalness;
+		if (ubo.invertMetalnessMap) { 
+			metalness = 1-metalness; 
+		}
 	}
 	return metalness;
 }
+
 float GetAmbientOcclusion()
 {
 	float ao = 1;
-	if (uUseAoMap)
+	if (ubo.useAoMap)
 	{	
-		if (uAoMapChannel == 0) ao = texture(AmbientOcclusionMap, fragTexCoord).r;
-		else if (uAoMapChannel == 1) ao = texture(AmbientOcclusionMap, fragTexCoord).g;
-		else if (uAoMapChannel == 2) ao = texture(AmbientOcclusionMap, fragTexCoord).b;
+		if (ubo.aoMapChannel == 0) ao = texture(AmbientOcclusionMap, fragTexCoord).r;
+		else if (ubo.aoMapChannel == 1) ao = texture(AmbientOcclusionMap, fragTexCoord).g;
+		else if (ubo.aoMapChannel == 2) ao = texture(AmbientOcclusionMap, fragTexCoord).b;
 		else ao = texture(AmbientOcclusionMap, fragTexCoord).a; // assume == 3 
 
-		if (uInvertAoMap)
+		if (ubo.invertAoMap) {
 			ao = 1-ao;
+		}
 	}
 	return ao;
 }
+
 vec3 GetEmissive()
 {
-	return uUseEmissiveMap ? texture(EmissiveMap, fragTexCoord).rgb * uEmissivity : vec3(0);
+	return ubo.useEmissiveMap ? texture(EmissiveMap, fragTexCoord).rgb * ubo.emissivity : vec3(0);
 }
+
 float GetTransparency()
 {
 	float alpha = 1;
-	if (uUseTransparencyMap)
+	if (ubo.useTransparencyMap)
 	{
-		if (uTransparencyMapChannel == 0) alpha = texture(TransparencyMap, fragTexCoord).r;
-		else if (uTransparencyMapChannel == 1) alpha = texture(TransparencyMap, fragTexCoord).g;
-		else if (uTransparencyMapChannel == 2) alpha = texture(TransparencyMap, fragTexCoord).b;
+		if (ubo.transparencyMapChannel == 0) alpha = texture(TransparencyMap, fragTexCoord).r;
+		else if (ubo.transparencyMapChannel == 1) alpha = texture(TransparencyMap, fragTexCoord).g;
+		else if (ubo.transparencyMapChannel == 2) alpha = texture(TransparencyMap, fragTexCoord).b;
 		else alpha = texture(TransparencyMap, fragTexCoord).a; // assume == 3 
 	}
 	return alpha;
@@ -397,12 +365,12 @@ float GetTransparency()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IBL
-
 vec3 Fresnel_Schlick(float cosTheta, vec3 F0)
 {
 	cosTheta = min(cosTheta,1); // fixes issue where cosTheta is slightly > 1.0. a floating point issue that causes black pixels where the half and view dirs align
 	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
+
 vec3 Fresnel_SchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
 	cosTheta = min(cosTheta,1); // fixes issue where cosTheta is slightly > 1.0. a floating point issue that causes black pixels where the half and view dirs align
@@ -421,12 +389,14 @@ float Distribution_GGX(float NdotH, float roughness)
 	denominator = PI * denominator * denominator;
 	return numerator / max(denominator, 0.0000001);
 }
+
 float Geometry_SchlickGGX_Direct(float NdotV, float roughness)
 {
 	float r = roughness + 1.0; 
 	float k = (r*r) / 8; // k computed for direct lighting. we use a diff constant for IBL
 	return NdotV / (NdotV * (1.0-k) + k); // bug: div0 if NdotV=0 and k=0?
 }
+
 // Calc how much the microsurface area is self shadowing or occluded in the viewing direction.
 float Geometry_Smith(float NdotV, float NdotL, float roughness)
 {
@@ -434,45 +404,3 @@ float Geometry_Smith(float NdotV, float NdotL, float roughness)
 	float ggx1 = Geometry_SchlickGGX_Direct(NdotL,roughness);
 	return ggx1*ggx2;
 }
-
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// UBOs - must match packing on CPU side
-
-void UnpackUbos()
-{
-	uMetalness = ubo.metalness;
-	uUseMetalnessMap = ubo.useMetalnessMap; // int to bool
-	uInvertMetalnessMap = ubo.invertMetalnessMap; // int to bool
-	uMetalnessMapChannel = ubo.metalnessMapChannel;
-
-	// Material
-	uBasecolor = ubo.basecolor;
-	uRoughness = ubo.roughness[0];
-	uEmissivity = ubo.emissivity[0];
-	uTransparencyCutoffThreshold = ubo.transparencyCutoffThreshold[0];
-	uTransparencyMode = int(ubo.transparencyMode[0]);
-
-	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
-	uUseNormalMap = bool(ubo.useNormalMap[0]);
-	uUseRoughnessMap = bool(ubo.useRoughnessMap[0]);
-	uUseAoMap = bool(ubo.useAoMap[0]);
-	uUseEmissiveMap = bool(ubo.useEmissiveMap[0]);
-	uUseTransparencyMap = bool(ubo.useTransparencyMap[0]);
-
-	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
-	uInvertAoMap = bool(ubo.invertAoMap[0]);
-	
-	uRoughnessMapChannel = int(ubo.roughnessMapChannel[0]);
-	uAoMapChannel = int(ubo.aoMapChannel[0]);
-	uTransparencyMapChannel = int(ubo.transparencyMapChannel[0]);
-	
-
-	// Render options
-	uShowNormalMap = bool(ubo.showNormalMap[0]);
-	uShowClipping = bool(ubo.showClipping[0]);
-	uExposureBias = ubo.exposureBias[0];
-	uIblStrength = ubo.iblStrength[0];
-}
-
