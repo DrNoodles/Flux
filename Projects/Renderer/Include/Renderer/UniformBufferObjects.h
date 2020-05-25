@@ -83,9 +83,15 @@ struct UniversalUbo
 	// Data types and alignment to match shader exactly.
 	alignas(16) glm::mat4 Model;         
 	alignas(16) glm::mat4 View;          
-	alignas(16) glm::mat4 Projection;    
+	alignas(16) glm::mat4 Projection;
+	
 	alignas(16) glm::vec3 CamPos;
 
+	alignas(16) float Metalness;          // float in [0]
+	alignas(4) int   MetalnessMapChannel;// int in [0] R=0,G,B,A
+	alignas(4) bool  UseMetalnessMap;    // int in [0] 
+	alignas(4) bool  InvertMetalnessMap; // int in [0]
+	
 	// Material
 	alignas(16) glm::vec3 Basecolor;
 	alignas(16) glm::vec4 UseBasecolorMap;    // bool in [0] 
@@ -97,12 +103,12 @@ struct UniversalUbo
 	alignas(16) glm::vec4 UseRoughnessMap;    // bool in [0]
 	alignas(16) glm::vec4 InvertRoughnessMap; // bool in [0]
 	alignas(16) glm::vec4 RoughnessMapChannel;// int in [0] R=0,G,B,A
-
+	/*
 	alignas(16) glm::vec4 Metalness;          // float in [0]
 	alignas(16) glm::vec4 UseMetalnessMap;    // bool in [0]
 	alignas(16) glm::vec4 InvertMetalnessMap; // bool in [0]
 	alignas(16) glm::vec4 MetalnessMapChannel;// int in [0] R=0,G,B,A
-
+	*/
 	alignas(16) glm::vec4 UseAoMap;           // bool in [0]
 	alignas(16) glm::vec4 InvertAoMap;        // bool in [0]
 	alignas(16) glm::vec4 AoMapChannel;       // int in [0] R=0,G,B,A
@@ -146,10 +152,10 @@ struct UniversalUbo
 		ubo.InvertRoughnessMap[0] = float(material.InvertRoughnessMap);
 		ubo.RoughnessMapChannel[0] = float(material.RoughnessMapChannel);
 
-		ubo.Metalness[0] = material.Metalness;
-		ubo.UseMetalnessMap[0] = float(material.UsingMetalnessMap());
-		ubo.InvertMetalnessMap[0] = float(material.InvertMetalnessMap);
-		ubo.MetalnessMapChannel[0] = float(material.MetalnessMapChannel);
+		ubo.Metalness = material.Metalness;
+		ubo.UseMetalnessMap = material.UsingMetalnessMap();
+		ubo.InvertMetalnessMap = material.InvertMetalnessMap;
+		ubo.MetalnessMapChannel = (int)material.MetalnessMapChannel;
 
 		ubo.UseAoMap[0] = float(material.UsingAoMap());
 		ubo.InvertAoMap[0] = float(material.InvertAoMap);

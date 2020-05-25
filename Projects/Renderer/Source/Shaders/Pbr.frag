@@ -2,7 +2,7 @@
 
 // Constants
 const float PI = 3.14159265359;
-const int MAX_LIGHT_COUNT = 8;
+const int MAX_LIGHT_COUNT = 8; // TODO Convert to specialization constant to support N lights?
 const int PREFILTER_MIP_COUNT = 6; // Must match PrefilterMap's # mip levels // TODO Pass this in.
 
 // Types
@@ -15,15 +15,20 @@ struct LightPacked
 // TODO Optimise size via juicy packing
 layout(std140, binding = 0) uniform UniversalUbo
 {
-	mat4 model;
-	mat4 view;
-	mat4 projection;
+	//mat4 model;
+	//mat4 view;
+	//mat4 projection;
 	
 	// PBR
-	vec3 camPos;
+	layout(offset=192) vec3 camPos;
+
+	layout(offset=208) float metalness;          // float in [0]
+	int metalnessMapChannel;// int in [0] R=0,G,B,A
+	bool useMetalnessMap;    // bool 4bytes
+	bool invertMetalnessMap; // bool 4bytes
 
 	// Material
-	vec3 basecolor;
+	layout(offset=208) vec3 basecolor;
 	vec4 useBasecolorMap;    // bool in [0] 
 
 	vec4 useNormalMap;       // bool in [0]
@@ -34,10 +39,6 @@ layout(std140, binding = 0) uniform UniversalUbo
 	vec4 invertRoughnessMap; // bool in [0]
 	vec4 roughnessMapChannel;// int in [0] R=0,G,B,A
 
-	vec4 metalness;          // float in [0]
-	vec4 useMetalnessMap;    // bool in [0]
-	vec4 invertMetalnessMap; // bool in [0]
-	vec4 metalnessMapChannel;// int in [0] R=0,G,B,A
 
 	vec4 useAoMap;           // bool in [0]
 	vec4 invertAoMap;        // bool in [0]
@@ -441,10 +442,14 @@ float Geometry_Smith(float NdotV, float NdotL, float roughness)
 
 void UnpackUbos()
 {
+	uMetalness = ubo.metalness;
+	uUseMetalnessMap = ubo.useMetalnessMap; // int to bool
+	uInvertMetalnessMap = ubo.invertMetalnessMap; // int to bool
+	uMetalnessMapChannel = ubo.metalnessMapChannel;
+
 	// Material
 	uBasecolor = ubo.basecolor;
 	uRoughness = ubo.roughness[0];
-	uMetalness = ubo.metalness[0];
 	uEmissivity = ubo.emissivity[0];
 	uTransparencyCutoffThreshold = ubo.transparencyCutoffThreshold[0];
 	uTransparencyMode = int(ubo.transparencyMode[0]);
@@ -452,17 +457,14 @@ void UnpackUbos()
 	uUseBasecolorMap = bool(ubo.useBasecolorMap[0]);
 	uUseNormalMap = bool(ubo.useNormalMap[0]);
 	uUseRoughnessMap = bool(ubo.useRoughnessMap[0]);
-	uUseMetalnessMap = bool(ubo.useMetalnessMap[0]);
 	uUseAoMap = bool(ubo.useAoMap[0]);
 	uUseEmissiveMap = bool(ubo.useEmissiveMap[0]);
 	uUseTransparencyMap = bool(ubo.useTransparencyMap[0]);
 
 	uInvertRoughnessMap = bool(ubo.invertRoughnessMap[0]);
-	uInvertMetalnessMap = bool(ubo.invertMetalnessMap[0]);
 	uInvertAoMap = bool(ubo.invertAoMap[0]);
 	
 	uRoughnessMapChannel = int(ubo.roughnessMapChannel[0]);
-	uMetalnessMapChannel = int(ubo.metalnessMapChannel[0]);
 	uAoMapChannel = int(ubo.aoMapChannel[0]);
 	uTransparencyMapChannel = int(ubo.transparencyMapChannel[0]);
 	
