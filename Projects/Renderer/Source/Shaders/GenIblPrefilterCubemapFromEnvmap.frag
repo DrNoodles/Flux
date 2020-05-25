@@ -4,7 +4,7 @@
 const float PI = 3.14159265359;
 
 
-layout(push_constant) uniform PushConsts
+layout(std140, push_constant) uniform PushConsts
 {
 	//layout (offset = 0) mat4 mvp; // not used in frag
 	layout (offset = 64) float envMapResPerFace;

@@ -1041,7 +1041,7 @@ private: // METHODS
 		auto& camera = _scene->GetCamera();
 		if (isLmb)
 		{
-			const float arcSpeed = 1.5*3.1415;
+			const float arcSpeed = 1.5f*3.1415f;
 			camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
 		}
 		if (isMmb || isRmb)

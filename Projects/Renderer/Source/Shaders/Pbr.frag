@@ -210,33 +210,41 @@ void main()
 		const vec3 pointDir = lightPos - fragPos;
 		const vec3 directionalDir = -lightPos;
 		const vec3 L = normalize(mix(pointDir, directionalDir, lightType));
-		
-
-		// Compute Radiance //
-		const float dist = length(lightPos - fragPos);
-		const float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
-		const vec3 radiance = lightColor * lightIntensity * attenuation;
-
-
-		// BRDF - Cook-Torrance //
-		const vec3 H = normalize(V + L); // half vec
-		const float NdotH = max(dot(normal,H), 0.0);
 		const float NdotL = max(dot(normal,L), 0.0);
-		const float HdotV = max(dot(H, V), 0.0);
+		
+		// Compute Radiance - Li
+		vec3 incomingRadiance;
+		{
+			const float dist = length(lightPos - fragPos);
+			const float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
+			incomingRadiance = lightColor * lightIntensity * attenuation;
+		}
 
-		const float NDF = Distribution_GGX(NdotH, roughness);
-		const float G = Geometry_Smith(NdotV, NdotL, roughness);
-		const vec3 F = Fresnel_Schlick(HdotV, F0); // Note: HdotV is correct for direct lighting, based on discussion in http://disq.us/p/1etzl77
-		const float denominator = 4.0 * NdotV * NdotL;
-		const vec3 specular = NDF*G*F / max(denominator, 0.0000001); // safe guard div0
+		// Compute BRDF - fr - Cook-Torrance material response
+		vec3 brdf;
+		{
+			const vec3 H = normalize(V + L); // half vec
+			const float NdotH = max(dot(normal,H), 0.0);
+			const float HdotV = max(dot(H, V), 0.0);
 
-		// Spec/Diff contributions 
-		const vec3 kS = F; // fresnel already represents spec contribution
-		vec3 kD = vec3(1.0) - kS; // ensure kS+kD=1
-		kD *= 1.0 - metalness; // remove diffuse contribution for metals
+			const float NDF = Distribution_GGX(NdotH, roughness);
+			const float G = Geometry_Smith(NdotV, NdotL, roughness);
+			const vec3 F = Fresnel_Schlick(HdotV, F0); // Note: HdotV is correct for direct lighting, based on discussion in http://disq.us/p/1etzl77
+			const float denominator = 4.0 * NdotV * NdotL;
+			const vec3 specular = NDF*G*F / max(denominator, 0.0000001); // safe guard div0
+
+			// Spec/Diff contributions 
+			//const vec3 kS = F; // fresnel already represents spec contribution
+			vec3 kD = vec3(1.0) - F; // ensure kS+kD=1
+			kD *= 1.0 - metalness; // remove diffuse contribution for metals
+
+			vec3 diffuse = kD*basecolor/PI;
+
+			brdf = diffuse + specular;
+		}
 
 		// Outgoing radiance due to light hitting surface
-		Lo += (kD*basecolor/PI + specular) * radiance * NdotL;
+		Lo += brdf * incomingRadiance * NdotL;
 	}
 
 
@@ -245,34 +253,37 @@ void main()
 	const bool useIbl = true;
 	if (useIbl)
 	{
-		//// Compute ratio of diffuse/specular for IBL
-		vec3 F = Fresnel_SchlickRoughness(NdotV, F0, roughness);
-		vec3 kS = F;
-		vec3 kD = vec3(1.0) - kS;
+		// Compute ratio of diffuse/specular for IBL
+		const vec3 F = Fresnel_SchlickRoughness(NdotV, F0, roughness);
+		vec3 kD = vec3(1.0) - F; // F = kS term
 		kD *= 1.0 - metalness;	
 
 		mat3 cubemapRotationMat3 = mat3(ubo.cubemapRotation);
 
-		// Compute diffuse IBL //
-		vec3 irradiance = texture(IrradianceMap, cubemapRotationMat3*normal).rgb;
-		vec3 diffuse    = irradiance * basecolor;
+		// Compute diffuse IBL
+		vec3 diffuse;
+		{
+			const vec3 irradiance = texture(IrradianceMap, cubemapRotationMat3*normal).rgb;
+			diffuse = kD * irradiance * basecolor;
+		}
 
+		// Compute specular IBL
+		vec3 specular;
+		{
+			// Sample the reflection color from the prefiltered map 
+			const vec3 R = reflect(-V, normal); // reflection vector
+			const float maxReflectionLod = PREFILTER_MIP_COUNT-1; 
+			const vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*maxReflectionLod).rgb;
 
-		// Compute specular IBL //
-		// Sample the reflection color from the prefiltered map 
-		const vec3 R = reflect(-V, normal); // reflection vector
-		const float maxReflectionLod = PREFILTER_MIP_COUNT-1; 
-		const vec3 prefilteredColor = textureLod(PrefilterMap, cubemapRotationMat3*R, roughness*maxReflectionLod).rgb;
+			// Sample BRDF LUT
+			vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, 1-roughness)).rg;
 
-		// Sample BRDF LUT
-		vec2 envBRDF = texture(BrdfLUT, vec2(NdotV, 1-roughness)).rg;
-
-		// Final specular by combining prefilter color and BRDF LUT
-		vec3 specular = prefilteredColor * (F*envBRDF.x + envBRDF.y);
-
+			// Final specular by combining prefilter color and BRDF LUT
+			specular = prefilteredColor * (F*envBRDF.x + envBRDF.y);
+		}
 
 		// Compute ambient term
-		iblAmbient = (kD * diffuse + specular) * ao * uIblStrength; 
+		iblAmbient = (diffuse + specular) * ao * uIblStrength; 
 	}
 
 
