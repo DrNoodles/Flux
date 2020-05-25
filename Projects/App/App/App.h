@@ -587,28 +587,23 @@ private: // METHODS
 			Material mat;
 			
 			// Load basecolor map
-			mat.BasecolorMapPath = basecolorPath;
-			mat.BasecolorMap = _scene->LoadTexture(basecolorPath);
+			mat.BasecolorMap = { *_scene->LoadTexture(basecolorPath), basecolorPath };
 			mat.UseBasecolorMap = true;
 
 			// Load normal map
-			mat.NormalMapPath = normalPath;
-			mat.NormalMap = _scene->LoadTexture(normalPath);
+			mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
 
 			// Load occlusion map
-			mat.AoMapPath = ormPath;
-			mat.AoMap = _scene->LoadTexture(ormPath);
+			mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
 			mat.AoMapChannel = Material::Channel::Red;
 			
 			// Load roughness map
-			mat.RoughnessMapPath = ormPath;
-			mat.RoughnessMap = _scene->LoadTexture(ormPath);
+			mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 			mat.UseRoughnessMap = true;
 			mat.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			mat.MetalnessMapPath = ormPath;
-			mat.MetalnessMap = _scene->LoadTexture(ormPath);
+			mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 			mat.UseMetalnessMap = true;
 			mat.MetalnessMapChannel = Material::Channel::Blue;
 
@@ -723,34 +718,28 @@ private: // METHODS
 			auto matCopy = _scene->GetMaterial(resourceId);
 			
 			// Load basecolor map
-			matCopy.BasecolorMapPath = basecolorPath;
-			matCopy.BasecolorMap = _scene->LoadTexture(basecolorPath);
+			matCopy.BasecolorMap = { *_scene->LoadTexture(basecolorPath), basecolorPath };
 			matCopy.UseBasecolorMap = true;
 
 			// Load normal map
-			matCopy.NormalMapPath = normalPath;
-			matCopy.NormalMap = _scene->LoadTexture(normalPath);
+			matCopy.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
 
 			// Load occlusion map
-			matCopy.AoMapPath = ormPath;
-			matCopy.AoMap = _scene->LoadTexture(ormPath);
+			matCopy.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
 			matCopy.AoMapChannel = Material::Channel::Red;
 			
 			// Load roughness map
-			matCopy.RoughnessMapPath = ormPath;
-			matCopy.RoughnessMap = _scene->LoadTexture(ormPath);
+			matCopy.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 			matCopy.UseRoughnessMap = true;
 			matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMapPath = ormPath;
-			matCopy.MetalnessMap = _scene->LoadTexture(ormPath);
+			matCopy.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 			matCopy.UseMetalnessMap = true;
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Load emissive map
-			matCopy.EmissiveMapPath = emissivePath;
-			matCopy.EmissiveMap = _scene->LoadTexture(emissivePath);
+			matCopy.EmissiveMap = { *_scene->LoadTexture(emissivePath), emissivePath };
 			matCopy.EmissiveIntensity = 5;
 
 			_scene->SetMaterial(resourceId, matCopy);
@@ -815,26 +804,21 @@ private: // METHODS
 				auto normalPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png";
 				
 				mat.UseBasecolorMap = true;
-				mat.BasecolorMapPath = basePath;
-				mat.BasecolorMap = _scene->LoadTexture(basePath);
+				mat.BasecolorMap = { *_scene->LoadTexture(basePath), basePath };
 
 				//mat.UseNormalMap = true;
-				mat.NormalMapPath = normalPath;
-				mat.NormalMap = _scene->LoadTexture(normalPath);
+				mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
 				
 				//mat.UseAoMap = true;
-				mat.AoMapPath = ormPath;
-				mat.AoMap = _scene->LoadTexture(ormPath);
+				mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.AoMapChannel = Material::Channel::Red;
 				
 				mat.UseRoughnessMap = true;
-				mat.RoughnessMapPath = ormPath;
-				mat.RoughnessMap = _scene->LoadTexture(ormPath);
+				mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.RoughnessMapChannel = Material::Channel::Green;
 
 				mat.UseMetalnessMap = true;
-				mat.MetalnessMapPath = ormPath;
-				mat.MetalnessMap = _scene->LoadTexture(ormPath);
+				mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 
 				_scene->SetMaterial(*entity->Renderable, mat);
@@ -854,19 +838,22 @@ private: // METHODS
 			{
 				mat.Basecolor = { 1,0,0 };
 
+				const auto normalPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png";
+				const auto ormPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png";
+				
 				//mat.UseNormalMap = true;
-				mat.NormalMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png");
+				mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
 
 				//mat.UseAoMap = true;
-				mat.AoMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.AoMapChannel = Material::Channel::Red;
 
 				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.RoughnessMapChannel = Material::Channel::Green;
 
 				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = _scene->LoadTexture(_appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png");
+				mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
 			_scene->SetMaterial(*entity->Renderable, mat);

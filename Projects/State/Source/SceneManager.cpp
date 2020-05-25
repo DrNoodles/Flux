@@ -35,42 +35,43 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		for (const auto& texDef : meshDef.Textures)
 		{
 			const auto texResId = LoadTexture(texDef.Path);
-
+			if (!texResId.has_value())
+			{
+				// TODO User error here. Also, rework this method so unused items are unloaded from memory.
+				throw std::invalid_argument("Unable to load texture");
+			}
+			
+			auto map = Material::Map{ *texResId, texDef.Path };
+			
 			switch (texDef.Type)
 			{
 			case TextureType::Basecolor:
 				mat.UseBasecolorMap = true;
-				mat.BasecolorMap = texResId;
-				mat.BasecolorMapPath = texDef.Path;
+				mat.BasecolorMap = std::move(map);
 				break;
 
 			case TextureType::Normals:
 				//mat.UseNormalMap = true;
-				mat.NormalMap = texResId;
-				mat.NormalMapPath = texDef.Path;
+				mat.NormalMap = std::move(map);
 				break;
 
 			case TextureType::Roughness:
 				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = texResId;
-				mat.RoughnessMapPath = texDef.Path;
+				mat.RoughnessMap = std::move(map);
 				break;
 
 			case TextureType::Metalness:
 				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = texResId;
-				mat.MetalnessMapPath = texDef.Path;
+				mat.MetalnessMap = std::move(map);
 				break;
 
 			case TextureType::AmbientOcclusion:
 				//mat.UseAoMap = true;
-				mat.AoMap = texResId;
-				mat.AoMapPath = texDef.Path;
+				mat.AoMap = std::move(map);
 				break;
 
 			case TextureType::Emissive:
-				mat.EmissiveMap = texResId;
-				mat.EmissiveMapPath = texDef.Path;
+				mat.EmissiveMap = std::move(map);
 				break;
 
 			case TextureType::Undefined:

@@ -34,6 +34,12 @@ enum class TextureType : char
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Material
 {
+	struct Map
+	{
+		TextureResourceId Id = {};
+		std::string Path = {};
+	};
+	
 	// DO NOT CHANGE ORDER
 	enum class Channel
 	{
@@ -42,34 +48,26 @@ struct Material
 		Blue = 2,
 		Alpha = 3,
 	};
-	
-	bool UseBasecolorMap = false;
-	//bool UseNormalMap = false;
-	bool UseMetalnessMap = false;
-	bool UseRoughnessMap = false;
-	//bool UseAoMap = false;
-
-	std::string BasecolorMapPath = {};
-	std::string NormalMapPath = {};
-	std::string MetalnessMapPath = {};
-	std::string RoughnessMapPath = {};
-	std::string AoMapPath = {};
-	std::string EmissiveMapPath = {};
-	std::string TransparencyMapPath = {};
-
-	std::optional<TextureResourceId> BasecolorMap = std::nullopt;
-	std::optional<TextureResourceId> NormalMap = std::nullopt;
-	std::optional<TextureResourceId> MetalnessMap = std::nullopt;
-	std::optional<TextureResourceId> RoughnessMap = std::nullopt;
-	std::optional<TextureResourceId> AoMap = std::nullopt;
-	std::optional<TextureResourceId> EmissiveMap = std::nullopt;
-	std::optional<TextureResourceId> TransparencyMap = std::nullopt;
 
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;
 	float EmissiveIntensity = 1;
 	float TransparencyCutoffThreshold = 0.5f;
+
+	bool UseBasecolorMap = false;
+	//bool UseNormalMap = false;
+	bool UseMetalnessMap = false;
+	bool UseRoughnessMap = false;
+	//bool UseAoMap = false;
+	
+	std::optional<Map> BasecolorMap = {};
+	std::optional<Map> NormalMap = {};
+	std::optional<Map> MetalnessMap = {};
+	std::optional<Map> RoughnessMap = {};
+	std::optional<Map> AoMap = {};
+	std::optional<Map> EmissiveMap = {};
+	std::optional<Map> TransparencyMap = {};
 
 	bool InvertNormalMapY = false;
 	bool InvertNormalMapZ = false;
@@ -86,54 +84,46 @@ struct Material
 	TransparencyMode TransparencyMode = TransparencyMode::Additive;
 
 
-	bool HasBasecolorMap() const { return BasecolorMap.has_value(); }
-	bool HasNormalMap() const { return NormalMap.has_value(); }
-	bool HasMetalnessMap() const { return MetalnessMap.has_value(); }
-	bool HasRoughnessMap() const { return RoughnessMap.has_value(); }
-	bool HasAoMap() const { return AoMap.has_value(); }
-	bool HasEmissiveMap() const { return EmissiveMap.has_value(); }
-	bool HasTransparencyMap() const { return TransparencyMap.has_value(); }
-
 
 	bool UsingBasecolorMap() const
 	{
-		return UseBasecolorMap && HasBasecolorMap() && 
+		return UseBasecolorMap && BasecolorMap.has_value() && 
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Basecolor);
 	}
 
 	bool UsingNormalMap() const
 	{
-		return /*UseNormalMap && */HasNormalMap() &&
+		return /*UseNormalMap && */NormalMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Normals);
 	}
 
 	bool UsingMetalnessMap() const
 	{
-		return UseMetalnessMap && HasMetalnessMap() &&
+		return UseMetalnessMap && MetalnessMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Metalness);
 	}
 
 	bool UsingRoughnessMap() const
 	{
-		return UseRoughnessMap && HasRoughnessMap() &&
+		return UseRoughnessMap && RoughnessMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Roughness);
 	}
 
 	bool UsingAoMap() const
 	{
-		return /*UseAoMap && */HasAoMap() &&
+		return /*UseAoMap && */AoMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::AmbientOcclusion);
 	}
 
 	bool UsingEmissiveMap() const
 	{
-		return HasEmissiveMap() &&
+		return EmissiveMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Emissive);
 	}
 
 	bool UsingTransparencyMap() const
 	{
-		return HasTransparencyMap() &&
+		return TransparencyMap.has_value() &&
 			(ActiveSolo == TextureType::Undefined || ActiveSolo == TextureType::Transparency);
 	}
 };

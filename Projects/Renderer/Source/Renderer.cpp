@@ -409,38 +409,28 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	auto& renderable = *_renderables[renderableResId.Id];
 	auto& oldMat = renderable.Mat;
 
-	// Existing ids
-	const auto currentBasecolorMapId = oldMat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto currentNormalMapId = oldMat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto currentRoughnessMapId = oldMat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto currentMetalnessMapId = oldMat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto currentAoMapId = oldMat.AoMap.value_or(_placeholderTexture).Id;
-	const auto currentEmissiveMapId = oldMat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto currentTransparencyMapId = oldMat.TransparencyMap.value_or(_placeholderTexture).Id;
-
-	// New ids
-	const auto basecolorMapId = newMat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto normalMapId = newMat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto roughnessMapId = newMat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto metalnessMapId = newMat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto aoMapId = newMat.AoMap.value_or(_placeholderTexture).Id;
-	const auto emissiveMapId = newMat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto transparencyMapId = newMat.TransparencyMap.value_or(_placeholderTexture).Id;
-
-	// Store new mat
-	renderable.Mat = newMat;
-
+	const auto pid = _placeholderTexture.Id;
+	auto GetId = [pid](const std::optional<Material::Map>& map)
+	{
+		return map.has_value() ? map->Id.Id : pid;
+	};
+	
 
 	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
 	const bool descriptorSetsMatch =
-		currentBasecolorMapId == basecolorMapId &&
-		currentNormalMapId == normalMapId &&
-		currentRoughnessMapId == roughnessMapId &&
-		currentMetalnessMapId == metalnessMapId &&
-		currentAoMapId == aoMapId &&
-		currentEmissiveMapId == emissiveMapId &&
-		currentTransparencyMapId == transparencyMapId;
+		GetId(oldMat.BasecolorMap)    == GetId(newMat.BasecolorMap) &&
+		GetId(oldMat.NormalMap)       == GetId(newMat.NormalMap) &&
+		GetId(oldMat.RoughnessMap)    == GetId(newMat.RoughnessMap) &&
+		GetId(oldMat.MetalnessMap)    == GetId(newMat.MetalnessMap) &&
+		GetId(oldMat.AoMap)           == GetId(newMat.AoMap) &&
+		GetId(oldMat.EmissiveMap)     == GetId(newMat.EmissiveMap) &&
+		GetId(oldMat.TransparencyMap) == GetId(newMat.TransparencyMap);
 
+	
+	// Store new mat
+	renderable.Mat = newMat;
+
+	
 	if (!descriptorSetsMatch)
 	{
 		// NOTE: This is heavy handed as it rebuilds ALL object descriptor sets, not just those using this material
@@ -703,27 +693,23 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	// Create descriptor sets
 	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk->LogicalDevice());
 
-	// Get the id of an existing texture, fallback to placeholder if necessary.
-	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto normalMapId = renderable.Mat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto roughnessMapId = renderable.Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
-	const auto emissiveMapId = renderable.Mat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto transparencyMapId = renderable.Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
+	// Get the id of an existing texture, fallback to placeholder if necessary.
+	const auto pid = _placeholderTexture.Id;
+	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+	
 	WritePbrDescriptorSets(
 		numImagesInFlight,
 		descriptorSets,
 		modelBuffers,
 		_lightBuffers,
-		*_textures[basecolorMapId],
-		*_textures[normalMapId],
-		*_textures[roughnessMapId],
-		*_textures[metalnessMapId],
-		*_textures[aoMapId],
-		*_textures[emissiveMapId],
-		*_textures[transparencyMapId],
+		*_textures[GetId(renderable.Mat.BasecolorMap)],
+		*_textures[GetId(renderable.Mat.NormalMap)],
+		*_textures[GetId(renderable.Mat.RoughnessMap)],
+		*_textures[GetId(renderable.Mat.MetalnessMap)],
+		*_textures[GetId(renderable.Mat.AoMap)],
+		*_textures[GetId(renderable.Mat.EmissiveMap)],
+		*_textures[GetId(renderable.Mat.TransparencyMap)],
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
@@ -1075,26 +1061,22 @@ void Renderer::UpdateRenderableDescriptorSets()
 			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 		}
 
-		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
-		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
-		const auto emissiveMapId = renderable->Mat.EmissiveMap.value_or(_placeholderTexture).Id;
-		const auto transparencyMapId = renderable->Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
-
+		// Get the id of an existing texture, fallback to placeholder if necessary.
+		const auto pid = _placeholderTexture.Id;
+		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+		
 		// Write updated descriptor sets
 		WritePbrDescriptorSets((u32)count, descriptorSets,
 			modelBuffers,
 			_lightBuffers,
-			*_textures[basecolorMapId],
-			*_textures[normalMapId],
-			*_textures[roughnessMapId],
-			*_textures[metalnessMapId],
-			*_textures[aoMapId],
-			*_textures[emissiveMapId],
-			*_textures[transparencyMapId],
+			*_textures[GetId(renderable->Mat.BasecolorMap)],
+			*_textures[GetId(renderable->Mat.NormalMap)],
+			*_textures[GetId(renderable->Mat.RoughnessMap)],
+			*_textures[GetId(renderable->Mat.MetalnessMap)],
+			*_textures[GetId(renderable->Mat.AoMap)],
+			*_textures[GetId(renderable->Mat.EmissiveMap)],
+			*_textures[GetId(renderable->Mat.TransparencyMap)],
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),
