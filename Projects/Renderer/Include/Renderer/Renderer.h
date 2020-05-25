@@ -31,6 +31,7 @@ class Renderer
 {
 public:
 	bool FramebufferResized = false;
+	//VkRenderPass _renderPass = nullptr;
 
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
@@ -113,6 +114,7 @@ private: // Dependencies
 	MeshResourceId _skyboxMesh;
 
 	RenderOptions _lastOptions;
+
 	
 	void InitRenderer();
 	void DestroyRenderer();
@@ -121,11 +123,11 @@ private: // Dependencies
 	void DestroyRenderResourcesDependentOnSwapchain();
 
 
-
 	
 	#pragma region Shared
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
+	static VkRenderPass CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice);
 
 	#pragma endregion Shared
 

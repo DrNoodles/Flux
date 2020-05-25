@@ -1463,8 +1463,6 @@ std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkIma
 
 std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResources(VkFormat format, VkExtent2D extent,
 	VkSampleCountFlagBits msaaSamples,
-	VkCommandPool transferCommandPool,
-	VkQueue transferQueue,
 	VkDevice device,
 	VkPhysicalDevice physicalDevice)
 {
@@ -1495,8 +1493,6 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 
 std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResources(VkExtent2D extent,
 	VkSampleCountFlagBits msaaSamples,
-	VkCommandPool transferCommandPool,
-	VkQueue transferQueue,
 	VkDevice device,
 	VkPhysicalDevice physicalDevice)
 {

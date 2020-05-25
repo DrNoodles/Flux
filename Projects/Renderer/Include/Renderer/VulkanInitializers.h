@@ -22,7 +22,7 @@ namespace vki
 		return x;
 	}
 
-	inline VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(u32 binding, VkDescriptorType descriptorType, VkFlags stageFlags, u32 descriptorCount = 1, const VkSampler* pImmutableSamplers = nullptr)
+	inline VkDescriptorSetLayoutBinding DescriptorSetLayoutBinding(u32 binding, VkDescriptorType descriptorType, VkShaderStageFlags stageFlags, u32 descriptorCount = 1, const VkSampler* pImmutableSamplers = nullptr)
 	{
 		VkDescriptorSetLayoutBinding x = {};
 		x.binding = binding; // correlates to shader

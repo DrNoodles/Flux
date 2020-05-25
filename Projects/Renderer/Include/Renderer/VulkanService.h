@@ -134,6 +134,8 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	VkCommandPool CommandPool() const { return _commandPool; }
 	VkQueue GraphicsQueue() const { return _graphicsQueue; }
 	VkQueue PresentQueue() const { return _presentQueue; }
+
+	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
 	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
 	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
@@ -143,7 +145,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	u32 SwapchainImageCount() const { return (u32)_swapchainImages.size(); }
 	VkExtent2D SwapchainExtent() const { return _swapchainExtent; }
 	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchainFramebuffers; }
-	VkRenderPass RenderPass() const { return _renderPass; }
+	VkRenderPass SwapchainRenderPass() const { return _renderPass; }
 	const std::vector<VkCommandBuffer>& CommandBuffers() const { return _commandBuffers; }
 
 	// Frame rendering
@@ -320,12 +322,10 @@ private: // METHODS ////////////////////////////////////////////////////////////
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
 		std::tie(_colorImage, _colorImageMemory, _colorImageView)
-			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
-				_commandPool, _graphicsQueue, _device, _physicalDevice);
+			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
 		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
-				_physicalDevice);
+			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
 		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UiPresenterHelpers.h"
+
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
 #include "PropsView/TransformVm.h"
@@ -8,6 +10,7 @@
 #include "ViewportView/ViewportView.h"
 
 #include <chrono>
+
 
 
 class LibraryManager;
@@ -61,9 +64,19 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	
+	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
+
+	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
+	//UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
+	
+	//UiPresenterHelpers::PostPassResources _postPassResources;
+
+	
+
 public: // METHODS
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir);
 	~UiPresenter() = default;
+	void Shutdown();
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;

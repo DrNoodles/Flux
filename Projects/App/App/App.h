@@ -104,7 +104,7 @@ public: // METHODS
 
 		// UI
 		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan, options.ShaderDir);
 
 		// Set all teh things
 		_appOptions = std::move(options);
@@ -122,7 +122,8 @@ public: // METHODS
 	App& operator=(App&& other) = delete;
 	~App()
 	{
-		_renderer->CleanUp();
+		_renderer->CleanUp(); // TODO Fix this: Need to do first as renderer cleanup waits for device to idle.
+		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
 		
@@ -393,7 +394,7 @@ private: // METHODS
 			};
 		}
 
-		ImGui_ImplVulkan_Init(&initInfo, _vk->RenderPass());
+		ImGui_ImplVulkan_Init(&initInfo, _vk->SwapchainRenderPass());
 
 
 		// Upload Fonts
