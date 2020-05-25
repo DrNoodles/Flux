@@ -66,10 +66,10 @@ private: // DATA
 	
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 
-	std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
-	UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
+	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
+	//UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
 	
-	UiPresenterHelpers::PostPassResources _postPassResources;
+	//UiPresenterHelpers::PostPassResources _postPassResources;
 
 	
 

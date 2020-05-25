@@ -35,7 +35,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	auto width = _vulkan.SwapchainExtent().width;
 	auto height = _vulkan.SwapchainExtent().height;
 
-
+	/*
 	// Offscreen renderpass setup
 	{
 		auto&& tex = UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan);
@@ -45,15 +45,17 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	}
 	
 	_postPassResources = uvh::CreatePostPassResources(_offscreenTextureResource->DescriptorImageInfo(), vulkan.SwapchainImageCount(), shaderDir, vulkan);
-
+	*/
 }
 
 void UiPresenter::Shutdown()
 {
+	/*
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	
 	_offscreenFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_offscreenTextureResource = nullptr;
+	*/
 }
 
 void UiPresenter::NextSkybox()
@@ -293,7 +295,31 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	// Draw
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
+void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
+{
+	const auto swapchainExtent = _vulkan.SwapchainExtent();
+	
+	std::vector<VkClearValue> clearColors(2);
+	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
+	// Draw scene to screen
+	{
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+			_vulkan.SwapchainRenderPass(), 
+			_vulkan.SwapchainFramebuffers()[imageIndex],
+			vki::Rect2D({0,0}, swapchainExtent), 
+			clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			DrawViewport(imageIndex, commandBuffer);
+			DrawUi(commandBuffer);
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+}
+/*
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	const auto swapchainExtent = _vulkan.SwapchainExtent();
@@ -306,7 +332,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	
 	// Prep offscreen texture for writing to 
 	{
-		const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+		const auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
 
 		vkh::TransitionImageLayout(cmdBuf,
 			_offscreenTextureResource->Image(),
@@ -316,7 +342,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
 	}
-
+	
 	
 	// Draw scene to gbuf
 	{
@@ -387,6 +413,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		vkCmdEndRenderPass(commandBuffer);
 	}
 }
+*/
 
 void UiPresenter::LoadDemoScene()
 {

@@ -31,7 +31,7 @@ class Renderer
 {
 public:
 	bool FramebufferResized = false;
-	VkRenderPass _renderPass = nullptr;
+	//VkRenderPass _renderPass = nullptr;
 
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
