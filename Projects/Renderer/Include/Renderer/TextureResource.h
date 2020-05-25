@@ -4,10 +4,8 @@
 
 #include <Framework/CommonTypes.h>
 
-#include <vulkan/vulkan.h>
-
-#include <cassert>
 #include <stbi/stb_image.h>
+#include <vulkan/vulkan.h>
 
 using vkh = VulkanHelpers;
 

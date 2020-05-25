@@ -96,14 +96,15 @@ public: // METHODS
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this);
-
+	
+		
 		// Controllers
 		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
 		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan);
 
 		// Set all teh things
 		_appOptions = std::move(options);
@@ -123,18 +124,19 @@ public: // METHODS
 	{
 		_renderer->CleanUp();
 		DestroyImgui();
-		_vulkanService->DestroyVulkanSwapchain();
-		_vulkanService->DestroyVulkan();
-
+		_vulkanService->Shutdown();
+		
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
 	
 	void Run()
 	{
+		// Init the things
 		InitImgui();
 		LoadEmptyScene();
 
+		
 		// Update UI only as quickly as the monitor's refresh rate
 		const auto* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 		if (videoMode) {

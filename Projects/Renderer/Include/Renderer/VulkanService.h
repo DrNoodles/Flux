@@ -8,8 +8,6 @@
 
 #include <vulkan/vulkan.h>
 
-//using vkh = VulkanHelpers;
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class IVulkanServiceDelegate
@@ -66,7 +64,69 @@ public:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class VulkanService
 {
-public:
+public: // DATA ///////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+private: // DATA //////////////////////////////////////////////////////////////////////////////////////////////////////
+	bool FramebufferResized; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
+	
+	// Dependencies
+	IVulkanServiceDelegate* _delegate = nullptr;
+
+	// Data
+	bool _enableValidationLayers = false;
+	bool _vsync = false;
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	const size_t _maxFramesInFlight = 2;
+	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
+	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+	// Core vulkan
+	VkInstance _instance = nullptr;
+	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
+	VkPhysicalDevice _physicalDevice = nullptr;
+	VkDevice _device = nullptr;
+	VkCommandPool _commandPool = nullptr;
+
+	VkQueue _graphicsQueue = nullptr;
+	VkQueue _presentQueue = nullptr;
+
+	VkSurfaceKHR _surface = nullptr;
+
+
+	// Swapchain and dependencies
+
+	VkSwapchainKHR _swapchain = nullptr;
+	VkFormat _swapchainImageFormat{};
+	VkExtent2D _swapchainExtent{};
+	std::vector<VkFramebuffer> _swapchainFramebuffers{};
+	std::vector<VkImage> _swapchainImages{};
+	std::vector<VkImageView> _swapchainImageViews{};
+	
+
+	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _colorImage = nullptr;
+	VkDeviceMemory _colorImageMemory = nullptr;
+	VkImageView _colorImageView = nullptr;
+
+	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _depthImage = nullptr;
+	VkDeviceMemory _depthImageMemory = nullptr;
+	VkImageView _depthImageView = nullptr;
+
+	VkRenderPass _renderPass = nullptr;
+
+	std::vector<VkCommandBuffer> _commandBuffers{};
+
+	// Synchronization
+	std::vector<VkSemaphore> _renderFinishedSemaphores{};
+	std::vector<VkSemaphore> _imageAvailableSemaphores{};
+	std::vector<VkFence> _inFlightFences{};
+	std::vector<VkFence> _imagesInFlight{};
+
+	size_t _currentFrame = 0;
+
+	
+public: // METHODS ////////////////////////////////////////////////////////////////////////////////////////////////////
 	VkDevice LogicalDevice() const { return _device; }
 	VkInstance Instance() const { return _instance; }
 	VkSurfaceKHR Surface() const { return _surface; }
@@ -97,104 +157,21 @@ public:
 	{
 		_enableValidationLayers = enableValidationLayers;
 		_vsync = vsync;
-	}
-
-	void InitVulkan()
-	{
-		_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
-
-		if (_enableValidationLayers)
-		{
-			_debugMessenger = vkh::SetupDebugMessenger(_instance);
-		}
-
-		_surface = _delegate->CreateSurface(_instance);
-
-		std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
-
-		std::tie(_device, _graphicsQueue, _presentQueue)
-			= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
-
-		_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
-	}
-	void DestroyVulkan()
-	{
-		vkDestroyCommandPool(_device, _commandPool, nullptr);
-		vkDestroyDevice(_device, nullptr);
-		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-		vkDestroyInstance(_instance, nullptr);
-	}
-
-
-	void InitVulkanSwapchainAndDependants(int width, int height)
-	{
-		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
-
-		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
-			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
-
-		std::tie(_colorImage, _colorImageMemory, _colorImageView)
-			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
-				_commandPool, _graphicsQueue, _device, _physicalDevice);
-
-		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
-				_physicalDevice);
-
-		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
-
-		_swapchainFramebuffers
-			= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
-				_swapchainExtent, _renderPass);
-
-		_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
 
 		
-		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
-		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
-			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
-	}
-	void DestroyVulkanSwapchain()
-	{
-		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
-		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		const auto size = delegate->GetFramebufferSize();
 
-		
-		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
-
-
-		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-
-		// Swapchain attachments
-		vkDestroyImageView(_device, _colorImageView, nullptr);
-		vkDestroyImage(_device, _colorImage, nullptr);
-		vkFreeMemory(_device, _colorImageMemory, nullptr);
-
-		vkDestroyImageView(_device, _depthImageView, nullptr);
-		vkDestroyImage(_device, _depthImage, nullptr);
-		vkFreeMemory(_device, _depthImageMemory, nullptr);
-
-
-		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
-		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-	}
-
-
-	void RecreateSwapchain()
-	{
-		auto size = _delegate->WaitTillFramebufferHasSize();
-		
-		vkDeviceWaitIdle(_device);
-		
-		DestroyVulkanSwapchain();
+		InitVulkan();
 		InitVulkanSwapchainAndDependants(size.width, size.height);
 
-		_delegate->NotifySwapchainUpdated(size.width, size.height, SwapchainImageCount());
 	}
 
+	void Shutdown()
+	{
+		DestroyVulkanSwapchain();
+		DestroyVulkan();
+	}
+	
 	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
 	{
 		// Sync CPU-GPU
@@ -235,26 +212,13 @@ public:
 		{
 			throw std::runtime_error("Failed to begin recording command buffer");
 		}
-
-		// Begin recording renderpass
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 0.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-	
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderPass, _swapchainFramebuffers[imageIndex],
-			vki::Rect2D(vki::Offset2D(0, 0), _swapchainExtent), clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-
 		
 		return std::tuple<u32, VkCommandBuffer>{ imageIndex, commandBuffer };
 	}
 
 	void EndFrame(u32 imageIndex, VkCommandBuffer commandBuffer)
 	{
-		// End rendering
-		vkCmdEndRenderPass(commandBuffer);
+		// End recording
 		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to end recording command buffer");
@@ -318,62 +282,105 @@ public:
 	}
 
 
+private: // METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+	void InitVulkan()
+	{
+		_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
+
+		if (_enableValidationLayers)
+		{
+			_debugMessenger = vkh::SetupDebugMessenger(_instance);
+		}
+
+		_surface = _delegate->CreateSurface(_instance);
+
+		std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
+
+		std::tie(_device, _graphicsQueue, _presentQueue)
+			= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
+
+		_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
+	}
+
+	void DestroyVulkan() const
+	{
+		vkDestroyCommandPool(_device, _commandPool, nullptr);
+		vkDestroyDevice(_device, nullptr);
+		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+	}
+
+	void InitVulkanSwapchainAndDependants(int width, int height)
+	{
+		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
+
+		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
+			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
+
+		std::tie(_colorImage, _colorImageMemory, _colorImageView)
+			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples,
+				_commandPool, _graphicsQueue, _device, _physicalDevice);
+
+		std::tie(_depthImage, _depthImageMemory, _depthImageView)
+			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _commandPool, _graphicsQueue, _device,
+				_physicalDevice);
+
+		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
+
+		_swapchainFramebuffers
+			= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
+				_swapchainExtent, _renderPass);
+
+		_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
+
+		
+		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
+		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
+			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
+	}
+
+public:
+
+
 private:
-	bool FramebufferResized; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
-	
-	// Dependencies
-	IVulkanServiceDelegate* _delegate = nullptr;
+	void DestroyVulkanSwapchain()
+	{
+		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
+		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
+		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 
-	// Data
-	bool _enableValidationLayers = false;
-	bool _vsync = false;
-	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-	const size_t _maxFramesInFlight = 2;
-	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
-	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-	// Core vulkan
-	VkInstance _instance = nullptr;
-	VkDebugUtilsMessengerEXT _debugMessenger = nullptr;
-	VkPhysicalDevice _physicalDevice = nullptr;
-	VkDevice _device = nullptr;
-	VkCommandPool _commandPool = nullptr;
-
-	VkQueue _graphicsQueue = nullptr;
-	VkQueue _presentQueue = nullptr;
-
-	VkSurfaceKHR _surface = nullptr;
+		
+		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
 
 
-	// Swapchain and dependencies
+		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
 
-	VkSwapchainKHR _swapchain = nullptr;
-	VkFormat _swapchainImageFormat{};
-	VkExtent2D _swapchainExtent{};
-	std::vector<VkFramebuffer> _swapchainFramebuffers{};
-	std::vector<VkImage> _swapchainImages{};
-	std::vector<VkImageView> _swapchainImageViews{};
-	
+		// Swapchain attachments
+		vkDestroyImageView(_device, _colorImageView, nullptr);
+		vkDestroyImage(_device, _colorImage, nullptr);
+		vkFreeMemory(_device, _colorImageMemory, nullptr);
 
-	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _colorImage = nullptr;
-	VkDeviceMemory _colorImageMemory = nullptr;
-	VkImageView _colorImageView = nullptr;
+		vkDestroyImageView(_device, _depthImageView, nullptr);
+		vkDestroyImage(_device, _depthImage, nullptr);
+		vkFreeMemory(_device, _depthImageMemory, nullptr);
 
-	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _depthImage = nullptr;
-	VkDeviceMemory _depthImageMemory = nullptr;
-	VkImageView _depthImageView = nullptr;
 
-	VkRenderPass _renderPass = nullptr;
+		vkDestroyRenderPass(_device, _renderPass, nullptr);
+		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	}
 
-	std::vector<VkCommandBuffer> _commandBuffers{};
+	void RecreateSwapchain()
+	{
+		auto size = _delegate->WaitTillFramebufferHasSize();
+		
+		vkDeviceWaitIdle(_device);
+		
+		DestroyVulkanSwapchain();
+		InitVulkanSwapchainAndDependants(size.width, size.height);
 
-	// Synchronization
-	std::vector<VkSemaphore> _renderFinishedSemaphores{};
-	std::vector<VkSemaphore> _imageAvailableSemaphores{};
-	std::vector<VkFence> _inFlightFences{};
-	std::vector<VkFence> _imagesInFlight{};
-
-	size_t _currentFrame = 0;
+		_delegate->NotifySwapchainUpdated(size.width, size.height, SwapchainImageCount());
+	}
 };

@@ -23,7 +23,7 @@ class IRendererDelegate
 {
 public:
 	virtual ~IRendererDelegate() = default;
-	virtual VkExtent2D GetFramebufferSize() = 0;
+	//virtual VkExtent2D GetFramebufferSize() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ public:
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
 
-	void DrawFrame(VkCommandBuffer commandBuffer, u32 frameIndex, 
+	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
 		const RenderOptions& options,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
@@ -158,8 +158,7 @@ private: // Dependencies
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
-			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
-			const VkExtent2D& swapchainExtent);
+			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
 	const TextureResource& GetIrradianceTextureResource() const
 	{
