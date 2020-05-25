@@ -508,7 +508,7 @@ private: // METHODS
 	
 	void LoadDefaultScene()
 	{
-		const bool loadDemo = true;
+		const bool loadDemo = false;
 		if (loadDemo)
 		{
 			LoadDemoScene();
