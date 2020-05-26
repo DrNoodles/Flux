@@ -66,8 +66,7 @@ void UiPresenter::NextSkybox()
 
 void UiPresenter::LoadSkybox(const std::string& path) const
 {
-	const SkyboxResourceId resId = _scene.LoadSkybox(path);
-	_scene.SetSkybox(resId);
+	const SkyboxResourceId resId = _scene.LoadAndSetSkybox(path);
 }
 
 void UiPresenter::DeleteSelected()
@@ -169,14 +168,13 @@ void UiPresenter::BuildImGui()
 			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
 			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
 
-			auto& entsView = _scene.EntitiesView();
+			const auto& entsView = _scene.EntitiesView();
 			std::vector<Entity*> allEnts{entsView.size()};
 			std::transform(entsView.begin(), entsView.end(), allEnts.begin(), [](const std::unique_ptr<Entity>& pe)
 			{
 				return pe.get();
 			});
-			IblVm iblVm{ &_renderOptions };
-			_sceneView.BuildUI(allEnts, _selection, iblVm);
+			_sceneView.BuildUI(allEnts, _selection);
 		}
 
 
@@ -278,7 +276,7 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		
 	_renderer.Draw(
-		commandBuffer, imageIndex, _renderOptions,
+		commandBuffer, imageIndex, _scene.GetRenderOptions(),
 		renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
 }
 
@@ -418,7 +416,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 void UiPresenter::LoadDemoScene()
 {
 	printf("LoadDemoScene()\n");
-	_delegate.LoadDemoScene();
+	_library.LoadDemoScene();
 	ClearSelection();
 	FrameSelectionOrAll();
 }
@@ -426,7 +424,7 @@ void UiPresenter::LoadDemoScene()
 void UiPresenter::LoadHeavyDemoScene()
 {
 	printf("LoadHeavyDemoScene()\n");
-	_delegate.LoadDemoSceneHeavy();
+	_library.LoadDemoSceneHeavy();
 	ClearSelection();
 	FrameSelectionOrAll();
 }
@@ -537,44 +535,30 @@ void UiPresenter::DeleteAll()
 	std::vector<int> ids{};
 	std::for_each(entities.begin(), entities.end(),
 	              [&ids](const std::unique_ptr<Entity>& e) { ids.emplace_back(e->Id); });
+
 	_delegate.Delete(ids);
 }
 
-const RenderOptions& UiPresenter::GetRenderOptions()
+RenderOptions UiPresenter::GetRenderOptions()
 {
-	return _renderOptions;
+	return _scene.GetRenderOptions();
 }
 
 void UiPresenter::SetRenderOptions(const RenderOptions& ro)
 {
-	_renderOptions = ro;
+	_scene.SetRenderOptions(ro);
 }
 
-void UiPresenter::LoadSkybox()
+void UiPresenter::LoadAndSetSkybox()
 {
-	printf("LoadSkybox()\n");
-
-	const auto path = FileService::FilePicker("Load equirectangular map", { "*.hdr" }, "HDR");
-
-	if (path.empty())
-		return;
+	printf("LoadAndSetSkybox()\n");
 	
-	const auto resourceId = _scene.LoadSkybox(path);
-	_scene.SetSkybox(resourceId);
-
+	const auto path = FileService::FilePicker("Load equirectangular map", { "*.hdr" }, "HDR");
+	if (!path.empty()) {
+		_scene.LoadAndSetSkybox(path);
+	}
 	// TODO Figure out what to do with the active skybox. Need to design the UI solution first.
 	//_activeSkybox = idx;
-}
-
-float UiPresenter::GetSkyboxRotation() const
-{
-	return _renderOptions.SkyboxRotation;
-}
-
-void UiPresenter::SetSkyboxRotation(float rotation)
-{
-	printf("SetSkyboxRotation(%f)\n", rotation);
-	_renderOptions.SkyboxRotation = rotation;
 }
 
 const std::vector<SkyboxInfo>& UiPresenter::GetSkyboxList()
@@ -585,9 +569,7 @@ const std::vector<SkyboxInfo>& UiPresenter::GetSkyboxList()
 void UiPresenter::SetActiveSkybox(u32 idx)
 {
 	const auto& skyboxInfo = _library.GetSkyboxes()[idx];
-	const auto resourceId = _scene.LoadSkybox(skyboxInfo.Path);
-	_scene.SetSkybox(resourceId);
-
+	_scene.LoadAndSetSkybox(skyboxInfo.Path);
 	_activeSkybox = idx;
 }
 
@@ -666,8 +648,8 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	
 	auto UpdateMap = [&](const std::string& newPath, Material& targetMat, const TextureType type)
 	{
-		std::optional<Material::Map>* pMap = nullptr;
-
+		std::optional<Material::Map>* pMap;
+		
 		switch (type)
 		{
 		case TextureType::Basecolor:        pMap = &targetMat.BasecolorMap;    break;

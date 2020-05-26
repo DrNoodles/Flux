@@ -8,7 +8,6 @@
 #include <Renderer/CubemapTextureLoader.h>
 #include <Renderer/Renderer.h>
 #include <Renderer/VulkanService.h>
-#include <State/Entity/Actions/TurntableActionComponent.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
@@ -97,8 +96,8 @@ public: // METHODS
 		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this);
 	
 		// Controllers
-		auto scene = std::make_unique<SceneManager>(this);
-		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
+		auto scene = std::make_unique<SceneManager>(*this, *modelLoaderService);
+		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
 		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
@@ -133,7 +132,7 @@ public: // METHODS
 	{
 		// Init the things
 		InitImgui();
-		LoadEmptyScene();
+		_library->LoadEmptyScene();
 
 		
 		// Update UI only as quickly as the monitor's refresh rate
@@ -171,8 +170,15 @@ public: // METHODS
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
 			if (!_defaultSceneLoaded)
 			{
+				if (_appOptions.LoadDemoScene) {
+					_library->LoadDemoScene();
+				} else {
+					_library->LoadDefaultScene();
+				}
+
+				_ui->FrameSelectionOrAll();
+				
 				_defaultSceneLoaded = true;
-				LoadDefaultScene();
 			}
 		}
 	}
@@ -429,31 +435,6 @@ private: // METHODS
 		}
 	}
 
-	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadDemoScene() override
-	{
-		std::cout << "Loading scene\n";
-
-		LoadMaterialExamples();
-		LoadGrapple();
-		
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		
-		auto ro = _ui->GetRenderOptions();
-		ro.IblStrength = 2.5f;
-		ro.SkyboxRotation = 290;
-		ro.BackdropBrightness = 0.3f;
-		_ui->SetRenderOptions(ro);
-	}
-
-	void LoadDemoSceneHeavy() override
-	{
-		std::cout << "Loading scene\n";
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-		LoadAxis();
-		LoadObjectArray({ 0,0,0 }, 30, 30);
-	}
-
 	#pragma endregion
 
 	
@@ -496,452 +477,6 @@ private: // METHODS
 	#pragma endregion
 
 	
-	
-	#pragma region Scene Management // TODO move out of App.h
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadEmptyScene()
-	{
-		_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-	}
-	
-	void LoadDefaultScene()
-	{
-		if (_appOptions.LoadDemoScene)
-		{
-			LoadDemoScene();
-		}
-		else
-		{
-			_ui->LoadSkybox(_library->GetSkyboxes()[0].Path);
-			LoadObjectArray();
-		}
-		
-		_ui->FrameSelectionOrAll();
-	}
-
-	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
-	{
-		std::cout << "Loading material array" << std::endl;
-
-		glm::vec3 center = offset;
-		auto rowSpacing = 2.1f;
-		auto colSpacing = 2.1f;
-
-		u32 count = 0;
-		
-		for (u32 row = 0; row < numRows; row++)
-		{
-			f32 metalness = row / f32(numRows - 1);
-
-			f32 height = f32(numRows - 1) * rowSpacing;
-			f32 hStart = height / 2.f;
-			f32 y = center.y + hStart + -rowSpacing * row;
-
-			for (u32 col = 0; col < numColumns; col++)
-			{
-				f32 roughness = col / f32(numColumns - 1);
-
-				f32 width = f32(numColumns - 1) * colSpacing;
-				f32 wStart = -width / 2.f;
-				f32 x = center.x + wStart + colSpacing * col;
-
-				char name[256];
-				sprintf_s(name, 256, "Obj M:%.2f R:%.2f", metalness, roughness);
-				
-				auto entity = _library->CreateBlob();
-				entity->Name = name;
-				entity->Transform.SetPos({ x,y,0.f });
-				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-				
-				// config mat
-				Material mat = {};
-				mat.Basecolor = glm::vec3{ 1 };
-				mat.Roughness = roughness;
-				mat.Metalness = metalness;
-
-				_scene->SetMaterial(*entity->Renderable, mat);
-
-				_scene->AddEntity(std::move(entity));
-
-				++count;
-			}
-		}
-
-		std::cout << "Material array obj count: " << count << std::endl; 
-	}
-
-	void LoadMaterialExamples()
-	{
-		std::cout << "Loading axis" << std::endl;
-
-		std::string basecolorPath;
-		std::string normalPath;
-		std::string ormPath;
-
-		auto ApplyMat = [&](RenderableComponent& renComp)
-		{
-			Material mat;
-			
-			// Load basecolor map
-			mat.BasecolorMap = { *_scene->LoadTexture(basecolorPath), basecolorPath };
-			mat.UseBasecolorMap = true;
-
-			// Load normal map
-			mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
-
-			// Load occlusion map
-			mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
-			mat.AoMapChannel = Material::Channel::Red;
-			
-			// Load roughness map
-			mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-			mat.UseRoughnessMap = true;
-			mat.RoughnessMapChannel = Material::Channel::Green;
-
-			// Load metalness map
-			mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-			mat.UseMetalnessMap = true;
-			mat.MetalnessMapChannel = Material::Channel::Blue;
-
-			_scene->SetMaterial(renComp, mat);
-		};
-
-		
-		{  // Sphere
-			auto entity = _library->CreateSphere();
-			entity->Name = "Sphere";
-			entity->Transform.SetScale(glm::vec3(1));
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png";
-			ormPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png";
-			normalPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-		
-		{  // GreasyPan
-			auto entity = _library->CreateBlob();
-			entity->Name = "GreasyPan";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _appOptions.AssetsDir + "Materials/GreasyPan/BaseColor.png";
-			ormPath = _appOptions.AssetsDir + "Materials/GreasyPan/ORM.png";
-			normalPath = _appOptions.AssetsDir + "Materials/GreasyPan/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-
-		{  // Gold
-			auto entity = _library->CreateBlob();
-			entity->Name = "Gold";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _appOptions.AssetsDir + "Materials/GoldScuffed/BaseColor.png";
-			ormPath = _appOptions.AssetsDir + "Materials/GoldScuffed/ORM.png";
-			normalPath = _appOptions.AssetsDir + "Materials/GoldScuffed/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-
-		{  // Rusted Metal
-			auto entity = _library->CreateBlob();
-			entity->Name = "RustedMetal";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _appOptions.AssetsDir + "Materials/RustedMetal/BaseColor.png";
-			ormPath = _appOptions.AssetsDir + "Materials/RustedMetal/ORM.png";
-			normalPath = _appOptions.AssetsDir + "Materials/RustedMetal/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-
-		{  // Bumpy Plastic
-			auto entity = _library->CreateBlob();
-			entity->Name = "BumpyPlastic";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/BaseColor.png";
-			ormPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png";
-			normalPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-	}
-
-	void LoadGrapple()
-	{
-		const auto path = _appOptions.ModelsDir + "grapple/export/grapple.gltf";
-		std::cout << "Loading model:" << path << std::endl;
-
-
-		// Load renderable
-		auto renderableComponent = _scene->LoadRenderableComponentFromFile(path);
-		if (!renderableComponent.has_value())
-		{
-			throw std::invalid_argument("Couldn't load model"); // Throwing here cuz this is a bug, not user data error
-		}
-
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "GrappleHook";
-		entity->Transform.SetPos(glm::vec3{ 0, -3, 0 });
-		entity->Transform.SetRot(glm::vec3{ 0, 30, 0 });
-		entity->Renderable = std::move(renderableComponent);
-		//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-		RenderableResourceId resourceId;
-		std::string basecolorPath;
-		std::string normalPath;
-		std::string ormPath;
-		std::string emissivePath;
-
-		auto ApplyMat = [&]()
-		{
-			auto GetOptionalRes = [&](const std::string& texturePath)
-			{
-				auto optRes = _scene->LoadTexture(texturePath);
-				return optRes ? std::optional(Material::Map{optRes.value(), texturePath}) : std::nullopt;
-			};
-
-			auto matCopy = _scene->GetMaterial(resourceId);
-			
-			// Load basecolor map
-			matCopy.BasecolorMap = GetOptionalRes(basecolorPath);
-			matCopy.UseBasecolorMap = matCopy.BasecolorMap.has_value();
-
-			// Load normal map
-			matCopy.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
-
-			// Load occlusion map
-			matCopy.AoMap = GetOptionalRes(ormPath);
-			matCopy.AoMapChannel = Material::Channel::Red;
-			
-			// Load roughness map
-			matCopy.RoughnessMap = GetOptionalRes(ormPath);
-			matCopy.UseRoughnessMap = matCopy.RoughnessMap.has_value();
-			matCopy.RoughnessMapChannel = Material::Channel::Green;
-
-			// Load metalness map
-			matCopy.MetalnessMap = GetOptionalRes(ormPath);
-			matCopy.UseMetalnessMap = matCopy.MetalnessMap.has_value();
-			matCopy.MetalnessMapChannel = Material::Channel::Blue;
-
-			// Load emissive map
-			matCopy.EmissiveMap = GetOptionalRes(emissivePath);
-			matCopy.EmissiveIntensity = 5;
-
-			_scene->SetMaterial(resourceId, matCopy);
-		};
-
-		
-		// Add maps to material
-		{
-			// Barrel
-			{
-				resourceId = entity->Renderable->GetSubmeshes()[0].Id;
-				basecolorPath = _appOptions.ModelsDir + "grapple/export/Barrel_Basecolor.png";
-				normalPath = _appOptions.ModelsDir + "grapple/export/Barrel_Normal.png";
-				ormPath = _appOptions.ModelsDir + "grapple/export/Barrel_ORM.png";
-				emissivePath = _appOptions.ModelsDir + "grapple/export/Barrel_Emissive.png";
-				ApplyMat();
-			}
-			// Hook
-			{
-				resourceId = entity->Renderable->GetSubmeshes()[1].Id;
-				basecolorPath = _appOptions.ModelsDir + "grapple/export/Hook_Basecolor.png";
-				normalPath = _appOptions.ModelsDir + "grapple/export/Hook_Normal.png";
-				ormPath = _appOptions.ModelsDir + "grapple/export/Hook_ORM.png";
-				emissivePath = "";
-				ApplyMat();
-			}
-			// Stock
-			{
-				resourceId = entity->Renderable->GetSubmeshes()[2].Id;
-				basecolorPath = _appOptions.ModelsDir + "grapple/export/Stock_Basecolor.png";
-				normalPath = _appOptions.ModelsDir + "grapple/export/Stock_Normal.png";
-				ormPath = _appOptions.ModelsDir + "grapple/export/Stock_ORM.png";
-				emissivePath = _appOptions.ModelsDir + "grapple/export/Stock_Emissive.png";
-				ApplyMat();
-			}
-		}
-
-		
-		_scene->AddEntity(std::move(entity));
-	}
-
-	void LoadAxis()
-	{
-		std::cout << "Loading axis" << std::endl;
-
-		auto scale = glm::vec3{ 0.5f };
-		f32 dist = 1;
-
-		// Pivot
-		{
-			auto entity = _library->CreateSphere();
-			entity->Name = "Axis-Pivot";
-			entity->Transform.SetScale(scale*0.5f);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-
-
-			{
-				Material mat;
-
-				auto basePath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/BaseColor.png";
-				auto ormPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/ORM.png";
-				auto normalPath = _appOptions.AssetsDir + "Materials/ScuffedAluminum/Normal.png";
-				
-				mat.UseBasecolorMap = true;
-				mat.BasecolorMap = { *_scene->LoadTexture(basePath), basePath };
-
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
-				
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-				
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-
-				_scene->SetMaterial(*entity->Renderable, mat);
-			}
-
-			_scene->AddEntity(std::move(entity));
-		}
-		
-		// X
-		{
-			auto entity = _library->CreateSphere();
-			entity->Name = "Axis-X";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
-
-			Material mat{};
-			{
-				mat.Basecolor = { 1,0,0 };
-
-				const auto normalPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/Normal.png";
-				const auto ormPath = _appOptions.AssetsDir + "Materials/BumpyPlastic/ORM.png";
-				
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
-
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-			}
-			_scene->SetMaterial(*entity->Renderable, mat);
-
-			_scene->AddEntity(std::move(entity));
-		}
-		
-		// Y
-		{
-			auto entity = _library->CreateSphere();
-			entity->Name = "Axis-Y";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
-			
-			Material mat{};
-			mat.Basecolor = { 0,1,0 };
-			mat.Roughness = 0;
-			_scene->SetMaterial(*entity->Renderable, mat);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-		
-		// Z
-		{
-			auto entity = _library->CreateSphere();
-			entity->Name = "Axis-Z";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
-			
-			Material mat{};
-			mat.Basecolor = { 0,0,1 };
-			mat.Roughness = 0;
-			_scene->SetMaterial(*entity->Renderable, mat);
-			
-			_scene->AddEntity(std::move(entity));
-		}
-	}
-
-	void LoadLighting()
-	{
-		auto RandF = [] (float min, float max)
-		{
-			const auto base = float(rand()) / RAND_MAX;
-			return min + base * (max - min);
-		};
-		
-		// Directional light
-		auto dirLight = std::make_unique<Entity>();
-		dirLight->Name = "PointLight";
-		dirLight->Transform.SetPos({ -1, -1, -1});
-		dirLight->Light = LightComponent{};
-		dirLight->Light->Color = { 1,1,1 };
-		dirLight->Light->Intensity = 20;
-		dirLight->Light->Type = LightComponent::Types::directional;
-		_scene->AddEntity(std::move(dirLight));
-
-		// Max random lights
-		for (int i = 0; i < 7; i++)
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight";
-			light->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
-			light->Light = LightComponent{};
-			light->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::point;
-			_scene->AddEntity(std::move(light));
-		}
-	}
-
-	void RandomizeLights()
-	{
-		for (auto& entity : _scene->EntitiesView())
-		{
-			if (entity->Light.has_value())
-			{
-				entity->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
-				entity->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
-			}
-		}
-	}
-	
-	#pragma endregion
-
-
 	
 	#pragma region GLFW Callbacks, event handling
 
@@ -991,7 +526,6 @@ private: // METHODS
 
 		//if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
 		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
-		if (key == GLFW_KEY_L)      { RandomizeLights(); }
 		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
 		if (key == GLFW_KEY_N)      { _updateEntities = !_updateEntities; }
 		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
@@ -1082,12 +616,8 @@ private: // METHODS
 
 
 	
-	#pragma region ILibraryManagerDelegate
-
-	std::optional<ModelDefinition> LoadModel(const std::string& path) override
-	{
-		return _modelLoaderService->LoadModel(path);
-	}
+	#pragma region ISceneManagerDelegate
+	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
 		return _renderer->CreateTextureResource(path);
