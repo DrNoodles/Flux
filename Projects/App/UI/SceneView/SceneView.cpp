@@ -1,6 +1,5 @@
 
 #include "SceneView.h"
-#include "IblVm.h"
 
 #include <State/LibraryManager.h> //SkyboxInfo
 #include <Framework/FileService.h>

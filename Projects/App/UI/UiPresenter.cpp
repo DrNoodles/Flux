@@ -1,7 +1,6 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
-#include "SceneView/IblVm.h"
 #include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
