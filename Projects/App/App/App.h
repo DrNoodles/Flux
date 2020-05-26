@@ -33,16 +33,26 @@
 #include <vector>
 
 
+class IWindowEventHandler
+{
+public:
+	virtual ~IWindowEventHandler() = default;
+	virtual void OnWindowSizeChanged(int width, int height) = 0;
+	virtual void OnCursorPosChanged(double xPos, double yPos) = 0;
+	virtual void OnKeyCallback(int key, int scancode, int action, int mods) = 0;
+	virtual void OnScrollChanged(double xOffset, double yOffset) = 0;
+};
 
 class App;
-inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
+inline std::unordered_map<GLFWwindow*, IWindowEventHandler*> g_windowMap;
 
 
 class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
-	public IVulkanServiceDelegate
+	public IVulkanServiceDelegate,
+	public IWindowEventHandler
 {
 public: // DATA
 	bool FramebufferResized = false;
@@ -503,7 +513,7 @@ private: // METHODS
 	}
 
 	// Event handlers
-	void OnScrollChanged(double xOffset, double yOffset)
+	void OnScrollChanged(double xOffset, double yOffset) override
 	{
 		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
@@ -513,7 +523,7 @@ private: // METHODS
 		
 		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
 	}
-	void OnKeyCallback(int key, int scancode, int action, int mods)
+	void OnKeyCallback(int key, int scancode, int action, int mods) override
 	{
 		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
@@ -530,7 +540,7 @@ private: // METHODS
 		if (key == GLFW_KEY_N)      { _updateEntities = !_updateEntities; }
 		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
 	}
-	void OnCursorPosChanged(double xPos, double yPos)
+	void OnCursorPosChanged(double xPos, double yPos) override
 	{
 		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 		ImGuiIO& io = ImGui::GetIO();
@@ -590,7 +600,7 @@ private: // METHODS
 			}
 		}
 	}
-	void OnWindowSizeChanged(int width, int height)
+	void OnWindowSizeChanged(int width, int height) override
 	{
 		FramebufferResized = true;
 		_windowSize.x = width;
