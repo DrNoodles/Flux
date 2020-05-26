@@ -3,7 +3,6 @@
 
 #include <State/LibraryManager.h> //SkyboxInfo
 #include <Framework/FileService.h>
-#include <Renderer/Renderer.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h> // for ImGui::PushItemFlag() to enable disabling of widgets https://github.com/ocornut/imgui/issues/211
@@ -14,8 +13,6 @@
 
 void SceneView::BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection) const
 {
-	assert(_delegate); // Delegate must be set
-	
 	const ImGuiWindowFlags paneFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove
 		| ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
