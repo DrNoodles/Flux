@@ -26,12 +26,10 @@ public:
 	virtual void DeleteSelected() = 0;
 	virtual void DeleteAll() = 0;
 	
-	virtual const RenderOptions& GetRenderOptions() = 0;
+	virtual RenderOptions GetRenderOptions() = 0;
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;
 
-	virtual void LoadSkybox() = 0;
-	virtual float GetSkyboxRotation() const = 0;
-	virtual void SetSkyboxRotation(float skyboxRotation) = 0;
+	virtual void LoadAndSetSkybox() = 0;
 	virtual const std::vector<SkyboxInfo>& GetSkyboxList() = 0;
 	virtual u32 GetActiveSkybox() const = 0;
 	virtual void SetActiveSkybox(u32 idx) = 0;
@@ -41,18 +39,18 @@ class SceneView
 {
 public:
 private:
-	ISceneViewDelegate* _delegate = nullptr;
+	ISceneViewDelegate* _del = nullptr;
 
 public:
 	SceneView() = delete;
-	explicit SceneView(ISceneViewDelegate* delegate) : _delegate{ delegate } {}
-	void BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, IblVm& iblVm) const;
+	explicit SceneView(ISceneViewDelegate* delegate) : _del{ delegate } {}
+	void BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection) const;
 	
 private:
 	void SceneLoadPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void CreationPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_set<Entity*>& selection, ImGuiTreeNodeFlags headerFlags) const;
-	void IblPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const;
-	void BackdropPanel(IblVm& iblVm, ImGuiTreeNodeFlags headerFlags) const;
+	void IblPanel(ImGuiTreeNodeFlags headerFlags) const;
+	void BackdropPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void CameraPanel(ImGuiTreeNodeFlags headerFlags) const;
 };

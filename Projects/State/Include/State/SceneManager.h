@@ -18,9 +18,7 @@ class ISceneManagerDelegate
 {
 public:
 	virtual ~ISceneManagerDelegate() = default;
-	
-	virtual std::optional<ModelDefinition> LoadModel(const std::string& path) = 0;
-	
+		
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
 	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& mat) = 0;
 	virtual TextureResourceId CreateTextureResource(const std::string& path) = 0;
@@ -35,8 +33,8 @@ public:
 class SceneManager
 {
 public:
-	explicit SceneManager(ISceneManagerDelegate* delegate)
-		: _delegate(delegate)
+	explicit SceneManager(ISceneManagerDelegate& delegate, IModelLoaderService& mls)
+		: _delegate(delegate), _modelLoaderService(mls)
 	{}
 
 	
@@ -86,19 +84,23 @@ public:
 		_entities.erase(iterator);
 	}
 
-	SkyboxResourceId LoadSkybox(const std::string& path);
+	SkyboxResourceId LoadAndSetSkybox(const std::string& path);
 	void SetSkybox(const SkyboxResourceId& id);
 	SkyboxResourceId GetSkybox() const;
 
+	RenderOptions GetRenderOptions() const { return _renderOptions; }
+	void SetRenderOptions(const RenderOptions& ro) { _renderOptions = ro; }
 
 private:
 	// Dependencies
-	ISceneManagerDelegate* _delegate = nullptr;
+	ISceneManagerDelegate& _delegate;
+	IModelLoaderService& _modelLoaderService;
 
 	// Scene
 	Camera _camera;
 	std::vector<std::unique_ptr<Entity>> _entities{};
 	SkyboxResourceId _skybox;
+	RenderOptions _renderOptions;
 
 	// Cache
 	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxesCache = {};

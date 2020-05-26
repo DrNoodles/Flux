@@ -23,8 +23,6 @@ public:
 	virtual ~IUiPresenterDelegate() = default;
 	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
-	virtual void LoadDemoScene() = 0;
-	virtual void LoadDemoSceneHeavy() = 0;
 };
 
 class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate, public IViewportViewDelegate
@@ -52,7 +50,6 @@ private: // DATA
 	std::optional<LightVm> _lvm = std::nullopt;
 
 	u32 _activeSkybox = 0;
-	RenderOptions _renderOptions;
 	std::unordered_set<Entity*> _selection{};
 
 	// Layout
@@ -101,9 +98,6 @@ public: // METHODS
 	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
 	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
 
-	// Temp public - just pub so App can build a scene up and set render options. TODO remove scene buildng from App alltogether
-	const RenderOptions& GetRenderOptions() override;
-	void SetRenderOptions(const RenderOptions& ro) override;
 	
 private: // METHODS
 	int WindowWidth() const { return _delegate.GetWindowSize().x; }
@@ -135,12 +129,9 @@ private: // METHODS
 
 	void DeleteAll() override;
 	
-	//const RenderOptions& GetRenderOptions() override;
-	//void SetRenderOptions(const RenderOptions& ro) override;
-
-	void LoadSkybox() override;
-	float GetSkyboxRotation() const override;
-	void SetSkyboxRotation(float rotation) override;
+	RenderOptions GetRenderOptions() override;
+	void SetRenderOptions(const RenderOptions& ro) override;
+	void LoadAndSetSkybox() override;
 	const std::vector<SkyboxInfo>& GetSkyboxList() override;
 	u32 GetActiveSkybox() const override { return _activeSkybox; }
 	void SetActiveSkybox(u32 idx) override;
@@ -155,7 +146,6 @@ private: // METHODS
 	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
-	static MaterialViewState PopulateMaterialState(const Material& mat);
 
 	#pragma endregion
 };
