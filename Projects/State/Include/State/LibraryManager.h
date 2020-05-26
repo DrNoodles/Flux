@@ -49,97 +49,78 @@ public:
 			_skyboxInfos.emplace_back(std::move(info));
 		}
 	}
+	//TODO ensure resources are cleaned up on exit
 
 
 	const std::vector<SkyboxInfo>& GetSkyboxes() const
 	{
 		return _skyboxInfos;
 	}
-	
-	
-	//TODO clean up resources on exit
 
 
 	std::unique_ptr<Entity> CreateSphere()
 	{
-		if (!_spherePrimitiveLoaded)
+		if (!_sphere.has_value())
 		{
 			auto modelDefinition = _modelLoaderService.LoadModel(_libraryDir + "Models/Sphere/Sphere.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 
-			_sphereModelId = _delegate.CreateMeshResource(meshDefinition);
-			_sphereBounds = meshDefinition.Bounds;
-			
-			_spherePrimitiveLoaded = true;
+			LoadedMesh prim;
+			prim.Id = _delegate.CreateMeshResource(meshDefinition);
+			prim.Bounds = meshDefinition.Bounds;
+
+			_sphere = prim;
 		}
 
-		return CreateEntity(_sphereModelId, _sphereBounds, "Sphere");
+		return CreateEntity(_sphere->Id, _sphere->Bounds, "Sphere");
 	}
 
 	std::unique_ptr<Entity> CreateCube()
 	{
-		if (!_cubePrimitiveLoaded)
+		if (!_cube.has_value())
 		{
 			auto modelDefinition = _modelLoaderService.LoadModel(_libraryDir + "Models/Cube/Cube.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
 			
-			_cubeModelId = _delegate.CreateMeshResource(meshDefinition);
-			_cubeBounds = meshDefinition.Bounds;
+			LoadedMesh prim;
+			prim.Id = _delegate.CreateMeshResource(meshDefinition);
+			prim.Bounds = meshDefinition.Bounds;
 
-			_cubePrimitiveLoaded = true;
+			_cube = prim;
 		}
 
-		return CreateEntity(_cubeModelId, _cubeBounds, "Cube");
+		return CreateEntity(_cube->Id, _cube->Bounds, "Cube");
 	}
 
 	std::unique_ptr<Entity> CreateBlob()
 	{
-		if (!_blobPrimitiveLoaded)
+		if (!_blob.has_value())
 		{
 			auto modelDefinition = _modelLoaderService.LoadModel(_libraryDir + "Models/Blob/Blob.obj");
 			auto& meshDefinition = modelDefinition.value().Meshes[0];
-			
-			_blobModelId = _delegate.CreateMeshResource(meshDefinition);
-			_blobBounds = meshDefinition.Bounds;
 
-			_blobPrimitiveLoaded = true;
+			LoadedMesh prim;
+			prim.Id = _delegate.CreateMeshResource(meshDefinition);
+			prim.Bounds = meshDefinition.Bounds;
+
+			_blob = prim;
 		}
 
-		return CreateEntity(_blobModelId, _blobBounds, "Blob");
+		return CreateEntity(_blob->Id, _blob->Bounds, "Blob");
 	}
-
-	static Material CreateRandomDielectricMaterial()
-	{
-		Material m{};
-		m.Roughness = RandF(0.f, 0.7f);
-		m.Metalness = 0;
-		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
-		return m;
-	}
-	
-	static Material CreateRandomMetalMaterial()
-	{
-		Material m{};
-		m.Roughness = RandF(0.f, 0.7f);
-		m.Metalness = 1;
-		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
-		return m;
-	}
-	
-	static Material CreateRandomMaterial()
-	{
-		const auto isMetallic = bool(rand() % 2);
-		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
-	}
-
-
-
-
-
-
 
 	
-	// TODO Move to _ui layer to make a single spot where UI drives state
+	void LoadEmptyScene() const
+	{
+		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
+	}
+	
+	void LoadDefaultScene()
+	{
+		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
+		LoadObjectArray();
+	}
+
 	void LoadDemoScene()
 	{
 		std::cout << "Loading scene\n";
@@ -162,23 +143,6 @@ public:
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
 		LoadAxis();
 		LoadObjectArray({ 0,0,0 }, 30, 30);
-	}
-
-
-
-	
-	#pragma region Scene Management // TODO move out of App.h
-
-	// TODO Move to _ui layer to make a single spot where UI drives state
-	void LoadEmptyScene()
-	{
-		const auto id = _scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-	}
-	
-	void LoadDefaultScene()
-	{
-		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		LoadObjectArray();
 	}
 
 	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
@@ -556,56 +520,39 @@ public:
 		}
 	}
 
-	void LoadLighting()
-	{
-		auto RandF = [] (float min, float max)
-		{
-			const auto base = float(rand()) / RAND_MAX;
-			return min + base * (max - min);
-		};
-		
-		// Directional light
-		auto dirLight = std::make_unique<Entity>();
-		dirLight->Name = "PointLight";
-		dirLight->Transform.SetPos({ -1, -1, -1});
-		dirLight->Light = LightComponent{};
-		dirLight->Light->Color = { 1,1,1 };
-		dirLight->Light->Intensity = 20;
-		dirLight->Light->Type = LightComponent::Types::directional;
-		_scene.AddEntity(std::move(dirLight));
 
-		// Max random lights
-		for (int i = 0; i < 7; i++)
-		{
-			auto light = std::make_unique<Entity>();
-			light->Name = "PointLight";
-			light->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
-			light->Light = LightComponent{};
-			light->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
-			light->Light->Intensity = 300;
-			light->Light->Type = LightComponent::Types::point;
-			_scene.AddEntity(std::move(light));
-		}
-	}
-
-	void RandomizeLights()
+	static Material CreateRandomDielectricMaterial()
 	{
-		for (auto& entity : _scene.EntitiesView())
-		{
-			if (entity->Light.has_value())
-			{
-				entity->Transform.SetPos({ RandF(-10,10),RandF(-10,10),RandF(-10,10) });
-				entity->Light->Color = { RandF(0,1),RandF(0,1),RandF(0,1) };
-			}
-		}
+		Material m{};
+		m.Roughness = RandF(0.f, 0.7f);
+		m.Metalness = 0;
+		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
+		return m;
 	}
 	
-	#pragma endregion
-
-
+	static Material CreateRandomMetalMaterial()
+	{
+		Material m{};
+		m.Roughness = RandF(0.f, 0.7f);
+		m.Metalness = 1;
+		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
+		return m;
+	}
+	
+	static Material CreateRandomMaterial()
+	{
+		const auto isMetallic = bool(rand() % 2);
+		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
+	}
 
 	
 private:
+	struct LoadedMesh
+	{
+		MeshResourceId Id = {};
+		AABB Bounds = {};
+	};
+	
 	// Dependencies
 	ILibraryManagerDelegate& _delegate;
 	SceneManager& _scene;
@@ -613,15 +560,10 @@ private:
 	
 	const std::string _libraryDir;
 
-	bool _cubePrimitiveLoaded = false;
-	bool _blobPrimitiveLoaded = false;
-	bool _spherePrimitiveLoaded = false;
-	MeshResourceId _sphereModelId = 0;
-	MeshResourceId _cubeModelId = 0;
-	MeshResourceId _blobModelId = 0;
-	AABB _sphereBounds;
-	AABB _cubeBounds;
-	AABB _blobBounds;
+	std::optional<LoadedMesh> _cube = {};
+	std::optional<LoadedMesh> _sphere = {};
+	std::optional<LoadedMesh> _blob = {};
+
 
 	std::vector<SkyboxInfo> _skyboxInfos = {};
 	const std::vector<std::string> _skyboxFilenames =
