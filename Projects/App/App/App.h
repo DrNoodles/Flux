@@ -712,31 +712,37 @@ private: // METHODS
 
 		auto ApplyMat = [&]()
 		{
+			auto GetOptionalRes = [&](const std::string& texturePath)
+			{
+				auto optRes = _scene->LoadTexture(texturePath);
+				return optRes ? std::optional(Material::Map{optRes.value(), texturePath}) : std::nullopt;
+			};
+
 			auto matCopy = _scene->GetMaterial(resourceId);
 			
 			// Load basecolor map
-			matCopy.BasecolorMap = { *_scene->LoadTexture(basecolorPath), basecolorPath };
-			matCopy.UseBasecolorMap = true;
+			matCopy.BasecolorMap = GetOptionalRes(basecolorPath);
+			matCopy.UseBasecolorMap = matCopy.BasecolorMap.has_value();
 
 			// Load normal map
 			matCopy.NormalMap = { *_scene->LoadTexture(normalPath), normalPath };
 
 			// Load occlusion map
-			matCopy.AoMap = { *_scene->LoadTexture(ormPath), ormPath };
+			matCopy.AoMap = GetOptionalRes(ormPath);
 			matCopy.AoMapChannel = Material::Channel::Red;
 			
 			// Load roughness map
-			matCopy.RoughnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-			matCopy.UseRoughnessMap = true;
+			matCopy.RoughnessMap = GetOptionalRes(ormPath);
+			matCopy.UseRoughnessMap = matCopy.RoughnessMap.has_value();
 			matCopy.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMap = { *_scene->LoadTexture(ormPath), ormPath };
-			matCopy.UseMetalnessMap = true;
+			matCopy.MetalnessMap = GetOptionalRes(ormPath);
+			matCopy.UseMetalnessMap = matCopy.MetalnessMap.has_value();
 			matCopy.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Load emissive map
-			matCopy.EmissiveMap = { *_scene->LoadTexture(emissivePath), emissivePath };
+			matCopy.EmissiveMap = GetOptionalRes(emissivePath);
 			matCopy.EmissiveIntensity = 5;
 
 			_scene->SetMaterial(resourceId, matCopy);
