@@ -40,7 +40,6 @@ inline std::unordered_map<GLFWwindow*, App*> g_windowMap;
 
 
 class App final :
-	public IRendererDelegate,
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
@@ -97,13 +96,12 @@ public: // METHODS
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this);
 	
-		
 		// Controllers
 		auto scene = std::make_unique<SceneManager>(this);
 		auto library = std::make_unique<LibraryManager>(this, modelLoaderService.get(), options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *this, *modelLoaderService);
+		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan, options.ShaderDir);
 
 		// Set all teh things
@@ -460,7 +458,7 @@ private: // METHODS
 
 	
 
-	#pragma region IRendererDelegate
+	#pragma region IVulkanServiceDelegate
 
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{

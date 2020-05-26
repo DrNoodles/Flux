@@ -25,7 +25,7 @@
 using vkh = VulkanHelpers;
 
 Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
-	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
+	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
 {
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
@@ -410,20 +410,16 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	auto& oldMat = renderable.Mat;
 
 	const auto pid = _placeholderTexture.Id;
-	auto GetId = [pid](const std::optional<Material::Map>& map)
-	{
-		return map.has_value() ? map->Id.Id : pid;
-	};
+	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
 	
-
 	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
 	const bool descriptorSetsMatch =
 		GetId(oldMat.BasecolorMap)    == GetId(newMat.BasecolorMap) &&
-		GetId(oldMat.NormalMap)       == GetId(newMat.NormalMap) &&
+		GetId(oldMat.NormalMap)       == GetId(newMat.NormalMap)    &&
 		GetId(oldMat.RoughnessMap)    == GetId(newMat.RoughnessMap) &&
 		GetId(oldMat.MetalnessMap)    == GetId(newMat.MetalnessMap) &&
-		GetId(oldMat.AoMap)           == GetId(newMat.AoMap) &&
-		GetId(oldMat.EmissiveMap)     == GetId(newMat.EmissiveMap) &&
+		GetId(oldMat.AoMap)           == GetId(newMat.AoMap)        &&
+		GetId(oldMat.EmissiveMap)     == GetId(newMat.EmissiveMap)  &&
 		GetId(oldMat.TransparencyMap) == GetId(newMat.TransparencyMap);
 
 	
