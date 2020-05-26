@@ -6,6 +6,7 @@ int main()
 	{
 		// Config options
 		AppOptions options;
+		options.LoadDemoScene = false;
 		options.ShaderDir = R"(../Bin/)";
 		options.DataDir = R"(../Data/)";
 		options.AssetsDir = R"(../Data/Assets/)";

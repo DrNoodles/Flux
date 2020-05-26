@@ -507,8 +507,7 @@ private: // METHODS
 	
 	void LoadDefaultScene()
 	{
-		const bool loadDemo = false;
-		if (loadDemo)
+		if (_appOptions.LoadDemoScene)
 		{
 			LoadDemoScene();
 		}
