@@ -22,7 +22,10 @@ struct SkyboxVertUbo
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SkyboxFragUbo
 {
-	alignas(16) glm::vec4 ExposureBias_ShowClipping_IblStrength_DisplayBrightness; // [float,bool...,float,float]
+	alignas(4) f32  ExposureBias;
+	alignas(4) f32  IblStrength;
+	alignas(4) f32  BackdropBrightness;
+	alignas(4) bool ShowClipping;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,50 +80,50 @@ struct UniversalUboCreateInfo
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TODO use union to achieve packing data into vec4s
 struct UniversalUbo
 {
 	// Data types and alignment to match shader exactly.
 	alignas(16) glm::mat4 Model;         
 	alignas(16) glm::mat4 View;          
-	alignas(16) glm::mat4 Projection;    
+	alignas(16) glm::mat4 Projection;
+	
+	alignas(16) glm::mat4 CubemapRotation;
 	alignas(16) glm::vec3 CamPos;
 
 	// Material
 	alignas(16) glm::vec3 Basecolor;
-	alignas(16) glm::vec4 UseBasecolorMap;    // bool in [0] 
-
-	alignas(16) glm::vec4 UseNormalMap;       // bool in [0]
-	alignas(16) glm::vec3 ScaleNormalMap;     // 
+	alignas(16) glm::vec3 ScaleNormalMap;
 	
-	alignas(16) glm::vec4 Roughness;          // float in [0]
-	alignas(16) glm::vec4 UseRoughnessMap;    // bool in [0]
-	alignas(16) glm::vec4 InvertRoughnessMap; // bool in [0]
-	alignas(16) glm::vec4 RoughnessMapChannel;// int in [0] R=0,G,B,A
-
-	alignas(16) glm::vec4 Metalness;          // float in [0]
-	alignas(16) glm::vec4 UseMetalnessMap;    // bool in [0]
-	alignas(16) glm::vec4 InvertMetalnessMap; // bool in [0]
-	alignas(16) glm::vec4 MetalnessMapChannel;// int in [0] R=0,G,B,A
-
-	alignas(16) glm::vec4 UseAoMap;           // bool in [0]
-	alignas(16) glm::vec4 InvertAoMap;        // bool in [0]
-	alignas(16) glm::vec4 AoMapChannel;       // int in [0] R=0,G,B,A
-
-	alignas(16) glm::vec4 Emissivity;         // float in [0]
-	alignas(16) glm::vec4 UseEmissiveMap;     // bool in [0]
-
-	alignas(16) glm::vec4 TransparencyCutoffThreshold; // float in [0]
-	alignas(16) glm::vec4 UseTransparencyMap; // bool in [0]
-	alignas(16) glm::vec4 TransparencyMapChannel; // int in [0]
-	alignas(16) glm::vec4 TransparencyMode;   // int in [0]. 0=Additive, 1=Cutoff
-
-	// Render options
-	alignas(16) glm::vec4 ShowNormalMap;      // bool in [0]
-	alignas(16) glm::vec4 ShowClipping;       // bool in [0]
-	alignas(16) glm::vec4 ExposureBias;       // float in [0]
-	alignas(16) glm::vec4 IblStrength;        // float in [0]
-	alignas(16) glm::mat4 CubemapRotation;
+	alignas(16) bool UseBasecolorMap; 
+	alignas(4)  bool UseNormalMap;    
+				   
+	alignas(4)  f32  Metalness;   
+	alignas(4)  i32  MetalnessMapChannel; // R=0,G,B,A
+	alignas(4)  bool UseMetalnessMap;    
+	alignas(4)  bool InvertMetalnessMap; 
+				   
+	alignas(4)  f32  Roughness;          
+	alignas(4)  bool UseRoughnessMap;    
+	alignas(4)  bool InvertRoughnessMap; 
+	alignas(4)  i32  RoughnessMapChannel; // R=0,G,B,A
+				   
+	alignas(4)  bool UseAoMap;        
+	alignas(4)  bool InvertAoMap;     
+	alignas(4)  i32  AoMapChannel;        // R=0,G,B,A
+			  	   
+	alignas(4)  f32  Emissivity;       
+	alignas(4)  bool UseEmissiveMap;   
+			  	   
+	alignas(4)  f32  TransparencyCutoffThreshold; 
+	alignas(4)  bool UseTransparencyMap;
+	alignas(4)  i32  TransparencyMapChannel; 
+	alignas(4)  i32  TransparencyMode;    // 0=Additive, 1=Cutoff
+			  
+	// Renderoptions
+	alignas(4)  bool ShowNormalMap;
+	alignas(4)  bool ShowClipping; 
+	alignas(4)  f32  ExposureBias;  
+	alignas(4)  f32  IblStrength;   
 
 
 	
@@ -136,38 +139,38 @@ struct UniversalUbo
 
 		// Material
 		ubo.Basecolor = material.Basecolor;
-		ubo.UseBasecolorMap[0] = float(material.UsingBasecolorMap());
+		ubo.UseBasecolorMap = material.UsingBasecolorMap();
 
-		ubo.UseNormalMap[0] = float(material.UsingNormalMap());
+		ubo.UseNormalMap = material.UsingNormalMap();
 		ubo.ScaleNormalMap = glm::vec3(1, material.InvertNormalMapY ? -1 : 1, material.InvertNormalMapZ ? -1 : 1);
 
-		ubo.Roughness[0] = material.Roughness;
-		ubo.UseRoughnessMap[0] = float(material.UsingRoughnessMap());
-		ubo.InvertRoughnessMap[0] = float(material.InvertRoughnessMap);
-		ubo.RoughnessMapChannel[0] = float(material.RoughnessMapChannel);
+		ubo.Roughness = material.Roughness;
+		ubo.UseRoughnessMap = material.UsingRoughnessMap();
+		ubo.InvertRoughnessMap = material.InvertRoughnessMap;
+		ubo.RoughnessMapChannel = (int)material.RoughnessMapChannel;
 
-		ubo.Metalness[0] = material.Metalness;
-		ubo.UseMetalnessMap[0] = float(material.UsingMetalnessMap());
-		ubo.InvertMetalnessMap[0] = float(material.InvertMetalnessMap);
-		ubo.MetalnessMapChannel[0] = float(material.MetalnessMapChannel);
+		ubo.Metalness = material.Metalness;
+		ubo.UseMetalnessMap = material.UsingMetalnessMap();
+		ubo.InvertMetalnessMap = material.InvertMetalnessMap;
+		ubo.MetalnessMapChannel = (int)material.MetalnessMapChannel;
 
-		ubo.UseAoMap[0] = float(material.UsingAoMap());
-		ubo.InvertAoMap[0] = float(material.InvertAoMap);
-		ubo.AoMapChannel[0] = float(material.AoMapChannel);
+		ubo.UseAoMap = material.UsingAoMap();
+		ubo.InvertAoMap = material.InvertAoMap;
+		ubo.AoMapChannel = int(material.AoMapChannel);
 
-		ubo.Emissivity[0] = material.EmissiveIntensity;
-		ubo.UseEmissiveMap[0] = float(material.UsingEmissiveMap());
+		ubo.Emissivity = material.EmissiveIntensity;
+		ubo.UseEmissiveMap = material.UsingEmissiveMap();
 
-		ubo.TransparencyCutoffThreshold[0] = material.TransparencyCutoffThreshold;
-		ubo.UseTransparencyMap[0] = float(material.UsingTransparencyMap());
-		ubo.TransparencyMapChannel[0] = float(material.TransparencyMapChannel);
-		ubo.TransparencyMode[0] = float(material.TransparencyMode);
+		ubo.TransparencyCutoffThreshold = material.TransparencyCutoffThreshold;
+		ubo.UseTransparencyMap = material.UsingTransparencyMap();
+		ubo.TransparencyMapChannel = int(material.TransparencyMapChannel);
+		ubo.TransparencyMode = int(material.TransparencyMode);
 		
 		// Render options
-		ubo.ShowNormalMap[0] = float(info.ShowNormalMap);
-		ubo.ShowClipping[0] = float(info.ShowClipping);
-		ubo.ExposureBias[0] = info.ExposureBias;
-		ubo.IblStrength[0] = info.IblStrength;
+		ubo.ShowNormalMap = info.ShowNormalMap;
+		ubo.ShowClipping = info.ShowClipping;
+		ubo.ExposureBias = info.ExposureBias;
+		ubo.IblStrength = info.IblStrength;
 		ubo.CubemapRotation = glm::rotate(glm::radians(info.CubemapRotation), glm::vec3{ 0,1,0 });
 		
 		return ubo;

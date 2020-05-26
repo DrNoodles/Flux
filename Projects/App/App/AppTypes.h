@@ -12,5 +12,6 @@ struct AppOptions
 	std::string IblDir{};
 	bool EnabledVulkanValidationLayers = false;
 	bool VSync = false;
+	bool LoadDemoScene = false;
 };
 

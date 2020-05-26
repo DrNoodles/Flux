@@ -666,57 +666,36 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	
 	auto UpdateMap = [&](const std::string& newPath, Material& targetMat, const TextureType type)
 	{
-		std::optional<TextureResourceId>* pMap = nullptr;
-		std::string* pMapPath;
+		std::optional<Material::Map>* pMap = nullptr;
 
 		switch (type)
 		{
-		case TextureType::Basecolor:
-			pMap = &targetMat.BasecolorMap;
-			pMapPath = &targetMat.BasecolorMapPath;
-			break;
-		case TextureType::Normals:
-			pMap = &targetMat.NormalMap;
-			pMapPath = &targetMat.NormalMapPath;
-			break;
-		case TextureType::Roughness:
-			pMap = &targetMat.RoughnessMap;
-			pMapPath = &targetMat.RoughnessMapPath;
-			break;
-		case TextureType::Metalness:
-			pMap = &targetMat.MetalnessMap;
-			pMapPath = &targetMat.MetalnessMapPath;
-			break;
-		case TextureType::AmbientOcclusion:
-			pMap = &targetMat.AoMap;
-			pMapPath = &targetMat.AoMapPath;
-			break;
-		case TextureType::Emissive:
-			pMap = &targetMat.EmissiveMap;
-			pMapPath = &targetMat.EmissiveMapPath;
-			break;
-		case TextureType::Transparency:
-			pMap = &targetMat.TransparencyMap;
-			pMapPath = &targetMat.TransparencyMapPath;
-			break;
-
+		case TextureType::Basecolor:        pMap = &targetMat.BasecolorMap;    break;
+		case TextureType::Normals:          pMap = &targetMat.NormalMap;       break;
+		case TextureType::Roughness:        pMap = &targetMat.RoughnessMap;    break;
+		case TextureType::Metalness:        pMap = &targetMat.MetalnessMap;    break;
+		case TextureType::AmbientOcclusion: pMap = &targetMat.AoMap;           break;
+		case TextureType::Emissive:         pMap = &targetMat.EmissiveMap;     break;
+		case TextureType::Transparency:     pMap = &targetMat.TransparencyMap; break;
 		case TextureType::Undefined:
 		default:
 			throw std::invalid_argument("unhandled TextureType");
 		}
 
-		if (newPath.empty())
-		{
+		if (newPath.empty()) {
 			*pMap = std::nullopt;
-			*pMapPath = "";
 		}
 		else // path is empty, make sure the material is also
 		{
-			const bool pathIsDifferent = !(pMapPath && *pMapPath == newPath);
+			if (!pMap->has_value()) {
+				*pMap = Material::Map{}; // make sure we have something to assign to
+			}
+			
+			const bool pathIsDifferent = (*pMap)->Path != newPath;
 			if (pathIsDifferent)
 			{
-				*pMap = _scene.LoadTexture(newPath);
-				*pMapPath = newPath;
+				(*pMap)->Id = *_scene.LoadTexture(newPath);
+				(*pMap)->Path = newPath;
 			}
 		}
 	};
@@ -781,14 +760,15 @@ MaterialViewState UiPresenter::PopulateMaterialState(const Material& mat)
 	default:
 		throw std::out_of_range("Unsupported TransparencyMode");
 	}
-	
-	rvm.BasecolorMapPath = mat.HasBasecolorMap() ? mat.BasecolorMapPath : "";
-	rvm.NormalMapPath = mat.HasNormalMap() ? mat.NormalMapPath : "";
-	rvm.MetalnessMapPath = mat.HasMetalnessMap() ? mat.MetalnessMapPath : "";
-	rvm.RoughnessMapPath = mat.HasRoughnessMap() ? mat.RoughnessMapPath : "";
-	rvm.AoMapPath = mat.HasAoMap() ? mat.AoMapPath : "";
-	rvm.EmissiveMapPath = mat.HasEmissiveMap() ? mat.EmissiveMapPath : "";
-	rvm.TransparencyMapPath = mat.HasTransparencyMap() ? mat.TransparencyMapPath : "";
+
+	auto GetPath = [](const std::optional<Material::Map>& map) { return map.has_value() ? map->Path : ""; };
+	rvm.BasecolorMapPath = GetPath(mat.BasecolorMap);
+	rvm.NormalMapPath = GetPath(mat.NormalMap);
+	rvm.MetalnessMapPath = GetPath(mat.MetalnessMap);
+	rvm.RoughnessMapPath = GetPath(mat.RoughnessMap);
+	rvm.AoMapPath = GetPath(mat.AoMap);
+	rvm.EmissiveMapPath = GetPath(mat.EmissiveMap);
+	rvm.TransparencyMapPath = GetPath(mat.TransparencyMap);
 
 	return rvm;
 }

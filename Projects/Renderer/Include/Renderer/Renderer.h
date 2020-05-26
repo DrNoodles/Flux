@@ -19,14 +19,6 @@ struct RenderableMeshCreateInfo;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class IRendererDelegate
-{
-public:
-	virtual ~IRendererDelegate() = default;
-	//virtual VkExtent2D GetFramebufferSize() = 0;
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Renderer
 {
 public:
@@ -34,7 +26,7 @@ public:
 	//VkRenderPass _renderPass = nullptr;
 
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
-	                  IRendererDelegate& delegate, IModelLoaderService& modelLoaderService);
+	                  IModelLoaderService& modelLoaderService);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
 		const RenderOptions& options,
@@ -80,7 +72,6 @@ public:
 
 private: // Dependencies
 	VulkanService* _vk = nullptr;
-	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
 
 	VkDescriptorPool _rendererDescriptorPool = nullptr;

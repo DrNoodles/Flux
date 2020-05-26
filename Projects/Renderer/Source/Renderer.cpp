@@ -25,7 +25,7 @@
 using vkh = VulkanHelpers;
 
 Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir,
-	IRendererDelegate& delegate, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
+	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
 {
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
@@ -118,10 +118,10 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			{
 				// Populate
 				auto skyboxFragUbo = SkyboxFragUbo{};
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[0] = options.ExposureBias;
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[1] = options.ShowClipping;
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[2] = options.IblStrength;
-				skyboxFragUbo.ExposureBias_ShowClipping_IblStrength_DisplayBrightness[3] = options.BackdropBrightness;
+				skyboxFragUbo.ExposureBias = options.ExposureBias;
+				skyboxFragUbo.ShowClipping = options.ShowClipping;
+				skyboxFragUbo.IblStrength = options.IblStrength;
+				skyboxFragUbo.BackdropBrightness = options.BackdropBrightness;
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
@@ -409,38 +409,24 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 	auto& renderable = *_renderables[renderableResId.Id];
 	auto& oldMat = renderable.Mat;
 
-	// Existing ids
-	const auto currentBasecolorMapId = oldMat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto currentNormalMapId = oldMat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto currentRoughnessMapId = oldMat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto currentMetalnessMapId = oldMat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto currentAoMapId = oldMat.AoMap.value_or(_placeholderTexture).Id;
-	const auto currentEmissiveMapId = oldMat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto currentTransparencyMapId = oldMat.TransparencyMap.value_or(_placeholderTexture).Id;
+	const auto pid = _placeholderTexture.Id;
+	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+	
+	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
+	const bool descriptorSetsMatch =
+		GetId(oldMat.BasecolorMap)    == GetId(newMat.BasecolorMap) &&
+		GetId(oldMat.NormalMap)       == GetId(newMat.NormalMap)    &&
+		GetId(oldMat.RoughnessMap)    == GetId(newMat.RoughnessMap) &&
+		GetId(oldMat.MetalnessMap)    == GetId(newMat.MetalnessMap) &&
+		GetId(oldMat.AoMap)           == GetId(newMat.AoMap)        &&
+		GetId(oldMat.EmissiveMap)     == GetId(newMat.EmissiveMap)  &&
+		GetId(oldMat.TransparencyMap) == GetId(newMat.TransparencyMap);
 
-	// New ids
-	const auto basecolorMapId = newMat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto normalMapId = newMat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto roughnessMapId = newMat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto metalnessMapId = newMat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto aoMapId = newMat.AoMap.value_or(_placeholderTexture).Id;
-	const auto emissiveMapId = newMat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto transparencyMapId = newMat.TransparencyMap.value_or(_placeholderTexture).Id;
-
+	
 	// Store new mat
 	renderable.Mat = newMat;
 
-
-	// Bail early if the new descriptor set is identical (eg, if not changing a Map id!)
-	const bool descriptorSetsMatch =
-		currentBasecolorMapId == basecolorMapId &&
-		currentNormalMapId == normalMapId &&
-		currentRoughnessMapId == roughnessMapId &&
-		currentMetalnessMapId == metalnessMapId &&
-		currentAoMapId == aoMapId &&
-		currentEmissiveMapId == emissiveMapId &&
-		currentTransparencyMapId == transparencyMapId;
-
+	
 	if (!descriptorSetsMatch)
 	{
 		// NOTE: This is heavy handed as it rebuilds ALL object descriptor sets, not just those using this material
@@ -703,27 +689,23 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	// Create descriptor sets
 	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk->LogicalDevice());
 
-	// Get the id of an existing texture, fallback to placeholder if necessary.
-	const auto basecolorMapId = renderable.Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-	const auto normalMapId = renderable.Mat.NormalMap.value_or(_placeholderTexture).Id;
-	const auto roughnessMapId = renderable.Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-	const auto metalnessMapId = renderable.Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-	const auto aoMapId = renderable.Mat.AoMap.value_or(_placeholderTexture).Id;
-	const auto emissiveMapId = renderable.Mat.EmissiveMap.value_or(_placeholderTexture).Id;
-	const auto transparencyMapId = renderable.Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
+	// Get the id of an existing texture, fallback to placeholder if necessary.
+	const auto pid = _placeholderTexture.Id;
+	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+	
 	WritePbrDescriptorSets(
 		numImagesInFlight,
 		descriptorSets,
 		modelBuffers,
 		_lightBuffers,
-		*_textures[basecolorMapId],
-		*_textures[normalMapId],
-		*_textures[roughnessMapId],
-		*_textures[metalnessMapId],
-		*_textures[aoMapId],
-		*_textures[emissiveMapId],
-		*_textures[transparencyMapId],
+		*_textures[GetId(renderable.Mat.BasecolorMap)],
+		*_textures[GetId(renderable.Mat.NormalMap)],
+		*_textures[GetId(renderable.Mat.RoughnessMap)],
+		*_textures[GetId(renderable.Mat.MetalnessMap)],
+		*_textures[GetId(renderable.Mat.AoMap)],
+		*_textures[GetId(renderable.Mat.EmissiveMap)],
+		*_textures[GetId(renderable.Mat.TransparencyMap)],
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
@@ -850,8 +832,8 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	const auto numShaders = 2;
 	std::array<VkPipelineShaderStageCreateInfo, numShaders> shaderStageCIs{};
 	{
-		const auto vertShaderCode = FileService::ReadFile(shaderDir + "PbrModel.vert.spv");
-		const auto fragShaderCode = FileService::ReadFile(shaderDir + "PbrModel.frag.spv");
+		const auto vertShaderCode = FileService::ReadFile(shaderDir + "Pbr.vert.spv");
+		const auto fragShaderCode = FileService::ReadFile(shaderDir + "Pbr.frag.spv");
 
 		vertShaderModule = vkh::CreateShaderModule(vertShaderCode, device);
 		fragShaderModule = vkh::CreateShaderModule(fragShaderCode, device);
@@ -962,7 +944,7 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	{
 		depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencilCI.depthTestEnable = true; // should compare new frags against depth to determine if discarding?
-		depthStencilCI.depthWriteEnable = true; // can new depth tests wrhite to buffer?
+		depthStencilCI.depthWriteEnable = true; // can new depth tests write to buffer?
 		depthStencilCI.depthCompareOp = VK_COMPARE_OP_LESS;
 
 		depthStencilCI.depthBoundsTestEnable = false; // optional test to keep only frags within a set bounds
@@ -1075,26 +1057,22 @@ void Renderer::UpdateRenderableDescriptorSets()
 			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
 		}
 
-		const auto basecolorMapId = renderable->Mat.BasecolorMap.value_or(_placeholderTexture).Id;
-		const auto normalMapId = renderable->Mat.NormalMap.value_or(_placeholderTexture).Id;
-		const auto roughnessMapId = renderable->Mat.RoughnessMap.value_or(_placeholderTexture).Id;
-		const auto metalnessMapId = renderable->Mat.MetalnessMap.value_or(_placeholderTexture).Id;
-		const auto aoMapId = renderable->Mat.AoMap.value_or(_placeholderTexture).Id;
-		const auto emissiveMapId = renderable->Mat.EmissiveMap.value_or(_placeholderTexture).Id;
-		const auto transparencyMapId = renderable->Mat.TransparencyMap.value_or(_placeholderTexture).Id;
 
-
+		// Get the id of an existing texture, fallback to placeholder if necessary.
+		const auto pid = _placeholderTexture.Id;
+		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+		
 		// Write updated descriptor sets
 		WritePbrDescriptorSets((u32)count, descriptorSets,
 			modelBuffers,
 			_lightBuffers,
-			*_textures[basecolorMapId],
-			*_textures[normalMapId],
-			*_textures[roughnessMapId],
-			*_textures[metalnessMapId],
-			*_textures[aoMapId],
-			*_textures[emissiveMapId],
-			*_textures[transparencyMapId],
+			*_textures[GetId(renderable->Mat.BasecolorMap)],
+			*_textures[GetId(renderable->Mat.NormalMap)],
+			*_textures[GetId(renderable->Mat.RoughnessMap)],
+			*_textures[GetId(renderable->Mat.MetalnessMap)],
+			*_textures[GetId(renderable->Mat.AoMap)],
+			*_textures[GetId(renderable->Mat.EmissiveMap)],
+			*_textures[GetId(renderable->Mat.TransparencyMap)],
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),
