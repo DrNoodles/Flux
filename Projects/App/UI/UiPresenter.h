@@ -146,7 +146,6 @@ private: // METHODS
 	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
-	static MaterialViewState PopulateMaterialState(const Material& mat);
 
 	#pragma endregion
 };
