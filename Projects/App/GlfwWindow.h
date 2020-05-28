@@ -53,7 +53,10 @@ private: // Data
 	
 public:  // Methods
 	GlfwWindow() = default;
-
+	GlfwWindow(const GlfwWindow&) = delete;
+	GlfwWindow(GlfwWindow&&) = delete;
+	GlfwWindow& operator=(const GlfwWindow&) = delete;
+	GlfwWindow& operator=(GlfwWindow&&) = delete;
 	~GlfwWindow()
 	{
 		// RAII

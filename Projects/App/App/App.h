@@ -20,8 +20,6 @@
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
-#include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
@@ -46,12 +44,12 @@ private: // DATA
 	
 	// Dependencies
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
-	std::unique_ptr<VulkanService> _vulkanService = nullptr;
-	std::unique_ptr<SceneManager> _scene = nullptr;
-	std::unique_ptr<LibraryManager> _library = nullptr;;
-	std::unique_ptr<UiPresenter> _ui = nullptr;
-	std::unique_ptr<Renderer> _renderer = nullptr;
-	std::unique_ptr<IWindow> _window = nullptr;
+	std::unique_ptr<VulkanService>       _vulkanService      = nullptr;
+	std::unique_ptr<SceneManager>        _scene              = nullptr;
+	std::unique_ptr<LibraryManager>      _library            = nullptr;
+	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
+	std::unique_ptr<Renderer>            _renderer           = nullptr;
+	std::unique_ptr<IWindow>             _window             = nullptr;
 
 	// Window
 	AppOptions _appOptions;

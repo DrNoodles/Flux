@@ -614,7 +614,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 
 void UiPresenter::OnKeyDown(IWindow* sender, KeyEventArgs args)
 {
-	std::cout << "OnKeyDown()\n";
+	//std::cout << "OnKeyDown()\n";
 	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
@@ -637,8 +637,7 @@ void UiPresenter::OnKeyUp(IWindow* sender, KeyEventArgs args)
 
 void UiPresenter::OnPointerWheelChanged(IWindow* sender, PointerEventArgs args)
 {
-	std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << ","
-	 << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
+	//std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << "," << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
 	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
