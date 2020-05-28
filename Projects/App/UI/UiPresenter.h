@@ -104,9 +104,6 @@ public: // METHODS
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
 	
-
-	void Foo(IWindow* sender, WindowSizeChangedEventArgs args);
-	
 	// Event handlers
 	void OnScrollChanged(Offset2D offset);
 	void OnKeyCallback(KeyEventArgs a);

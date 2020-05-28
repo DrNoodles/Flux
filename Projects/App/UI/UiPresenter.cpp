@@ -299,9 +299,7 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
-{
-	const auto swapchainExtent = _vulkan.SwapchainExtent();
-	
+{	
 	std::vector<VkClearValue> clearColors(2);
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
@@ -311,7 +309,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
 			_vulkan.SwapchainRenderPass(), 
 			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, swapchainExtent), 
+			vki::Rect2D({0,0}, _vulkan.SwapchainExtent()), 
 			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);

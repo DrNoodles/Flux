@@ -157,6 +157,7 @@ private: // Methods
 
 	void OnWindowSizeChanged(Extent2D size)
 	{
+		_size = size;
 		WindowSizeChanged.Invoke(this, WindowSizeChangedEventArgs{size});
 	}
 	void OnCursorPosChanged(Offset2D pos)
