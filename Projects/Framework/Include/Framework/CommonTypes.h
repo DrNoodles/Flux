@@ -44,3 +44,27 @@ struct TypedId
 	// TODO equality checks
 };
 
+
+struct Point2D
+{
+	f64 X = 0;
+	f64 Y = 0;
+};
+
+struct Offset2D
+{
+	i32 X = 0;
+	i32 Y = 0;
+};
+
+struct Extent2D
+{
+	u32 Width = 0;
+	u32 Height = 0;
+};
+
+struct Rect2D
+{
+	Offset2D Offset;
+	Extent2D Extent;
+};

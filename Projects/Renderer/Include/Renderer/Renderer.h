@@ -22,7 +22,6 @@ struct RenderableMeshCreateInfo;
 class Renderer
 {
 public:
-	bool FramebufferResized = false;
 	//VkRenderPass _renderPass = nullptr;
 
 	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 

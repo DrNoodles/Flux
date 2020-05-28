@@ -1,11 +1,9 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
-#include "UiPresenterHelpers.h"
+//#include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
-#include <Renderer/TextureResource.h> // todo decouple renderer details from this layer
-#include <State/Entity/Actions/TurntableActionComponent.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
@@ -13,26 +11,35 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-namespace uvh = UiPresenterHelpers;
+#include <functional>
+//namespace uvh = UiPresenterHelpers;
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
 	_renderer{renderer},
 	_vulkan{vulkan},
+	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
 {
+	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
+	_window->PointerMoved.Attach(_pointerMovedHandler);
+	_window->PointerWheelChanged.Attach(_pointerWheelChangedHandler);
+	_window->KeyDown.Attach(_keyDownHandler);
+	_window->KeyUp.Attach(_keyUpHandler);
 
+
+	
 	/*auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
 		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());*/
 
 	// TODO Create a texture for teh offscreen buffers that's RGBA	16
 
-	auto width = _vulkan.SwapchainExtent().width;
-	auto height = _vulkan.SwapchainExtent().height;
+	//auto width = _vulkan.SwapchainExtent().width;
+	//auto height = _vulkan.SwapchainExtent().height;
 
 	/*
 	// Offscreen renderpass setup
@@ -49,6 +56,12 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 void UiPresenter::Shutdown()
 {
+	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
+	_window->PointerMoved.Detach(_pointerMovedHandler);
+	_window->PointerWheelChanged.Detach(_pointerWheelChangedHandler);
+	_window->KeyDown.Detach(_keyDownHandler);
+	_window->KeyUp.Detach(_keyUpHandler);
+	
 	/*
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	
@@ -293,9 +306,7 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
-{
-	const auto swapchainExtent = _vulkan.SwapchainExtent();
-	
+{	
 	std::vector<VkClearValue> clearColors(2);
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
@@ -305,7 +316,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
 			_vulkan.SwapchainRenderPass(), 
 			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, swapchainExtent), 
+			vki::Rect2D({0,0}, _vulkan.SwapchainExtent()), 
 			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -600,3 +611,107 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	_scene.SetMaterial(componentSubmesh.Id, newMat);
 }
 
+
+void UiPresenter::OnKeyDown(IWindow* sender, KeyEventArgs args)
+{
+	std::cout << "OnKeyDown()\n";
+	
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantTextInput || io.WantCaptureKeyboard)
+		return;
+	
+	// ONLY on pressed is handled
+	if (args.Action == KeyAction::Repeat) return;
+
+	if (args.Key == VirtualKey::F)      { FrameSelectionOrAll(); }
+	if (args.Key == VirtualKey::C)      { NextSkybox(); }
+	if (args.Key == VirtualKey::N)      { _delegate.ToggleUpdateEntities(); }
+	if (args.Key == VirtualKey::Delete) { DeleteSelected(); }
+}
+
+void UiPresenter::OnKeyUp(IWindow* sender, KeyEventArgs args)
+{
+	//std::cout << "OnKeyUp()\n";//: (" << args.CurrentPoint.Position.X << "," << args.CurrentPoint.Position.Y << ")\n";
+}
+
+void UiPresenter::OnPointerWheelChanged(IWindow* sender, PointerEventArgs args)
+{
+	std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << ","
+	 << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
+	
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse)
+		return;
+
+	//_scene.GetCamera().ProcessMouseScroll(float(offset.Y));
+}
+
+void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
+{
+	//std::cout << "OnPointerMoved: (" << args.CurrentPoint.Position.X << "," << args.CurrentPoint.Position.Y << ")\n";
+
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse)
+		return;
+	
+	const auto xPos = args.CurrentPoint.Position.X;
+	const auto yPos = args.CurrentPoint.Position.Y;
+	
+	// On first input lets remove a snap
+	if (_firstCursorInput)
+	{
+		_lastCursorX = xPos;
+		_lastCursorY = yPos;
+		_firstCursorInput = false;
+	}
+
+	const auto xDiff = xPos - _lastCursorX;
+	const auto yDiff = _lastCursorY - yPos;
+	_lastCursorX = xPos;
+	_lastCursorY = yPos;
+
+
+	const auto windowSize = sender->GetSize();
+	const glm::vec2 diffRatio{ xDiff/(f64)windowSize.Height, yDiff/(f64)windowSize.Height}; // Note both are / Height
+	
+	const bool isLmb = sender->GetMouseButton(MouseButton::Left)   == MouseButtonAction::Pressed;
+	const bool isMmb = sender->GetMouseButton(MouseButton::Middle) == MouseButtonAction::Pressed;
+	const bool isRmb = sender->GetMouseButton(MouseButton::Right)  == MouseButtonAction::Pressed;
+
+	
+	// Camera control
+	auto& camera = _scene.GetCamera();
+	if (isLmb)
+	{
+		const float arcSpeed = 1.5f*3.1415f;
+		camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
+	}
+	if (isMmb || isRmb)
+	{
+		const auto dir = isMmb
+			? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
+		: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
+
+		const auto len = glm::length(dir);
+		if (len > 0.000001f) // small float
+		{
+			auto speed = Speed::Normal;
+			if (_window->GetKey(VirtualKey::LeftControl) == KeyAction::Pressed)
+			{
+				speed = Speed::Slow;
+			}
+			if (_window->GetKey(VirtualKey::LeftShift) == KeyAction::Pressed)
+			{
+				speed = Speed::Fast;
+			}
+			camera.Move(len, glm::normalize(dir), speed);
+		}
+	}
+}
+void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
+{
+	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IWindow.h"
 #include "UiPresenterHelpers.h"
 
 #include "PropsView/LightVm.h"
@@ -21,27 +22,35 @@ class IUiPresenterDelegate
 {
 public:
 	virtual ~IUiPresenterDelegate() = default;
-	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
+	virtual void ToggleUpdateEntities() = 0;
 };
 
-class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate, public IViewportViewDelegate
+class UiPresenter final :
+	public ISceneViewDelegate,
+	public IPropsViewDelegate,
+	public IViewportViewDelegate
 {
 public: // DATA
 	
 private: // DATA
+	
 	// Dependencies
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	LibraryManager& _library;
 	Renderer& _renderer; // temp, move to ViewportView
 	VulkanService& _vulkan; // temp, remove
+	IWindow* _window = nullptr;
 
 	// Views
 	SceneView _sceneView;
 	PropsView _propsView;
 	ViewportView _viewportView;
 
+	bool _firstCursorInput = true;
+	f64 _lastCursorX{}, _lastCursorY{};
+	
 	// PropsView helpers
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
@@ -68,10 +77,14 @@ private: // DATA
 	
 	//UiPresenterHelpers::PostPassResources _postPassResources;
 
-	
+	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
+	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
+	PointerWheelChangedDelegate _pointerWheelChangedHandler = [this](auto* s, auto a) { OnPointerWheelChanged(s, a); };
+	KeyDownDelegate _keyDownHandler = [this](auto* s, auto a) { OnKeyDown(s, a); };
+	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 
 public: // METHODS
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
 	void Shutdown();
 	// Disable copy
@@ -94,17 +107,17 @@ public: // METHODS
 	}
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
+private: // METHODS
+	int WindowWidth() const { return _window->GetSize().Width; }
+	int WindowHeight() const { return _window->GetSize().Height; }
+	
 	// Fit to middle
 	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
 	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
-
 	
-private: // METHODS
-	int WindowWidth() const { return _delegate.GetWindowSize().x; }
-	int WindowHeight() const { return _delegate.GetWindowSize().y; }
 	// Anchor left
 	glm::ivec2 ScenePos() const { return { 0, 0 }; }
-	glm::ivec2 SceneSize() const { return { _sceneViewWidth, _delegate.GetWindowSize().y }; }
+	glm::ivec2 SceneSize() const { return { _sceneViewWidth, _window->GetSize().Height }; }
 
 	// Anchor right
 	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsViewWidth,0 }; }
@@ -113,6 +126,15 @@ private: // METHODS
 	void BuildImGui();
 	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
 	void DrawUi(VkCommandBuffer commandBuffer);
+
+
+	
+	// Event handlers
+	void OnKeyDown(IWindow* sender, KeyEventArgs args);
+	void OnKeyUp(IWindow* sender, KeyEventArgs args);
+	void OnPointerWheelChanged(IWindow* sender, PointerEventArgs args);
+	void OnPointerMoved(IWindow* sender, PointerEventArgs args);
+	void OnWindowSizeChanged(IWindow* sender, WindowSizeChangedEventArgs args);
 
 	
 	#pragma region ISceneViewDelegate

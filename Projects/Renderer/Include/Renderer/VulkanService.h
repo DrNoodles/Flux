@@ -8,13 +8,20 @@
 
 #include <vulkan/vulkan.h>
 
+using vkh = VulkanHelpers;
+
+class ISurfaceBuilder
+{
+public:
+	virtual ~ISurfaceBuilder() = default;
+	virtual VkSurfaceKHR CreateSurface(VkInstance instance) = 0;
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class IVulkanServiceDelegate
 {
 public:
 	virtual ~IVulkanServiceDelegate() = default;
-	virtual VkSurfaceKHR CreateSurface(VkInstance instance) const = 0;
 	virtual VkExtent2D GetFramebufferSize() = 0;
 	virtual VkExtent2D WaitTillFramebufferHasSize() = 0;
 	virtual void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) = 0;
@@ -67,7 +74,7 @@ class VulkanService
 public: // DATA ///////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 private: // DATA //////////////////////////////////////////////////////////////////////////////////////////////////////
-	bool FramebufferResized; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
+	bool FramebufferResized = false; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
 	
 	// Dependencies
 	IVulkanServiceDelegate* _delegate = nullptr;
@@ -155,19 +162,21 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
 	
-	VulkanService(bool enableValidationLayers, bool vsync, IVulkanServiceDelegate* delegate) : _delegate{ delegate }
+	VulkanService(bool enableValidationLayers, bool vsync, IVulkanServiceDelegate* delegate,
+	              ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
 	{
+		assert(delegate);
+		assert(builder);
+		
+		_delegate = delegate;
 		_enableValidationLayers = enableValidationLayers;
 		_vsync = vsync;
 
-		
-		const auto size = delegate->GetFramebufferSize();
-
-		InitVulkan();
-		InitVulkanSwapchainAndDependants(size.width, size.height);
-
+		// Init();
+		InitVulkan(builder);
+		InitVulkanSwapchainAndDependants(framebufferSize);
 	}
-
+	
 	void Shutdown()
 	{
 		DestroyVulkanSwapchain();
@@ -286,7 +295,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 private: // METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-	void InitVulkan()
+	void InitVulkan(ISurfaceBuilder* builder)
 	{
 		_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
 
@@ -295,7 +304,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 			_debugMessenger = vkh::SetupDebugMessenger(_instance);
 		}
 
-		_surface = _delegate->CreateSurface(_instance);
+		_surface = builder->CreateSurface(_instance);
 
 		std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
 
@@ -314,9 +323,9 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		vkDestroyInstance(_instance, nullptr);
 	}
 
-	void InitVulkanSwapchainAndDependants(int width, int height)
+	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
 	{
-		_swapchain = vkh::CreateSwapchain({ (uint32_t)width, (uint32_t)height }, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
+		_swapchain = vkh::CreateSwapchain(framebufferSize, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
 
 		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
@@ -374,12 +383,12 @@ private:
 
 	void RecreateSwapchain()
 	{
-		auto size = _delegate->WaitTillFramebufferHasSize();
+		const auto size = _delegate->WaitTillFramebufferHasSize();
 		
 		vkDeviceWaitIdle(_device);
 		
 		DestroyVulkanSwapchain();
-		InitVulkanSwapchainAndDependants(size.width, size.height);
+		InitVulkanSwapchainAndDependants(size);
 
 		_delegate->NotifySwapchainUpdated(size.width, size.height, SwapchainImageCount());
 	}

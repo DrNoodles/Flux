@@ -376,7 +376,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	return { device, graphicsQueue, presentQueue };
 }
 
-VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, bool vsync, VkPhysicalDevice physicalDevice,
+VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& framebufferSize, bool vsync, VkPhysicalDevice physicalDevice,
 	VkSurfaceKHR surface, VkDevice device,
 	std::vector<VkImage>& OUTswapchainImages,
 	VkFormat& OUTswapchainImageFormat,
@@ -386,7 +386,7 @@ VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& windowSize, bool
 
 	const auto surfaceFormat = ChooseSwapSurfaceFormat(deets.Formats);
 	const auto presentMode = ChooseSwapPresentMode(deets.PresentModes, vsync);
-	const auto extent = ChooseSwapExtent(windowSize, deets.Capabilities);
+	const auto extent = ChooseSwapExtent(framebufferSize, deets.Capabilities);
 
 	// Image count
 	uint32_t minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
@@ -484,21 +484,20 @@ VkPresentModeKHR VulkanHelpers::ChooseSwapPresentMode(const std::vector<VkPresen
 
 VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities)
 {
-	const auto& c = capabilities;
+	const auto& cap = capabilities;
 
 	// Use currentExtent if it has not been set to the "override" value of max uint32
-	const auto useExistingCurrentExtent = c.currentExtent.width != UINT32_MAX;
+	const auto useExistingCurrentExtent = cap.currentExtent.width != UINT32_MAX;
 	if (useExistingCurrentExtent)
 	{
-		return c.currentExtent;
+		return cap.currentExtent;
 	}
 
 	// Find the biggest extent possible
-	VkExtent2D e = windowSize;
-	e.width = std::max(c.minImageExtent.width, std::min(c.maxImageExtent.width, e.width));
-	e.height = std::max(c.minImageExtent.height, std::min(c.maxImageExtent.height, e.height));
-
-	return e;
+	VkExtent2D size;
+	size.width = std::clamp(windowSize.width, cap.minImageExtent.width, cap.maxImageExtent.width);
+	size.height = std::clamp(windowSize.height, cap.minImageExtent.height, cap.maxImageExtent.height);
+	return size;
 }
 
 VkRenderPass VulkanHelpers::CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
