@@ -376,11 +376,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	return { device, graphicsQueue, presentQueue };
 }
 
-VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& framebufferSize, bool vsync, VkPhysicalDevice physicalDevice,
-	VkSurfaceKHR surface, VkDevice device,
-	std::vector<VkImage>& OUTswapchainImages,
-	VkFormat& OUTswapchainImageFormat,
-	VkExtent2D& OUTswapchainExtent)
+std::tuple<VkSwapchainKHR, std::vector<VkImage>, VkFormat, VkExtent2D> VulkanHelpers::CreateSwapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, bool vsync)
 {
 	const SwapChainSupportDetails deets = QuerySwapChainSupport(physicalDevice, surface);
 
@@ -442,14 +438,13 @@ VkSwapchainKHR VulkanHelpers::CreateSwapchain(const VkExtent2D& framebufferSize,
 
 
 	// Retrieve swapchain images
-	uint32_t imageCount;
+	std::vector<VkImage> swapchainImages;
+	u32 imageCount;
 	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
-	OUTswapchainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, OUTswapchainImages.data());
-	OUTswapchainExtent = extent;
-	OUTswapchainImageFormat = surfaceFormat.format;
+	swapchainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
 
-	return swapchain;
+	return { swapchain, std::move(swapchainImages), surfaceFormat.format, extent };
 }
 
 VkSurfaceFormatKHR VulkanHelpers::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
