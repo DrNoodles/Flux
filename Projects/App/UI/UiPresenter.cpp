@@ -1,11 +1,9 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
-#include "UiPresenterHelpers.h"
+//#include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
-#include <Renderer/TextureResource.h> // todo decouple renderer details from this layer
-#include <State/Entity/Actions/TurntableActionComponent.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
@@ -13,14 +11,16 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-namespace uvh = UiPresenterHelpers;
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir):
+//namespace uvh = UiPresenterHelpers;
+
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
 	_renderer{renderer},
 	_vulkan{vulkan},
+	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
@@ -31,8 +31,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	// TODO Create a texture for teh offscreen buffers that's RGBA	16
 
-	auto width = _vulkan.SwapchainExtent().width;
-	auto height = _vulkan.SwapchainExtent().height;
+	//auto width = _vulkan.SwapchainExtent().width;
+	//auto height = _vulkan.SwapchainExtent().height;
 
 	/*
 	// Offscreen renderpass setup
@@ -600,3 +600,96 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 	_scene.SetMaterial(componentSubmesh.Id, newMat);
 }
 
+
+
+void UiPresenter::OnScrollChanged(Offset2D offset)
+{
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse)
+		return;
+
+	_scene.GetCamera().ProcessMouseScroll(float(offset.Y));
+}
+
+void UiPresenter::OnKeyCallback(KeyEventArgs a)
+{
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantTextInput || io.WantCaptureKeyboard)
+		return;
+	
+	// ONLY on pressed is handled
+	if (a.Action == KeyAction::Repeat || a.Action == KeyAction::Released) return;
+
+	if (a.Key == VirtualKey::F)      { FrameSelectionOrAll(); }
+	if (a.Key == VirtualKey::C)      { NextSkybox(); }
+	if (a.Key == VirtualKey::N)      { _delegate.ToggleUpdateEntities(); }
+	if (a.Key == VirtualKey::Delete) { DeleteSelected(); }
+}
+
+void UiPresenter::OnCursorPosChanged(Offset2D pos)
+{
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse)
+		return;
+	
+	const auto xPos = (f64)pos.X;
+	const auto yPos = (f64)pos.Y;
+	
+	// On first input lets remove a snap
+	if (_firstCursorInput)
+	{
+		_lastCursorX = xPos;
+		_lastCursorY = yPos;
+		_firstCursorInput = false;
+	}
+
+	const auto xDiff = xPos - _lastCursorX;
+	const auto yDiff = _lastCursorY - yPos;
+	_lastCursorX = xPos;
+	_lastCursorY = yPos;
+
+
+
+	const auto windowSize = _window->GetFramebufferSize();
+	const glm::vec2 diffRatio{ xDiff / (f32)windowSize.Height, yDiff / (f32)windowSize.Width};
+	
+	const bool isLmb = _window->GetMouseButton(MouseButton::Left) == MouseButtonAction::Pressed;
+	const bool isMmb = _window->GetMouseButton(MouseButton::Middle) == MouseButtonAction::Pressed;
+	const bool isRmb = _window->GetMouseButton(MouseButton::Right) == MouseButtonAction::Pressed;
+
+	
+	// Camera control
+	auto& camera = _scene.GetCamera();
+	if (isLmb)
+	{
+		const float arcSpeed = 1.5f*3.1415f;
+		camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
+	}
+	if (isMmb || isRmb)
+	{
+		const auto dir = isMmb
+			? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
+		: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
+
+		const auto len = glm::length(dir);
+		if (len > 0.000001f) // small float
+		{
+			auto speed = Speed::Normal;
+			if (_window->GetKey(VirtualKey::LeftControl) == KeyAction::Pressed)
+			{
+				speed = Speed::Slow;
+			}
+			if (_window->GetKey(VirtualKey::LeftShift) == KeyAction::Pressed)
+			{
+				speed = Speed::Fast;
+			}
+			camera.Move(len, glm::normalize(dir), speed);
+		}
+	}
+}
+void UiPresenter::OnWindowSizeChanged(Extent2D size)
+{
+}

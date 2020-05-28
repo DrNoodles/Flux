@@ -11,7 +11,6 @@
 
 #include <Framework/FileService.h>
 
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

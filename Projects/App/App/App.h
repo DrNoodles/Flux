@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GlfwWindow.h"
 #include "AppTypes.h"
 #include "AssImpModelLoaderService.h"
 #include "FpsCounter.h"
@@ -28,38 +29,21 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-
-class IWindowEventHandler
-{
-public:
-	virtual ~IWindowEventHandler() = default;
-	virtual void OnWindowSizeChanged(int width, int height) = 0;
-	virtual void OnCursorPosChanged(double xPos, double yPos) = 0;
-	virtual void OnKeyCallback(int key, int scancode, int action, int mods) = 0;
-	virtual void OnScrollChanged(double xOffset, double yOffset) = 0;
-};
-
-class App;
-inline std::unordered_map<GLFWwindow*, IWindowEventHandler*> g_windowMap;
 
 
 class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
-	public IVulkanServiceDelegate,
-	public IWindowEventHandler
+	public IVulkanServiceDelegate
 {
 public: // DATA
-	bool FramebufferResized = false;
-
 	
 private: // DATA
-
+	
 	// Dependencies
 	std::unique_ptr<IModelLoaderService> _modelLoaderService = nullptr;
 	std::unique_ptr<VulkanService> _vulkanService = nullptr;
@@ -67,13 +51,10 @@ private: // DATA
 	std::unique_ptr<LibraryManager> _library = nullptr;;
 	std::unique_ptr<UiPresenter> _ui = nullptr;
 	std::unique_ptr<Renderer> _renderer = nullptr;
+	std::unique_ptr<IWindow> _window = nullptr;
 
 	// Window
-	glm::ivec2 _windowSize = { 1600,900 };
-	GLFWwindow* _window = nullptr;
 	AppOptions _appOptions;
-	bool _firstCursorInput = true;
-	double _lastCursorX{}, _lastCursorY{};
 
 	bool _defaultSceneLoaded = false;
 	bool _updateEntities = true;
@@ -99,20 +80,29 @@ public: // METHODS
 	// Lifetime
 	explicit App(AppOptions options)
 	{
-		InitWindow(options);
-
+		auto window = std::make_unique<GlfwWindow>();
+		window->InitWindow();
+		window->SetIcon(options.AssetsDir + "icon_32.png");
+		
 		// Services
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
-		auto vulkan = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this);
+
+		const auto builder = std::make_unique<GlfwVkSurfaceBuilder>(window->GetGlfwWindow());
+		const auto size = window->GetFramebufferSize();
+		const auto framebufferSize = VkExtent2D{size.Width, size.Height};
+		auto vulkanService = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this, 
+			builder.get(), framebufferSize);
 	
 		// Controllers
 		auto scene = std::make_unique<SceneManager>(*this, *modelLoaderService);
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(vulkan.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkan, options.ShaderDir);
+		auto renderer = std::make_unique<Renderer>(vulkanService.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
 
+		InitImgui(window->GetGlfwWindow(), *vulkanService);
+		
 		// Set all teh things
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
@@ -120,8 +110,8 @@ public: // METHODS
 		_scene = std::move(scene);
 		_ui = std::move(ui);
 		_library = std::move(library);
-		_vulkanService = std::move(vulkan);
-
+		_vulkanService = std::move(vulkanService);
+		_window = std::move(window);
 	}
 	App(const App& other) = delete;
 	App(App&& other) = delete;
@@ -133,15 +123,11 @@ public: // METHODS
 		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
-		
-		glfwDestroyWindow(_window);
-		glfwTerminate();
 	}
 	
 	void Run()
 	{
 		// Init the things
-		InitImgui();
 		_library->LoadEmptyScene();
 
 		
@@ -153,9 +139,9 @@ public: // METHODS
 			std::cerr << "Failed to set vsync\n";
 		}
 		
-		while (!glfwWindowShouldClose(_window))
+		while (!_window->CloseRequested())
 		{
-			glfwPollEvents();
+			_window->PollEvents();
 
 			// Compute time elapsed
 			const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -168,9 +154,9 @@ public: // METHODS
 			_fpsCounter.AddFrameTime(dt);
 			if ((currentTime - _lastFpsUpdate) > _reportFpsRate)
 			{
-				char buffer[32];
-				snprintf(buffer, 32, "Flux - %.1f fps", _fpsCounter.GetFps());
-				glfwSetWindowTitle(_window, buffer);
+				char title[32];
+				snprintf(title, 32, "Flux - %.1f fps", _fpsCounter.GetFps());
+				_window->SetWindowTitle(title);
 				_lastFpsUpdate = currentTime;
 			}
 
@@ -194,46 +180,7 @@ public: // METHODS
 	}
 
 private: // METHODS
-	void InitWindow(const AppOptions& options)
-	{
-		glfwInit();
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
-
-		GLFWwindow* window = glfwCreateWindow(_windowSize.x, _windowSize.y, "Vulkan", nullptr, nullptr);
-		if (window == nullptr)
-		{
-			throw std::runtime_error("Failed to create GLFWwindow");
-		}
-		_window = window;
-		g_windowMap.insert(std::make_pair(_window, this));
-
-		//glfwSetWindowUserPointer(_window, this);
-		
-		glfwSetWindowSizeCallback(_window, WindowSizeCallback);
-		glfwSetFramebufferSizeCallback(_window, FramebufferSizeCallback);
-		glfwSetKeyCallback(_window, KeyCallback);
-		glfwSetCursorPosCallback(_window, CursorPosCallback);
-		glfwSetScrollCallback(_window, ScrollCallback);
-
-
-		// Load icon
-		{
-			const auto iconPath = options.AssetsDir + "icon_32.png";
-
-			int outChannelsInFile;
-			GLFWimage icon;
-			icon.pixels = stbi_load(iconPath.c_str(), &icon.width, &icon.height, &outChannelsInFile, 4);
-			if (!icon.pixels)
-			{
-				stbi_image_free(icon.pixels);
-				throw std::runtime_error("Failed to load texture image: " + iconPath);
-			}
-			
-			glfwSetWindowIcon(window, 1, &icon);
-			
-			stbi_image_free(icon.pixels);
-		}
-	}
+	
 
 	void ProcessDeletionQueue()
 	{
@@ -290,10 +237,8 @@ private: // METHODS
 
 	#pragma region ImGui
 
-	void InitImgui()
+	void InitImgui(GLFWwindow* window, VulkanService& vk)
 	{
-		auto& _vk = _vulkanService;
-
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 
@@ -347,11 +292,11 @@ private: // METHODS
 		}
 
 		// Here Imgui is coupled to Glfw and Vulkan
-		ImGui_ImplGlfw_InitForVulkan(_window, true);
+		ImGui_ImplGlfw_InitForVulkan(window, true);
 
 
 
-		const auto imageCount = _vk->SwapchainImageCount();
+		const auto imageCount = vk.SwapchainImageCount();
 
 		// Create descriptor pool - from main_vulkan.cpp imgui example code
 		_imguiDescriptorPool = vkh::CreateDescriptorPool({
@@ -366,14 +311,14 @@ private: // METHODS
 			 { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
 			 { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
 			 { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-			}, imageCount, _vk->LogicalDevice());
+			}, imageCount, vk.LogicalDevice());
 
 
 		// Get the min image count
 		u32 minImageCount;
 		{
 			// Copied from VulkanHelpers::CreateSwapchain - TODO either store minImageCount or make it a separate func
-			const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(_vk->PhysicalDevice(), _vk->Surface());
+			const SwapChainSupportDetails deets = vkh::QuerySwapChainSupport(vk.PhysicalDevice(), vk.Surface());
 
 			minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
 			const auto maxImageCount = deets.Capabilities.maxImageCount;
@@ -388,16 +333,16 @@ private: // METHODS
 		// Init device info
 		ImGui_ImplVulkan_InitInfo initInfo = {};
 		{
-			initInfo.Instance = _vk->Instance();
-			initInfo.PhysicalDevice = _vk->PhysicalDevice();
-			initInfo.Device = _vk->LogicalDevice();
-			initInfo.QueueFamily = vkh::FindQueueFamilies(_vk->PhysicalDevice(), _vk->Surface()).GraphicsFamily.value(); // vomit
-			initInfo.Queue = _vk->GraphicsQueue();
+			initInfo.Instance = vk.Instance();
+			initInfo.PhysicalDevice = vk.PhysicalDevice();
+			initInfo.Device = vk.LogicalDevice();
+			initInfo.QueueFamily = vkh::FindQueueFamilies(vk.PhysicalDevice(), vk.Surface()).GraphicsFamily.value(); // vomit
+			initInfo.Queue = vk.GraphicsQueue();
 			initInfo.PipelineCache = nullptr;
 			initInfo.DescriptorPool = _imguiDescriptorPool;
 			initInfo.MinImageCount = minImageCount;
 			initInfo.ImageCount = imageCount;
-			initInfo.MSAASamples = _vk->MsaaSamples();
+			initInfo.MSAASamples = vk.MsaaSamples();
 			initInfo.Allocator = nullptr;
 			initInfo.CheckVkResultFn = [](VkResult err)
 			{
@@ -408,14 +353,14 @@ private: // METHODS
 			};
 		}
 
-		ImGui_ImplVulkan_Init(&initInfo, _vk->SwapchainRenderPass());
+		ImGui_ImplVulkan_Init(&initInfo, vk.SwapchainRenderPass());
 
 
 		// Upload Fonts
 		{
-			auto* const cmdBuf = vkh::BeginSingleTimeCommands(_vk->CommandPool(), _vk->LogicalDevice());
+			auto* const cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
 			ImGui_ImplVulkan_CreateFontsTexture(cmdBuf);
-			vkh::EndSingeTimeCommands(cmdBuf, _vk->CommandPool(), _vk->GraphicsQueue(), _vk->LogicalDevice());
+			vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
 			ImGui_ImplVulkan_DestroyFontUploadObjects();
 		}
 	}
@@ -433,16 +378,17 @@ private: // METHODS
 	
 	#pragma region IUiPresenterDelegate
 
-	glm::ivec2 GetWindowSize() const override
-	{
-		return _windowSize;
-	}
 	void Delete(const std::vector<int>& entityIds) override
 	{
 		for (auto id : entityIds)
 		{
 			_deletionQueue.push_back(id);
 		}
+	}
+
+	void ToggleUpdateEntities() override
+	{
+		_updateEntities = !_updateEntities;
 	}
 
 	#pragma endregion
@@ -455,161 +401,21 @@ private: // METHODS
 	{
 		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
-	VkSurfaceKHR CreateSurface(VkInstance instance) const override
-	{
-		VkSurfaceKHR surface;
-		if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create window surface");
-		}
-		return surface;
-	}
+	
 	VkExtent2D GetFramebufferSize() override
 	{
-		i32 width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		return { (u32)width, (u32)height };
+		const auto size = _window->GetFramebufferSize();
+		return VkExtent2D{size.Width, size.Height};
 	}
 	VkExtent2D WaitTillFramebufferHasSize() override
 	{
-		// This handles a minimized window. Wait until it has size > 0
-		i32 width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		while (width == 0 || height == 0)
-		{
-			glfwGetFramebufferSize(_window, &width, &height);
-			glfwWaitEvents();
-		}
-
-		return { (u32)width, (u32)height };
+		const auto size = _window->WaitTillFramebufferHasSize();
+		return VkExtent2D{size.Width, size.Height};
 	}
 
 	#pragma endregion
 
 	
-	
-	#pragma region GLFW Callbacks, event handling
-
-	// Callbacks
-	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
-	{
-		g_windowMap[window]->OnScrollChanged(xOffset, yOffset);
-	}
-	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-	{
-		g_windowMap[window]->OnKeyCallback(key, scancode, action, mods);
-	}
-	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
-	{
-		g_windowMap[window]->OnCursorPosChanged(xPos, yPos);
-	}
-	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
-	{
-		//printf("TODO Handle FramebufferSizeCallback()\n");
-	}
-	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
-	{
-		g_windowMap[window]->OnWindowSizeChanged(width, height);
-	}
-
-	// Event handlers
-	void OnScrollChanged(double xOffset, double yOffset) override
-	{
-		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
-		ImGuiIO& io = ImGui::GetIO();
-		if (io.WantCaptureMouse)
-			return;
-
-		
-		_scene->GetCamera().ProcessMouseScroll(float(yOffset));
-	}
-	void OnKeyCallback(int key, int scancode, int action, int mods) override
-	{
-		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
-		ImGuiIO& io = ImGui::GetIO();
-		if (io.WantTextInput || io.WantCaptureKeyboard)
-			return;
-
-		
-		// ONLY on pressed is handled
-		if (action == GLFW_REPEAT || action == GLFW_RELEASE) return;
-
-		//if (key == GLFW_KEY_ESCAPE) { glfwSetWindowShouldClose(_window, 1); }
-		if (key == GLFW_KEY_F)      { _ui->FrameSelectionOrAll(); }
-		if (key == GLFW_KEY_C)      { _ui->NextSkybox(); }
-		if (key == GLFW_KEY_N)      { _updateEntities = !_updateEntities; }
-		if (key == GLFW_KEY_DELETE) { _ui->DeleteSelected(); }
-	}
-	void OnCursorPosChanged(double xPos, double yPos) override
-	{
-		// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
-		ImGuiIO& io = ImGui::GetIO();
-		if (io.WantCaptureMouse)
-			return;
-		
-		
-		// On first input lets remove a snap
-		if (_firstCursorInput)
-		{
-			_lastCursorX = xPos;
-			_lastCursorY = yPos;
-			_firstCursorInput = false;
-		}
-
-		const auto xDiff = xPos - _lastCursorX;
-		const auto yDiff = _lastCursorY - yPos;
-		_lastCursorX = xPos;
-		_lastCursorY = yPos;
-
-
-
-		const auto windowSize = GetFramebufferSize();
-		const glm::vec2 diffRatio{ xDiff / windowSize.height, yDiff / windowSize.height };
-		auto* const window = _window;
-		const auto isLmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
-		const auto isMmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_3);
-		const auto isRmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2);
-
-		
-		// Camera control
-		auto& camera = _scene->GetCamera();
-		if (isLmb)
-		{
-			const float arcSpeed = 1.5f*3.1415f;
-			camera.Arc(diffRatio.x * arcSpeed, diffRatio.y * arcSpeed);
-		}
-		if (isMmb || isRmb)
-		{
-			const auto dir = isMmb
-				? glm::vec3{ diffRatio.x, -diffRatio.y, 0 } // mmb pan
-			: glm::vec3{ 0, 0, diffRatio.y };     // rmb zoom
-
-			const auto len = glm::length(dir);
-			if (len > 0.000001f) // small float
-			{
-				auto speed = Speed::Normal;
-				if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-				{
-					speed = Speed::Slow;
-				}
-				if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-				{
-					speed = Speed::Fast;
-				}
-				camera.Move(len, glm::normalize(dir), speed);
-			}
-		}
-	}
-	void OnWindowSizeChanged(int width, int height) override
-	{
-		FramebufferResized = true;
-		_windowSize.x = width;
-		_windowSize.y = height;
-	}
-
-	#pragma endregion 
-
-
 	
 	#pragma region ILibraryManagerDelegate
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IWindow.h"
 #include "UiPresenterHelpers.h"
 
 #include "PropsView/LightVm.h"
@@ -21,27 +22,35 @@ class IUiPresenterDelegate
 {
 public:
 	virtual ~IUiPresenterDelegate() = default;
-	virtual glm::ivec2 GetWindowSize() const = 0;
 	virtual void Delete(const std::vector<int>& entityIds) = 0;
+	virtual void ToggleUpdateEntities() = 0;
 };
 
-class UiPresenter final : public ISceneViewDelegate, public IPropsViewDelegate, public IViewportViewDelegate
+class UiPresenter final :
+	public ISceneViewDelegate,
+	public IPropsViewDelegate,
+	public IViewportViewDelegate
 {
 public: // DATA
 	
 private: // DATA
+	
 	// Dependencies
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	LibraryManager& _library;
 	Renderer& _renderer; // temp, move to ViewportView
 	VulkanService& _vulkan; // temp, remove
+	IWindow* _window = nullptr;
 
 	// Views
 	SceneView _sceneView;
 	PropsView _propsView;
 	ViewportView _viewportView;
 
+	bool _firstCursorInput = true;
+	f64 _lastCursorX{}, _lastCursorY{};
+	
 	// PropsView helpers
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
@@ -71,7 +80,7 @@ private: // DATA
 	
 
 public: // METHODS
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, const std::string& shaderDir);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
 	void Shutdown();
 	// Disable copy
@@ -94,17 +103,28 @@ public: // METHODS
 	}
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
-	// Fit to middle
-	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
-	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
+	
+
+	
+	// Event handlers
+	void OnScrollChanged(Offset2D offset);
+	void OnKeyCallback(KeyEventArgs a);
+	void OnCursorPosChanged(Offset2D pos);
+	void OnWindowSizeChanged(Extent2D size);
+	
 
 	
 private: // METHODS
-	int WindowWidth() const { return _delegate.GetWindowSize().x; }
-	int WindowHeight() const { return _delegate.GetWindowSize().y; }
+	int WindowWidth() const { return _window->GetSize().Width; }
+	int WindowHeight() const { return _window->GetSize().Height; }
+	
+	// Fit to middle
+	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
+	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
+	
 	// Anchor left
 	glm::ivec2 ScenePos() const { return { 0, 0 }; }
-	glm::ivec2 SceneSize() const { return { _sceneViewWidth, _delegate.GetWindowSize().y }; }
+	glm::ivec2 SceneSize() const { return { _sceneViewWidth, _window->GetSize().Height }; }
 
 	// Anchor right
 	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsViewWidth,0 }; }

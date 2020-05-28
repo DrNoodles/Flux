@@ -26,7 +26,7 @@ Requirements:
 Build and run:
 1. create-build-files.bat
 2. compile-shaders.bat
-3. open Build/Vulkan.sln in VS2019 and compile
+3. open Build/Flux.sln in VS2019 and compile
 4. run Bin/Flux_CONFIG.exe
 
 Camera Controls:
