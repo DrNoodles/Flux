@@ -32,9 +32,9 @@ class UiPresenter final :
 	public IViewportViewDelegate
 {
 public: // DATA
-	
+
 private: // DATA
-	
+
 	// Dependencies
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
@@ -50,7 +50,7 @@ private: // DATA
 
 	bool _firstCursorInput = true;
 	f64 _lastCursorX{}, _lastCursorY{};
-	
+
 	// PropsView helpers
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
@@ -62,19 +62,19 @@ private: // DATA
 	std::unordered_set<Entity*> _selection{};
 
 	// Layout
-	int _sceneViewWidth = 250;
-	int _propsViewWidth = 300;
+	u32 _sceneViewWidth = 250;
+	u32 _propsViewWidth = 300;
 
 	// UI Timer
 	std::chrono::steady_clock::time_point _lastUiUpdate;
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
-	
+
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 
 	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
 	//UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
-	
+
 	//UiPresenterHelpers::PostPassResources _postPassResources;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
@@ -103,32 +103,45 @@ public: // METHODS
 
 	void SetUpdateRate(int updatesPerSecond)
 	{
-		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f/float(updatesPerSecond) };
+		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
 	}
-	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
+	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
 
 private: // METHODS
-	int WindowWidth() const { return _window->GetSize().Width; }
-	int WindowHeight() const { return _window->GetSize().Height; }
-	
-	// Fit to middle
-	glm::ivec2 ViewportPos() const { return { _sceneViewWidth, 0 }; }
-	glm::ivec2 ViewportSize() const { return { WindowWidth() - _propsViewWidth - _sceneViewWidth, WindowHeight() }; }
-	
-	// Anchor left
-	glm::ivec2 ScenePos() const { return { 0, 0 }; }
-	glm::ivec2 SceneSize() const { return { _sceneViewWidth, _window->GetSize().Height }; }
 
-	// Anchor right
-	glm::ivec2 PropsPos() const { return { WindowWidth() - _propsViewWidth,0 }; }
-	glm::ivec2 PropsSize() const { return { _propsViewWidth, WindowHeight() }; }
+	// Anchor Scene-view to left
+	Rect2D SceneRect() const
+	{
+		Rect2D r;
+		r.Offset = { 0,0 };
+		r.Extent = { _sceneViewWidth, _window->GetSize().Height };
+		return r;
+	}
+
+	// Fit Viewport to middle
+	Rect2D ViewportRect() const
+	{
+		Rect2D r;
+		r.Offset = { (i32)SceneRect().Extent.Width, 0 };
+		r.Extent = { (u32)(PropsRect().Offset.X - r.Offset.X), _window->GetSize().Height };
+		return r;
+	}
+
+	// Anchor Props-view to right
+	Rect2D PropsRect() const
+	{
+		Rect2D r;
+		r.Offset = { (i32)(_window->GetSize().Width - _propsViewWidth), 0 };
+		r.Extent = { _propsViewWidth, _window->GetSize().Height };
+		return r;
+	}
 
 	void BuildImGui();
 	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
 	void DrawUi(VkCommandBuffer commandBuffer);
 
 
-	
+
 	// Event handlers
 	void OnKeyDown(IWindow* sender, KeyEventArgs args);
 	void OnKeyUp(IWindow* sender, KeyEventArgs args);
@@ -136,8 +149,8 @@ private: // METHODS
 	void OnPointerMoved(IWindow* sender, PointerEventArgs args);
 	void OnWindowSizeChanged(IWindow* sender, WindowSizeChangedEventArgs args);
 
-	
-	#pragma region ISceneViewDelegate
+
+#pragma region ISceneViewDelegate
 
 	void LoadDemoScene() override;
 	void LoadHeavyDemoScene() override;
@@ -150,7 +163,7 @@ private: // METHODS
 	void CreateCube() override;
 
 	void DeleteAll() override;
-	
+
 	RenderOptions GetRenderOptions() override;
 	void SetRenderOptions(const RenderOptions& ro) override;
 	void LoadAndSetSkybox() override;
@@ -158,10 +171,10 @@ private: // METHODS
 	u32 GetActiveSkybox() const override { return _activeSkybox; }
 	void SetActiveSkybox(u32 idx) override;
 
-	#pragma endregion
+#pragma endregion
 
 
-	#pragma region IPropsViewDelegate
+#pragma region IPropsViewDelegate
 
 	std::optional<MaterialViewState> GetMaterialState() override;
 	void CommitMaterialChanges(const MaterialViewState& state) override;
@@ -169,5 +182,5 @@ private: // METHODS
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
 
-	#pragma endregion
+#pragma endregion
 };

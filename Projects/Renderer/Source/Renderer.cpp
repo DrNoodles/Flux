@@ -42,7 +42,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
 	const std::vector<Light>& lights,
-	glm::mat4 view, glm::vec3 camPos, glm::ivec2 regionPos, glm::ivec2 regionSize)
+	glm::mat4 view, glm::vec3 camPos, const Rect2D& region)
 {
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
@@ -76,7 +76,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		// Calc Projection
 		const auto vfov = 45.f;
-		const auto aspect = regionSize.x / (f32)regionSize.y;
+		const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
 		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
@@ -200,8 +200,11 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		// Record Command Buffer
 
 		// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
-		auto viewport = vki::Viewport((f32)regionPos.x,(f32)regionPos.y, (f32)regionSize.x,(f32)regionSize.y, 0,1);
-		auto scissor = vki::Rect2D({ regionPos.x,regionPos.y }, { (u32)regionSize.x, (u32)regionSize.y });
+		auto viewport = vki::Viewport(
+			(f32)region.Offset.X,    (f32)region.Offset.Y, 
+			(f32)region.Extent.Width,(f32)region.Extent.Height, 
+			0, 1);
+		auto scissor = vki::Rect2D({ region.Offset.X, region.Offset.Y }, { region.Extent.Width, region.Extent.Height });
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 

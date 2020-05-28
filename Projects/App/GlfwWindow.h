@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "IWindow.h"
 
 #include "Framework/CommonTypes.h"
