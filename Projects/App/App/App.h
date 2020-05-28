@@ -216,9 +216,7 @@ private: // METHODS
 			return;
 		}
 
-		u32 imageIndex;
-		VkCommandBuffer cmdBuf;
-		std::tie(imageIndex, cmdBuf) = *frameInfo;
+		auto [imageIndex, cmdBuf] = *frameInfo;
 		
 		_ui->Draw(imageIndex, cmdBuf);
 		

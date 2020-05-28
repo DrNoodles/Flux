@@ -447,8 +447,7 @@ void UiPresenter::LoadModel(const std::string& path)
 	printf("LoadModel(%s)\n", path.c_str());
 
 	// Split path into a dir and filename so we can name the entity
-	std::string dir, filename;
-	std::tie(dir, filename) = FileService::SplitPathAsDirAndFilename(path);
+	auto [dir, filename] = FileService::SplitPathAsDirAndFilename(path);
 
 
 	// Load asset

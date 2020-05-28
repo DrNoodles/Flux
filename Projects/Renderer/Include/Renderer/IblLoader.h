@@ -550,13 +550,8 @@ private:
 		const u32 arrayLayers = 1;
 
 
-		VkImage image;
-		VkDeviceMemory memory;
-		VkImageView view;
-		VkSampler sampler;
-
 		// Create Image & Memory
-		std::tie(image, memory) = vkh::CreateImage2D(
+		auto [image, memory] = vkh::CreateImage2D(
 			dim, dim,
 			numMips,
 			VK_SAMPLE_COUNT_1_BIT,
@@ -568,10 +563,11 @@ private:
 
 
 		// Create View
-		view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
+		auto* view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
 
 
 		// Create Sampler
+		VkSampler sampler;
 		{
 			VkSamplerCreateInfo samplerCI = {};
 			samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -595,8 +591,7 @@ private:
 		}
 
 		
-		
-		auto renderPass = Shared_CreateRenderPass(device, format);
+		auto* renderPass = Shared_CreateRenderPass(device, format);
 
 		
 		// Create Render Target
@@ -609,15 +604,15 @@ private:
 		}
 
 
-		auto descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
+		auto* descPool = vkh::CreateDescriptorPool({ VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1} }, 1, device);
 
 
-		auto descSetLayout = vkh::CreateDescriptorSetLayout(device, {
+		auto* descSetLayout = vkh::CreateDescriptorSetLayout(device, {
 			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			});
 
 
-		const VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
+		auto* pipelineLayout = vkh::CreatePipelineLayout(device, { descSetLayout });
 
 
 		// Create Pipeline
@@ -636,11 +631,11 @@ private:
 			vertAttrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
 			vertAttrDesc[1].offset = offsetof(Vertex, TexCoord);
 		}
-		const VkPipeline pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath, vertAttrDesc);
+		auto* pipeline = Shared_CreatePipeline(device, pipelineLayout, renderPass, vertPath, fragPath, vertAttrDesc);
 
 
 		// Allocate and Update Descriptor Sets
-		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		auto* descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
 		vkh::UpdateDescriptorSets(device, {
 			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.DescriptorImageInfo())
 			});
@@ -719,7 +714,7 @@ private:
 		mesh.IndexCount = 6;
 		mesh.VertexCount = 4;
 		
-		auto cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
+		auto* cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
 
 		VkViewport viewport = vki::Viewport(0, 0, (f32)dim, (f32)dim, 0.0f, 1.0f);
 		VkRect2D scissor = vki::Rect2D(0, 0, dim, dim);
@@ -763,15 +758,11 @@ private:
 	static TextureResource Shared_CreateCubeTextureResource(VkPhysicalDevice physicalDevice, VkDevice device,
 		const VkFormat format, const i32 dim, const u32 numMips)
 	{
-		VkImage image;
-		VkDeviceMemory memory;
-		VkImageView view;
-		VkSampler sampler;
 
 		const u32 arrayLayers = 6; // cube faces
 
 		// Create Image & Memory
-		std::tie(image, memory) = vkh::CreateImage2D(
+		auto [image, memory] = vkh::CreateImage2D(
 			dim, dim,
 			numMips,
 			VK_SAMPLE_COUNT_1_BIT,
@@ -783,10 +774,11 @@ private:
 
 
 		// Create View
-		view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
+		auto* view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, numMips, arrayLayers, device);
 
 
 		// Create Sampler
+		VkSampler sampler;
 		{
 			VkSamplerCreateInfo samplerCI = {};
 			samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

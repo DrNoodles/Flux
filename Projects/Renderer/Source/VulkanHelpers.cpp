@@ -692,9 +692,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateVertexBuffer(const std
 	const VkDeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
 
 	// Create temp staging buffer - to copy vertices from system mem to gpu mem
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(bufSize,
+	auto [stagingBuffer, stagingBufferMemory] = CreateBuffer(bufSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, // property flags
@@ -709,9 +707,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateVertexBuffer(const std
 
 
 	// Create vertex buffer - with optimal memory speeds
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	std::tie(vertexBuffer, vertexBufferMemory) = CreateBuffer(bufSize,
+	auto [vertexBuffer, vertexBufferMemory] = CreateBuffer(bufSize,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, // usage flags
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
@@ -738,9 +734,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateIndexBuffer(const std:
 	const VkDeviceSize bufSize = sizeof(indices[0]) * indices.size();
 
 	// Create temp staging buffer - to copy indices from system mem to gpu mem
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	std::tie(stagingBuffer, stagingBufferMemory) = CreateBuffer(bufSize,
+	auto [stagingBuffer, stagingBufferMemory] = CreateBuffer(bufSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, // property flags
@@ -753,9 +747,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateIndexBuffer(const std:
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	// Create index buffer - with optimal memory speeds
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-	std::tie(indexBuffer, indexBufferMemory) = CreateBuffer(bufSize,
+	auto [indexBuffer, indexBufferMemory] = CreateBuffer(bufSize,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, // usage flags
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
@@ -1469,10 +1461,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateColorResou
 	const u32 layerCount = 1;
 
 	// Create color image and memory
-	VkImage colorImage;
-	VkDeviceMemory colorImageMemory;
-
-	std::tie(colorImage, colorImageMemory) = CreateImage2D(
+	auto [colorImage, colorImageMemory] = CreateImage2D(
 		extent.width, extent.height,
 		mipLevels,
 		msaaSamples,
@@ -1500,9 +1489,7 @@ std::tuple<VkImage, VkDeviceMemory, VkImageView> VulkanHelpers::CreateDepthResou
 	const u32 arrayLayers = 1;
 
 	// Create depth image and memory
-	VkImage depthImage;
-	VkDeviceMemory depthImageMemory;
-	std::tie(depthImage, depthImageMemory) = CreateImage2D(
+	auto [depthImage, depthImageMemory] = CreateImage2D(
 		extent.width, extent.height,
 		mipLevels,
 		msaaSamples,

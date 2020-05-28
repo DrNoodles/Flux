@@ -132,17 +132,13 @@ public:
 		// TODO Pull the texture library out of the CreateTextureImage, just work on an TextureDefinition struct that
 		// has an array of pixels and width, height, channels, etc
 
-		u32 layerCount = 1;
-
-		VkImage image;
-		VkDeviceMemory memory;
-		u32 mipLevels, width, height;
+		const u32 layerCount = 1;
 		const auto format = VK_FORMAT_R8G8B8A8_UNORM;
 
-		std::tie(image, memory, mipLevels, width, height)
-			= CreateTextureImage(path, transferPool, transferQueue, physicalDevice, device);
-		const auto view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
-		const auto sampler = CreateTextureSampler(mipLevels, device);
+	
+		auto [image, memory, mipLevels, width, height] = CreateTextureImage(path, transferPool, transferQueue, physicalDevice, device);
+		auto* view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, device);
+		auto* sampler = CreateTextureSampler(mipLevels, device);
 		const auto layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		return TextureResource(device, width, height, mipLevels, layerCount, image, memory, view, sampler, format, layout);
@@ -166,7 +162,7 @@ private:
 		}
 
 
-		auto commandBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
+		auto* commandBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
 
 		VkImageMemoryBarrier barrier = {};
 		{
@@ -286,9 +282,7 @@ private:
 		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
 
 		// Create staging buffer
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		std::tie(stagingBuffer, stagingBufferMemory) = vkh::CreateBuffer(
+		auto [stagingBuffer, stagingBufferMemory] = vkh::CreateBuffer(
 			imageSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
@@ -307,9 +301,7 @@ private:
 
 
 		// Create image buffer
-		VkImage textureImage;
-		VkDeviceMemory textureImageMemory;
-		std::tie(textureImage, textureImageMemory) = vkh::CreateImage2D(texWidth, texHeight,
+		auto [textureImage, textureImageMemory] = vkh::CreateImage2D(texWidth, texHeight,
 			mipLevels,
 			VK_SAMPLE_COUNT_1_BIT,
 			VK_FORMAT_R8G8B8A8_UNORM, // format

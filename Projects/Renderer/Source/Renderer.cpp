@@ -1096,18 +1096,12 @@ Renderer::CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& s
 
 
 	// Vert Uniform buffers
-	std::vector<VkBuffer> skyboxVertBuffers;
-	std::vector<VkDeviceMemory> skyboxVertBuffersMemory;
-	
-	std::tie(skyboxVertBuffers, skyboxVertBuffersMemory)
+	auto [skyboxVertBuffers, skyboxVertBuffersMemory]
 		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxVertUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 	
 	// Frag Uniform buffers
-	std::vector<VkBuffer> skyboxFragBuffers;
-	std::vector<VkDeviceMemory> skyboxFragBuffersMemory;
-	
-	std::tie(skyboxFragBuffers, skyboxFragBuffersMemory)
+	auto [skyboxFragBuffers, skyboxFragBuffersMemory]
 		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(SkyboxFragUbo), _vk->LogicalDevice(), _vk->PhysicalDevice());
 
 
