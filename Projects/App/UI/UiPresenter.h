@@ -77,7 +77,7 @@ private: // DATA
 	
 	//UiPresenterHelpers::PostPassResources _postPassResources;
 
-	
+	WindowSizeChangedDelegate _windowSizeChangedHandler = {[this](auto* s, auto a) { Foo(s, a); }};
 
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
@@ -105,6 +105,7 @@ public: // METHODS
 
 	
 
+	void Foo(IWindow* sender, WindowSizeChangedEventArgs args);
 	
 	// Event handlers
 	void OnScrollChanged(Offset2D offset);
