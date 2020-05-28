@@ -78,6 +78,7 @@ private: // DATA
 	//UiPresenterHelpers::PostPassResources _postPassResources;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
+	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
 
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
@@ -103,15 +104,6 @@ public: // METHODS
 	}
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer); 
 
-	
-	// Event handlers
-	void OnScrollChanged(Offset2D offset);
-	void OnKeyCallback(KeyEventArgs a);
-	void OnCursorPosChanged(Offset2D pos);
-	void OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a);
-	
-
-	
 private: // METHODS
 	int WindowWidth() const { return _window->GetSize().Width; }
 	int WindowHeight() const { return _window->GetSize().Height; }
@@ -131,6 +123,14 @@ private: // METHODS
 	void BuildImGui();
 	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
 	void DrawUi(VkCommandBuffer commandBuffer);
+
+
+	
+	// Event handlers
+	void OnScrollChanged(Offset2D offset);
+	void OnKeyCallback(KeyEventArgs a);
+	void OnPointerMoved(IWindow* sender, PointerEventArgs args);
+	void OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a);
 
 	
 	#pragma region ISceneViewDelegate

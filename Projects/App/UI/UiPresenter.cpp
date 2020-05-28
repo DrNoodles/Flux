@@ -25,8 +25,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
 {
-	
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
+	_window->PointerMoved.Attach(_pointerMovedHandler);
 
 
 	
@@ -54,6 +54,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 void UiPresenter::Shutdown()
 {
 	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
+	_window->PointerMoved.Detach(_pointerMovedHandler);
 	
 	/*
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
@@ -632,15 +633,18 @@ void UiPresenter::OnKeyCallback(KeyEventArgs a)
 	if (a.Key == VirtualKey::Delete) { DeleteSelected(); }
 }
 
-void UiPresenter::OnCursorPosChanged(Offset2D pos)
+void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 {
+	//std::cout << "OnPointerMoved: (" << args.CurrentPoint.Position.X << "," << args.CurrentPoint.Position.Y << ")\n";
+
+	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureMouse)
 		return;
 	
-	const auto xPos = (f64)pos.X;
-	const auto yPos = (f64)pos.Y;
+	const auto xPos = args.CurrentPoint.Position.X;
+	const auto yPos = args.CurrentPoint.Position.Y;
 	
 	// On first input lets remove a snap
 	if (_firstCursorInput)
@@ -657,12 +661,12 @@ void UiPresenter::OnCursorPosChanged(Offset2D pos)
 
 
 
-	const auto windowSize = _window->GetFramebufferSize();
-	const glm::vec2 diffRatio{ xDiff / (f32)windowSize.Height, yDiff / (f32)windowSize.Width};
+	const auto windowSize = sender->GetSize();
+	const glm::vec2 diffRatio{ xDiff/(f64)windowSize.Height, yDiff/(f64)windowSize.Height}; // Note both are / Height
 	
-	const bool isLmb = _window->GetMouseButton(MouseButton::Left) == MouseButtonAction::Pressed;
-	const bool isMmb = _window->GetMouseButton(MouseButton::Middle) == MouseButtonAction::Pressed;
-	const bool isRmb = _window->GetMouseButton(MouseButton::Right) == MouseButtonAction::Pressed;
+	const bool isLmb = sender->GetMouseButton(MouseButton::Left)   == MouseButtonAction::Pressed;
+	const bool isMmb = sender->GetMouseButton(MouseButton::Middle) == MouseButtonAction::Pressed;
+	const bool isRmb = sender->GetMouseButton(MouseButton::Right)  == MouseButtonAction::Pressed;
 
 	
 	// Camera control
@@ -696,5 +700,5 @@ void UiPresenter::OnCursorPosChanged(Offset2D pos)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a)
 {
-	std::cout << "Foo: (" << a.Size.Width << "," << a.Size.Height << ")\n";
+	//std::cout << "OnWindowSizeChanged: (" << a.Size.Width << "," << a.Size.Height << ")\n";
 }

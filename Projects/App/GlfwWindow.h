@@ -2,7 +2,6 @@
 
 
 #include "IWindow.h"
-#include "IWindowEventHandler.h"
 
 #include "Framework/CommonTypes.h"
 #include "Renderer/VulkanService.h"
@@ -160,10 +159,11 @@ private: // Methods
 		_size = size;
 		WindowSizeChanged.Invoke(this, WindowSizeChangedEventArgs{size});
 	}
-	void OnCursorPosChanged(Offset2D pos)
+	void OnCursorPosChanged(f64 xPos, f64 yPos)
 	{
-		// TODO Call event!
 		// TODO Factor out this method? Might be unnecessary
+		const auto args = PointerEventArgs{PointerPoint{xPos, yPos}};
+		PointerMoved.Invoke(this, args);
 	}
 	void OnKeyCallback(KeyEventArgs a)
 	{
@@ -196,9 +196,7 @@ private: // Methods
 	
 	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
 	{
-		// Note: Crunching from double > i32
-		const auto pos = Offset2D{ (i32)xPos, (i32)yPos };
-		g_window_map[window]->OnCursorPosChanged(pos);
+		g_window_map[window]->OnCursorPosChanged(xPos, yPos);
 	}
 	
 	static void WindowSizeCallback(GLFWwindow* window, int width, int height)

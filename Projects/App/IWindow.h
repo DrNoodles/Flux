@@ -198,6 +198,59 @@ struct KeyEventArgs
 	}
 };
 
+enum class PointerUpdateKind
+{
+	Other                = 0,
+	LeftButtonPressed    = 1,
+	LeftButtonReleased   = 2,
+	RightButtonPressed   = 3,
+	RightButtonReleased  = 4,
+	MiddleButtonPressed  = 5,
+	MiddleButtonReleased = 6,
+	XButton1Pressed      = 7,
+	XButton1Released     = 8,
+	XButton2Pressed      = 9,
+	XButton2Released     = 10,
+};
+
+struct PointerPointProperties
+{
+	bool IsLeftButtonPressed = false;
+	bool IsMiddleButtonPressed = false;
+	bool IsRightButtonPressed = false;
+	PointerUpdateKind PointerUpdateKind = PointerUpdateKind::Other;
+
+	bool IsHorizonalMouseWheel = false;
+	i32 MouseWheelDelta = 0; // https://docs.microsoft.com/en-us/uwp/api/windows.ui.input.pointerpointproperties.mousewheeldelta?view=winrt-19041#Windows_UI_Input_PointerPointProperties_MouseWheelDelta
+};
+
+struct PointerPoint
+{
+	// Gets the location of the pointer input in client coordinates.
+	//TODO Should this be DIP(device-independent pixels)? Figure out if needed with ImGui/Glfw.
+	Point2D Position;
+
+	// The time, relative to the system boot time, in microseconds. -
+	// TODO Confirm i can calculate this or some equivalent
+	//u64 Timestamp;
+
+	// Gets extended information about the input pointer.
+	//PointerPointProperties Properties;
+};
+
+struct PointerEventArgs
+{
+	// Gets the pointer data of the last pointer event.
+	PointerPoint CurrentPoint;
+	
+	// Gets any virtual modifier keys that maps to any keys that were pressed.
+	//const VirtualKeyModifiers Modifiers;
+
+	explicit PointerEventArgs(PointerPoint currentPoint)
+		: CurrentPoint(currentPoint)
+	{
+	}
+};
 struct WindowSizeChangedEventArgs
 {
 	Extent2D Size = {};
@@ -218,13 +271,9 @@ public:
 	virtual KeyAction GetKey(VirtualKey k) = 0;
 
 	Event<IWindow*, WindowSizeChangedEventArgs> WindowSizeChanged;
+	Event<IWindow*, PointerEventArgs> PointerMoved;
 };
 
 // Event Delegates
 typedef std::function<void(IWindow* sender, WindowSizeChangedEventArgs args)> WindowSizeChangedDelegate;
-
-
-
-
-//typedef TypedEventDelegate<IWindow*, WindowSizeChangedEventArgs> WindowSizeChangedDelegate;
-
+typedef std::function<void(IWindow* sender, PointerEventArgs args)> PointerMovedDelegate;
