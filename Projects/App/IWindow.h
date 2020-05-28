@@ -217,9 +217,14 @@ public:
 	virtual MouseButtonAction GetMouseButton(MouseButton b) = 0;
 	virtual KeyAction GetKey(VirtualKey k) = 0;
 
-	TypedEvent<IWindow*, WindowSizeChangedEventArgs> WindowSizeChanged;
+	Event<IWindow*, WindowSizeChangedEventArgs> WindowSizeChanged;
 };
 
-//typedef std::function<void(IWindow*, WindowSizeChangedEventArgs)> WindowSizeChangedDelegate;
-typedef TypedEventDelegate<IWindow*, WindowSizeChangedEventArgs> WindowSizeChangedDelegate;
+// Event Delegates
+typedef std::function<void(IWindow* sender, WindowSizeChangedEventArgs args)> WindowSizeChangedDelegate;
+
+
+
+
+//typedef TypedEventDelegate<IWindow*, WindowSizeChangedEventArgs> WindowSizeChangedDelegate;
 

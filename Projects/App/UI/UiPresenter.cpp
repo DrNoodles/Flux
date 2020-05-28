@@ -14,11 +14,6 @@
 #include <functional>
 //namespace uvh = UiPresenterHelpers;
 
-void UiPresenter::Foo(IWindow* sender, WindowSizeChangedEventArgs args)
-{
-	std::cout << "Foo: (" << args.Size.Width << "," << args.Size.Height << ")\n";
-}
-
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
@@ -30,35 +25,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
 {
-	//using fn = std::function<void(IWindow*, WindowSizeChangedEventArgs)>;
-
-	//std::vector<fn*> _blah = {};
-
-
-	_windowSizeChangedHandler = TypedEventDelegate<IWindow*, WindowSizeChangedEventArgs>([this](auto* s, auto a) { Foo(s, a); });
 	
-	/*fn test = [this](auto* s, auto a)
-	{
-		Foo(s, a);
-	};*/
-
-	//fn test2 = std::bind(&UiPresenter::Foo, this, std::placeholders::_1, std::placeholders::_2);
-
-	/*_blah.push_back(&test);
-	
-	auto it = std::find(_blah.begin(),_blah.end(), &test);
-	if (it != _blah.end()) {
-		_blah.erase(it);
-	}
-
-	it = std::find(_blah.begin(),_blah.end(), &test);
-	if (it != _blah.end()) {
-		_blah.erase(it);
-	}
-	*/
-	// Attach events
-	_window->WindowSizeChanged.Attach(&_windowSizeChangedHandler);
-//	_window->WindowSizeChanged.Detach(_test);
+	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
 
 
 	
@@ -85,6 +53,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 void UiPresenter::Shutdown()
 {
+	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
+	
 	/*
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	
@@ -726,6 +696,7 @@ void UiPresenter::OnCursorPosChanged(Offset2D pos)
 		}
 	}
 }
-void UiPresenter::OnWindowSizeChanged(Extent2D size)
+void UiPresenter::OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a)
 {
+	std::cout << "Foo: (" << a.Size.Width << "," << a.Size.Height << ")\n";
 }

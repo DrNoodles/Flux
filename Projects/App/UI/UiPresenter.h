@@ -77,7 +77,7 @@ private: // DATA
 	
 	//UiPresenterHelpers::PostPassResources _postPassResources;
 
-	WindowSizeChangedDelegate _windowSizeChangedHandler = {[this](auto* s, auto a) { Foo(s, a); }};
+	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
@@ -111,7 +111,7 @@ public: // METHODS
 	void OnScrollChanged(Offset2D offset);
 	void OnKeyCallback(KeyEventArgs a);
 	void OnCursorPosChanged(Offset2D pos);
-	void OnWindowSizeChanged(Extent2D size);
+	void OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a);
 	
 
 	
