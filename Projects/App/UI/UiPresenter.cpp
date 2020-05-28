@@ -27,6 +27,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 {
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
 	_window->PointerMoved.Attach(_pointerMovedHandler);
+	_window->PointerWheelChanged.Attach(_pointerWheelChangedHandler);
+	_window->KeyDown.Attach(_keyDownHandler);
+	_window->KeyUp.Attach(_keyUpHandler);
 
 
 	
@@ -55,6 +58,9 @@ void UiPresenter::Shutdown()
 {
 	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
 	_window->PointerMoved.Detach(_pointerMovedHandler);
+	_window->PointerWheelChanged.Detach(_pointerWheelChangedHandler);
+	_window->KeyDown.Detach(_keyDownHandler);
+	_window->KeyUp.Detach(_keyUpHandler);
 	
 	/*
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
@@ -606,38 +612,46 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 }
 
 
-
-void UiPresenter::OnScrollChanged(Offset2D offset)
+void UiPresenter::OnKeyDown(IWindow* sender, KeyEventArgs args)
 {
-	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
-	ImGuiIO& io = ImGui::GetIO();
-	if (io.WantCaptureMouse)
-		return;
-
-	_scene.GetCamera().ProcessMouseScroll(float(offset.Y));
-}
-
-void UiPresenter::OnKeyCallback(KeyEventArgs a)
-{
+	std::cout << "OnKeyDown()\n";
+	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantTextInput || io.WantCaptureKeyboard)
 		return;
 	
 	// ONLY on pressed is handled
-	if (a.Action == KeyAction::Repeat || a.Action == KeyAction::Released) return;
+	if (args.Action == KeyAction::Repeat) return;
 
-	if (a.Key == VirtualKey::F)      { FrameSelectionOrAll(); }
-	if (a.Key == VirtualKey::C)      { NextSkybox(); }
-	if (a.Key == VirtualKey::N)      { _delegate.ToggleUpdateEntities(); }
-	if (a.Key == VirtualKey::Delete) { DeleteSelected(); }
+	if (args.Key == VirtualKey::F)      { FrameSelectionOrAll(); }
+	if (args.Key == VirtualKey::C)      { NextSkybox(); }
+	if (args.Key == VirtualKey::N)      { _delegate.ToggleUpdateEntities(); }
+	if (args.Key == VirtualKey::Delete) { DeleteSelected(); }
+}
+
+void UiPresenter::OnKeyUp(IWindow* sender, KeyEventArgs args)
+{
+	//std::cout << "OnKeyUp()\n";//: (" << args.CurrentPoint.Position.X << "," << args.CurrentPoint.Position.Y << ")\n";
+}
+
+void UiPresenter::OnPointerWheelChanged(IWindow* sender, PointerEventArgs args)
+{
+	std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << ","
+	 << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
+	
+	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse)
+		return;
+
+	//_scene.GetCamera().ProcessMouseScroll(float(offset.Y));
 }
 
 void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 {
 	//std::cout << "OnPointerMoved: (" << args.CurrentPoint.Position.X << "," << args.CurrentPoint.Position.Y << ")\n";
 
-	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.WantCaptureMouse)
@@ -658,7 +672,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 	const auto yDiff = _lastCursorY - yPos;
 	_lastCursorX = xPos;
 	_lastCursorY = yPos;
-
 
 
 	const auto windowSize = sender->GetSize();
@@ -698,7 +711,7 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 		}
 	}
 }
-void UiPresenter::OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a)
+void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
-	//std::cout << "OnWindowSizeChanged: (" << a.Size.Width << "," << a.Size.Height << ")\n";
+	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }

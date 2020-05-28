@@ -153,59 +153,67 @@ private: // Methods
 	
 	#pragma region GLFW Callbacks, event handling
 
-
-	void OnWindowSizeChanged(Extent2D size)
+	void OnWindowSizeChanged(i32 width, i32 height)
 	{
-		_size = size;
-		WindowSizeChanged.Invoke(this, WindowSizeChangedEventArgs{size});
-	}
-	void OnCursorPosChanged(f64 xPos, f64 yPos)
-	{
-		// TODO Factor out this method? Might be unnecessary
-		const auto args = PointerEventArgs{PointerPoint{xPos, yPos}};
-		PointerMoved.Invoke(this, args);
-	}
-	void OnKeyCallback(KeyEventArgs a)
-	{
-		// TODO Factor out event!
-		// TODO Delete this method? Might be unnecessary
-	}
-	void OnScrollChanged(Offset2D offset)
-	{
-		// TODO Factor out event!
-		// TODO Delete this method? Might be unnecessary
-	}
-
-	// Callbacks
-	static void ScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
-	{
-		// Note: Crunching f64 > i32
-		g_window_map[window]->OnScrollChanged(Offset2D{ (i32)xOffset, (i32)yOffset });
+		_size = Extent2D{ (u32)width, (u32)height };
+		WindowSizeChanged.Invoke(this, WindowSizeChangedEventArgs{_size});
 	}
 	
-	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+	void OnKeyCallback(int key, int scancode, int action, int mods)
 	{
 		const auto args = KeyEventArgs{
 			ToKey(key), 
 			ToKeyAction(action), 
 			ToKeyModifiers(mods), 
 			(u32)scancode};
+
+		if (args.Action == KeyAction::Pressed || args.Action == KeyAction::Repeat) {
+			KeyDown.Invoke(this, args);
+		}
+		else if (args.Action == KeyAction::Released) {
+			KeyUp.Invoke(this, args);
+		}
+		else {
+			throw std::invalid_argument("Unhandled key state");
+		}
+	}
+
+	Point2D _mousePos;
+	
+	void OnCursorPosChanged(f64 xPos, f64 yPos)
+	{
+		_mousePos = Point2D{xPos, yPos};
 		
-		g_window_map[window]->OnKeyCallback(args);
+		const auto args = PointerEventArgs{PointerPoint{_mousePos}};
+		PointerMoved.Invoke(this, args);
 	}
 	
+	void OnScrollChanged(f64 xOffset, f64 yOffset)
+	{
+		const auto isHorizontal = abs(xOffset) > 0.0001;
+		const auto props = PointerPointProperties{ isHorizontal, isHorizontal ? xOffset : yOffset };
+		const auto pointerPoint = PointerPoint{ _mousePos, props };
+		const auto args = PointerEventArgs{ pointerPoint };
+		PointerWheelChanged.Invoke(this, args);
+	}
+
+	// Callbacks
+	static void ScrollCallback(GLFWwindow* window, f64 xOffset, f64 yOffset)
+	{
+		g_window_map[window]->OnScrollChanged(xOffset, yOffset);
+	}
+	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+	{
+		g_window_map[window]->OnKeyCallback(key, scancode, action, mods);
+	}
 	static void CursorPosCallback(GLFWwindow* window, double xPos, double yPos)
 	{
 		g_window_map[window]->OnCursorPosChanged(xPos, yPos);
 	}
-	
 	static void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	{
-		// Note: Crunching from i32 > u32
-		const auto size = Extent2D{ (u32)width, (u32)height };
-		g_window_map[window]->OnWindowSizeChanged(size);
+		g_window_map[window]->OnWindowSizeChanged(width, height);
 	}
-	
 	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
 		//printf("TODO Handle FramebufferSizeCallback()\n");
@@ -293,10 +301,10 @@ private:
 
 	static VirtualKeyModifiers ToKeyModifiers(i32 glfwMods)
 	{
-		return VirtualKeyModifiers(
-			GLFW_MOD_CONTROL ^ glfwMods,
-			GLFW_MOD_SHIFT   ^ glfwMods,
-			GLFW_MOD_ALT     ^ glfwMods);
+		auto ctrl = GLFW_MOD_CONTROL & glfwMods;
+		auto shift = GLFW_MOD_SHIFT & glfwMods;
+		auto alt = GLFW_MOD_ALT & glfwMods;
+		return VirtualKeyModifiers(ctrl, shift, alt);
 	}
 	static i32 ToGlfwKeyModifiers(VirtualKeyModifiers vkm)
 	{

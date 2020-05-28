@@ -168,13 +168,13 @@ enum class MouseButtonAction
 
 struct VirtualKeyModifiers
 {
-	const bool None;
+	//const bool None;
 	const bool Control;
 	const bool Shift;
 	const bool Alt;
 
 	VirtualKeyModifiers(bool ctrl, bool shift, bool alt)
-		: None(ctrl || shift || alt), Control(ctrl), Shift(shift), Alt(alt)
+		: /*None(ctrl || shift || alt), */Control(ctrl), Shift(shift), Alt(alt)
 	{
 	}
 };
@@ -215,13 +215,16 @@ enum class PointerUpdateKind
 
 struct PointerPointProperties
 {
-	bool IsLeftButtonPressed = false;
+	/*bool IsLeftButtonPressed = false;
 	bool IsMiddleButtonPressed = false;
 	bool IsRightButtonPressed = false;
-	PointerUpdateKind PointerUpdateKind = PointerUpdateKind::Other;
+	bool IsXButton1Pressed = false;
+	bool IsXButton2Pressed = false;
+	
+	PointerUpdateKind PointerUpdateKind = PointerUpdateKind::Other;*/
 
 	bool IsHorizonalMouseWheel = false;
-	i32 MouseWheelDelta = 0; // https://docs.microsoft.com/en-us/uwp/api/windows.ui.input.pointerpointproperties.mousewheeldelta?view=winrt-19041#Windows_UI_Input_PointerPointProperties_MouseWheelDelta
+	f64 MouseWheelDelta = 0; // https://docs.microsoft.com/en-us/uwp/api/windows.ui.input.pointerpointproperties.mousewheeldelta?view=winrt-19041#Windows_UI_Input_PointerPointProperties_MouseWheelDelta
 };
 
 struct PointerPoint
@@ -235,7 +238,7 @@ struct PointerPoint
 	//u64 Timestamp;
 
 	// Gets extended information about the input pointer.
-	//PointerPointProperties Properties;
+	PointerPointProperties Properties;
 };
 
 struct PointerEventArgs
@@ -270,10 +273,35 @@ public:
 	virtual MouseButtonAction GetMouseButton(MouseButton b) = 0;
 	virtual KeyAction GetKey(VirtualKey k) = 0;
 
+	
+	// Specifies the event that is fired when the window completes activation or deactivation.
+	//Event Activated;
+	
+	// Specifies the event that is fired when a window is closed (or the app terminates altogether).
+	//Event Closed;
+	
 	Event<IWindow*, WindowSizeChangedEventArgs> WindowSizeChanged;
+
+	//Event<IWindow*, PointerEventArgs> PointerCaptureLost;
+	//Event<IWindow*, PointerEventArgs> PointerEntered;
+	//Event<IWindow*, PointerEventArgs> PointerExited;
 	Event<IWindow*, PointerEventArgs> PointerMoved;
+	//Event<IWindow*, PointerEventArgs> PointerPressed;
+	//Event<IWindow*, PointerEventArgs> PointerReleased;
+	
+	// Specifies the event that occurs when the mouse wheel is rotated.
+	Event<IWindow*, PointerEventArgs> PointerWheelChanged;
+
+	// Specifies the event that is fired when a non-system key is pressed down.
+	Event<IWindow*, KeyEventArgs> KeyDown;
+
+	// Specifies the event that is fired when a non-system key is released after a press.
+	Event<IWindow*, KeyEventArgs> KeyUp;
 };
 
 // Event Delegates
 typedef std::function<void(IWindow* sender, WindowSizeChangedEventArgs args)> WindowSizeChangedDelegate;
 typedef std::function<void(IWindow* sender, PointerEventArgs args)> PointerMovedDelegate;
+typedef std::function<void(IWindow* sender, PointerEventArgs args)> PointerWheelChangedDelegate;
+typedef std::function<void(IWindow* sender, KeyEventArgs args)> KeyDownDelegate;
+typedef std::function<void(IWindow* sender, KeyEventArgs args)> KeyUpDelegate;

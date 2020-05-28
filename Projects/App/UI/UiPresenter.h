@@ -79,6 +79,9 @@ private: // DATA
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
+	PointerWheelChangedDelegate _pointerWheelChangedHandler = [this](auto* s, auto a) { OnPointerWheelChanged(s, a); };
+	KeyDownDelegate _keyDownHandler = [this](auto* s, auto a) { OnKeyDown(s, a); };
+	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
@@ -127,10 +130,11 @@ private: // METHODS
 
 	
 	// Event handlers
-	void OnScrollChanged(Offset2D offset);
-	void OnKeyCallback(KeyEventArgs a);
+	void OnKeyDown(IWindow* sender, KeyEventArgs args);
+	void OnKeyUp(IWindow* sender, KeyEventArgs args);
+	void OnPointerWheelChanged(IWindow* sender, PointerEventArgs args);
 	void OnPointerMoved(IWindow* sender, PointerEventArgs args);
-	void OnWindowSizeChanged(IWindow* s, WindowSizeChangedEventArgs a);
+	void OnWindowSizeChanged(IWindow* sender, WindowSizeChangedEventArgs args);
 
 	
 	#pragma region ISceneViewDelegate

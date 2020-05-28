@@ -75,12 +75,12 @@ public:
 	//}
 
 	// Processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
-	void ProcessMouseScroll(float yOffset)
+	/*void ProcessMouseScroll(float yOffset)
 	{
 		const auto zoomSensitivity = 4.0f;
 		const auto z = yOffset * zoomSensitivity;
 		Zoom = glm::clamp(Zoom -= z, 1.0f, 45.0f);
-	}
+	}*/
 
 	void Focus(glm::vec3 point)
 	{
