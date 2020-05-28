@@ -217,7 +217,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 		
 		// Start command buffer
-		auto commandBuffer = _commandBuffers[imageIndex];
+		auto* commandBuffer = _commandBuffers[imageIndex];
 		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
 		{
@@ -362,6 +362,8 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 		
 		// Set em. Done like this to enforce the correct initialization order above 
+
+		// TODO Group all this swapchain shit into one RAII struct.
 		_swapchain = swapchain;
 		_swapchainImages = std::move(swapchainImages);
 		_swapchainImageFormat = swapchainImageFormat;
@@ -375,7 +377,9 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_depthImageView = depthImageView;
 		_renderPass = renderPass;
 		_swapchainFramebuffers = std::move(swapchainFramebuffers);
+		
 		_commandBuffers = std::move(commandBuffers);
+		
 		_renderFinishedSemaphores = renderFinishedSemaphores;
 		_imageAvailableSemaphores = imageAvailableSemaphores;
 		_inFlightFences = inFlightFences;

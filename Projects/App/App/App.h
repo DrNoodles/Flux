@@ -79,7 +79,6 @@ public: // METHODS
 	explicit App(AppOptions options)
 	{
 		auto window = std::make_unique<GlfwWindow>();
-		window->InitWindow();
 		window->SetIcon(options.AssetsDir + "icon_32.png");
 		
 		// Services
