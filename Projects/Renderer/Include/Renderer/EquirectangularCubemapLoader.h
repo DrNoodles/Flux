@@ -44,12 +44,9 @@ public:
 		// Load src equirectangular texture
 		TextureResource srcTexture = [&in, &texels, &texelFormat, &targetFormat, &finalLayout]()
 		{
-			VkImage image;
-			VkDeviceMemory memory;
-			
-			std::tie(image, memory) = CreateSrcImage(in, texels, texelFormat, targetFormat, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-			const auto view = vkh::CreateImage2DView(image, targetFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, in.Device);
-			const auto sampler = vkh::CreateSampler(in.Device,
+			auto [image, memory] = CreateSrcImage(in, texels, texelFormat, targetFormat, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			auto* view = vkh::CreateImage2DView(image, targetFormat, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, in.Device);
+			auto* sampler = vkh::CreateSampler(in.Device,
 				VK_FILTER_LINEAR, VK_FILTER_LINEAR,
 				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
@@ -61,13 +58,10 @@ public:
 		// Create dst cubemap
 		TextureResource dstCubemap = [&in, &texels, &texelFormat, &targetFormat, &finalLayout, &dstCubemapFaceRes, &dstFaceMipLevels]()
 		{
-			VkImage image;
-			VkDeviceMemory memory;
-
 			const auto mipLevels = dstFaceMipLevels;
 			const auto layerCount = 6;
 			
-			std::tie(image, memory) = vkh::CreateImage2D(dstCubemapFaceRes, dstCubemapFaceRes, mipLevels,
+			auto [image, memory] = vkh::CreateImage2D(dstCubemapFaceRes, dstCubemapFaceRes, mipLevels,
 				VK_SAMPLE_COUNT_1_BIT,
 				targetFormat,
 				VK_IMAGE_TILING_OPTIMAL,
@@ -76,12 +70,12 @@ public:
 				in.PhysicalDevice, in.Device, layerCount,
 				VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
 			
-			const auto view = vkh::CreateImage2DView(image, targetFormat, 
+			auto* view = vkh::CreateImage2DView(image, targetFormat, 
 				VK_IMAGE_VIEW_TYPE_CUBE, 
 				VK_IMAGE_ASPECT_COLOR_BIT, 
 				mipLevels, layerCount, in.Device);
 			
-			const auto sampler = vkh::CreateSampler(in.Device,
+			auto* sampler = vkh::CreateSampler(in.Device,
 				VK_FILTER_LINEAR, VK_FILTER_LINEAR,
 				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 			
@@ -224,7 +218,7 @@ private:
 		const u32 mipLevels = 1;
 		const u32 arrayLayers = 1;
 		const auto subresourceRange = vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, arrayLayers);
-		const auto cmdBuffer = vkh::BeginSingleTimeCommands(in.TransferPool, in.Device);
+		auto* cmdBuffer = vkh::BeginSingleTimeCommands(in.TransferPool, in.Device);
 
 
 		// Create staging buffer
@@ -247,29 +241,23 @@ private:
 
 		
 		// Create intermediate buffer to load 32 bit texture to gpu mem
-		VkImage intermediateImage;
-		VkDeviceMemory intermediateImageMemory;
-		{
-			std::tie(intermediateImage, intermediateImageMemory) = vkh::CreateImage2D(
-				texels.Width(), texels.Height(),
-				mipLevels,
-				VK_SAMPLE_COUNT_1_BIT,
-				texelFormat, 
-				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // Copy to then from
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				in.PhysicalDevice, in.Device,
-				arrayLayers);
-		}
+		auto [intermediateImage, intermediateImageMemory] = vkh::CreateImage2D(
+			texels.Width(), texels.Height(),
+			mipLevels,
+			VK_SAMPLE_COUNT_1_BIT,
+			texelFormat, 
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, // Copy to then from
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			in.PhysicalDevice, in.Device,
+			arrayLayers);
 
 		
 		// Transition intermediate image's layout to optimal for copying to it from the staging buffer
-		{
-			vkh::TransitionImageLayout(cmdBuffer, intermediateImage,
-				VK_IMAGE_LAYOUT_UNDEFINED, // from
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-				subresourceRange);
-		}
+		vkh::TransitionImageLayout(cmdBuffer, intermediateImage,
+			VK_IMAGE_LAYOUT_UNDEFINED, // from
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
+			subresourceRange);
 
 
 		// Copy texels from staging buffer to intermediate image buffer		
@@ -291,21 +279,17 @@ private:
 
 
 		// Create dst image buffer so we can blit to the desired format
-		VkImage dstImage;
-		VkDeviceMemory dstImageMemory;
-		{
-			std::tie(dstImage, dstImageMemory) = vkh::CreateImage2D(
-				texels.Width(), texels.Height(),
-				mipLevels,
-				VK_SAMPLE_COUNT_1_BIT,
-				targetFormat, // format
-				VK_IMAGE_TILING_OPTIMAL, // tiling
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
-				in.PhysicalDevice, in.Device,
-				arrayLayers);// array layers for cubemap
-		}
-
+		auto [dstImage, dstImageMemory] = vkh::CreateImage2D(
+			texels.Width(), texels.Height(),
+			mipLevels,
+			VK_SAMPLE_COUNT_1_BIT,
+			targetFormat, // format
+			VK_IMAGE_TILING_OPTIMAL, // tiling
+			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
+			in.PhysicalDevice, in.Device,
+			arrayLayers);// array layers for cubemap
+		
 
 		// Convert format  - achieved via blitting from source to dest image
 		{

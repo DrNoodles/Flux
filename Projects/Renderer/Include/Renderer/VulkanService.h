@@ -217,7 +217,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 		
 		// Start command buffer
-		auto commandBuffer = _commandBuffers[imageIndex];
+		auto* commandBuffer = _commandBuffers[imageIndex];
 		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
 		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
 		{
@@ -297,21 +297,31 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkan(ISurfaceBuilder* builder)
 	{
-		_instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
-
-		if (_enableValidationLayers)
-		{
-			_debugMessenger = vkh::SetupDebugMessenger(_instance);
+		auto* instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
+		
+		if (_enableValidationLayers) {
+			_debugMessenger = vkh::SetupDebugMessenger(instance);
 		}
 
-		_surface = builder->CreateSurface(_instance);
+		auto* surface = builder->CreateSurface(instance);
 
-		std::tie(_physicalDevice, _msaaSamples) = vkh::PickPhysicalDevice(_physicalDeviceExtensions, _instance, _surface);
+		auto [physicalDevice, msaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
 
-		std::tie(_device, _graphicsQueue, _presentQueue)
-			= vkh::CreateLogicalDevice(_physicalDevice, _surface, _validationLayers, _physicalDeviceExtensions);
+		auto [device, graphicsQueue, presentQueue]
+			= vkh::CreateLogicalDevice(physicalDevice, surface, _validationLayers, _physicalDeviceExtensions);
 
-		_commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(_physicalDevice, _surface), _device);
+		auto* commandPool = vkh::CreateCommandPool(vkh::FindQueueFamilies(physicalDevice, surface), device);
+
+		
+		// Set em. Done like this to enforce the correct initialization order above 
+		_instance = instance;
+		_surface = surface;
+		_physicalDevice = physicalDevice;
+		_msaaSamples = msaaSamples;
+		_device = device;
+		_graphicsQueue = graphicsQueue;
+		_presentQueue = presentQueue;
+		_commandPool = commandPool;
 	}
 
 	void DestroyVulkan() const
@@ -325,29 +335,55 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
 	{
-		_swapchain = vkh::CreateSwapchain(framebufferSize, _vsync, _physicalDevice, _surface, _device, _swapchainImages, _swapchainImageFormat, _swapchainExtent);
+		auto [swapchain, swapchainImages, swapchainImageFormat, swapchainExtent]
+			= vkh::CreateSwapchain(_device, _physicalDevice, _surface, framebufferSize, _vsync);
 
-		_swapchainImageViews = vkh::CreateImageViews(_swapchainImages, _swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
+		auto swapchainImageViews = vkh::CreateImageViews(swapchainImages, swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
 
-		std::tie(_colorImage, _colorImageMemory, _colorImageView)
-			= vkh::CreateColorResources(_swapchainImageFormat, _swapchainExtent, _msaaSamples, _device, _physicalDevice);
+		auto [colorImage, colorImageMemory, colorImageView]
+			= vkh::CreateColorResources(swapchainImageFormat, swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
-		std::tie(_depthImage, _depthImageMemory, _depthImageView)
-			= vkh::CreateDepthResources(_swapchainExtent, _msaaSamples, _device, _physicalDevice);
+		auto [depthImage, depthImageMemory, depthImageView]
+			= vkh::CreateDepthResources(swapchainExtent, _msaaSamples, _device, _physicalDevice);
 
-		_renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, _swapchainImageFormat, _device, _physicalDevice);
+		auto* renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, swapchainImageFormat, _device, _physicalDevice);
 
-		_swapchainFramebuffers
-			= vkh::CreateSwapchainFramebuffer(_device, _colorImageView, _depthImageView, _swapchainImageViews,
-				_swapchainExtent, _renderPass);
+		auto swapchainFramebuffers
+			= vkh::CreateSwapchainFramebuffer(_device, colorImageView, depthImageView, swapchainImageViews,
+				swapchainExtent, renderPass);
 
-		_commandBuffers = vkh::AllocateCommandBuffers((u32)_swapchainImages.size(), _commandPool, _device);
+		auto commandBuffers = vkh::AllocateCommandBuffers((u32)swapchainImages.size(), _commandPool, _device);
 
 		
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
-		std::tie(_renderFinishedSemaphores, _imageAvailableSemaphores, _inFlightFences, _imagesInFlight)
-			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchainImages.size(), _device);
+		auto [renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, imagesInFlight]
+			= vkh::CreateSyncObjects(_maxFramesInFlight, swapchainImages.size(), _device);
+
+		
+		// Set em. Done like this to enforce the correct initialization order above 
+
+		// TODO Group all this swapchain shit into one RAII struct.
+		_swapchain = swapchain;
+		_swapchainImages = std::move(swapchainImages);
+		_swapchainImageFormat = swapchainImageFormat;
+		_swapchainExtent = swapchainExtent;
+		_swapchainImageViews = std::move(swapchainImageViews);
+		_colorImage = colorImage;
+		_colorImageMemory = colorImageMemory;
+		_colorImageView = colorImageView;
+		_depthImage = depthImage;
+		_depthImageMemory = depthImageMemory;
+		_depthImageView = depthImageView;
+		_renderPass = renderPass;
+		_swapchainFramebuffers = std::move(swapchainFramebuffers);
+		
+		_commandBuffers = std::move(commandBuffers);
+		
+		_renderFinishedSemaphores = renderFinishedSemaphores;
+		_imageAvailableSemaphores = imageAvailableSemaphores;
+		_inFlightFences = inFlightFences;
+		_imagesInFlight = imagesInFlight;
 	}
 
 public:

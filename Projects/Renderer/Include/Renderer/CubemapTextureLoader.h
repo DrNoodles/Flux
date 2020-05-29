@@ -62,13 +62,10 @@ public:
 		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 
-		VkImage image;
-		VkDeviceMemory memory;
-		
-		std::tie(image, memory) = CreateAndLoadCubemapImage(texels, texelFormat, finalFormat, finalLayout, 
-			device, physicalDevice, transferPool, transferQueue);
-		const auto view = vkh::CreateImage2DView(image, finalFormat, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 1, 6, device);
-		const auto sampler = CreateSampler(device);
+		auto [image, memory] = CreateAndLoadCubemapImage(texels, texelFormat, finalFormat, finalLayout, device, physicalDevice, transferPool, transferQueue);
+
+		auto* view = vkh::CreateImage2DView(image, finalFormat, VK_IMAGE_VIEW_TYPE_CUBE, VK_IMAGE_ASPECT_COLOR_BIT, 1, 6, device);
+		auto* sampler = CreateSampler(device);
 		
 		return TextureResource(device, texels[0]->Width(), texels[0]->Height(), 1/*miplevels*/, 6, 
 			image, memory, view, sampler, finalFormat, finalLayout);
@@ -88,9 +85,7 @@ private:
 
 		
 		// Create staging buffer
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		std::tie(stagingBuffer, stagingBufferMemory) = vkh::CreateBuffer(
+		auto [stagingBuffer, stagingBufferMemory] = vkh::CreateBuffer(
 			faceTexelDataSize * cubeSides,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
@@ -130,7 +125,7 @@ private:
 				VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
 		}
 
-		const auto cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
+		auto* cmdBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
 		const auto subresourceRange = vki::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, cubeSides);
 		
 		// Transition image layout to optimal for copying to it from the staging buffer
@@ -179,34 +174,31 @@ private:
 		if (needsFormatConversion)
 		{
 			// Create another image buffer so we can convert to the desired format
-			VkImage newCubemapImage;
-			VkDeviceMemory newCubemapImageMemory;
-			{
-				std::tie(newCubemapImage, newCubemapImageMemory) = vkh::CreateImage2D(
-					faceTexelWidth, faceTexelHeight,
-					mipLevels,
-					VK_SAMPLE_COUNT_1_BIT,
-					desiredFormat, // format
-					VK_IMAGE_TILING_OPTIMAL, // tiling
-					VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
-					physicalDevice, device,
-					cubeSides,// array layers for cubemap
-					VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
-			}
+			auto [newCubemapImage, newCubemapImageMemory] = vkh::CreateImage2D(
+				faceTexelWidth, faceTexelHeight,
+				mipLevels,
+				VK_SAMPLE_COUNT_1_BIT,
+				desiredFormat, // format
+				VK_IMAGE_TILING_OPTIMAL, // tiling
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, //usage flags
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //memory flags
+				physicalDevice, device,
+				cubeSides,// array layers for cubemap
+				VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT); // flags
 
-			{
-				vkh::TransitionImageLayout(cmdBuffer, cubemapTextureImage,
-					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // from
-					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to
-					subresourceRange);
-			}
-			{
-				vkh::TransitionImageLayout(cmdBuffer, newCubemapImage,
-					VK_IMAGE_LAYOUT_UNDEFINED, // from
-					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-					subresourceRange);
-			}
+			
+			vkh::TransitionImageLayout(cmdBuffer, cubemapTextureImage,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // from
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to
+				subresourceRange);
+
+			
+			vkh::TransitionImageLayout(cmdBuffer, newCubemapImage,
+				VK_IMAGE_LAYOUT_UNDEFINED, // from
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
+				subresourceRange);
+
+			
 			vkh::BlitSrcToDstImage(cmdBuffer, cubemapTextureImage, newCubemapImage, faceTexelWidth, faceTexelHeight, subresourceRange);
 
 			

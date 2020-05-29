@@ -111,7 +111,7 @@ namespace UiPresenterHelpers
 
 
 		// Create framebuffer
-		VkFramebuffer framebuffer = vkh::CreateFramebuffer(vk.LogicalDevice(), 
+		auto* framebuffer = vkh::CreateFramebuffer(vk.LogicalDevice(), 
 			extent.width,extent.height,
 			{ colorAttachment.ImageView, depthAttachment.ImageView, outputImageView }, 
 			renderPass);
@@ -346,9 +346,7 @@ namespace UiPresenterHelpers
 		const u32 layerCount = 1;
 
 
-		VkImage image;
-		VkDeviceMemory memory;
-		std::tie(image, memory) = vkh::CreateImage2D(width, height, mipLevels,
+		auto [image, memory] = vkh::CreateImage2D(width, height, mipLevels,
 			VK_SAMPLE_COUNT_1_BIT,
 			format,
 			VK_IMAGE_TILING_OPTIMAL,
@@ -363,7 +361,7 @@ namespace UiPresenterHelpers
 		
 		// Transition image layout
 		{
-			const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+			auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
 
 			VkImageSubresourceRange subresourceRange = {};
 			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;

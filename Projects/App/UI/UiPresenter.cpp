@@ -150,7 +150,8 @@ void UiPresenter::FrameSelectionOrAll()
 
 	// Focus the bounds
 	auto radius = glm::length(totalWorldBounds.Max() - totalWorldBounds.Min());
-	const auto aspect = float(ViewportSize().x) / float(ViewportSize().y);
+	auto viewport = ViewportRect();
+	const auto aspect = viewport.Extent.Width / (f32)viewport.Extent.Height;
 	_scene.GetCamera().Focus(totalWorldBounds.Center(), radius, aspect);
 }
 
@@ -177,8 +178,9 @@ void UiPresenter::BuildImGui()
 
 		// Scene View
 		{
-			ImGui::SetNextWindowPos(ImVec2(float(ScenePos().x), float(ScenePos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(SceneSize().x), float(SceneSize().y)));
+			const auto rect = SceneRect();
+			ImGui::SetNextWindowPos( ImVec2{ (f32)rect.Offset.X,     (f32)rect.Offset.Y      });
+			ImGui::SetNextWindowSize(ImVec2{ (f32)rect.Extent.Width, (f32)rect.Extent.Height });
 
 			const auto& entsView = _scene.EntitiesView();
 			std::vector<Entity*> allEnts{entsView.size()};
@@ -192,8 +194,9 @@ void UiPresenter::BuildImGui()
 
 		// Properties View
 		{
-			ImGui::SetNextWindowPos(ImVec2(float(PropsPos().x), float(PropsPos().y)));
-			ImGui::SetNextWindowSize(ImVec2(float(PropsSize().x), float(PropsSize().y)));
+			const auto rect = PropsRect();
+			ImGui::SetNextWindowPos( ImVec2{ (f32)rect.Offset.X,     (f32)rect.Offset.Y      });
+			ImGui::SetNextWindowSize(ImVec2{ (f32)rect.Extent.Width, (f32)rect.Extent.Height });
 
 			Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 
@@ -245,12 +248,12 @@ void UiPresenter::BuildImGui()
 
 void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	auto& entities = _scene.EntitiesView();
+	const auto& entities = _scene.EntitiesView();
 	std::vector<RenderableResourceId> renderables;
 	std::vector<Light> lights;
 	std::vector<glm::mat4> transforms;
 
-	for (auto& entity : entities)
+	for (const auto& entity : entities)
 	{
 		if (entity->Renderable.has_value())
 		{
@@ -289,7 +292,7 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		
 	_renderer.Draw(
 		commandBuffer, imageIndex, _scene.GetRenderOptions(),
-		renderables, transforms, lights, view, camera.Position, ViewportPos(), ViewportSize());
+		renderables, transforms, lights, view, camera.Position, ViewportRect());
 }
 
 void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
@@ -444,8 +447,7 @@ void UiPresenter::LoadModel(const std::string& path)
 	printf("LoadModel(%s)\n", path.c_str());
 
 	// Split path into a dir and filename so we can name the entity
-	std::string dir, filename;
-	std::tie(dir, filename) = FileService::SplitPathAsDirAndFilename(path);
+	auto [dir, filename] = FileService::SplitPathAsDirAndFilename(path);
 
 
 	// Load asset
@@ -614,7 +616,7 @@ void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 
 void UiPresenter::OnKeyDown(IWindow* sender, KeyEventArgs args)
 {
-	std::cout << "OnKeyDown()\n";
+	//std::cout << "OnKeyDown()\n";
 	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();
@@ -637,8 +639,7 @@ void UiPresenter::OnKeyUp(IWindow* sender, KeyEventArgs args)
 
 void UiPresenter::OnPointerWheelChanged(IWindow* sender, PointerEventArgs args)
 {
-	std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << ","
-	 << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
+	//std::cout << "OnPointerWheelChanged(" << args.CurrentPoint.Properties.IsHorizonalMouseWheel << "," << args.CurrentPoint.Properties.MouseWheelDelta << ")\n";
 	
 	// TODO Refactor - this is ugly as it's accessing the gui's state in a global way.
 	ImGuiIO& io = ImGui::GetIO();

@@ -55,11 +55,8 @@ public:
 		const std::vector<const char*>& physicalDeviceExtensions);
 
 
-	// TODO Remove OUT params, use tuple return
-	[[nodiscard]] static VkSwapchainKHR
-		CreateSwapchain(const VkExtent2D& windowSize, bool vsync, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
-			VkDevice device, std::vector<VkImage>& OUTswapchainImages, VkFormat& OUTswapchainImageFormat,
-			VkExtent2D& OUTswapchainExtent);
+	static std::tuple<VkSwapchainKHR, std::vector<VkImage>, VkFormat, VkExtent2D>
+	CreateSwapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, bool vsync);
 	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes, bool vsync);
 	static VkExtent2D ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities);
