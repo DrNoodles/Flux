@@ -4,7 +4,6 @@
 
 #include <vulkan/vulkan.h>
 
-#include <array>
 #include <vector>
 #include <cassert>
 #include <stdexcept>

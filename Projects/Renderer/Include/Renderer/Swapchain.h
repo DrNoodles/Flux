@@ -2,11 +2,6 @@
 
 #include "VulkanHelpers.h"
 
-#include <vulkan/vulkan.h>
-
-#include <cassert>
-#include <vector>
-
 using vkh = VulkanHelpers;
 
 // RAII container of swapchain components
@@ -24,6 +19,7 @@ private:
 	std::vector<VkFramebuffer> _framebuffers = {};
 	std::vector<VkImage> _images = {};
 	std::vector<VkImageView> _imageViews = {};
+	u32 _imageCount = 0;
 
 	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
 	VkImage _colorImage = nullptr;
@@ -38,11 +34,11 @@ private:
 	VkRenderPass _renderPass = nullptr;
 	
 public:
-	VkSwapchainKHR GetSwapchain() const                       { return _swapchain; }
-	VkRenderPass GetRenderPass() const                        { return _renderPass; }
-	const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
-	u32 GetImageCount() const                                 { return _images.size(); }
-	VkExtent2D GetExtent() const                              { return _extent; }
+	inline VkSwapchainKHR GetSwapchain() const                       { return _swapchain; }
+	inline VkRenderPass GetRenderPass() const                        { return _renderPass; }
+	inline const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
+	inline u32 GetImageCount() const                                 { return _imageCount; }
+	inline VkExtent2D GetExtent() const                              { return _extent; }
 
 	Swapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, 
 		VkSampleCountFlagBits msaa, bool vsync)
@@ -68,6 +64,7 @@ public:
 			= vkh::CreateSwapchainFramebuffer(device, colorImageView, depthImageView, swapchainImageViews,
 				swapchainExtent, renderPass);
 
+		_imageCount = swapchainImages.size();
 		_swapchain = swapchain;
 		_images = std::move(swapchainImages);
 		_imageFormat = swapchainImageFormat;
