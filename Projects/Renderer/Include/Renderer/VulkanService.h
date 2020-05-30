@@ -68,6 +68,108 @@ public:
 //	VkRenderPass _renderPass = nullptr;
 //};
 
+
+// RAII container of swapchain components
+class Swapchain
+{
+public:
+private:
+	// Dependency
+	VkDevice _device = nullptr;
+
+	VkSwapchainKHR _swapchain = nullptr;
+	VkFormat _imageFormat= {};
+	VkExtent2D _extent = {};
+	
+	std::vector<VkFramebuffer> _framebuffers = {};
+	std::vector<VkImage> _images = {};
+	std::vector<VkImageView> _imageViews = {};
+
+	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _colorImage = nullptr;
+	VkDeviceMemory _colorImageMemory = nullptr;
+	VkImageView _colorImageView = nullptr;
+
+	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
+	VkImage _depthImage = nullptr;
+	VkDeviceMemory _depthImageMemory = nullptr;
+	VkImageView _depthImageView = nullptr;
+
+	VkRenderPass _renderPass = nullptr;
+	
+public:
+	VkSwapchainKHR GetSwapchain() const                       { return _swapchain; }
+	VkRenderPass GetRenderPass() const                        { return _renderPass; }
+	const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
+	i32 GetImageCount() const                                 { return _images.size(); }
+	VkExtent2D GetExtent() const                              { return _extent; }
+
+	Swapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, 
+		VkSampleCountFlagBits msaa, bool vsync)
+		: _device(device)
+	{
+		assert(_device);
+
+		auto [swapchain, swapchainImages, swapchainImageFormat, swapchainExtent]
+			= vkh::CreateSwapchain(device, physicalDevice, surface, framebufferSize, vsync);
+
+		auto swapchainImageViews = vkh::CreateImageViews(swapchainImages, swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
+			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
+
+		auto [colorImage, colorImageMemory, colorImageView]
+			= vkh::CreateColorResources(swapchainImageFormat, swapchainExtent, msaa, device, physicalDevice);
+
+		auto [depthImage, depthImageMemory, depthImageView]
+			= vkh::CreateDepthResources(swapchainExtent, msaa, device, physicalDevice);
+
+		auto* renderPass = vkh::CreateSwapchainRenderPass(msaa, swapchainImageFormat, device, physicalDevice);
+
+		auto swapchainFramebuffers
+			= vkh::CreateSwapchainFramebuffer(device, colorImageView, depthImageView, swapchainImageViews,
+				swapchainExtent, renderPass);
+
+		_swapchain = swapchain;
+		_images = std::move(swapchainImages);
+		_imageFormat = swapchainImageFormat;
+		_extent = swapchainExtent;
+		_imageViews = std::move(swapchainImageViews);
+		_colorImage = colorImage;
+		_colorImageMemory = colorImageMemory;
+		_colorImageView = colorImageView;
+		_depthImage = depthImage;
+		_depthImageMemory = depthImageMemory;
+		_depthImageView = depthImageView;
+		_renderPass = renderPass;
+		_framebuffers = std::move(swapchainFramebuffers);
+	};
+	
+	// No copying as we're an RAII container
+	Swapchain(const Swapchain&) = delete;
+	Swapchain& operator=(const Swapchain&) = delete;
+	
+	// Default move is sufficient as members are trivially moved
+	Swapchain(Swapchain&&) = default; 
+	Swapchain& operator=(Swapchain&&) = default; 
+
+	~Swapchain()
+	{
+		assert(_device);
+		for (auto* fb : _framebuffers) { vkDestroyFramebuffer(_device, fb, nullptr); }
+
+		vkDestroyImageView(_device, _colorImageView, nullptr);
+		vkDestroyImage(_device, _colorImage, nullptr);
+		vkFreeMemory(_device, _colorImageMemory, nullptr);
+
+		vkDestroyImageView(_device, _depthImageView, nullptr);
+		vkDestroyImage(_device, _depthImage, nullptr);
+		vkFreeMemory(_device, _depthImageMemory, nullptr);
+
+		vkDestroyRenderPass(_device, _renderPass, nullptr);
+		for (auto& x : _imageViews) { vkDestroyImageView(_device, x, nullptr); }
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	}
+};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class VulkanService
 {
@@ -97,30 +199,9 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	VkQueue _graphicsQueue = nullptr;
 	VkQueue _presentQueue = nullptr;
 
-	VkSurfaceKHR _surface = nullptr;
-
-
-	// Swapchain and dependencies
-
-	VkSwapchainKHR _swapchain = nullptr;
-	VkFormat _swapchainImageFormat{};
-	VkExtent2D _swapchainExtent{};
-	std::vector<VkFramebuffer> _swapchainFramebuffers{};
-	std::vector<VkImage> _swapchainImages{};
-	std::vector<VkImageView> _swapchainImageViews{};
+	std::unique_ptr<Swapchain> _swapchain = nullptr;
 	
-
-	// Color image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _colorImage = nullptr;
-	VkDeviceMemory _colorImageMemory = nullptr;
-	VkImageView _colorImageView = nullptr;
-
-	// Depth image Swapchain attachment - one instance paired with each swapchain instance for use in the framebuffer
-	VkImage _depthImage = nullptr;
-	VkDeviceMemory _depthImageMemory = nullptr;
-	VkImageView _depthImageView = nullptr;
-
-	VkRenderPass _renderPass = nullptr;
+	VkSurfaceKHR _surface = nullptr;
 
 	std::vector<VkCommandBuffer> _commandBuffers{};
 
@@ -147,12 +228,13 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
 	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
 
-
-	VkSwapchainKHR Swapchain() const { return _swapchain; }
-	u32 SwapchainImageCount() const { return (u32)_swapchainImages.size(); }
-	VkExtent2D SwapchainExtent() const { return _swapchainExtent; }
-	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchainFramebuffers; }
-	VkRenderPass SwapchainRenderPass() const { return _renderPass; }
+	
+	
+	VkSwapchainKHR GetSwapchain() const { return _swapchain->GetSwapchain(); }
+	u32 SwapchainImageCount() const { return (u32)_swapchain->GetImageCount(); }
+	VkExtent2D SwapchainExtent() const { return _swapchain->GetExtent(); }
+	const std::vector<VkFramebuffer>& SwapchainFramebuffers() const { return _swapchain->GetFramebuffers(); }
+	VkRenderPass SwapchainRenderPass() const { return _swapchain->GetRenderPass(); }
 	const std::vector<VkCommandBuffer>& CommandBuffers() const { return _commandBuffers; }
 
 	// Frame rendering
@@ -190,7 +272,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 		// Aquire an image from the swap chain
 		u32 imageIndex;
-		VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
+		VkResult result = vkAcquireNextImageKHR(_device, _swapchain->GetSwapchain(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
 			nullptr, &imageIndex);
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -266,13 +348,13 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 
 		// Return the image to the swap chain for presentation
-		std::array<VkSwapchainKHR, 1> swapchains = { _swapchain };
+		std::array<VkSwapchainKHR, 1> swapchains = { _swapchain->GetSwapchain() };
 		VkPresentInfoKHR presentInfo = {};
 		{
 			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 			presentInfo.waitSemaphoreCount = 1;
 			presentInfo.pWaitSemaphores = signalSemaphores;
-			presentInfo.swapchainCount = (uint32_t)swapchains.size();
+			presentInfo.swapchainCount = (u32)swapchains.size();
 			presentInfo.pSwapchains = swapchains.data();
 			presentInfo.pImageIndices = &imageIndex;
 			presentInfo.pResults = nullptr;
@@ -335,88 +417,29 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
 	{
-		auto [swapchain, swapchainImages, swapchainImageFormat, swapchainExtent]
-			= vkh::CreateSwapchain(_device, _physicalDevice, _surface, framebufferSize, _vsync);
+		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, _msaaSamples, _vsync);
 
-		auto swapchainImageViews = vkh::CreateImageViews(swapchainImages, swapchainImageFormat, VK_IMAGE_VIEW_TYPE_2D,
-			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, _device);
-
-		auto [colorImage, colorImageMemory, colorImageView]
-			= vkh::CreateColorResources(swapchainImageFormat, swapchainExtent, _msaaSamples, _device, _physicalDevice);
-
-		auto [depthImage, depthImageMemory, depthImageView]
-			= vkh::CreateDepthResources(swapchainExtent, _msaaSamples, _device, _physicalDevice);
-
-		auto* renderPass = vkh::CreateSwapchainRenderPass(_msaaSamples, swapchainImageFormat, _device, _physicalDevice);
-
-		auto swapchainFramebuffers
-			= vkh::CreateSwapchainFramebuffer(_device, colorImageView, depthImageView, swapchainImageViews,
-				swapchainExtent, renderPass);
-
-		auto commandBuffers = vkh::AllocateCommandBuffers((u32)swapchainImages.size(), _commandPool, _device);
-
+		_commandBuffers = vkh::AllocateCommandBuffers(_swapchain->GetImageCount(), _commandPool, _device);
 		
 		// TODO Break CreateSyncObjects() method so we can recreate the parts that are dependend on num swapchainImages
 		auto [renderFinishedSemaphores, imageAvailableSemaphores, inFlightFences, imagesInFlight]
-			= vkh::CreateSyncObjects(_maxFramesInFlight, swapchainImages.size(), _device);
+			= vkh::CreateSyncObjects(_maxFramesInFlight, _swapchain->GetImageCount(), _device);
 
-		
-		// Set em. Done like this to enforce the correct initialization order above 
-
-		// TODO Group all this swapchain shit into one RAII struct.
-		_swapchain = swapchain;
-		_swapchainImages = std::move(swapchainImages);
-		_swapchainImageFormat = swapchainImageFormat;
-		_swapchainExtent = swapchainExtent;
-		_swapchainImageViews = std::move(swapchainImageViews);
-		_colorImage = colorImage;
-		_colorImageMemory = colorImageMemory;
-		_colorImageView = colorImageView;
-		_depthImage = depthImage;
-		_depthImageMemory = depthImageMemory;
-		_depthImageView = depthImageView;
-		_renderPass = renderPass;
-		_swapchainFramebuffers = std::move(swapchainFramebuffers);
-		
-		_commandBuffers = std::move(commandBuffers);
-		
 		_renderFinishedSemaphores = renderFinishedSemaphores;
 		_imageAvailableSemaphores = imageAvailableSemaphores;
 		_inFlightFences = inFlightFences;
 		_imagesInFlight = imagesInFlight;
 	}
-
-public:
-
-
-private:
 	void DestroyVulkanSwapchain()
 	{
+		_swapchain = nullptr; // RAII cleanup
+
 		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
-
 		
 		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
-
-
-		for (auto& x : _swapchainFramebuffers) { vkDestroyFramebuffer(_device, x, nullptr); }
-
-		// Swapchain attachments
-		vkDestroyImageView(_device, _colorImageView, nullptr);
-		vkDestroyImage(_device, _colorImage, nullptr);
-		vkFreeMemory(_device, _colorImageMemory, nullptr);
-
-		vkDestroyImageView(_device, _depthImageView, nullptr);
-		vkDestroyImage(_device, _depthImage, nullptr);
-		vkFreeMemory(_device, _depthImageMemory, nullptr);
-
-
-		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		for (auto& x : _swapchainImageViews) { vkDestroyImageView(_device, x, nullptr); }
-		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 	}
-
 	void RecreateSwapchain()
 	{
 		const auto size = _delegate->WaitTillFramebufferHasSize();
