@@ -69,7 +69,7 @@ private: // DATA
 	VkDescriptorPool _imguiDescriptorPool = nullptr;
 
 	// State
-	std::vector<int> _deletionQueue{};
+	std::vector<i32> _deletionQueue{}; // i32 is the EntityId to be deleted. Hack :)
 
 	
 public: // METHODS
@@ -77,10 +77,8 @@ public: // METHODS
 	// Lifetime
 	explicit App(AppOptions options)
 	{
-		auto window = std::make_unique<GlfwWindow>();
-		window->SetIcon(options.AssetsDir + "icon_32.png");
-		
 		// Services
+		auto window = std::make_unique<GlfwWindow>();
 		auto modelLoaderService = std::make_unique<AssimpModelLoaderService>();
 
 		const auto builder = std::make_unique<GlfwVkSurfaceBuilder>(window->GetGlfwWindow());
@@ -108,6 +106,8 @@ public: // METHODS
 		_library = std::move(library);
 		_vulkanService = std::move(vulkanService);
 		_window = std::move(window);
+
+		Start();
 	}
 	App(const App& other) = delete;
 	App(App&& other) = delete;
@@ -120,13 +120,16 @@ public: // METHODS
 		DestroyImgui();
 		_vulkanService->Shutdown();
 	}
+
 	
-	void Run()
+private: // METHODS
+	
+	void Start()
 	{
 		// Init the things
+		_window->SetIcon(_appOptions.AssetsDir + "icon_32.png");
 		_library->LoadEmptyScene();
 
-		
 		// Update UI only as quickly as the monitor's refresh rate
 		const auto* videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 		if (videoMode) {
@@ -174,25 +177,22 @@ public: // METHODS
 			}
 		}
 	}
-
-private: // METHODS
 	
-
-	void ProcessDeletionQueue()
-	{
-		for (auto& entId : _deletionQueue)
-		{
-			_ui->ClearSelection();
-			_scene->RemoveEntity(entId);
-		}
-
-		_deletionQueue.clear();
-	}
-
 	void Update(const float dt)
 	{
-		ProcessDeletionQueue();
+		// ProcessDeletionQueue();
+		{
+			// TODO HACK: Move to unified command undo/redo queue in the State layer - when that exists...
+			for (auto& entId : _deletionQueue)
+			{
+				_ui->ClearSelection();
+				_scene->RemoveEntity(entId);
+			}
 
+			_deletionQueue.clear();
+		}
+
+		
 		if (_updateEntities) 
 		{
 			for (const auto& entity : _scene->EntitiesView()) 
@@ -221,16 +221,10 @@ private: // METHODS
 		_vulkanService->EndFrame(imageIndex, cmdBuf);
 	}
 
-	// TODO Move to utils class
-	static float RandF(float min, float max)
-	{
-		const auto base = float(rand()) / RAND_MAX;
-		return min + base * (max - min);
-	}
-
 
 	#pragma region ImGui
 
+	// TODO Wrap/Move this elsewhere
 	void InitImgui(GLFWwindow* window, VulkanService& vk)
 	{
 		IMGUI_CHECKVERSION();
@@ -372,7 +366,7 @@ private: // METHODS
 	
 	#pragma region IUiPresenterDelegate
 
-	void Delete(const std::vector<int>& entityIds) override
+	void Delete(const std::vector<i32>& entityIds) override
 	{
 		for (auto id : entityIds)
 		{

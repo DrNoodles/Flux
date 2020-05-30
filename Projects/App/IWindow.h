@@ -270,10 +270,11 @@ public:
 	virtual Extent2D GetSize() = 0;
 	virtual Extent2D GetFramebufferSize() = 0;
 	virtual Extent2D WaitTillFramebufferHasSize() = 0;
+	virtual void SetIcon(const std::string& path) = 0;
 	virtual MouseButtonAction GetMouseButton(MouseButton b) = 0;
 	virtual KeyAction GetKey(VirtualKey k) = 0;
 
-	
+
 	// Specifies the event that is fired when the window completes activation or deactivation.
 	//Event Activated;
 	

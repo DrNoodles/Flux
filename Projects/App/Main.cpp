@@ -24,7 +24,6 @@ int main()
 
 		// Run it
 		App app{ options };
-		app.Run();
 	}
 	catch (const std::exception & e)
 	{
