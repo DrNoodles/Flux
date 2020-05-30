@@ -442,7 +442,7 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 	_activeSkybox = resourceId;
 	_refreshRenderableDescriptorSets = true; // Renderables depend on skybox resources for IBL
 }
-
+/*
 VkRenderPass Renderer::CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice)
 {
 	const auto colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -534,7 +534,7 @@ VkRenderPass Renderer::CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDev
 	
 	return vkh::CreateRenderPass(device, attachments, { subpassDescription }, { subpassDependency });
 }
-
+*/
 void Renderer::InitRenderer()
 {
 	//_renderPass = CreateRenderPass(_vk->MsaaSamples(), _vk->LogicalDevice(), _vk->PhysicalDevice());
@@ -1252,10 +1252,10 @@ VkPipeline Renderer::CreateSkyboxGraphicsPipeline(const std::string& shaderDir,
 	//	viewport.width = 100;// (float)swapchainExtent.width;
 	//	viewport.height = 100;// (float)swapchainExtent.height;
 	//	
-	//	/*viewport.x = 0;
+	//	viewport.x = 0;
 	//	viewport.y = (float)swapchainExtent.height;
 	//	viewport.width = (float)swapchainExtent.width;
-	//	viewport.height = -(float)swapchainExtent.height;*/
+	//	viewport.height = -(float)swapchainExtent.height;
 	//	
 	//	viewport.minDepth = 0; // depth buffer value range within [0,1]. Min can be > Max.
 	//	viewport.maxDepth = 1;
