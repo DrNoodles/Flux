@@ -53,19 +53,7 @@ public:
 		const std::vector<const char*>& validationLayers,
 		const std::vector<const char*>& physicalDeviceExtensions);
 
-
-	static std::tuple<VkSwapchainKHR, std::vector<VkImage>, VkFormat, VkExtent2D>
-	CreateSwapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, bool vsync);
-	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes, bool vsync);
-	static VkExtent2D ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities);
-
-
-	// The attachments referenced by the pipeline stages and their usage
-	[[nodiscard]] static VkRenderPass
-		CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat, VkDevice device,
-			VkPhysicalDevice physicalDevice);
-
+	
 	
 	static VkPipelineLayout CreatePipelineLayout(VkDevice device, 
 		const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
@@ -94,14 +82,6 @@ public:
 
 	static VkFramebuffer CreateFramebuffer(VkDevice device, u32 width, u32 height, 
 		const std::vector<VkImageView>& attachments, VkRenderPass renderPass, u32 layers = 1);
-
-	[[nodiscard]] static std::vector<VkFramebuffer> CreateSwapchainFramebuffer(
-		VkDevice device,
-		VkImageView colorImageView,
-		VkImageView depthImageView,
-		const std::vector<VkImageView>& swapchainImageViews,
-		const VkExtent2D& swapchainExtent,
-		VkRenderPass renderPass);
 
 
 	[[nodiscard]] static VkCommandPool CreateCommandPool(QueueFamilyIndices queueFamilyIndices, VkDevice device);
@@ -499,8 +479,11 @@ public:
 	}
 
 	static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-
 	static SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+	static VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+	static VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes, bool vsync);
+	static VkExtent2D ChooseSwapExtent(const VkExtent2D& desiredExtent, const VkSurfaceCapabilitiesKHR& capabilities);
+
 
 	static VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
 		const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,

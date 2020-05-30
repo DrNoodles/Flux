@@ -84,7 +84,7 @@ public: // METHODS
 		const auto builder = std::make_unique<GlfwVkSurfaceBuilder>(window->GetGlfwWindow());
 		const auto size = window->GetFramebufferSize();
 		const auto framebufferSize = VkExtent2D{size.Width, size.Height};
-		auto vulkanService = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, this, 
+		auto vulkanService = std::make_unique<VulkanService>(options.EnabledVulkanValidationLayers, options.VSync, options.UseMsaa, this, 
 			builder.get(), framebufferSize);
 	
 		// Controllers

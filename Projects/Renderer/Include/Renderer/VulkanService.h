@@ -53,7 +53,8 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	// Data
 	bool _enableValidationLayers = false;
 	bool _vsync = false;
-	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	bool _msaaEnabled = false;
+	VkSampleCountFlagBits _maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	const size_t _maxFramesInFlight = 2;
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
 	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -94,7 +95,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
-	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
+	VkSampleCountFlagBits MsaaSamples() const { return _maxMsaaSamples; }
 	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
 	
 	const Swapchain& GetSwapchain() const { return *_swapchain; }
@@ -107,8 +108,9 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	const std::vector<VkFence>& InFlightFences() const { return _inFlightFences; }
 	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
-	
-	VulkanService(bool enableValidationLayers, bool vsync, IVulkanServiceDelegate* delegate,
+
+
+	VulkanService(bool enableValidationLayers, bool enableVsync, bool enableMsaa, IVulkanServiceDelegate* delegate,
 	              ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
 	{
 		assert(delegate);
@@ -116,7 +118,8 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		
 		_delegate = delegate;
 		_enableValidationLayers = enableValidationLayers;
-		_vsync = vsync;
+		_vsync = enableVsync;
+		_msaaEnabled = enableMsaa;
 
 		// Init();
 		InitVulkan(builder);
@@ -251,7 +254,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 		auto* surface = builder->CreateSurface(instance);
 
-		auto [physicalDevice, msaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
+		auto [physicalDevice, maxMsaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
 
 		auto [device, graphicsQueue, presentQueue]
 			= vkh::CreateLogicalDevice(physicalDevice, surface, _validationLayers, _physicalDeviceExtensions);
@@ -263,7 +266,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_instance = instance;
 		_surface = surface;
 		_physicalDevice = physicalDevice;
-		_msaaSamples = msaaSamples;
+		_maxMsaaSamples = maxMsaaSamples;
 		_device = device;
 		_graphicsQueue = graphicsQueue;
 		_presentQueue = presentQueue;
@@ -281,7 +284,9 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
 	{
-		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, _msaaSamples, _vsync);
+		auto msaaSamples = _msaaEnabled ? _maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
+		
+		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, msaaSamples, _vsync);
 
 		_commandBuffers = vkh::AllocateCommandBuffers(_swapchain->GetImageCount(), _commandPool, _device);
 		
