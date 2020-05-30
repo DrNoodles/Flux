@@ -13,7 +13,7 @@ int main()
 		options.ModelsDir = R"(../Data/Assets/Models/)";
 		options.IblDir = R"(../Data/Assets/IBL/)";
 		options.VSync = true;
-		options.UseMsaa = true;
+		options.UseMsaa = false;
 
 		#ifdef DEBUG
 			options.LoadDemoScene = false;

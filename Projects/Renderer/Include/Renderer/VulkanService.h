@@ -54,7 +54,7 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	bool _enableValidationLayers = false;
 	bool _vsync = false;
 	bool _msaaEnabled = false;
-	VkSampleCountFlagBits _maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	const size_t _maxFramesInFlight = 2;
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
 	const std::vector<const char*> _physicalDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -95,7 +95,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
-	VkSampleCountFlagBits MsaaSamples() const { return _maxMsaaSamples; }
+	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
 	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
 	
 	const Swapchain& GetSwapchain() const { return *_swapchain; }
@@ -255,7 +255,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		auto* surface = builder->CreateSurface(instance);
 
 		auto [physicalDevice, maxMsaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
-
+		
 		auto [device, graphicsQueue, presentQueue]
 			= vkh::CreateLogicalDevice(physicalDevice, surface, _validationLayers, _physicalDeviceExtensions);
 
@@ -266,7 +266,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_instance = instance;
 		_surface = surface;
 		_physicalDevice = physicalDevice;
-		_maxMsaaSamples = maxMsaaSamples;
+		_msaaSamples =  _msaaEnabled ? maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;;
 		_device = device;
 		_graphicsQueue = graphicsQueue;
 		_presentQueue = presentQueue;
@@ -284,9 +284,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
 	{
-		auto msaaSamples = _msaaEnabled ? _maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
-		
-		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, msaaSamples, _vsync);
+		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, _msaaSamples, _vsync);
 
 		_commandBuffers = vkh::AllocateCommandBuffers(_swapchain->GetImageCount(), _commandPool, _device);
 		

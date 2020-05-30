@@ -62,7 +62,7 @@ public:
 
 		auto swapchainFramebuffers
 			= CreateSwapchainFramebuffer(device, colorImageView, depthImageView, swapchainImageViews,
-				swapchainExtent, renderPass);
+				swapchainExtent, renderPass, msaa);
 
 		_imageCount = (u32)swapchainImages.size();
 		_swapchain = swapchain;
@@ -186,13 +186,19 @@ private:
 	static std::vector<VkFramebuffer>
 	CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImageView, VkImageView depthImageView,
 	                           const std::vector<VkImageView>& swapchainImageViews, const VkExtent2D& swapchainExtent,
-	                           VkRenderPass renderPass)
+	                           VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples)
 	{
 		std::vector<VkFramebuffer> swapchainFramebuffers{ swapchainImageViews.size() };
 
+		//const auto msaaEnabled = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
+		
 		for (size_t i = 0; i < swapchainImageViews.size(); ++i)
 		{
 			std::vector<VkImageView> attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
+
+			//if (msaaEnabled) {
+			//	attachments.push_back(swapchainImageViews[i]); // used to resolve
+		//	}
 
 			swapchainFramebuffers[i]
 				= vkh::CreateFramebuffer(device, swapchainExtent.width, swapchainExtent.height, attachments, renderPass);
@@ -205,6 +211,9 @@ private:
 	CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
 	                                     VkDevice device, VkPhysicalDevice physicalDevice)
 	{
+		
+		//auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
+		
 		// Color attachment
 		VkAttachmentDescription colorAttachmentDesc = {};
 		{
@@ -215,7 +224,10 @@ private:
 			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
 			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before renderpass
-			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // memory layout after renderpass
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// memory layout after renderpass
+			//usingMsaa
+			//	? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+			//	: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		}
 		VkAttachmentReference colorAttachmentRef = {};
 		{
@@ -235,6 +247,9 @@ private:
 			depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+				//usingMsaa							// memory layout after renderpass
+				//? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+				//: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		}
 		VkAttachmentReference depthAttachmentRef = {};
 		{
@@ -244,6 +259,8 @@ private:
 
 
 		// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
+
+		// These are only used when usingMsaa
 		VkAttachmentDescription colorAttachmentResolveDesc = {};
 		{
 			colorAttachmentResolveDesc.format = swapchainFormat;
@@ -261,7 +278,7 @@ private:
 			colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
 
-
+		
 		// Associate color and depth attachements with a subpass
 		VkSubpassDescription subpassDesc = {};
 		{
@@ -292,6 +309,14 @@ private:
 			colorAttachmentResolveDesc
 		};
 
+		
+		// Handle Msaa Resolve dependencies
+		//if (usingMsaa)
+		{
+		//	attachments.push_back(colorAttachmentResolveDesc);
+		}
+
+		
 		VkRenderPassCreateInfo renderPassCI = {};
 		{
 			renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
