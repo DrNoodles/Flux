@@ -27,7 +27,7 @@ Renderer::Renderer(VulkanService* vulkanService, std::string shaderDir, const st
 	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
 {
 	InitRenderer();
-	InitRendererResourcesDependentOnSwapchain(_vk->SwapchainImageCount());
+	InitRendererResourcesDependentOnSwapchain(_vk->GetSwapchain().GetImageCount());
 	
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
 
@@ -385,7 +385,7 @@ SkyboxResourceId Renderer::CreateSkybox(const SkyboxCreateInfo& createInfo)
 	auto skybox = std::make_unique<Skybox>();
 	skybox->MeshId = _skyboxMesh;
 	skybox->IblTextureIds = createInfo.IblTextureIds;
-	skybox->FrameResources = CreateSkyboxModelFrameResources(_vk->SwapchainImageCount(), *skybox);
+	skybox->FrameResources = CreateSkyboxModelFrameResources(_vk->GetSwapchain().GetImageCount(), *skybox);
 
 	const SkyboxResourceId id = (u32)_skyboxes.size();
 	_skyboxes.emplace_back(std::move(skybox));
@@ -398,7 +398,7 @@ RenderableResourceId Renderer::CreateRenderable(const MeshResourceId& meshId, co
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
 	model->Mat = material;
-	model->FrameResources = CreatePbrModelFrameResources(_vk->SwapchainImageCount(), *model);
+	model->FrameResources = CreatePbrModelFrameResources(_vk->GetSwapchain().GetImageCount(), *model);
 
 	const RenderableResourceId id = (u32)_renderables.size();
 	_renderables.emplace_back(std::move(model));
@@ -575,10 +575,10 @@ void Renderer::DestroyRenderer()
 
 void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->SwapchainRenderPass(), _vk->LogicalDevice());
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->GetSwapchain().GetRenderPass(), _vk->LogicalDevice());
 
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(),  _vk->SwapchainRenderPass(), _vk->LogicalDevice(),
-		_vk->SwapchainExtent());
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->GetSwapchain().GetRenderPass(), _vk->LogicalDevice(),
+		_vk->GetSwapchain().GetExtent());
 
 
 	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk->LogicalDevice());

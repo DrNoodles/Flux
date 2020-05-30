@@ -79,7 +79,7 @@ namespace UiPresenterHelpers
 	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkImageView outputImageView, VkRenderPass renderPass, VulkanService& vk)
 	{
 		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const auto extent = vk.SwapchainExtent();
+		const auto extent = vk.GetSwapchain().GetExtent();
 
 		
 		// Create color attachment resources
@@ -312,7 +312,7 @@ namespace UiPresenterHelpers
 			pipelineCI.pVertexInputState = &vertexInputState;
 			pipelineCI.stageCount = (u32)shaderStages.size();
 			pipelineCI.pStages = shaderStages.data();
-			pipelineCI.renderPass = vk.SwapchainRenderPass();
+			pipelineCI.renderPass = vk.GetSwapchain().GetRenderPass();
 			pipelineCI.layout = pipelineLayout;
 
 			

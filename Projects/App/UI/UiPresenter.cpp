@@ -317,9 +317,9 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	// Draw scene to screen
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.SwapchainRenderPass(), 
-			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, _vulkan.SwapchainExtent()), 
+			_vulkan.GetSwapchain().GetRenderPass(), 
+			_vulkan.GetSwapchain().GetFramebuffers()[imageIndex],
+			vki::Rect2D({0,0}, _vulkan.GetSwapchain().GetExtent()), 
 			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);

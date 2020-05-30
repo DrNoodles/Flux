@@ -31,7 +31,6 @@
 #include <vector>
 
 
-
 class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
@@ -291,7 +290,7 @@ private: // METHODS
 
 
 
-		const auto imageCount = vk.SwapchainImageCount();
+		const auto imageCount = vk.GetSwapchain().GetImageCount();
 
 		// Create descriptor pool - from main_vulkan.cpp imgui example code
 		_imguiDescriptorPool = vkh::CreateDescriptorPool({
@@ -348,7 +347,7 @@ private: // METHODS
 			};
 		}
 
-		ImGui_ImplVulkan_Init(&initInfo, vk.SwapchainRenderPass());
+		ImGui_ImplVulkan_Init(&initInfo, vk.GetSwapchain().GetRenderPass());
 
 
 		// Upload Fonts
