@@ -39,9 +39,10 @@ public:
 	inline const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
 	inline u32 GetImageCount() const                                 { return _imageCount; }
 	inline VkExtent2D GetExtent() const                              { return _extent; }
+	inline VkFormat GetFormat() const                                { return _imageFormat; }
 
 	Swapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, 
-		VkSampleCountFlagBits msaa, bool vsync)
+	          VkSampleCountFlagBits msaa, bool vsync)
 		: _device(device)
 	{
 		assert(_device);

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "IWindow.h"
-#include "UiPresenterHelpers.h"
+#include "OnScreen.h"
+#include "OffScreen.h"
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -72,10 +73,13 @@ private: // DATA
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 
+	std::unique_ptr<TextureResource> _testTexture = nullptr;
+	
 	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
-	//UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
+	//VkRenderPass _sceneRenderPass;
+	//OffScreen::FramebufferResources _sceneFramebuffer;
 
-	//UiPresenterHelpers::PostPassResources _postPassResources;
+	OnScreen::QuadResources _postPassResources;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };

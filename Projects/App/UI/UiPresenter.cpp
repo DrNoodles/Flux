@@ -11,9 +11,6 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-#include <functional>
-//namespace uvh = UiPresenterHelpers;
-
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
@@ -32,26 +29,26 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 
-	
-	/*auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
-		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());*/
-
+	_testTexture = std::make_unique<TextureResource>(TextureResourceHelpers::LoadTexture(shaderDir + "debug.png",
+	                                                   _vulkan.CommandPool(), _vulkan.GraphicsQueue(),
+	                                                   _vulkan.PhysicalDevice(), _vulkan.LogicalDevice()));
 	// TODO Create a texture for teh offscreen buffers that's RGBA	16
 
-	//auto width = _vulkan.SwapchainExtent().width;
-	//auto height = _vulkan.SwapchainExtent().height;
+	const auto& swapchain = _vulkan.GetSwapchain();
+	auto extent = swapchain.GetExtent();
 
-	/*
-	// Offscreen renderpass setup
+
+	// OffScreen renderpass setup
 	{
-		auto&& tex = UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan);
-		_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
+		//auto&& tex = OffScreen::CreateScreenTexture(extent.width, extent.height, _vulkan);
+		//_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
 
-		_offscreenFramebuffer = UiPresenterHelpers::CreateSceneOffscreenFramebuffer(_offscreenTextureResource->DescriptorImageInfo().imageView, _renderer._renderPass, _vulkan);
+		//_sceneRenderPass = OffScreen::CreateSceneRenderPass(_vulkan.MsaaSamples(), _vulkan);
+		//_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(_sceneRenderPass, _vulkan);
 	}
-	
-	_postPassResources = uvh::CreatePostPassResources(_offscreenTextureResource->DescriptorImageInfo(), vulkan.SwapchainImageCount(), shaderDir, vulkan);
-	*/
+
+	_postPassResources = OnScreen::CreateQuadResources(_testTexture->DescriptorImageInfo(),
+	                                                   swapchain.GetImageCount(), shaderDir, vulkan);
 }
 
 void UiPresenter::Shutdown()
@@ -61,11 +58,15 @@ void UiPresenter::Shutdown()
 	_window->PointerWheelChanged.Detach(_pointerWheelChangedHandler);
 	_window->KeyDown.Detach(_keyDownHandler);
 	_window->KeyUp.Detach(_keyUpHandler);
-	
+
+	_testTexture = nullptr;
+	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+
 	/*
+	 *
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	
-	_offscreenFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_offscreenTextureResource = nullptr;
 	*/
 }
@@ -78,7 +79,7 @@ void UiPresenter::NextSkybox()
 
 void UiPresenter::LoadSkybox(const std::string& path) const
 {
-	const SkyboxResourceId resId = _scene.LoadAndSetSkybox(path);
+	_scene.LoadAndSetSkybox(path);
 }
 
 void UiPresenter::DeleteSelected()
@@ -308,92 +309,92 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	// Draw
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
-void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
-{	
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-	clearColors[1].depthStencil = { 1.f, 0ui32 };
+//void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
+//{	
+//	std::vector<VkClearValue> clearColors(2);
+//	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+//	clearColors[1].depthStencil = { 1.f, 0ui32 };
+//
+//	// Draw scene to screen
+//	{
+//		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+//			_vulkan.GetSwapchain().GetRenderPass(), 
+//			_vulkan.GetSwapchain().GetFramebuffers()[imageIndex],
+//			vki::Rect2D({0,0}, _vulkan.GetSwapchain().GetExtent()), 
+//			clearColors);
+//
+//		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+//		{
+//			DrawViewport(imageIndex, commandBuffer);
+//			DrawUi(commandBuffer);
+//		}
+//		vkCmdEndRenderPass(commandBuffer);
+//	}
+//}
 
-	// Draw scene to screen
-	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.GetSwapchain().GetRenderPass(), 
-			_vulkan.GetSwapchain().GetFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, _vulkan.GetSwapchain().GetExtent()), 
-			clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			DrawViewport(imageIndex, commandBuffer);
-			DrawUi(commandBuffer);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
-}
-/*
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	const auto swapchainExtent = _vulkan.SwapchainExtent();
+	auto& vk = _vulkan;
+	const auto& swap = vk.GetSwapchain();
+	const auto swapExtent = swap.GetExtent();
 	
 	std::vector<VkClearValue> clearColors(2);
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-	auto& vk = _vulkan;
-	
-	// Prep offscreen texture for writing to 
-	{
-		const auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+	//
+	//// Prep offscreen texture for writing to 
+	//{
+	//	auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
 
-		vkh::TransitionImageLayout(cmdBuf,
-			_offscreenTextureResource->Image(),
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-			VK_IMAGE_ASPECT_COLOR_BIT);
+	//	vkh::TransitionImageLayout(cmdBuf,
+	//		_offscreenTextureResource->Image(),
+	//		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+	//		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+	//		VK_IMAGE_ASPECT_COLOR_BIT);
 
-		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	}
-	
-	
-	// Draw scene to gbuf
-	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_renderer._renderPass, 
-			_offscreenFramebuffer.Framebuffer,
-			vki::Rect2D({0,0}, swapchainExtent), 
-			clearColors);
+	//	vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
+	//}
+	//
+	//
+	//// Draw scene to gbuf
+	//{
+	//	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+	//		_renderer._renderPass, 
+	//		_sceneFramebuffer.FramebufferResources,
+	//		vki::Rect2D({0,0}, swapExtent), 
+	//		clearColors);
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			DrawViewport(imageIndex, commandBuffer);
-			DrawUi(commandBuffer);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
+	//	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	//	{
+	//		DrawViewport(imageIndex, commandBuffer);
+	//		//DrawUi(commandBuffer);
+	//	}
+	//	vkCmdEndRenderPass(commandBuffer);
+	//}
 
 
-	// Prep offscreen texture for sampling from
-	{
-		const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+	//// Prep offscreen texture for sampling from
+	//{
+	//	auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
 
-		vkh::TransitionImageLayout(cmdBuf,
-			_offscreenTextureResource->Image(),
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-			VK_IMAGE_ASPECT_COLOR_BIT);
+	//	vkh::TransitionImageLayout(cmdBuf,
+	//		_offscreenTextureResource->Image(),
+	//		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+	//		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+	//		VK_IMAGE_ASPECT_COLOR_BIT);
 
-		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	}
+	//	vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
+	//}
 
 	
 	// Draw gbuf to screen
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.SwapchainRenderPass(), 
-			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, swapchainExtent), 
+			swap.GetRenderPass(), 
+			swap.GetFramebuffers()[imageIndex],
+			vki::Rect2D({0,0}, swapExtent), 
 			clearColors);
-
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
@@ -402,14 +403,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			
 			// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
 			
-			auto viewport = vki::Viewport(0,0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0,1);
-			auto scissor = vki::Rect2D({ 0,0 }, swapchainExtent);
+			auto viewport = vki::Viewport(0,0, (f32)swapExtent.width, (f32)swapExtent.height, 0,1);
+			auto scissor = vki::Rect2D({ 0,0 }, swapExtent);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-
 			
-			const MeshResource mesh = _postPassResources.Quad;
+			const MeshResource& mesh = _postPassResources.Quad;
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
 			
@@ -424,7 +424,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		vkCmdEndRenderPass(commandBuffer);
 	}
 }
-*/
 
 void UiPresenter::LoadDemoScene()
 {
