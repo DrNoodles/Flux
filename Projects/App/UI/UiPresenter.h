@@ -76,7 +76,7 @@ private: // DATA
 	std::unique_ptr<TextureResource> _testTexture = nullptr;
 	
 	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
-	VkRenderPass _sceneRenderPass;
+	//VkRenderPass _sceneRenderPass;
 	OffScreen::FramebufferResources _sceneFramebuffer;
 
 	OnScreen::QuadResources _postPassResources;

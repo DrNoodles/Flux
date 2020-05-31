@@ -537,7 +537,7 @@ VkRenderPass Renderer::CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDev
 */
 void Renderer::InitRenderer()
 {
-	//_renderPass = CreateRenderPass(_vk->MsaaSamples(), _vk->LogicalDevice(), _vk->PhysicalDevice());
+	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, *_vk);
 	
 	// PBR pipe
 	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk->LogicalDevice());
@@ -570,15 +570,14 @@ void Renderer::DestroyRenderer()
 	vkDestroyPipelineLayout(_vk->LogicalDevice(), _skyboxPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk->LogicalDevice(), _skyboxDescriptorSetLayout, nullptr);
 
-	//vkDestroyRenderPass(_vk->LogicalDevice(), _renderPass, nullptr);
+	vkDestroyRenderPass(_vk->LogicalDevice(), _renderPass, nullptr);
 }
 
 void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _vk->GetSwapchain().GetRenderPass(), _vk->LogicalDevice());
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk->MsaaSamples(), _renderPass, _vk->LogicalDevice());
 
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _vk->GetSwapchain().GetRenderPass(), _vk->LogicalDevice(),
-		_vk->GetSwapchain().GetExtent());
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk->MsaaSamples(), _renderPass, _vk->LogicalDevice(), _vk->GetSwapchain().GetExtent());
 
 
 	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk->LogicalDevice());
@@ -638,7 +637,6 @@ void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainI
 	DestroyRenderResourcesDependentOnSwapchain();
 	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
 }
-
 
 
 #pragma region Shared

@@ -44,8 +44,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 		//_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
 
 		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		_sceneRenderPass = OffScreen::CreateSceneRenderPass(format, _vulkan);
-		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(format, _sceneRenderPass, _vulkan);
+		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(format, _renderer._renderPass, _vulkan);
 	}
 
 	_postPassResources = OnScreen::CreateQuadResources(_testTexture->DescriptorImageInfo(),
@@ -62,11 +61,8 @@ void UiPresenter::Shutdown()
 
 	// Cleanup renderpass resources
 	_testTexture = nullptr;
-	
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	vkDestroyRenderPass(_vulkan.LogicalDevice(), _sceneRenderPass, _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -355,21 +351,22 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	//}
 	//
 	//
-	//// Draw scene to gbuf
-	//{
-	//	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-	//		_renderer._renderPass, 
-	//		_sceneFramebuffer.FramebufferResources,
-	//		vki::Rect2D({0,0}, swapExtent), 
-	//		clearColors);
+	//
+	// Draw scene to gbuf
+	{
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+			_renderer._renderPass, 
+			_sceneFramebuffer.Framebuffer,
+			vki::Rect2D({0,0}, swapExtent), 
+			clearColors);
 
-	//	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	//	{
-	//		DrawViewport(imageIndex, commandBuffer);
-	//		//DrawUi(commandBuffer);
-	//	}
-	//	vkCmdEndRenderPass(commandBuffer);
-	//}
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			DrawViewport(imageIndex, commandBuffer);
+			//DrawUi(commandBuffer);
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
 
 
 	//// Prep offscreen texture for sampling from
