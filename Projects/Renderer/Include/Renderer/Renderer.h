@@ -87,7 +87,7 @@ public:
 			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
 			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// memory layout after renderpass
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	// memory layout after renderpass
 		}
 		VkAttachmentReference colorAttachmentRef = {};
 		{

@@ -47,8 +47,10 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(format, _renderer._renderPass, _vulkan);
 	}
 
-	_postPassResources = OnScreen::CreateQuadResources(_testTexture->DescriptorImageInfo(),
-	                                                   swapchain.GetImageCount(), shaderDir, vulkan);
+	_postPassResources = OnScreen::CreateQuadResources(
+		_sceneFramebuffer.OutputDescriptor(),
+		//_testTexture->DescriptorImageInfo(),
+		swapchain.GetImageCount(), shaderDir, vulkan);
 }
 
 void UiPresenter::Shutdown()

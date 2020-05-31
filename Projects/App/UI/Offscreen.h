@@ -25,9 +25,15 @@ namespace OffScreen
 		VkFormat Format = {};
 		std::vector<Attachment> Attachments = {};
 		VkFramebuffer Framebuffer = nullptr;
-		//VkRenderPass RenderPass = nullptr;
 
-		//VkDescriptorImageInfo OutputDescriptor() const { return 
+		// Color extras so we can sample from shader
+		VkSampler ColorSampler = nullptr;
+		//VkSampler ColorSampler = nullptr;
+
+		VkDescriptorImageInfo OutputDescriptor() const
+		{
+			return VkDescriptorImageInfo{ ColorSampler, Attachments[0].ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		}
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -36,7 +42,7 @@ namespace OffScreen
 			}
 
 			vkDestroyFramebuffer(device, Framebuffer, allocator);
-			//vkDestroyRenderPass(device, RenderPass, allocator);
+			vkDestroySampler(device, ColorSampler, allocator);
 		}
 	};
 
@@ -44,33 +50,63 @@ namespace OffScreen
 	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkFormat format, VkRenderPass renderPass, VulkanService& vk)
 	{
 		const auto extent = vk.GetSwapchain().GetExtent();
+		const auto msaaSamples = vk.MsaaSamples();
+		const u32 mipLevels = 1;
+		const u32 layerCount = 1;
 
-
+		
 		// Create color attachment resources
 		FramebufferResources::Attachment colorAttachment = {};
 		{
-			const u32 mipLevels = 1;
-			const u32 layerCount = 1;
-
 			// Create color image and memory
 			std::tie(colorAttachment.Image, colorAttachment.ImageMemory) = vkh::CreateImage2D(
 				extent.width, extent.height,
 				mipLevels,
-				vk.MsaaSamples(),
+				msaaSamples,
 				format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				vk.PhysicalDevice(), vk.LogicalDevice());
 
 			// Create image view
-			colorAttachment.ImageView = vkh::CreateImage2DView(colorAttachment.Image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, vk.LogicalDevice());
+			colorAttachment.ImageView = vkh::CreateImage2DView(
+				colorAttachment.Image, 
+				format, 
+				VK_IMAGE_VIEW_TYPE_2D, 
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				mipLevels, 
+				layerCount, 
+				vk.LogicalDevice());
 		}
 
-
+		
 		// Create depth attachment resources
 		FramebufferResources::Attachment depthAttachment = {};
-		std::tie(depthAttachment.Image, depthAttachment.ImageMemory, depthAttachment.ImageView) = vkh::CreateDepthResources(extent, vk.MsaaSamples(), vk.LogicalDevice(), vk.PhysicalDevice());
+		{
+			const VkFormat depthFormat = vkh::FindDepthFormat(vk.PhysicalDevice());
+
+			// Create depth image and memory
+			std::tie(depthAttachment.Image, depthAttachment.ImageMemory) = vkh::CreateImage2D(
+				extent.width, extent.height,
+				mipLevels,
+				msaaSamples,
+				depthFormat,
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				vk.PhysicalDevice(), vk.LogicalDevice());
+
+			// Create image view
+			depthAttachment.ImageView = vkh::CreateImage2DView(
+				depthAttachment.Image, 
+				depthFormat, 
+				VK_IMAGE_VIEW_TYPE_2D, 
+				VK_IMAGE_ASPECT_DEPTH_BIT, 
+				mipLevels, 
+				layerCount, 
+				vk.LogicalDevice());
+		}
 
 
 		// Create framebuffer
@@ -79,11 +115,17 @@ namespace OffScreen
 			{ colorAttachment.ImageView, depthAttachment.ImageView },
 			renderPass);
 
+
+		// Color Sampler and co. so it can be sampled from a shader
+		auto* colorSampler = vkh::CreateSampler(vk.LogicalDevice()); // This might need some TLC.
+
+		
 		FramebufferResources res = {};
 		res.Framebuffer = framebuffer;
 		res.Extent = extent;
 		res.Format = format;
 		res.Attachments = std::vector{ colorAttachment, depthAttachment };
+		res.ColorSampler = colorSampler;
 
 		return res;
 	}
