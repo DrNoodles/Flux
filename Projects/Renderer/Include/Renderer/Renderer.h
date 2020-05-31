@@ -72,9 +72,9 @@ public:
 	
 	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk)
 	{
-		auto physicalDevice = vk.PhysicalDevice();
-		auto device = vk.LogicalDevice();
-		auto msaaSamples = vk.MsaaSamples();
+		auto* physicalDevice = vk.PhysicalDevice();
+		auto* device = vk.LogicalDevice();
+		const auto msaaSamples = vk.MsaaSamples();
 		auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
 		
 		// Color attachment

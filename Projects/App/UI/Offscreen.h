@@ -28,11 +28,12 @@ namespace OffScreen
 
 		// Color extras so we can sample from shader
 		VkSampler ColorSampler = nullptr;
-		//VkSampler ColorSampler = nullptr;
 
 		VkDescriptorImageInfo OutputDescriptor() const
 		{
-			return VkDescriptorImageInfo{ ColorSampler, Attachments[0].ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			return VkDescriptorImageInfo{ ColorSampler,
+				Attachments[0].ImageView,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 		}
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
@@ -129,53 +130,4 @@ namespace OffScreen
 
 		return res;
 	}
-
-	
-	//inline TextureResource CreateScreenTexture(u32 width, u32 height, VulkanService& vk)
-	//{
-	//	const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
-	//	const u32 mipLevels = 1;
-	//	const u32 layerCount = 1;
-
-
-	//	auto [image, memory] = vkh::CreateImage2D(width, height, mipLevels,
-	//		VK_SAMPLE_COUNT_1_BIT,
-	//		format,
-	//		VK_IMAGE_TILING_OPTIMAL,
-	//		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // Used in offscreen framebuffer
-	//		//VK_IMAGE_USAGE_TRANSFER_SRC_BIT |     // Need to convert layout to attachment optimal in prep for framebuffer writing
-	//		VK_IMAGE_USAGE_SAMPLED_BIT,           // Framebuffer result is used in later shader pass
-
-	//		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	//		vk.PhysicalDevice(), vk.LogicalDevice(),
-	//		layerCount);
-
-	//	
-	//	// Transition image layout
-	//	{
-	//		auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
-
-	//		VkImageSubresourceRange subresourceRange = {};
-	//		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	//		subresourceRange.baseArrayLayer = 0;
-	//		subresourceRange.layerCount = 1;
-	//		subresourceRange.baseMipLevel = 0;
-	//		subresourceRange.levelCount = mipLevels;
-
-	//		vkh::TransitionImageLayout(cmdBuf, image,
-	//			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
-
-	//		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	//	}
-
-
-	//	VkImageView view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, vk.LogicalDevice());
-
-	//	
-	//	VkSampler sampler = vkh::CreateSampler(vk.LogicalDevice());
-
-	//	
-	//	return TextureResource{ vk.LogicalDevice(), width, height, mipLevels, layerCount, image, memory, view, sampler, format };
-	//}
-	
 }

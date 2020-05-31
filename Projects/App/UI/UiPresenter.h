@@ -72,13 +72,7 @@ private: // DATA
 
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-
-	std::unique_ptr<TextureResource> _testTexture = nullptr;
-	
-	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
-	//VkRenderPass _sceneRenderPass;
 	OffScreen::FramebufferResources _sceneFramebuffer;
-
 	OnScreen::QuadResources _postPassResources;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };

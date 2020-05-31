@@ -29,28 +29,10 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 
-	_testTexture = std::make_unique<TextureResource>(TextureResourceHelpers::LoadTexture(shaderDir + "debug.png",
-	                                                   _vulkan.CommandPool(), _vulkan.GraphicsQueue(),
-	                                                   _vulkan.PhysicalDevice(), _vulkan.LogicalDevice()));
-	// TODO Create a texture for teh offscreen buffers that's RGBA	16
+	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(VK_FORMAT_R16G16B16A16_SFLOAT, _renderer._renderPass, _vulkan);
 
-	const auto& swapchain = _vulkan.GetSwapchain();
-	auto extent = swapchain.GetExtent();
-
-
-	// OffScreen renderpass setup
-	{
-		//auto&& tex = OffScreen::CreateScreenTexture(extent.width, extent.height, _vulkan);
-		//_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
-
-		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(format, _renderer._renderPass, _vulkan);
-	}
-
-	_postPassResources = OnScreen::CreateQuadResources(
-		_sceneFramebuffer.OutputDescriptor(),
-		//_testTexture->DescriptorImageInfo(),
-		swapchain.GetImageCount(), shaderDir, vulkan);
+	_postPassResources = OnScreen::CreateQuadResources(_sceneFramebuffer.OutputDescriptor(), 
+		_vulkan.GetSwapchain().GetImageCount(), shaderDir, vulkan);
 }
 
 void UiPresenter::Shutdown()
@@ -62,7 +44,6 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_testTexture = nullptr;
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
@@ -305,107 +286,48 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	// Draw
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
-//void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
-//{	
-//	std::vector<VkClearValue> clearColors(2);
-//	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-//	clearColors[1].depthStencil = { 1.f, 0ui32 };
-//
-//	// Draw scene to screen
-//	{
-//		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-//			_vulkan.GetSwapchain().GetRenderPass(), 
-//			_vulkan.GetSwapchain().GetFramebuffers()[imageIndex],
-//			vki::Rect2D({0,0}, _vulkan.GetSwapchain().GetExtent()), 
-//			clearColors);
-//
-//		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-//		{
-//			DrawViewport(imageIndex, commandBuffer);
-//			DrawUi(commandBuffer);
-//		}
-//		vkCmdEndRenderPass(commandBuffer);
-//	}
-//}
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	auto& vk = _vulkan;
 	const auto& swap = vk.GetSwapchain();
 	const auto swapExtent = swap.GetExtent();
+	const auto renderArea = vki::Rect2D({0, 0}, swapExtent);
 	
 	std::vector<VkClearValue> clearColors(2);
 	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-	//
-	//// Prep offscreen texture for writing to 
-	//{
-	//	auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
-
-	//	vkh::TransitionImageLayout(cmdBuf,
-	//		_offscreenTextureResource->Image(),
-	//		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-	//		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-	//		VK_IMAGE_ASPECT_COLOR_BIT);
-
-	//	vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	//}
-	//
-	//
-	//
 	// Draw scene to gbuf
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_renderer._renderPass, 
-			_sceneFramebuffer.Framebuffer,
-			vki::Rect2D({0,0}, swapExtent), 
-			clearColors);
+		const auto vr = ViewportRect();
+		const auto vkViewportRect = vki::Rect2D({vr.Offset.X, vr.Offset.Y}, {vr.Extent.Width, vr.Extent.Height});
+		
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer._renderPass, _sceneFramebuffer.Framebuffer,
+		                                                          vkViewportRect,
+		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			DrawViewport(imageIndex, commandBuffer);
-			//DrawUi(commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
-
-
-	//// Prep offscreen texture for sampling from
-	//{
-	//	auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
-
-	//	vkh::TransitionImageLayout(cmdBuf,
-	//		_offscreenTextureResource->Image(),
-	//		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-	//		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-	//		VK_IMAGE_ASPECT_COLOR_BIT);
-
-	//	vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	//}
-
 	
-	// Draw gbuf to screen
+	// Draw gbuf to screen, and finally UI.
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			swap.GetRenderPass(), 
-			swap.GetFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, swapExtent), 
-			clearColors);
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
+		                                                          swap.GetFramebuffers()[imageIndex],
+		                                                          renderArea,
+		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			// Need to draw a quad
-			// Need pipeline
-			
-			// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
-			
 			auto viewport = vki::Viewport(0,0, (f32)swapExtent.width, (f32)swapExtent.height, 0,1);
-			auto scissor = vki::Rect2D({ 0,0 }, swapExtent);
+			auto scissor = renderArea;
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-			
 			const MeshResource& mesh = _postPassResources.Quad;
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -416,7 +338,9 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.PipelineLayout, 0, 1, &_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-			
+
+
+			DrawUi(commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
