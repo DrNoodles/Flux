@@ -43,8 +43,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 		//auto&& tex = OffScreen::CreateScreenTexture(extent.width, extent.height, _vulkan);
 		//_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
 
-		//_sceneRenderPass = OffScreen::CreateSceneRenderPass(_vulkan.MsaaSamples(), _vulkan);
-		//_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(_sceneRenderPass, _vulkan);
+		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
+		_sceneRenderPass = OffScreen::CreateSceneRenderPass(format, _vulkan);
+		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(format, _sceneRenderPass, _vulkan);
 	}
 
 	_postPassResources = OnScreen::CreateQuadResources(_testTexture->DescriptorImageInfo(),
@@ -59,16 +60,13 @@ void UiPresenter::Shutdown()
 	_window->KeyDown.Detach(_keyDownHandler);
 	_window->KeyUp.Detach(_keyUpHandler);
 
+	// Cleanup renderpass resources
 	_testTexture = nullptr;
+	
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 
-	/*
-	 *
-	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_offscreenTextureResource = nullptr;
-	*/
+	vkDestroyRenderPass(_vulkan.LogicalDevice(), _sceneRenderPass, _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()

@@ -26,6 +26,8 @@ namespace OffScreen
 		std::vector<Attachment> Attachments = {};
 		VkFramebuffer Framebuffer = nullptr;
 		//VkRenderPass RenderPass = nullptr;
+
+		//VkDescriptorImageInfo OutputDescriptor() const { return 
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -38,11 +40,11 @@ namespace OffScreen
 		}
 	};
 
-	inline VkRenderPass CreateSceneRenderPass(VkSampleCountFlagBits msaaSamples, VulkanService& vk)
+	inline VkRenderPass CreateSceneRenderPass(VkFormat format, VulkanService& vk)
 	{
-		auto format = vk.GetSwapchain().GetFormat();
 		auto physicalDevice = vk.PhysicalDevice();
 		auto device = vk.LogicalDevice();
+		auto msaaSamples = vk.MsaaSamples();
 		auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
 		
 		// Color attachment
@@ -55,10 +57,7 @@ namespace OffScreen
 			colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
 			colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-			//colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// memory layout after renderpass
-			colorAttachmentDesc.finalLayout = usingMsaa
-				? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-				: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// memory layout after renderpass
 		}
 		VkAttachmentReference colorAttachmentRef = {};
 		{
@@ -77,10 +76,7 @@ namespace OffScreen
 			depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
 			depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			//depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // memory layout after renderpass
-			depthAttachmentDesc.finalLayout = usingMsaa							
-				? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-				: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // memory layout after renderpass
 		}
 		VkAttachmentReference depthAttachmentRef = {};
 		{
@@ -88,28 +84,6 @@ namespace OffScreen
 			depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		}
 
-
-		// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
-
-		// These are only used when usingMsaa
-		VkAttachmentDescription colorAttachmentResolveDesc = {};
-		{
-			colorAttachmentResolveDesc.format = format;
-			colorAttachmentResolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachmentResolveDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentResolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentResolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentResolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentResolveDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			colorAttachmentResolveDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		}
-		VkAttachmentReference colorAttachmentResolveRef = {};
-		{
-			colorAttachmentResolveRef.attachment = 2;
-			colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		}
-
-		
 		// Associate color and depth attachements with a subpass
 		VkSubpassDescription subpassDesc = {};
 		{
@@ -117,7 +91,7 @@ namespace OffScreen
 			subpassDesc.colorAttachmentCount = 1;
 			subpassDesc.pColorAttachments = &colorAttachmentRef;
 			subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
-			subpassDesc.pResolveAttachments = usingMsaa ? &colorAttachmentResolveRef : nullptr;
+			subpassDesc.pResolveAttachments = nullptr;
 		}
 
 
@@ -137,17 +111,8 @@ namespace OffScreen
 		std::vector<VkAttachmentDescription> attachments = {
 			colorAttachmentDesc,
 			depthAttachmentDesc,
-			//colorAttachmentResolveDesc
 		};
 
-		
-		// Handle Msaa Resolve dependencies
-		if (usingMsaa)
-		{
-			attachments.push_back(colorAttachmentResolveDesc);
-		}
-
-		
 		VkRenderPassCreateInfo renderPassCI = {};
 		{
 			renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -169,9 +134,8 @@ namespace OffScreen
 	}
 	
 	
-	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkRenderPass renderPass, VulkanService& vk)
+	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkFormat format, VkRenderPass renderPass, VulkanService& vk)
 	{
-		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
 		const auto extent = vk.GetSwapchain().GetExtent();
 
 

@@ -61,7 +61,7 @@ public:
 
 		auto* renderPass = CreateSwapchainRenderPass(swapchainImageFormat, device);
 
-		auto swapchainFramebuffers = CreateSwapchainFramebuffer(device, colorImageView, depthImageView, swapchainImageViews, swapchainExtent, renderPass);
+		auto swapchainFramebuffers = CreateSwapchainFramebuffer(device, /*colorImageView, depthImageView,*/ swapchainImageViews, swapchainExtent, renderPass);
 
 		_imageCount = (u32)swapchainImages.size();
 		_swapchain = swapchain;
@@ -184,7 +184,7 @@ private:
 
 
 	static std::vector<VkFramebuffer>
-	CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImgView, VkImageView depthImgView,
+	CreateSwapchainFramebuffer(VkDevice device, /*VkImageView colorImgView, VkImageView depthImgView,*/
 	                           const std::vector<VkImageView>& swapImgViews, const VkExtent2D& swapExtent,
 	                           VkRenderPass renderPass)
 	{
