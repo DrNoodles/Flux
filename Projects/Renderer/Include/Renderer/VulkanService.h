@@ -9,6 +9,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <iostream>
 
 using vkh = VulkanHelpers;
 
@@ -121,9 +122,11 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		_vsync = enableVsync;
 		_msaaEnabled = enableMsaa;
 
-		// Init();
 		InitVulkan(builder);
 		InitVulkanSwapchainAndDependants(framebufferSize);
+
+		std::cout << (_msaaEnabled ? "MSAA Enabled" : "MSAA Disabled") << std::endl;
+		std::cout << (_vsync ? "VSync Enabled" : "VSync Disabled") << std::endl;
 	}
 	
 	void Shutdown()

@@ -183,35 +183,30 @@ private:
 		return { swapchain, std::move(swapchainImages), surfaceFormat.format, extent };
 	}
 
-	
+
 	static std::vector<VkFramebuffer>
-	CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImageView, VkImageView depthImageView,
-	                           const std::vector<VkImageView>& swapchainImageViews, const VkExtent2D& swapchainExtent,
+	CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImgView, VkImageView depthImgView,
+	                           const std::vector<VkImageView>& swapImgViews, const VkExtent2D& swapExtent,
 	                           VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples)
 	{
-		std::vector<VkFramebuffer> swapchainFramebuffers{ swapchainImageViews.size() };
+		std::vector<VkFramebuffer> swapchainFramebuffers{swapImgViews.size()};
 
 		const auto msaaEnabled = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
-		
-		for (size_t i = 0; i < swapchainImageViews.size(); ++i)
-		{
-			std::vector<VkImageView> attachments = {};
-			if (msaaEnabled) {
-				attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
-			}
-			else {
-				attachments = { swapchainImageViews[i], depthImageView };
-			}
 
+		for (size_t i = 0; i < swapImgViews.size(); ++i)
+		{
+			auto attachments = msaaEnabled
+				? std::vector<VkImageView>{colorImgView, depthImgView, swapImgViews[i]}
+				: std::vector<VkImageView>{swapImgViews[i], depthImgView};
 
 			swapchainFramebuffers[i]
-				= vkh::CreateFramebuffer(device, swapchainExtent.width, swapchainExtent.height, attachments, renderPass);
+				= vkh::CreateFramebuffer(device, swapExtent.width, swapExtent.height, attachments, renderPass);
 		}
 
 		return swapchainFramebuffers;
 	}
 
-	
+
 	static VkRenderPass
 	CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
 	                          VkDevice device, VkPhysicalDevice physicalDevice)
