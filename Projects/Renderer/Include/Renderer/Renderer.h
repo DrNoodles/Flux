@@ -117,7 +117,7 @@ private: // Dependencies
 	#pragma region Shared
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
-	static VkRenderPass CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice);
+	//static VkRenderPass CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice);
 
 	#pragma endregion Shared
 

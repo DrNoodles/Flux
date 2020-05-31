@@ -13,5 +13,6 @@ struct AppOptions
 	bool EnabledVulkanValidationLayers = false;
 	bool VSync = false;
 	bool LoadDemoScene = false;
+	bool UseMsaa = false;
 };
 

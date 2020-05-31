@@ -58,7 +58,6 @@ public:  // Methods
 
 	GLFWwindow* GetGlfwWindow() const;
 
-	void SetIcon(const std::string& path);
 
 	inline Extent2D GetSize() override;
 	Extent2D GetFramebufferSize() override;
@@ -66,6 +65,7 @@ public:  // Methods
 	inline bool CloseRequested() override;
 	inline void PollEvents() override;
 	inline void SetWindowTitle(const std::string& title) override;
+	void SetIcon(const std::string& path) override;
 	MouseButtonAction GetMouseButton(MouseButton button) override;
 	KeyAction GetKey(VirtualKey k) override;
 

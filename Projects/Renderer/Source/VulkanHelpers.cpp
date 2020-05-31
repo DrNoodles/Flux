@@ -210,7 +210,7 @@ std::tuple<VkPhysicalDevice, VkSampleCountFlagBits> VulkanHelpers::PickPhysicalD
 	const std::vector<const char*>& physicalDeviceExtensions, VkInstance instance, VkSurfaceKHR surface)
 {
 	VkPhysicalDevice physicalDevice = nullptr;
-	VkSampleCountFlagBits msaaSamples;
+	VkSampleCountFlagBits maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	// Query available devices
 	uint32_t deviceCount = 0;
@@ -229,8 +229,8 @@ std::tuple<VkPhysicalDevice, VkSampleCountFlagBits> VulkanHelpers::PickPhysicalD
 		if (IsDeviceSuitable(physicalDeviceExtensions, pd, surface))
 		{
 			physicalDevice = pd;
-			msaaSamples = GetMaxUsableSampleCount(pd);
-			std::cout << "MSAAx" << std::to_string(msaaSamples) << std::endl;
+			maxMsaaSamples = GetMaxUsableSampleCount(pd);
+			std::cout << "Max MSAAx" << std::to_string(maxMsaaSamples) << std::endl;
 			break;
 		}
 	}
@@ -240,7 +240,7 @@ std::tuple<VkPhysicalDevice, VkSampleCountFlagBits> VulkanHelpers::PickPhysicalD
 		throw std::runtime_error("Failed to find a suitable GPU");
 	}
 
-	return { physicalDevice, msaaSamples };
+	return { physicalDevice, maxMsaaSamples };
 }
 
 bool VulkanHelpers::IsDeviceSuitable(const std::vector<const char*>& physicalDeviceExtensions,
@@ -376,75 +376,71 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	return { device, graphicsQueue, presentQueue };
 }
 
-std::tuple<VkSwapchainKHR, std::vector<VkImage>, VkFormat, VkExtent2D> VulkanHelpers::CreateSwapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, bool vsync)
+QueueFamilyIndices VulkanHelpers::FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
-	const SwapChainSupportDetails deets = QuerySwapChainSupport(physicalDevice, surface);
+	QueueFamilyIndices indices;
 
-	const auto surfaceFormat = ChooseSwapSurfaceFormat(deets.Formats);
-	const auto presentMode = ChooseSwapPresentMode(deets.PresentModes, vsync);
-	const auto extent = ChooseSwapExtent(framebufferSize, deets.Capabilities);
+	uint32_t queueFamilyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+	std::vector<VkQueueFamilyProperties> queueFamilies{ queueFamilyCount };
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
 
-	// Image count
-	uint32_t minImageCount = deets.Capabilities.minImageCount + 1; // 1 extra image to avoid waiting on driver
-	const auto maxImageCount = deets.Capabilities.maxImageCount;
-	const auto maxImageCountExists = maxImageCount != 0;
-	if (maxImageCountExists && minImageCount > maxImageCount)
+	for (uint32_t i = 0; i < queueFamilyCount; ++i)
 	{
-		minImageCount = maxImageCount;
+		// TODO Get a VK_QUEUE_TRANSFER_BIT for a new transferQueue for all the host to device local transfers
+		// 
+		// Transfer queue will be async and not block other work. It has some latency though.
+		// If needing an immediate copy for work done right now, then graphics or compute queues are faster, but clog system
+
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			indices.GraphicsFamily = i;
+		}
+
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentSupport);
+		if (presentSupport)
+		{
+			indices.PresentFamily = i;
+		}
+
+		if (indices.IsComplete())
+		{
+			break;
+		}
+	}
+
+	return indices;
+}
+
+SwapChainSupportDetails VulkanHelpers::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+{
+	SwapChainSupportDetails deets;
+
+	// Query Capabilities
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &deets.Capabilities);
+
+
+	// Query formats
+	uint32_t formatCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+	if (formatCount != 0)
+	{
+		deets.Formats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, deets.Formats.data());
 	}
 
 
-	// Create swap chain info
-	VkSwapchainCreateInfoKHR info = {};
-	info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	info.surface = surface;
-	info.minImageCount = minImageCount;
-	info.imageFormat = surfaceFormat.format;
-	info.imageColorSpace = surfaceFormat.colorSpace;
-	info.imageExtent = extent;
-	info.imageArrayLayers = 1;
-	info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //VK_IMAGE_USAGE_TRANSFER_DST_BIT for post processing buffer
-	info.preTransform = deets.Capabilities.currentTransform; // transform image before showing it?
-	info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // how alpha is treated when blending with other windows
-	info.presentMode = presentMode;
-	info.clipped = VK_TRUE; // true means we don't care about pixels obscured by other windows
-	info.oldSwapchain = nullptr;
-
-	// Specify how to use swap chain images across multiple queue families
-	QueueFamilyIndices indicies = FindQueueFamilies(physicalDevice, surface);
-	const uint32_t queueCount = 2;
-	// TODO Code smell: will break as more are added to indicies?
-	uint32_t queueFamiliesIndices[queueCount] = { indicies.GraphicsFamily.value(), indicies.PresentFamily.value() };
-	if (indicies.GraphicsFamily != indicies.PresentFamily)
+	// Query present modes
+	uint32_t presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
+	if (presentModeCount != 0)
 	{
-		info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		info.queueFamilyIndexCount = queueCount;
-		info.pQueueFamilyIndices = queueFamiliesIndices;
-	}
-	else
-	{
-		info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; // prefereable with best performance
-		info.queueFamilyIndexCount = 0;
-		info.pQueueFamilyIndices = nullptr;
+		deets.PresentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, deets.PresentModes.data());
 	}
 
-
-	// Create swap chain
-	VkSwapchainKHR swapchain;
-	if (vkCreateSwapchainKHR(device, &info, nullptr, &swapchain) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create swap chain!");
-	}
-
-
-	// Retrieve swapchain images
-	std::vector<VkImage> swapchainImages;
-	u32 imageCount;
-	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
-	swapchainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
-
-	return { swapchain, std::move(swapchainImages), surfaceFormat.format, extent };
+	return deets;
 }
 
 VkSurfaceFormatKHR VulkanHelpers::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -477,7 +473,7 @@ VkPresentModeKHR VulkanHelpers::ChooseSwapPresentMode(const std::vector<VkPresen
 	return VK_PRESENT_MODE_FIFO_KHR; // use the only required format as fallback - works as vsync
 }
 
-VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const VkSurfaceCapabilitiesKHR& capabilities)
+VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& desiredExtent, const VkSurfaceCapabilitiesKHR& capabilities)
 {
 	const auto& cap = capabilities;
 
@@ -490,120 +486,11 @@ VkExtent2D VulkanHelpers::ChooseSwapExtent(const VkExtent2D& windowSize, const V
 
 	// Find the biggest extent possible
 	VkExtent2D size;
-	size.width = std::clamp(windowSize.width, cap.minImageExtent.width, cap.maxImageExtent.width);
-	size.height = std::clamp(windowSize.height, cap.minImageExtent.height, cap.maxImageExtent.height);
+	size.width = std::clamp(desiredExtent.width, cap.minImageExtent.width, cap.maxImageExtent.width);
+	size.height = std::clamp(desiredExtent.height, cap.minImageExtent.height, cap.maxImageExtent.height);
 	return size;
 }
 
-VkRenderPass VulkanHelpers::CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
-	VkDevice device, VkPhysicalDevice physicalDevice)
-{
-	// Color attachment
-	VkAttachmentDescription colorAttachmentDesc = {};
-	{
-		colorAttachmentDesc.format = swapchainFormat;
-		colorAttachmentDesc.samples = msaaSamples;
-		colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
-		colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
-		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
-		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before renderpass
-		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // memory layout after renderpass
-	}
-	VkAttachmentReference colorAttachmentRef = {};
-	{
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	}
-
-
-	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
-	VkAttachmentDescription depthAttachmentDesc = {};
-	{
-		depthAttachmentDesc.format = FindDepthFormat(physicalDevice);
-		depthAttachmentDesc.samples = msaaSamples;
-		depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
-		depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
-		depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	}
-	VkAttachmentReference depthAttachmentRef = {};
-	{
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	}
-
-
-	// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
-	VkAttachmentDescription colorAttachmentResolveDesc = {};
-	{
-		colorAttachmentResolveDesc.format = swapchainFormat;
-		colorAttachmentResolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentResolveDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentResolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentResolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentResolveDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentResolveDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	}
-	VkAttachmentReference colorAttachmentResolveRef = {};
-	{
-		colorAttachmentResolveRef.attachment = 2;
-		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	}
-
-
-	// Associate color and depth attachements with a subpass
-	VkSubpassDescription subpassDesc = {};
-	{
-		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDesc.colorAttachmentCount = 1;
-		subpassDesc.pColorAttachments = &colorAttachmentRef;
-		subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
-		subpassDesc.pResolveAttachments = &colorAttachmentResolveRef;
-	}
-
-
-	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
-	VkSubpassDependency subpassDependency = {};
-	{
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstSubpass = 0; // this pass
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	}
-
-
-	// Create render pass
-	std::array<VkAttachmentDescription, 3> attachments = {
-		colorAttachmentDesc,
-		depthAttachmentDesc,
-		colorAttachmentResolveDesc
-	};
-
-	VkRenderPassCreateInfo renderPassCI = {};
-	{
-		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCI.attachmentCount = (uint32_t)attachments.size();
-		renderPassCI.pAttachments = attachments.data();
-		renderPassCI.subpassCount = 1;
-		renderPassCI.pSubpasses = &subpassDesc;
-		renderPassCI.dependencyCount = 1;
-		renderPassCI.pDependencies = &subpassDependency;
-	}
-
-	VkRenderPass renderPass;
-	if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create render pass");
-	}
-
-	return renderPass;
-}
 
 VkShaderModule VulkanHelpers::CreateShaderModule(const std::vector<char>& code, VkDevice device)
 {
@@ -645,22 +532,6 @@ VkFramebuffer VulkanHelpers::CreateFramebuffer(VkDevice device, u32 width,
 	return framebuffer;
 }
 
-std::vector<VkFramebuffer> VulkanHelpers::CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImageView,
-	VkImageView depthImageView, const std::vector<VkImageView>& swapchainImageViews, const VkExtent2D& swapchainExtent,
-	VkRenderPass renderPass)
-{
-	std::vector<VkFramebuffer> swapchainFramebuffers{ swapchainImageViews.size() };
-
-	for (size_t i = 0; i < swapchainImageViews.size(); ++i)
-	{
-		std::vector<VkImageView> attachments = { colorImageView, depthImageView, swapchainImageViews[i] };
-
-		swapchainFramebuffers[i]
-			= CreateFramebuffer(device, swapchainExtent.width, swapchainExtent.height, attachments, renderPass);
-	}
-
-	return swapchainFramebuffers;
-}
 
 VkCommandPool VulkanHelpers::CreateCommandPool(QueueFamilyIndices queueFamilyIndices, VkDevice device)
 {
@@ -1542,73 +1413,6 @@ VkFormat VulkanHelpers::FindSupportedFormat(const std::vector<VkFormat>& candida
 
 #pragma endregion Image Helpers
 
-
-QueueFamilyIndices VulkanHelpers::FindQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-{
-	QueueFamilyIndices indices;
-
-	uint32_t queueFamilyCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-	std::vector<VkQueueFamilyProperties> queueFamilies{ queueFamilyCount };
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-
-	for (uint32_t i = 0; i < queueFamilyCount; ++i)
-	{
-		// TODO Get a VK_QUEUE_TRANSFER_BIT for a new transferQueue for all the host to device local transfers
-		// 
-		// Transfer queue will be async and not block other work. It has some latency though.
-		// If needing an immediate copy for work done right now, then graphics or compute queues are faster, but clog system
-
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			indices.GraphicsFamily = i;
-		}
-
-		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentSupport);
-		if (presentSupport)
-		{
-			indices.PresentFamily = i;
-		}
-
-		if (indices.IsComplete())
-		{
-			break;
-		}
-	}
-
-	return indices;
-}
-
-SwapChainSupportDetails VulkanHelpers::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-{
-	SwapChainSupportDetails deets;
-
-	// Query Capabilities
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &deets.Capabilities);
-
-
-	// Query formats
-	uint32_t formatCount;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-	if (formatCount != 0)
-	{
-		deets.Formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, deets.Formats.data());
-	}
-
-
-	// Query present modes
-	uint32_t presentModeCount;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
-	if (presentModeCount != 0)
-	{
-		deets.PresentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, deets.PresentModes.data());
-	}
-
-	return deets;
-}
 
 VkResult VulkanHelpers::CreateDebugUtilsMessengerEXT(VkInstance instance,
 	const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,

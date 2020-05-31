@@ -9,6 +9,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <iostream>
 
 using vkh = VulkanHelpers;
 
@@ -53,6 +54,7 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	// Data
 	bool _enableValidationLayers = false;
 	bool _vsync = false;
+	bool _msaaEnabled = false;
 	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	const size_t _maxFramesInFlight = 2;
 	const std::vector<const char*> _validationLayers = { "VK_LAYER_KHRONOS_validation", };
@@ -107,8 +109,9 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	const std::vector<VkFence>& InFlightFences() const { return _inFlightFences; }
 	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
-	
-	VulkanService(bool enableValidationLayers, bool vsync, IVulkanServiceDelegate* delegate,
+
+
+	VulkanService(bool enableValidationLayers, bool enableVsync, bool enableMsaa, IVulkanServiceDelegate* delegate,
 	              ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
 	{
 		assert(delegate);
@@ -116,11 +119,14 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		
 		_delegate = delegate;
 		_enableValidationLayers = enableValidationLayers;
-		_vsync = vsync;
+		_vsync = enableVsync;
+		_msaaEnabled = enableMsaa;
 
-		// Init();
 		InitVulkan(builder);
 		InitVulkanSwapchainAndDependants(framebufferSize);
+
+		std::cout << (_msaaEnabled ? "MSAA Enabled" : "MSAA Disabled") << std::endl;
+		std::cout << (_vsync ? "VSync Enabled" : "VSync Disabled") << std::endl;
 	}
 	
 	void Shutdown()
@@ -251,8 +257,8 @@ private: // METHODS ////////////////////////////////////////////////////////////
 
 		auto* surface = builder->CreateSurface(instance);
 
-		auto [physicalDevice, msaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
-
+		auto [physicalDevice, maxMsaaSamples] = vkh::PickPhysicalDevice(_physicalDeviceExtensions, instance, surface);
+		
 		auto [device, graphicsQueue, presentQueue]
 			= vkh::CreateLogicalDevice(physicalDevice, surface, _validationLayers, _physicalDeviceExtensions);
 
@@ -263,7 +269,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_instance = instance;
 		_surface = surface;
 		_physicalDevice = physicalDevice;
-		_msaaSamples = msaaSamples;
+		_msaaSamples =  _msaaEnabled ? maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;;
 		_device = device;
 		_graphicsQueue = graphicsQueue;
 		_presentQueue = presentQueue;

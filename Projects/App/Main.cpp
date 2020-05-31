@@ -13,6 +13,7 @@ int main()
 		options.ModelsDir = R"(../Data/Assets/Models/)";
 		options.IblDir = R"(../Data/Assets/IBL/)";
 		options.VSync = true;
+		options.UseMsaa = false;
 
 		#ifdef DEBUG
 			options.LoadDemoScene = false;
@@ -24,7 +25,6 @@ int main()
 
 		// Run it
 		App app{ options };
-		app.Run();
 	}
 	catch (const std::exception & e)
 	{

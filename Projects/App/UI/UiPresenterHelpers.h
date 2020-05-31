@@ -8,12 +8,9 @@
 
 #include <tuple>
 
-#include "UiPresenter.h"
-
 
 namespace UiPresenterHelpers
 {
-		
 	struct PostPassResources
 	{
 		// Client used
@@ -43,25 +40,30 @@ namespace UiPresenterHelpers
 		}
 	};
 	
-	struct FramebufferAttachmentResources
-	{
-		VkImage Image;
-		VkDeviceMemory ImageMemory;
-		VkImageView ImageView;
 
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			vkFreeMemory(device, ImageMemory, allocator);
-			vkDestroyImage(device, Image, allocator);
-			vkDestroyImageView(device, ImageView, allocator);
-		}
-	};
 	
 	struct FramebufferResources
 	{
+		struct Attachment
+		{
+			VkImage Image;
+			VkDeviceMemory ImageMemory;
+			VkImageView ImageView;
+
+			void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+			{
+				vkFreeMemory(device, ImageMemory, allocator);
+				vkDestroyImage(device, Image, allocator);
+				vkDestroyImageView(device, ImageView, allocator);
+				ImageMemory = nullptr;
+				Image = nullptr;
+				ImageView = nullptr;
+			}
+		};
+			
 		VkExtent2D Extent = {};
 		VkFormat Format = {};
-		std::vector<FramebufferAttachmentResources> Attachments = {};
+		std::vector<Attachment> Attachments = {};
 		VkFramebuffer Framebuffer = nullptr;
 
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
@@ -83,7 +85,7 @@ namespace UiPresenterHelpers
 
 		
 		// Create color attachment resources
-		FramebufferAttachmentResources colorAttachment = {};
+		FramebufferResources::Attachment colorAttachment = {};
 		{
 			const u32 mipLevels = 1;
 			const u32 layerCount = 1;
@@ -105,7 +107,7 @@ namespace UiPresenterHelpers
 
 		
 		// Create depth attachment resources
-		FramebufferAttachmentResources depthAttachment = {};
+		FramebufferResources::Attachment depthAttachment = {};
 		std::tie(depthAttachment.Image, depthAttachment.ImageMemory, depthAttachment.ImageView) = vkh::CreateDepthResources(extent, vk.MsaaSamples(), vk.LogicalDevice(), vk.PhysicalDevice());
 
 
