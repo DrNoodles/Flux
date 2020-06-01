@@ -27,8 +27,7 @@ namespace OffScreen
 		VkFramebuffer Framebuffer = nullptr;
 
 		// Color extras so we can sample from shader
-		VkSampler ColorSampler = nullptr;
-
+		VkSampler OutputSampler = nullptr;
 		VkDescriptorImageInfo OutputDescriptor;
 		
 		
@@ -39,7 +38,7 @@ namespace OffScreen
 			}
 
 			vkDestroyFramebuffer(device, Framebuffer, allocator);
-			vkDestroySampler(device, ColorSampler, allocator);
+			vkDestroySampler(device, OutputSampler, allocator);
 		}
 	};
 
@@ -50,9 +49,12 @@ namespace OffScreen
 		const auto msaaSamples = vk.MsaaSamples();
 		const u32 mipLevels = 1;
 		const u32 layerCount = 1;
+		const bool usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
+
+		std::vector<FramebufferResources::Attachment> attachments = {};
 
 		
-		// Create color attachment resources
+		// Create color attachment
 		FramebufferResources::Attachment colorAttachment = {};
 		{
 			// Create color image and memory
@@ -62,7 +64,7 @@ namespace OffScreen
 				msaaSamples,
 				format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // TODO change this when msaa on?
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				vk.PhysicalDevice(), vk.LogicalDevice());
 
@@ -75,10 +77,13 @@ namespace OffScreen
 				mipLevels, 
 				layerCount, 
 				vk.LogicalDevice());
+
+			// Store it
+			attachments.push_back(colorAttachment);
 		}
 
 		
-		// Create depth attachment resources
+		// Create depth attachment
 		FramebufferResources::Attachment depthAttachment = {};
 		{
 			const VkFormat depthFormat = vkh::FindDepthFormat(vk.PhysicalDevice());
@@ -103,28 +108,69 @@ namespace OffScreen
 				mipLevels, 
 				layerCount, 
 				vk.LogicalDevice());
+
+			// Store it
+			attachments.push_back(depthAttachment);
+		}
+
+		
+		// Create optional resolve attachment  -  when msaa is enabled
+		FramebufferResources::Attachment resolveAttachment = {};
+		if (usingMsaa)
+		{
+			// Create color image and memory
+			std::tie(resolveAttachment.Image, resolveAttachment.ImageMemory) = vkh::CreateImage2D(
+				extent.width, extent.height,
+				mipLevels,
+				VK_SAMPLE_COUNT_1_BIT,
+				format,
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				vk.PhysicalDevice(), vk.LogicalDevice());
+
+			// Create image view
+			resolveAttachment.ImageView = vkh::CreateImage2DView(
+				resolveAttachment.Image, 
+				format, 
+				VK_IMAGE_VIEW_TYPE_2D, 
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				mipLevels, 
+				layerCount, 
+				vk.LogicalDevice());
+
+			// Store the resolve goodness
+			attachments.push_back(resolveAttachment);
 		}
 
 
+		// Collect the views of attachments for use in framebuffer
+		std::vector<VkImageView> framebufferViews = {};
+		for (auto& a : attachments) {
+			framebufferViews.push_back(a.ImageView);
+		}
+		
+		
 		// Create framebuffer
 		auto* framebuffer = vkh::CreateFramebuffer(vk.LogicalDevice(),
 			extent.width, extent.height,
-			{ colorAttachment.ImageView, depthAttachment.ImageView },
+			framebufferViews,
 			renderPass);
 
 
 		// Color Sampler and co. so it can be sampled from a shader
-		auto* colorSampler = vkh::CreateSampler(vk.LogicalDevice()); // This might need some TLC.
+		auto* sampler = vkh::CreateSampler(vk.LogicalDevice());
 
 		
 		FramebufferResources res = {};
 		res.Framebuffer = framebuffer;
 		res.Extent = extent;
 		res.Format = format;
-		res.Attachments = std::vector{ colorAttachment, depthAttachment };
-		res.ColorSampler = colorSampler;
-		res.OutputDescriptor = VkDescriptorImageInfo{ colorSampler, colorAttachment.ImageView,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		res.Attachments = attachments;
+		res.OutputSampler = sampler;
+		res.OutputDescriptor = usingMsaa
+			? VkDescriptorImageInfo{ sampler, resolveAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+			: VkDescriptorImageInfo{ sampler, colorAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 
 		return res;
 	}

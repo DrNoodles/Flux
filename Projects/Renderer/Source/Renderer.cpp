@@ -432,99 +432,7 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 	_activeSkybox = resourceId;
 	_refreshRenderableDescriptorSets = true; // Renderables depend on skybox resources for IBL
 }
-/*
-VkRenderPass Renderer::CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice)
-{
-	const auto colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
-	
-	// Attachments
-	
-	// Color attachment
-	VkAttachmentDescription colorAttachmentDesc = {};
-	colorAttachmentDesc.format = colorFormat;
-	colorAttachmentDesc.samples = msaaSamples;
-	colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
-	colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
-	colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
-	colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // mem layout before renderpass
-	colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // memory layout after renderpass
-
-	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
-	VkAttachmentDescription depthAttachmentDesc = {};
-	depthAttachmentDesc.format = vkh::FindDepthFormat(physicalDevice);
-	depthAttachmentDesc.samples = msaaSamples;
-	depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
-	depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
-	depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
-	VkAttachmentDescription colorAttachmentResolveDesc = {};
-	colorAttachmentResolveDesc.format = colorFormat;
-	colorAttachmentResolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-	colorAttachmentResolveDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	colorAttachmentResolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachmentResolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	colorAttachmentResolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachmentResolveDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachmentResolveDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	std::vector<VkAttachmentDescription> attachments = {
-		colorAttachmentDesc,
-		depthAttachmentDesc,
-		colorAttachmentResolveDesc
-	};
-
-
-	
-	// Create Subpass Description
-	
-	// Associate color and depth attachements with a subpass
-	VkAttachmentReference colorAttachmentRef = {};
-	colorAttachmentRef.attachment = 0;
-	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depthAttachmentRef = {};
-	depthAttachmentRef.attachment = 1;
-	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference colorAttachmentResolveRef = {};
-	colorAttachmentResolveRef.attachment = 2;
-	colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	
-	VkSubpassDescription subpassDescription = {};
-	{
-		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentRef;
-		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
-		subpassDescription.pResolveAttachments = &colorAttachmentResolveRef;
-	}
-
-
-
-	// Subpass dependencies
-	
-	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
-	VkSubpassDependency subpassDependency = {};
-	{
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstSubpass = 0; // this pass
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	}
-
-
-	
-	return vkh::CreateRenderPass(device, attachments, { subpassDescription }, { subpassDependency });
-}
-*/
 void Renderer::InitRenderer()
 {
 	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, *_vk);
@@ -626,6 +534,122 @@ void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainI
 {
 	DestroyRenderResourcesDependentOnSwapchain();
 	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
+}
+
+VkRenderPass Renderer::CreateRenderPass(VkFormat format, VulkanService& vk)
+{
+	auto* physicalDevice = vk.PhysicalDevice();
+	auto* device = vk.LogicalDevice();
+	const auto msaaSamples = vk.MsaaSamples();
+	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
+
+	// Color attachment
+	VkAttachmentDescription colorAttachmentDesc = {};
+	{
+		colorAttachmentDesc.format = format;
+		colorAttachmentDesc.samples = msaaSamples;
+		colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
+		colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
+		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
+		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+	VkAttachmentReference colorAttachmentRef = {};
+	{
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+
+
+	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
+	VkAttachmentDescription depthAttachmentDesc = {};
+	{
+		depthAttachmentDesc.format = vkh::FindDepthFormat(physicalDevice);
+		depthAttachmentDesc.samples = msaaSamples;
+		depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
+		depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
+		depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	}
+	VkAttachmentReference depthAttachmentRef = {};
+	{
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	}
+
+	// Resolve attachment  -  Resolve MSAA to single sample image
+	VkAttachmentDescription resolveAttachDesc = {};
+	{
+		resolveAttachDesc.format = format;
+		resolveAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+		resolveAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		resolveAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
+		resolveAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; 
+		resolveAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		resolveAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		resolveAttachDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+	VkAttachmentReference resolveAttachRef = {};
+	{
+		resolveAttachRef.attachment = 2;
+		resolveAttachRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+	
+	
+	// Associate color and depth attachements with a subpass
+	VkSubpassDescription subpassDesc = {};
+	{
+		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDesc.colorAttachmentCount = 1;
+		subpassDesc.pColorAttachments = &colorAttachmentRef;
+		subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
+		subpassDesc.pResolveAttachments = usingMsaa ? &resolveAttachRef : nullptr;
+	}
+
+
+	// TODO Review these dependencies!
+	
+	
+	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
+	VkSubpassDependency subpassDependency = {};
+	{
+		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
+		subpassDependency.dstSubpass = 0; // this pass
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcAccessMask = 0;
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	}
+
+
+	// Create render pass
+	std::vector<VkAttachmentDescription> attachments = { colorAttachmentDesc, depthAttachmentDesc };
+	if (usingMsaa)	{
+		attachments.push_back(resolveAttachDesc);
+	}
+
+	
+	VkRenderPassCreateInfo renderPassCI = {};
+	{
+		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCI.attachmentCount = (u32)attachments.size();
+		renderPassCI.pAttachments = attachments.data();
+		renderPassCI.subpassCount = 1;
+		renderPassCI.pSubpasses = &subpassDesc;
+		renderPassCI.dependencyCount = 1;
+		renderPassCI.pDependencies = &subpassDependency;
+	}
+
+	VkRenderPass renderPass;
+	if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create render pass");
+	}
+
+	return renderPass;
 }
 
 

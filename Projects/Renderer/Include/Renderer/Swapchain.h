@@ -231,14 +231,17 @@ private:
 		}
 
 
+		// TODO Review these dependencies!
+		
+
 		// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
 		VkSubpassDependency subpassDependency = {};
 		{
 			subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-			subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			subpassDependency.srcAccessMask = 0;
 			subpassDependency.dstSubpass = 0; // this pass
+			subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			subpassDependency.srcAccessMask = 0;
 			subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		}
 
