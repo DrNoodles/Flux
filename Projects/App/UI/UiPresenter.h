@@ -43,6 +43,7 @@ private: // DATA
 	Renderer& _renderer; // temp, move to ViewportView
 	VulkanService& _vulkan; // temp, remove
 	IWindow* _window = nullptr;
+	std::string _shaderDir = {};
 
 	// Views
 	SceneView _sceneView;
@@ -84,6 +85,7 @@ private: // DATA
 public: // METHODS
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
+	
 	void Shutdown();
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
@@ -108,6 +110,27 @@ public: // METHODS
 
 private: // METHODS
 
+	void CreateSceneFramebuffer(VkExtent2D extent)
+	{
+		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
+		extent, 
+		VK_FORMAT_R16G16B16A16_SFLOAT,
+		_renderer.GetRenderPass(),
+		_vulkan.MsaaSamples(),
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	}
+	void DestroySceneFramebuffer()
+	{
+		_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	}
+
+
+	void CreateQuadResources(const std::string& shaderDir, const Swapchain& swapchain);
+	void DestroyQuadResources()
+	{
+		_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	}
+	
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
 	{

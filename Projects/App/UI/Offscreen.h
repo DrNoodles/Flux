@@ -43,10 +43,8 @@ namespace OffScreen
 	};
 
 	
-	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkFormat format, VkRenderPass renderPass, VulkanService& vk)
+	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkExtent2D extent, VkFormat format, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
-		const auto extent = vk.GetSwapchain().GetExtent();
-		const auto msaaSamples = vk.MsaaSamples();
 		const u32 mipLevels = 1;
 		const u32 layerCount = 1;
 		const bool usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
@@ -66,7 +64,7 @@ namespace OffScreen
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // TODO change this when msaa on?
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				vk.PhysicalDevice(), vk.LogicalDevice());
+				physicalDevice, device);
 
 			// Create image view
 			colorAttachment.ImageView = vkh::CreateImage2DView(
@@ -76,7 +74,7 @@ namespace OffScreen
 				VK_IMAGE_ASPECT_COLOR_BIT,
 				mipLevels, 
 				layerCount, 
-				vk.LogicalDevice());
+				device);
 
 			// Store it
 			attachments.push_back(colorAttachment);
@@ -86,7 +84,7 @@ namespace OffScreen
 		// Create depth attachment
 		FramebufferResources::Attachment depthAttachment = {};
 		{
-			const VkFormat depthFormat = vkh::FindDepthFormat(vk.PhysicalDevice());
+			const VkFormat depthFormat = vkh::FindDepthFormat(physicalDevice);
 
 			// Create depth image and memory
 			std::tie(depthAttachment.Image, depthAttachment.ImageMemory) = vkh::CreateImage2D(
@@ -97,7 +95,7 @@ namespace OffScreen
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				vk.PhysicalDevice(), vk.LogicalDevice());
+				physicalDevice, device);
 
 			// Create image view
 			depthAttachment.ImageView = vkh::CreateImage2DView(
@@ -107,7 +105,7 @@ namespace OffScreen
 				VK_IMAGE_ASPECT_DEPTH_BIT, 
 				mipLevels, 
 				layerCount, 
-				vk.LogicalDevice());
+				device);
 
 			// Store it
 			attachments.push_back(depthAttachment);
@@ -127,7 +125,7 @@ namespace OffScreen
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				vk.PhysicalDevice(), vk.LogicalDevice());
+				physicalDevice, device);
 
 			// Create image view
 			resolveAttachment.ImageView = vkh::CreateImage2DView(
@@ -137,7 +135,7 @@ namespace OffScreen
 				VK_IMAGE_ASPECT_COLOR_BIT,
 				mipLevels, 
 				layerCount, 
-				vk.LogicalDevice());
+				device);
 
 			// Store the resolve goodness
 			attachments.push_back(resolveAttachment);
@@ -152,14 +150,14 @@ namespace OffScreen
 		
 		
 		// Create framebuffer
-		auto* framebuffer = vkh::CreateFramebuffer(vk.LogicalDevice(),
+		auto* framebuffer = vkh::CreateFramebuffer(device,
 			extent.width, extent.height,
 			framebufferViews,
 			renderPass);
 
 
 		// Color Sampler and co. so it can be sampled from a shader
-		auto* sampler = vkh::CreateSampler(vk.LogicalDevice());
+		auto* sampler = vkh::CreateSampler(device);
 
 		
 		FramebufferResources res = {};

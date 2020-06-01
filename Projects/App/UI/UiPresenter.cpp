@@ -11,6 +11,16 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
+void UiPresenter::CreateQuadResources(const std::string& shaderDir, const Swapchain& swapchain)
+{
+	_postPassResources = OnScreen::CreateQuadResources(
+		_sceneFramebuffer.OutputDescriptor, 
+		swapchain.GetImageCount(),
+		swapchain.GetRenderPass(),
+		shaderDir, 
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
+}
+
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
@@ -18,6 +28,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_renderer{renderer},
 	_vulkan{vulkan},
 	_window{window},
+	_shaderDir{shaderDir},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
@@ -29,10 +40,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 
-	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(VK_FORMAT_R16G16B16A16_SFLOAT, _renderer._renderPass, _vulkan);
-
-	_postPassResources = OnScreen::CreateQuadResources(_sceneFramebuffer.OutputDescriptor, 
-		_vulkan.GetSwapchain().GetImageCount(), shaderDir, vulkan);
+	const auto& swapchain = _vulkan.GetSwapchain();
+	CreateSceneFramebuffer(swapchain.GetExtent());
+	CreateQuadResources(_shaderDir, swapchain);
 }
 
 void UiPresenter::Shutdown()
@@ -44,8 +54,8 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	DestroyQuadResources();
+	DestroySceneFramebuffer();
 }
 
 void UiPresenter::NextSkybox()
@@ -331,7 +341,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 	// Draw scene to gbuf
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer._renderPass, _sceneFramebuffer.Framebuffer,
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
 		                                                          sceneRect,
 		                                                          clearColors);
 

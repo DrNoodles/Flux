@@ -36,8 +36,7 @@ namespace OnScreen
 		}
 	};
 
-	inline QuadResources CreateQuadResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, 
-		const std::string& shaderDir, VulkanService& vk)
+	inline QuadResources CreateQuadResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -74,10 +73,10 @@ namespace OnScreen
 			screenQuad.VertexCount = vertices.size();
 
 			std::tie(screenQuad.IndexBuffer, screenQuad.IndexBufferMemory) = vkh::CreateIndexBuffer(indices,
-				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
+				cmdQueue, cmdPool, physicalDevice, device);
 
 			std::tie(screenQuad.VertexBuffer, screenQuad.VertexBufferMemory) = vkh::CreateVertexBuffer(vertices,
-				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
+				cmdQueue, cmdPool, physicalDevice, device);
 
 			return screenQuad;
 		}();
@@ -89,13 +88,13 @@ namespace OnScreen
 			{
 				VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount }
 			};
-			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, vk.LogicalDevice());
+			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
 		}
 
 
 		VkDescriptorSetLayout descSetlayout;
 		{
-			descSetlayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(),
+			descSetlayout = vkh::CreateDescriptorSetLayout(device,
 				{
 					vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 				});
@@ -104,7 +103,7 @@ namespace OnScreen
 		
 		std::vector<VkDescriptorSet> descSets;
 		{
-			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, vk.LogicalDevice());
+			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
 
 			std::vector<VkWriteDescriptorSet> writes(descSets.size());
 			for (size_t i = 0; i < descSets.size(); i++)
@@ -112,13 +111,13 @@ namespace OnScreen
 				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap);
 			}
 			
-			vkh::UpdateDescriptorSets(vk.LogicalDevice(), writes);
+			vkh::UpdateDescriptorSets(device, writes);
 		}
 		
 		
 		VkPipelineLayout pipelineLayout;
 		{
-			pipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { descSetlayout });
+			pipelineLayout = vkh::CreatePipelineLayout(device, { descSetlayout });
 		}
 
 
@@ -205,13 +204,13 @@ namespace OnScreen
 			VkPipelineShaderStageCreateInfo vertShaderStage = {};
 			vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), vk.LogicalDevice());
+			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
 			vertShaderStage.pName = "main";
 
 			VkPipelineShaderStageCreateInfo fragShaderStage = {};
 			fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), vk.LogicalDevice());
+			fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
 			fragShaderStage.pName = "main";
 			std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{ vertShaderStage, fragShaderStage };
 
@@ -229,19 +228,19 @@ namespace OnScreen
 			pipelineCI.pVertexInputState = &vertexInputState;
 			pipelineCI.stageCount = (u32)shaderStages.size();
 			pipelineCI.pStages = shaderStages.data();
-			pipelineCI.renderPass = vk.GetSwapchain().GetRenderPass();
+			pipelineCI.renderPass = renderPass;
 			pipelineCI.layout = pipelineLayout;
 
 			
-			if (VK_SUCCESS != vkCreateGraphicsPipelines(vk.LogicalDevice(), nullptr, 1, &pipelineCI, nullptr, &pipeline))
+			if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
 			{
 				throw std::runtime_error("Failed to create pipeline");
 			}
 
 
 			// Cleanup
-			vkDestroyShaderModule(vk.LogicalDevice(), vertShaderStage.module, nullptr);
-			vkDestroyShaderModule(vk.LogicalDevice(), fragShaderStage.module, nullptr);
+			vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
+			vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
 		}
 
 

@@ -92,7 +92,7 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(vulkanService.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto renderer = std::make_unique<Renderer>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
