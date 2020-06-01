@@ -39,7 +39,10 @@ namespace OnScreen
 	inline QuadResources CreateQuadResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, 
 		const std::string& shaderDir, VulkanService& vk)
 	{
-		MeshResource quad;
+		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
+		// Create the quad mesh resource that we'll render to on screen
+		auto quad = [&]()
 		{
 			Vertex topLeft       = {};
 			Vertex bottomLeft    = {};
@@ -65,15 +68,19 @@ namespace OnScreen
 			
 			const std::vector<u32> indices = { 0,1,3,3,1,2 };
 
-			quad.IndexCount = indices.size();
-			quad.VertexCount = vertices.size();
+			
+			MeshResource screenQuad;
+			screenQuad.IndexCount = indices.size();
+			screenQuad.VertexCount = vertices.size();
 
-			std::tie(quad.IndexBuffer, quad.IndexBufferMemory) = vkh::CreateIndexBuffer(indices,
+			std::tie(screenQuad.IndexBuffer, screenQuad.IndexBufferMemory) = vkh::CreateIndexBuffer(indices,
 				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
 
-			std::tie(quad.VertexBuffer, quad.VertexBufferMemory) = vkh::CreateVertexBuffer(vertices,
+			std::tie(screenQuad.VertexBuffer, screenQuad.VertexBufferMemory) = vkh::CreateVertexBuffer(vertices,
 				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
-		}
+
+			return screenQuad;
+		}();
 
 		
 		VkDescriptorPool descPool;
@@ -159,7 +166,7 @@ namespace OnScreen
 
 			VkPipelineMultisampleStateCreateInfo multisampleState = {};
 			multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-			multisampleState.rasterizationSamples = vk.MsaaSamples();
+			multisampleState.rasterizationSamples = msaaSamples;
 			multisampleState.flags = 0;
 
 			std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };

@@ -330,7 +330,7 @@ private: // METHODS
 			initInfo.DescriptorPool = _imguiDescriptorPool;
 			initInfo.MinImageCount = minImageCount;
 			initInfo.ImageCount = imageCount;
-			initInfo.MSAASamples = vk.MsaaSamples();
+			initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT; // Swapchain renderpass is not MSAA - this will age well :P
 			initInfo.Allocator = nullptr;
 			initInfo.CheckVkResultFn = [](VkResult err)
 			{
