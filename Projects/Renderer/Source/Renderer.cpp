@@ -199,16 +199,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 		// Record Command Buffer
 
-		// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
-		auto viewport = vki::Viewport(
-			(f32)region.Offset.X,    (f32)region.Offset.Y, 
-			(f32)region.Extent.Width,(f32)region.Extent.Height, 
-			0, 1);
-		auto scissor = vki::Rect2D({ region.Offset.X, region.Offset.Y }, { region.Extent.Width, region.Extent.Height });
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-		
 		// Draw Skybox
 		if (skybox)
 		{

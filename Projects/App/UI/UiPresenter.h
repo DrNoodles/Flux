@@ -103,6 +103,7 @@ public: // METHODS
 	{
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
 	}
+
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
 
 private: // METHODS
@@ -136,6 +137,7 @@ private: // METHODS
 
 	void BuildImGui();
 	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
+	void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
 	void DrawUi(VkCommandBuffer commandBuffer);
 
 

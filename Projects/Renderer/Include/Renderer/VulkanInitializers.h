@@ -33,7 +33,7 @@ namespace vki
 		return x;
 	}
 
-	inline VkViewport Viewport(f32 x, f32 y, f32 width, f32 height, f32 minDepth, f32 maxDepth)
+	inline VkViewport Viewport(f32 x, f32 y, f32 width, f32 height, f32 minDepth = 0, f32 maxDepth = 1)
 	{
 		VkViewport viewport = {};
 		viewport.x = x;
@@ -45,7 +45,31 @@ namespace vki
 		return viewport;
 	}
 
-	inline VkRect2D Rect2D(VkOffset2D offset, VkExtent2D extent)
+	inline VkViewport Viewport(const VkOffset2D& offset, const VkExtent2D& extent, f32 minDepth = 0, f32 maxDepth = 1)
+	{
+		VkViewport viewport = {};
+		viewport.x = (f32)offset.x;
+		viewport.y = (f32)offset.y;
+		viewport.width = (f32)extent.width;
+		viewport.height = (f32)extent.height;
+		viewport.minDepth = minDepth;
+		viewport.maxDepth = maxDepth;
+		return viewport;
+	}
+
+	inline VkViewport Viewport(const VkRect2D& rect, f32 minDepth = 0, f32 maxDepth = 1)
+	{
+		VkViewport viewport = {};
+		viewport.x = (f32)rect.offset.x;
+		viewport.y = (f32)rect.offset.y;
+		viewport.width = (f32)rect.extent.width;
+		viewport.height = (f32)rect.extent.height;
+		viewport.minDepth = minDepth;
+		viewport.maxDepth = maxDepth;
+		return viewport;
+	}
+
+	inline VkRect2D Rect2D(const VkOffset2D& offset, const VkExtent2D& extent)
 	{
 		VkRect2D r = {};
 		r.offset = offset;

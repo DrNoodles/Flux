@@ -273,6 +273,25 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		renderables, transforms, lights, view, camera.Position, ViewportRect());
 }
 
+void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
+{
+	const MeshResource& mesh = _postPassResources.Quad;
+	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+	VkDeviceSize offsets[] = { 0 };
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
+
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(commandBuffer,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		_postPassResources.PipelineLayout,
+		0, 1,
+		&_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
+
+	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+}
+
 void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 {
 	// Update Ui
@@ -289,56 +308,57 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
+	// Clear colour
+	std::vector<VkClearValue> clearColors(2);
+	clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+	clearColors[1].depthStencil = {1.f, 0ui32};
+
 	auto& vk = _vulkan;
 	const auto& swap = vk.GetSwapchain();
 	const auto swapExtent = swap.GetExtent();
-	const auto renderArea = vki::Rect2D({0, 0}, swapExtent);
-	
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-	clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+
+	// Framebuffer Viewport 
+	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
+	const auto framebufferViewport = vki::Viewport(framebufferRect);
+
+	// Scene Scissors
+	const auto sceneRect = ViewportRect();
+	const auto sceneVkRect = vki::Rect2D(
+		{sceneRect.Offset.X, sceneRect.Offset.Y},
+		{sceneRect.Extent.Width, sceneRect.Extent.Height});
+
 
 	// Draw scene to gbuf
 	{
-		const auto vr = ViewportRect();
-		const auto vkViewportRect = vki::Rect2D({vr.Offset.X, vr.Offset.Y}, {vr.Extent.Width, vr.Extent.Height});
-		
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer._renderPass, _sceneFramebuffer.Framebuffer,
-		                                                          vkViewportRect,
+		                                                          framebufferRect,
 		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
+			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneVkRect);
+			
 			DrawViewport(imageIndex, commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
-	
-	// Draw gbuf to screen, and finally UI.
+
+
+	// Draw gbuf to screen, post-process it, and finally draw the UI.
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
 		                                                          swap.GetFramebuffers()[imageIndex],
-		                                                          renderArea,
+		                                                          framebufferRect,
 		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			auto viewport = vki::Viewport(0,0, (f32)swapExtent.width, (f32)swapExtent.height, 0,1);
-			auto scissor = renderArea;
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-			const MeshResource& mesh = _postPassResources.Quad;
-			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
+			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneVkRect);
 			
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
-			
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.PipelineLayout, 0, 1, &_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-
+			DrawPostProcessedViewport(commandBuffer, imageIndex);
 
 			DrawUi(commandBuffer);
 		}

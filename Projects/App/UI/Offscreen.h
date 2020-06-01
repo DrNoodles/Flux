@@ -29,12 +29,8 @@ namespace OffScreen
 		// Color extras so we can sample from shader
 		VkSampler ColorSampler = nullptr;
 
-		VkDescriptorImageInfo OutputDescriptor() const
-		{
-			return VkDescriptorImageInfo{ ColorSampler,
-				Attachments[0].ImageView,
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-		}
+		VkDescriptorImageInfo OutputDescriptor;
+		
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -127,6 +123,8 @@ namespace OffScreen
 		res.Format = format;
 		res.Attachments = std::vector{ colorAttachment, depthAttachment };
 		res.ColorSampler = colorSampler;
+		res.OutputDescriptor = VkDescriptorImageInfo{ colorSampler, colorAttachment.ImageView,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 
 		return res;
 	}
