@@ -31,7 +31,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(VK_FORMAT_R16G16B16A16_SFLOAT, _renderer._renderPass, _vulkan);
 
-	_postPassResources = OnScreen::CreateQuadResources(_sceneFramebuffer.OutputDescriptor(), 
+	_postPassResources = OnScreen::CreateQuadResources(_sceneFramebuffer.OutputDescriptor, 
 		_vulkan.GetSwapchain().GetImageCount(), shaderDir, vulkan);
 }
 
@@ -323,22 +323,23 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	const auto framebufferViewport = vki::Viewport(framebufferRect);
 
 	// Scene Scissors
-	const auto sceneRect = ViewportRect();
-	const auto sceneVkRect = vki::Rect2D(
-		{sceneRect.Offset.X, sceneRect.Offset.Y},
-		{sceneRect.Extent.Width, sceneRect.Extent.Height});
+	const auto sceneSharedRect = ViewportRect();
+	const auto sceneRect = vki::Rect2D(
+		{sceneSharedRect.Offset.X,     sceneSharedRect.Offset.Y},
+		{sceneSharedRect.Extent.Width, sceneSharedRect.Extent.Height});
 
 
 	// Draw scene to gbuf
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer._renderPass, _sceneFramebuffer.Framebuffer,
-		                                                          framebufferRect,
+		                                                          sceneRect,
 		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneVkRect);
+			auto sceneViewport = vki::Viewport(sceneRect);
+			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
 			
 			DrawViewport(imageIndex, commandBuffer);
 		}
@@ -346,7 +347,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	}
 
 
-	// Draw gbuf to screen, post-process it, and finally draw the UI.
+	// Draw gbuf to screen, post-process it, and finally UI.
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
 		                                                          swap.GetFramebuffers()[imageIndex],
@@ -356,7 +357,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneVkRect);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
 			
 			DrawPostProcessedViewport(commandBuffer, imageIndex);
 
