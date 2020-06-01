@@ -83,6 +83,19 @@ private: // DATA
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 
 public: // METHODS
+
+	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+	{
+		// This is very heavy handed asset recreation. TODO Optimise this
+		
+		DestroySceneFramebuffer();
+		DestroyQuadResources();
+
+		CreateSceneFramebuffer({width, height});
+		CreateQuadResources(_shaderDir, _vulkan.GetSwapchain()); //Code smell: This has hidden dependencies on screen framebuffer 
+	}
+
+	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
 	

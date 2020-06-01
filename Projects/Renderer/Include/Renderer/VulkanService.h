@@ -44,9 +44,9 @@ public:
 class VulkanService
 {
 public: // DATA ///////////////////////////////////////////////////////////////////////////////////////////////////////
+	bool FramebufferResized = false; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
 	
 private: // DATA //////////////////////////////////////////////////////////////////////////////////////////////////////
-	bool FramebufferResized = false; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
 	
 	// Dependencies
 	IVulkanServiceDelegate* _delegate = nullptr;
@@ -145,7 +145,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		VkResult result = vkAcquireNextImageKHR(_device, _swapchain->GetSwapchain(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
 			nullptr, &imageIndex);
 
-		if (result == VK_ERROR_OUT_OF_DATE_KHR)
+		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			RecreateSwapchain();
 			return std::nullopt;
@@ -233,7 +233,6 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		VkResult result = vkQueuePresentKHR(_presentQueue, &presentInfo);
 		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
-			FramebufferResized = false;
 			RecreateSwapchain();
 		}
 		else if (result != VK_SUCCESS)
@@ -302,16 +301,20 @@ private: // METHODS ////////////////////////////////////////////////////////////
 	}
 	void DestroyVulkanSwapchain()
 	{
-		_swapchain = nullptr; // RAII cleanup
 
 		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		
 		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+
+		_swapchain = nullptr; // RAII cleanup
+		
 	}
 	void RecreateSwapchain()
 	{
+		FramebufferResized = false;
+		
 		const auto size = _delegate->WaitTillFramebufferHasSize();
 		
 		vkDeviceWaitIdle(_device);

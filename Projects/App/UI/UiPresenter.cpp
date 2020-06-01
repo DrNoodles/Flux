@@ -665,5 +665,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
+	_vulkan.FramebufferResized = true;
 	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }

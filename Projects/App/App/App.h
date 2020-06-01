@@ -388,6 +388,7 @@ private: // METHODS
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{
 		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
+		_ui->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
 	
 	VkExtent2D GetFramebufferSize() override
