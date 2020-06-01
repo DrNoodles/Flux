@@ -184,21 +184,22 @@ private:
 
 
 	static std::vector<VkFramebuffer>
-	CreateSwapchainFramebuffer(VkDevice device, /*VkImageView colorImgView, VkImageView depthImgView,*/
-	                           const std::vector<VkImageView>& swapImgViews, const VkExtent2D& swapExtent,
+	CreateSwapchainFramebuffer(VkDevice device, const std::vector<VkImageView>& swapImgViews,
+	                           const VkExtent2D& swapExtent,
 	                           VkRenderPass renderPass)
 	{
-		std::vector<VkFramebuffer> swapchainFramebuffers{swapImgViews.size()};
+		std::vector<VkFramebuffer> swapFramebuffer{swapImgViews.size()};
 
 		for (size_t i = 0; i < swapImgViews.size(); ++i)
 		{
-			swapchainFramebuffers[i]
-				= vkh::CreateFramebuffer(device, swapExtent.width, swapExtent.height, {swapImgViews[i]}, renderPass);
+			std::vector<VkImageView> imgView = { swapImgViews[i] };
+			swapFramebuffer[i] = vkh::CreateFramebuffer(device, swapExtent.width, swapExtent.height, imgView, renderPass);
 		}
 
-		return swapchainFramebuffers;
+		return swapFramebuffer;
 	}
 
+	
 	static VkRenderPass
 	CreateSwapchainRenderPass(VkFormat swapchainFormat, VkDevice device)
 	{
@@ -268,158 +269,4 @@ private:
 
 		return renderPass;
 	}
-
-
-	//static std::vector<VkFramebuffer>
-	//CreateSwapchainFramebuffer(VkDevice device, VkImageView colorImgView, VkImageView depthImgView,
-	//                           const std::vector<VkImageView>& swapImgViews, const VkExtent2D& swapExtent,
-	//                           VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples)
-	//{
-	//	std::vector<VkFramebuffer> swapchainFramebuffers{swapImgViews.size()};
-
-	//	const auto msaaEnabled = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
-
-	//	for (size_t i = 0; i < swapImgViews.size(); ++i)
-	//	{
-	//		auto attachments = msaaEnabled
-	//			? std::vector<VkImageView>{colorImgView, depthImgView, swapImgViews[i]}
-	//			: std::vector<VkImageView>{swapImgViews[i], depthImgView};
-
-	//		swapchainFramebuffers[i]
-	//			= vkh::CreateFramebuffer(device, swapExtent.width, swapExtent.height, attachments, renderPass);
-	//	}
-
-	//	return swapchainFramebuffers;
-	//}
-
-
-	//static VkRenderPass
-	//CreateSwapchainRenderPass(VkSampleCountFlagBits msaaSamples, VkFormat swapchainFormat,
-	//                          VkDevice device, VkPhysicalDevice physicalDevice)
-	//{
-	//	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
-	//	
-	//	// Color attachment
-	//	VkAttachmentDescription colorAttachmentDesc = {};
-	//	{
-	//		colorAttachmentDesc.format = swapchainFormat;
-	//		colorAttachmentDesc.samples = msaaSamples;
-	//		colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
-	//		colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
-	//		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
-	//		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	//		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-	//		//colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// memory layout after renderpass
-	//		colorAttachmentDesc.finalLayout = usingMsaa
-	//			? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-	//			: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	//	}
-	//	VkAttachmentReference colorAttachmentRef = {};
-	//	{
-	//		colorAttachmentRef.attachment = 0;
-	//		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	//	}
-
-
-	//	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
-	//	VkAttachmentDescription depthAttachmentDesc = {};
-	//	{
-	//		depthAttachmentDesc.format = vkh::FindDepthFormat(physicalDevice);
-	//		depthAttachmentDesc.samples = msaaSamples;
-	//		depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	//		depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
-	//		depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
-	//		depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	//		depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	//		//depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // memory layout after renderpass
-	//		depthAttachmentDesc.finalLayout = usingMsaa							
-	//			? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	//			: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	//	}
-	//	VkAttachmentReference depthAttachmentRef = {};
-	//	{
-	//		depthAttachmentRef.attachment = 1;
-	//		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	//	}
-
-
-	//	// Color resolve attachment  -  used to resolve multisampled image into one that can be displayed
-
-	//	// These are only used when usingMsaa
-	//	VkAttachmentDescription colorAttachmentResolveDesc = {};
-	//	{
-	//		colorAttachmentResolveDesc.format = swapchainFormat;
-	//		colorAttachmentResolveDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-	//		colorAttachmentResolveDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	//		colorAttachmentResolveDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	//		colorAttachmentResolveDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	//		colorAttachmentResolveDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	//		colorAttachmentResolveDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	//		colorAttachmentResolveDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	//	}
-	//	VkAttachmentReference colorAttachmentResolveRef = {};
-	//	{
-	//		colorAttachmentResolveRef.attachment = 2;
-	//		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	//	}
-
-	//	
-	//	// Associate color and depth attachements with a subpass
-	//	VkSubpassDescription subpassDesc = {};
-	//	{
-	//		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	//		subpassDesc.colorAttachmentCount = 1;
-	//		subpassDesc.pColorAttachments = &colorAttachmentRef;
-	//		subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
-	//		subpassDesc.pResolveAttachments = usingMsaa ? &colorAttachmentResolveRef : nullptr;
-	//	}
-
-
-	//	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
-	//	VkSubpassDependency subpassDependency = {};
-	//	{
-	//		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-	//		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	//		subpassDependency.srcAccessMask = 0;
-	//		subpassDependency.dstSubpass = 0; // this pass
-	//		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	//		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	//	}
-
-
-	//	// Create render pass
-	//	std::vector<VkAttachmentDescription> attachments = {
-	//		colorAttachmentDesc,
-	//		depthAttachmentDesc,
-	//		//colorAttachmentResolveDesc
-	//	};
-
-	//	
-	//	// Handle Msaa Resolve dependencies
-	//	if (usingMsaa)
-	//	{
-	//		attachments.push_back(colorAttachmentResolveDesc);
-	//	}
-
-	//	
-	//	VkRenderPassCreateInfo renderPassCI = {};
-	//	{
-	//		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//		renderPassCI.attachmentCount = (uint32_t)attachments.size();
-	//		renderPassCI.pAttachments = attachments.data();
-	//		renderPassCI.subpassCount = 1;
-	//		renderPassCI.pSubpasses = &subpassDesc;
-	//		renderPassCI.dependencyCount = 1;
-	//		renderPassCI.pDependencies = &subpassDependency;
-	//	}
-
-	//	VkRenderPass renderPass;
-	//	if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
-	//	{
-	//		throw std::runtime_error("Failed to create render pass");
-	//	}
-
-	//	return renderPass;
-	//}
-	
 };
