@@ -326,36 +326,35 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	const auto swapExtent = swap.GetExtent();
 
 
-	// Framebuffer Viewport 
+	// Whole screen framebuffer dimensions
 	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
 	const auto framebufferViewport = vki::Viewport(framebufferRect);
 
-	// Scene Scissors
-	const auto sceneSharedRect = ViewportRect();
-	const auto sceneRect = vki::Rect2D(
-		{sceneSharedRect.Offset.X,     sceneSharedRect.Offset.Y},
-		{sceneSharedRect.Extent.Width, sceneSharedRect.Extent.Height});
-
+	
+	// Scene Viewport / Region. Only the part of the screen showing the scene.
+	const auto sceneRectShared = ViewportRect();
 
 	// Draw scene to gbuf
 	{
+		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
+		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
+		
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
-		                                                          sceneRect,
+		                                                          sceneRectNoOffset,
 		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			auto sceneViewport = vki::Viewport(sceneRect);
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
+			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
 			
 			DrawViewport(imageIndex, commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
 
-
-	// Draw gbuf to screen, post-process it, and finally UI.
+	
+	// Draw Ui full screen
 	{
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
 		                                                          swap.GetFramebuffers()[imageIndex],
@@ -364,11 +363,16 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
+			const auto sceneRect = vki::Rect2D({sceneRectShared.Offset.X, sceneRectShared.Offset.Y},
+			                                   {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
+			const auto sceneViewport = vki::Viewport(sceneRect);
+
+			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
 			
 			DrawPostProcessedViewport(commandBuffer, imageIndex);
 
+			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
 			DrawUi(commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);

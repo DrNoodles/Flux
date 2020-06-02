@@ -130,7 +130,7 @@ private: // METHODS
 		const auto sceneExtent = VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height };
 		
 		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-		_vulkan.GetSwapchain().GetExtent(), 
+		sceneExtent, 
 		VK_FORMAT_R16G16B16A16_SFLOAT,
 		_renderer.GetRenderPass(),
 		_vulkan.MsaaSamples(),
