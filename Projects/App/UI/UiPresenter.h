@@ -91,8 +91,8 @@ public: // METHODS
 		DestroySceneFramebuffer();
 		DestroyQuadResources();
 
-		CreateSceneFramebuffer({width, height});
-		CreateQuadResources(_shaderDir, _vulkan.GetSwapchain()); //Code smell: This has hidden dependencies on screen framebuffer 
+		CreateSceneFramebuffer();
+		CreateQuadResources(_sceneFramebuffer.OutputDescriptor, _shaderDir, _vulkan.GetSwapchain()); //Code smell: This has hidden dependencies on scene framebuffer 
 	}
 
 	
@@ -123,10 +123,14 @@ public: // METHODS
 
 private: // METHODS
 
-	void CreateSceneFramebuffer(VkExtent2D extent)
+	void CreateSceneFramebuffer()
 	{
+		// Scene framebuffer is only the size of the scene render region on screen
+		const auto sceneRect = ViewportRect();
+		const auto sceneExtent = VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height };
+		
 		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-		extent, 
+		_vulkan.GetSwapchain().GetExtent(), 
 		VK_FORMAT_R16G16B16A16_SFLOAT,
 		_renderer.GetRenderPass(),
 		_vulkan.MsaaSamples(),
@@ -138,7 +142,11 @@ private: // METHODS
 	}
 
 
-	void CreateQuadResources(const std::string& shaderDir, const Swapchain& swapchain);
+	void CreateQuadResources(const VkDescriptorImageInfo& sceneGbuf, const std::string& shaderDir, const Swapchain& swapchain);
+	/*void UpdateQuadResources(const VkDescriptorImageInfo& sceneGbuf)
+	{
+		
+	}*/
 	void DestroyQuadResources()
 	{
 		_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());

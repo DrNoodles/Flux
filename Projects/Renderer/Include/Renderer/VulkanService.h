@@ -44,7 +44,6 @@ public:
 class VulkanService
 {
 public: // DATA ///////////////////////////////////////////////////////////////////////////////////////////////////////
-	bool FramebufferResized = false; // TODO Rewire this up? - This whole system for resizing and minimised is very hacky..
 	
 private: // DATA //////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -83,6 +82,7 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	std::vector<VkFence> _imagesInFlight{};
 
 	size_t _currentFrame = 0;
+	bool _swapchainInvalidated = false;
 
 	
 public: // METHODS ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +109,8 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	const std::vector<VkFence>& InFlightFences() const { return _inFlightFences; }
 	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
 
+	
+	void InvalidateSwapchain() { _swapchainInvalidated = true; }
 
 
 	VulkanService(bool enableValidationLayers, bool enableVsync, bool enableMsaa, IVulkanServiceDelegate* delegate,
@@ -145,7 +147,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		VkResult result = vkAcquireNextImageKHR(_device, _swapchain->GetSwapchain(), UINT64_MAX, _imageAvailableSemaphores[_currentFrame],
 			nullptr, &imageIndex);
 
-		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR)
+		if (_swapchainInvalidated || result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			RecreateSwapchain();
 			return std::nullopt;
@@ -231,7 +233,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		}
 
 		VkResult result = vkQueuePresentKHR(_presentQueue, &presentInfo);
-		if (FramebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		if (_swapchainInvalidated || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
 			RecreateSwapchain();
 		}
@@ -313,7 +315,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 	}
 	void RecreateSwapchain()
 	{
-		FramebufferResized = false;
+		_swapchainInvalidated = false;
 		
 		const auto size = _delegate->WaitTillFramebufferHasSize();
 		

@@ -11,10 +11,10 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-void UiPresenter::CreateQuadResources(const std::string& shaderDir, const Swapchain& swapchain)
+void UiPresenter::CreateQuadResources(const VkDescriptorImageInfo& sceneGbuf, const std::string& shaderDir, const Swapchain& swapchain)
 {
 	_postPassResources = OnScreen::CreateQuadResources(
-		_sceneFramebuffer.OutputDescriptor, 
+		sceneGbuf, 
 		swapchain.GetImageCount(),
 		swapchain.GetRenderPass(),
 		shaderDir, 
@@ -39,10 +39,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-
-	const auto& swapchain = _vulkan.GetSwapchain();
-	CreateSceneFramebuffer(swapchain.GetExtent());
-	CreateQuadResources(_shaderDir, swapchain);
+	CreateSceneFramebuffer();
+	CreateQuadResources(_sceneFramebuffer.OutputDescriptor, _shaderDir, _vulkan.GetSwapchain());
 }
 
 void UiPresenter::Shutdown()
@@ -665,6 +663,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
-	_vulkan.FramebufferResized = true;
+	_vulkan.InvalidateSwapchain();
 	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }
