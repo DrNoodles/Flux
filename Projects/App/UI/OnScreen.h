@@ -6,18 +6,63 @@
 
 namespace OnScreen
 {
+	struct QuadDescriptorResources
+	{
+		std::vector<VkDescriptorSet> DescriptorSets = {};
+		VkDescriptorPool DescriptorPool = nullptr;
+
+		static QuadDescriptorResources Create(const VkDescriptorImageInfo& screenMap, u32 imageCount,
+		                                      VkDescriptorSetLayout descSetlayout, VkDevice device)
+		{
+			VkDescriptorPool descPool;
+			{
+				const std::vector<VkDescriptorPoolSize> poolSizes =
+				{
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount}
+				};
+				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+			}
+
+			std::vector<VkDescriptorSet> descSets;
+			{
+				;
+				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+
+				std::vector<VkWriteDescriptorSet> writes(descSets.size());
+				for (size_t i = 0; i < descSets.size(); i++)
+				{
+					writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+					                                    &screenMap);
+				}
+
+				vkh::UpdateDescriptorSets(device, writes);
+			}
+
+			QuadDescriptorResources res;
+			res.DescriptorSets = descSets;
+			res.DescriptorPool = descPool;
+
+			return res;
+		}
+
+		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+		{
+			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+		}
+	};
+
+
+	
 	// Used to render final result to the screen
 	struct QuadResources
 	{
 		// Client used
 		MeshResource Quad;
-		std::vector<VkDescriptorSet> DescriptorSets = {};
 		VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 
 		// Private resources
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
-		VkDescriptorPool DescriptorPool = nullptr;
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -31,12 +76,13 @@ namespace OnScreen
 			vkDestroyPipelineLayout(device, PipelineLayout, nullptr);
 
 			//vkFreeDescriptorSets(device, DescriptorPool, (u32)DescriptorSets.size(), DescriptorSets.data());
-			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
 			vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
 		}
 	};
 
-	inline QuadResources CreateQuadResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
+	
+	
+	inline QuadResources CreateQuadResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -81,16 +127,7 @@ namespace OnScreen
 			return screenQuad;
 		}();
 
-		
-		VkDescriptorPool descPool;
-		{
-			const std::vector<VkDescriptorPoolSize> poolSizes = 
-			{
-				VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount }
-			};
-			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
-		}
-
+	
 
 		VkDescriptorSetLayout descSetlayout;
 		{
@@ -100,20 +137,7 @@ namespace OnScreen
 				});
 		}
 
-		
-		std::vector<VkDescriptorSet> descSets;
-		{
-			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
-
-			std::vector<VkWriteDescriptorSet> writes(descSets.size());
-			for (size_t i = 0; i < descSets.size(); i++)
-			{
-				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap);
-			}
-			
-			vkh::UpdateDescriptorSets(device, writes);
-		}
-		
+	
 		
 		VkPipelineLayout pipelineLayout;
 		{
@@ -246,11 +270,9 @@ namespace OnScreen
 
 		QuadResources res = {};
 		res.Quad = quad;
-		res.DescriptorSets = descSets;
 		res.DescriptorSetLayout = descSetlayout;
 		res.PipelineLayout = pipelineLayout;
 		res.Pipeline = pipeline;
-		res.DescriptorPool = descPool;
 		
 		return res;
 	}

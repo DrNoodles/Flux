@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Renderer/GpuTypes.h"
+#include "Renderer/VulkanService.h"
+
 namespace OffScreen
 {
 	struct FramebufferResources

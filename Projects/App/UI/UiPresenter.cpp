@@ -1,7 +1,6 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
-//#include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
 #include <State/LibraryManager.h>
@@ -11,15 +10,48 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-void UiPresenter::CreateQuadResources(const VkDescriptorImageInfo& sceneGbuf, const std::string& shaderDir, const Swapchain& swapchain)
+
+void UiPresenter::CreateSceneFramebuffer()
 {
+	// Scene framebuffer is only the size of the scene render region on screen
+	const auto sceneRect = ViewportRect();
+	const auto sceneExtent = VkExtent2D{sceneRect.Extent.Width, sceneRect.Extent.Height};
+
+	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
+		sceneExtent,
+		VK_FORMAT_R16G16B16A16_SFLOAT,
+		_renderer.GetRenderPass(),
+		_vulkan.MsaaSamples(),
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+}
+
+void UiPresenter::CreateQuadResources(const std::string& shaderDir)
+{
+	// Create quad resources
 	_postPassResources = OnScreen::CreateQuadResources(
-		sceneGbuf, 
-		swapchain.GetImageCount(),
-		swapchain.GetRenderPass(),
-		shaderDir, 
+		_vulkan.GetSwapchain().GetRenderPass(),
+		shaderDir,
 		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
 }
+
+void UiPresenter::CreateQuadDescriptorSets()
+{
+	// Create quad descriptor sets
+	_postPassDescriptors = OnScreen::QuadDescriptorResources::Create(_sceneFramebuffer.OutputDescriptor,
+	                                                                 _vulkan.GetSwapchain().GetImageCount(),
+	                                                                 _postPassResources.DescriptorSetLayout,
+	                                                                 _vulkan.LogicalDevice());
+}
+
+void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+{
+	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+
+	CreateSceneFramebuffer();
+	CreateQuadDescriptorSets();
+}
+
 
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
@@ -28,7 +60,6 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_renderer{renderer},
 	_vulkan{vulkan},
 	_window{window},
-	_shaderDir{shaderDir},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
 	_viewportView{ViewportView{this, renderer}}
@@ -40,7 +71,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 	CreateSceneFramebuffer();
-	CreateQuadResources(_sceneFramebuffer.OutputDescriptor, _shaderDir, _vulkan.GetSwapchain());
+	CreateQuadResources(shaderDir);
+	CreateQuadDescriptorSets();
 }
 
 void UiPresenter::Shutdown()
@@ -52,8 +84,9 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	DestroyQuadResources();
-	DestroySceneFramebuffer();
+	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -295,7 +328,7 @@ void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 i
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		_postPassResources.PipelineLayout,
 		0, 1,
-		&_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
+		&_postPassDescriptors.DescriptorSets[imageIndex], 0, nullptr);
 
 	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 }

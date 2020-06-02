@@ -1,8 +1,8 @@
 #pragma once
 
 #include "IWindow.h"
-#include "OnScreen.h"
 #include "OffScreen.h"
+#include "OnScreen.h"
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -33,7 +33,6 @@ class UiPresenter final :
 	public IViewportViewDelegate
 {
 public: // DATA
-
 private: // DATA
 
 	// Dependencies
@@ -43,7 +42,6 @@ private: // DATA
 	Renderer& _renderer; // temp, move to ViewportView
 	VulkanService& _vulkan; // temp, remove
 	IWindow* _window = nullptr;
-	std::string _shaderDir = {};
 
 	// Views
 	SceneView _sceneView;
@@ -71,10 +69,10 @@ private: // DATA
 	std::chrono::steady_clock::time_point _lastUiUpdate;
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
-
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	OffScreen::FramebufferResources _sceneFramebuffer;
 	OnScreen::QuadResources _postPassResources;
+	OnScreen::QuadDescriptorResources _postPassDescriptors;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -83,18 +81,6 @@ private: // DATA
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 
 public: // METHODS
-
-	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
-	{
-		// This is very heavy handed asset recreation. TODO Optimise this
-		
-		DestroySceneFramebuffer();
-		DestroyQuadResources();
-
-		CreateSceneFramebuffer();
-		CreateQuadResources(_sceneFramebuffer.OutputDescriptor, _shaderDir, _vulkan.GetSwapchain()); //Code smell: This has hidden dependencies on scene framebuffer 
-	}
-
 	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
@@ -114,6 +100,8 @@ public: // METHODS
 	void ReplaceSelection(Entity* const entity);
 	void ClearSelection();
 
+	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
+	
 	void SetUpdateRate(int updatesPerSecond)
 	{
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
@@ -123,35 +111,11 @@ public: // METHODS
 
 private: // METHODS
 
-	void CreateSceneFramebuffer()
-	{
-		// Scene framebuffer is only the size of the scene render region on screen
-		const auto sceneRect = ViewportRect();
-		const auto sceneExtent = VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height };
-		
-		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-		sceneExtent, 
-		VK_FORMAT_R16G16B16A16_SFLOAT,
-		_renderer.GetRenderPass(),
-		_vulkan.MsaaSamples(),
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-	}
-	void DestroySceneFramebuffer()
-	{
-		_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	}
+	// TODO Make these static so the coupling is deterministic
+	void CreateSceneFramebuffer();
+	void CreateQuadResources(const std::string& shaderDir);
+	void CreateQuadDescriptorSets();
 
-
-	void CreateQuadResources(const VkDescriptorImageInfo& sceneGbuf, const std::string& shaderDir, const Swapchain& swapchain);
-	/*void UpdateQuadResources(const VkDescriptorImageInfo& sceneGbuf)
-	{
-		
-	}*/
-	void DestroyQuadResources()
-	{
-		_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	}
-	
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
 	{
