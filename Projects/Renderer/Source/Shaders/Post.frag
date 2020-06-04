@@ -1,11 +1,15 @@
 #version 450
 
 layout(binding = 0) uniform sampler2D screenMap;
+layout(std140, binding = 1) uniform Ubo
+{
+	layout(offset=0)  float exposureBias;
+	layout(offset=16) bool  showClipping;
+} ubo;
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 0) out vec4 outColor;
 
-bool _showClipping = false;
-float _exposureBias = 1.;
+
 
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
 const mat3 ACESInputMat = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
@@ -34,12 +38,12 @@ void main()
 
 	vec3 color = texture(screenMap, inTexCoord).rgb;
 
-	color *= _exposureBias;          // Exposure
+	color *= ubo.exposureBias;          // Exposure
 	color = ACESFitted(color);       // Tonemap  
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
 	// Shows values clipped at white or black as bold colours
-	if (_showClipping)
+	if (ubo.showClipping)
 	{
 		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
 		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
@@ -69,7 +73,7 @@ void main()
 
 	
 	// Vignette
-	const bool vignette = false;
+	const bool vignette = true;
 	if (vignette)
 	{
 		vec3 vinCol = vec3(0,0,0);

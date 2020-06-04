@@ -2,52 +2,83 @@
 
 #include "Framework/FileService.h"
 #include "Renderer/GpuTypes.h"
+#include "Renderer/UniformBufferObjects.h"
 #include "Renderer/VulkanService.h"
 
 namespace OnScreen
 {
 	struct QuadDescriptorResources
 	{
+		u32 ImageCount = 0; 
 		std::vector<VkDescriptorSet> DescriptorSets = {};
+		std::vector<VkBuffer> UboBuffers = {};
+		std::vector<VkDeviceMemory> UboBuffersMemory = {};
 		VkDescriptorPool DescriptorPool = nullptr;
 
+
 		static QuadDescriptorResources Create(const VkDescriptorImageInfo& screenMap, u32 imageCount,
-		                                      VkDescriptorSetLayout descSetlayout, VkDevice device)
+		                                      VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
 		{
+			// Create uniform buffers
+			const auto uboSize = sizeof(PostUbo);
+			auto [uboBuffers, uboBuffersMemory]
+				= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+
+			
+			// Create descriptor pool
 			VkDescriptorPool descPool;
 			{
-				const std::vector<VkDescriptorPoolSize> poolSizes =
-				{
-					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount}
+				const std::vector<VkDescriptorPoolSize> poolSizes = {
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
 				};
 				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
 			}
 
+
+			// Create descriptor sets
 			std::vector<VkDescriptorSet> descSets;
 			{
-				;
 				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
-
-				std::vector<VkWriteDescriptorSet> writes(descSets.size());
-				for (size_t i = 0; i < descSets.size(); i++)
+				
+				for (size_t i = 0; i < imageCount; i++)
 				{
-					writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
-					                                    &screenMap);
-				}
+					VkDescriptorBufferInfo bufferUboInfo = {};
+					bufferUboInfo.buffer = uboBuffers[i];
+					bufferUboInfo.offset = 0;
+					bufferUboInfo.range = uboSize;
 
-				vkh::UpdateDescriptorSets(device, writes);
+					std::vector<VkWriteDescriptorSet> writes
+					{
+						vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+							&screenMap),
+						vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+					};
+					
+					vkh::UpdateDescriptorSets(device, writes);
+				}
 			}
 
-			QuadDescriptorResources res;
-			res.DescriptorSets = descSets;
-			res.DescriptorPool = descPool;
 
+			
+			QuadDescriptorResources res;
+			res.ImageCount = imageCount;
+			res.UboBuffers = uboBuffers;
+			res.UboBuffersMemory = uboBuffersMemory;
+			res.DescriptorPool = descPool;
+			res.DescriptorSets = descSets;
 			return res;
 		}
 
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
+			for (u32 i = 0; i < ImageCount; i++)
+			{
+				vkDestroyBuffer(device, UboBuffers[i], allocator);
+				vkFreeMemory(device, UboBuffersMemory[i], allocator);
+			}
 			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+			ImageCount = 0;
 		}
 	};
 
@@ -134,6 +165,7 @@ namespace OnScreen
 			descSetlayout = vkh::CreateDescriptorSetLayout(device,
 				{
 					vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+					vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
 				});
 		}
 

@@ -694,10 +694,8 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	const RenderableMesh& renderable) const
 {
 	// Create uniform buffers
-	std::vector<VkBuffer> modelBuffers;
-	std::vector<VkDeviceMemory> modelBuffersMemory;
-	std::tie(modelBuffers, modelBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(UniversalUbo), _vk.LogicalDevice(), _vk.PhysicalDevice());
+	auto [modelBuffers, modelBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(UniversalUbo), 
+		_vk.LogicalDevice(), _vk.PhysicalDevice());
 
 
 	// Create descriptor sets

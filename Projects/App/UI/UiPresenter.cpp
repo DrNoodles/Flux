@@ -40,7 +40,7 @@ void UiPresenter::CreateQuadDescriptorSets()
 	_postPassDescriptors = OnScreen::QuadDescriptorResources::Create(_sceneFramebuffer.OutputDescriptor,
 	                                                                 _vulkan.GetSwapchain().GetImageCount(),
 	                                                                 _postPassResources.DescriptorSetLayout,
-	                                                                 _vulkan.LogicalDevice());
+	                                                                 _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
@@ -316,13 +316,28 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
 {
+	// Update Ubo
+	{
+		PostUbo ubo;
+		ubo.ShowClipping = false;
+		ubo.ExposureBias = 20.1415f;
+
+		void* data;
+		const auto size = sizeof(ubo);
+		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex], 0, size, 0, &data);
+		memcpy(data, &ubo, size);
+		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex]);
+	}
+
+	// Draw
 	const MeshResource& mesh = _postPassResources.Quad;
 	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-	VkDeviceSize offsets[] = { 0 };
-
+	VkDeviceSize pOffsets = {0};
+	
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
 
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
 	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
