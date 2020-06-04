@@ -180,6 +180,6 @@ struct UniversalUbo
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PostUbo
 {
-	alignas(16) f32  ExposureBias = 1;
-	alignas(16) bool ShowClipping = false;
+	alignas(4) int  ShowClipping = false;
+	alignas(4) f32  ExposureBias = 1;
 };

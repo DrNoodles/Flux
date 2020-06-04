@@ -318,9 +318,11 @@ void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 i
 {
 	// Update Ubo
 	{
+		const auto& ro = _scene.GetRenderOptions();
+		
 		PostUbo ubo;
-		ubo.ShowClipping = false;
-		ubo.ExposureBias = 20.1415f;
+		ubo.ShowClipping = (int)ro.ShowClipping;
+		ubo.ExposureBias = ro.ExposureBias;
 
 		void* data;
 		const auto size = sizeof(ubo);

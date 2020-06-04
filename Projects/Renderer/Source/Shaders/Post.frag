@@ -3,8 +3,8 @@
 layout(binding = 0) uniform sampler2D screenMap;
 layout(std140, binding = 1) uniform Ubo
 {
-	layout(offset=0)  float exposureBias;
-	layout(offset=16) bool  showClipping;
+	layout(offset=0) int   showClipping;
+	layout(offset=4) float exposureBias;
 } ubo;
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 0) out vec4 outColor;
@@ -42,14 +42,6 @@ void main()
 	color = ACESFitted(color);       // Tonemap  
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
-	// Shows values clipped at white or black as bold colours
-	if (ubo.showClipping)
-	{
-		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
-		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
-	}
-
-
 
 
 	
@@ -83,6 +75,14 @@ void main()
 		float dist = distance(uv, vec2(0));
 		//color = dist > innerRadius*aspect ? vinCol : color;
 		color = mix(color, vinCol, smoothstep(innerRadius*aspect, outerRadius*aspect, dist));
+	}
+
+
+	// Shows values clipped at white or black as bold colours
+	if (bool(ubo.showClipping))
+	{
+		if (Equals3f(color, vec3(1), 0.001)) color = vec3(1,0,1); // Magenta
+		if (Equals3f(color, vec3(0), 0.001)) color = vec3(0,0,1); // Blue
 	}
 
 	outColor = vec4(color,1);
