@@ -1,9 +1,11 @@
 #pragma once
-#include "imgui/imgui.h"
+
+#include <imgui/imgui.h>
 
 #include <optional>
 #include <string>
 #include <vector>
+
 
 struct MaterialViewState;
 class TransformVm;
@@ -30,17 +32,19 @@ public:
 
 class PropsView
 {
+private:
+	// Dependencies
+	IPropsViewDelegate* _delegate = nullptr;
+	
+	// TODO refactor to have some control over styling - This is copied in SceneView.h
+	ImVec4 _headingColor = ImVec4{ .5,.5,.5,1 };
+	
 public:
 	PropsView() = delete;
 	explicit PropsView(IPropsViewDelegate* delegate) : _delegate{delegate} {}
 	void BuildUI(int selectionCount, TransformVm& tvm, std::optional<LightVm>& lvm) const;
 
 private:
-	// Dependencies
-	IPropsViewDelegate* _delegate = nullptr;
-	
-	ImVec4 _headingColor = ImVec4{ .5,.5,.5,1 };
-
 	void DrawTransformPanel(TransformVm& tvm) const;
 	void DrawLightPanel(LightVm& lvm) const;
 	void DrawRenderablePanel(MaterialViewState& rvm) const;

@@ -41,6 +41,10 @@ void SceneView::BuildUI(const std::vector<Entity*>& ents, std::unordered_set<Ent
 		ImGui::Spacing();
 
 		BackdropPanel(headerFlags);
+		ImGui::Spacing();
+		ImGui::Spacing();
+
+		PostPanel(headerFlags);
 	}
 	ImGui::End();
 }
@@ -260,4 +264,81 @@ void SceneView::CameraPanel(ImGuiTreeNodeFlags headerFlags) const
 		ImGui::EndChild();
 	}
 
+}
+
+void SceneView::PostPanel(ImGuiTreeNodeFlags headerFlags) const
+{
+	float modeStart = 78;
+	float buttonRight = 35;
+
+	auto ro = _del->GetRenderOptions();
+	auto& vo = ro.Vignette;
+	const bool cachedEnable = vo.Enabled; // this is so the UI doesn't flicker when drawing the frame enabled changes
+	
+	const std::string id = "SceneView::PostPanel"; // id used to differentiate controls across all of imgui
+
+	if (ImGui::CollapsingHeader("Post-Processing", headerFlags))
+	{
+		const float height = vo.Enabled ? 103.f : 33.f;
+		if (ImGui::BeginChild(("Vignette"+ id).c_str(), ImVec2{ 0, height }, true))
+		{
+			ImGui::Spacing();
+			
+			// Header
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+				ImGui::Text("VIGNETTE");
+				ImGui::PopStyleColor(1);
+
+				// Enable button
+				{
+					bool enabled = (int)vo.Enabled;
+					ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 17);
+					if (ImGui::Checkbox(("##" + id).c_str(), &enabled))
+					{
+						vo.Enabled = (bool)enabled;
+						_del->SetRenderOptions(ro);
+					}
+				}
+			}
+			
+			ImGui::Spacing();
+
+			if (cachedEnable) 
+			{
+				// Color
+				{
+					float* col = &vo.Color[0];
+					if (ImGui::ColorEdit3(("Colour##" + id).c_str(), col)) {
+						_del->SetRenderOptions(ro);
+					}
+				}
+			
+
+				// Inner Radius
+				{
+					float radius = vo.InnerRadius * 100;
+					if (ImGui::SliderFloat(("Radius##" + id).c_str(), &radius, 0, 150, "%.0f")) 
+					{
+						const auto delta = (radius / 100) - vo.InnerRadius;
+						vo.InnerRadius += delta;	
+						vo.OuterRadius += delta;	
+						_del->SetRenderOptions(ro);
+					}
+				}
+
+				
+				// Falloff
+				{
+					float falloff = (vo.OuterRadius - vo.InnerRadius) * 100;
+					if (ImGui::SliderFloat(("Falloff##" + id).c_str(), &falloff, 0, 200, "%.0f")) 
+					{
+						vo.OuterRadius = vo.InnerRadius + (falloff / 100);	
+						_del->SetRenderOptions(ro);
+					}
+				}
+			}
+		}
+		ImGui::EndChild();
+	}
 }

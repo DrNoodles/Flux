@@ -11,8 +11,8 @@ struct VignetteOptions
 {
 	bool Enabled = false;
 	glm::vec3 Color = glm::vec3(0);
-	float InnerRadius = 0.8;
-	float OuterRadius = 1.5;
+	float InnerRadius = 0.8f;
+	float OuterRadius = 1.5f;
 };
 
 struct RenderOptions

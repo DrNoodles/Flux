@@ -12,7 +12,6 @@
 
 
 
-
 // Helper function
 std::string FormatMapPath(const std::string& path, int limit = 30)
 {
