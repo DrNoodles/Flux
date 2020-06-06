@@ -180,6 +180,10 @@ struct UniversalUbo
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PostUbo
 {
-	alignas(4) int  ShowClipping = false;
-	alignas(4) f32  ExposureBias = 1;
+	alignas(4)  int       ShowClipping = false;
+	alignas(4)  f32       ExposureBias = 1;
+	alignas(4)  f32       VignetteInnerRadius = 0.8;
+	alignas(4)  f32       VignetteOuterRadius = 1.5;
+	alignas(16) glm::vec3 VignetteColor = glm::vec3(0);
+	alignas(16) int       EnableVignette = false;
 };

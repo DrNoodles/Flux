@@ -323,6 +323,10 @@ void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 i
 		PostUbo ubo;
 		ubo.ShowClipping = (int)ro.ShowClipping;
 		ubo.ExposureBias = ro.ExposureBias;
+		ubo.EnableVignette = (int)true;
+		ubo.VignetteColor = glm::vec3(0,0,1);
+		ubo.VignetteInnerRadius = 0.5;
+		ubo.VignetteOuterRadius = .7;
 
 		void* data;
 		const auto size = sizeof(ubo);

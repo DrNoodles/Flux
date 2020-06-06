@@ -3,8 +3,12 @@
 layout(binding = 0) uniform sampler2D screenMap;
 layout(std140, binding = 1) uniform Ubo
 {
-	layout(offset=0) int   showClipping;
-	layout(offset=4) float exposureBias;
+	layout(offset= 0) int   showClipping;
+	layout(offset= 4) float exposureBias;
+	layout(offset= 8) float vignetteInnerRadius;
+	layout(offset=12) float vignetteOuterRadius;
+	layout(offset=16) vec3  vignetteColor;
+	layout(offset=32) int   enableVignette;
 } ubo;
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 0) out vec4 outColor;
@@ -65,16 +69,16 @@ void main()
 
 	
 	// Vignette
-	const bool vignette = false;
-	if (vignette)
+	
+	if (bool(ubo.enableVignette))
 	{
-		vec3 vinCol = vec3(0,0,0);
-		float innerRadius = .8;
-		float outerRadius = 1.5;
+		//vec3 vinCol = vec3(0,0,0);
+		float innerRadius = ubo.vignetteInnerRadius*aspect;
+		float outerRadius = ubo.vignetteOuterRadius*aspect;
 
 		float dist = distance(uv, vec2(0));
 		//color = dist > innerRadius*aspect ? vinCol : color;
-		color = mix(color, vinCol, smoothstep(innerRadius*aspect, outerRadius*aspect, dist));
+		color = mix(color, ubo.vignetteColor, smoothstep(innerRadius, outerRadius, dist));
 	}
 
 
