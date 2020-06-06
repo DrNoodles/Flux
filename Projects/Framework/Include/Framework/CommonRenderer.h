@@ -7,12 +7,19 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+struct FilmGrainOptions
+{
+	bool Enabled = false;
+	bool Colored = true;
+	float Size = 2.5;
+};
+
 struct VignetteOptions
 {
 	bool Enabled = false;
 	glm::vec3 Color = glm::vec3(0);
-	float InnerRadius = 0.8f;
-	float OuterRadius = 1.5f;
+	float InnerRadius = 0.75f;
+	float OuterRadius = 1.75f;
 };
 
 struct RenderOptions
