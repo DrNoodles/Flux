@@ -92,7 +92,7 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(vulkanService.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto renderer = std::make_unique<Renderer>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
@@ -330,7 +330,7 @@ private: // METHODS
 			initInfo.DescriptorPool = _imguiDescriptorPool;
 			initInfo.MinImageCount = minImageCount;
 			initInfo.ImageCount = imageCount;
-			initInfo.MSAASamples = vk.MsaaSamples();
+			initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT; // Swapchain renderpass is not MSAA - this will age well :P
 			initInfo.Allocator = nullptr;
 			initInfo.CheckVkResultFn = [](VkResult err)
 			{
@@ -388,6 +388,7 @@ private: // METHODS
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{
 		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
+		_ui->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
 	
 	VkExtent2D GetFramebufferSize() override

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "IWindow.h"
-#include "UiPresenterHelpers.h"
+#include "OffScreen.h"
+#include "OnScreen.h"
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -32,7 +33,6 @@ class UiPresenter final :
 	public IViewportViewDelegate
 {
 public: // DATA
-
 private: // DATA
 
 	// Dependencies
@@ -69,13 +69,10 @@ private: // DATA
 	std::chrono::steady_clock::time_point _lastUiUpdate;
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
-
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-
-	//std::unique_ptr<TextureResource> _offscreenTextureResource = nullptr;
-	//UiPresenterHelpers::FramebufferResources _offscreenFramebuffer;
-
-	//UiPresenterHelpers::PostPassResources _postPassResources;
+	OffScreen::FramebufferResources _sceneFramebuffer;
+	OnScreen::QuadResources _postPassResources;
+	OnScreen::QuadDescriptorResources _postPassDescriptors;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -84,8 +81,10 @@ private: // DATA
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 
 public: // METHODS
+	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
+	
 	void Shutdown();
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
@@ -101,13 +100,21 @@ public: // METHODS
 	void ReplaceSelection(Entity* const entity);
 	void ClearSelection();
 
+	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
+	
 	void SetUpdateRate(int updatesPerSecond)
 	{
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
 	}
+
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
 
 private: // METHODS
+
+	// TODO Make these static so the coupling is deterministic
+	void CreateSceneFramebuffer();
+	void CreateQuadResources(const std::string& shaderDir);
+	void CreateQuadDescriptorSets();
 
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
@@ -138,6 +145,7 @@ private: // METHODS
 
 	void BuildImGui();
 	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
+	void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
 	void DrawUi(VkCommandBuffer commandBuffer);
 
 

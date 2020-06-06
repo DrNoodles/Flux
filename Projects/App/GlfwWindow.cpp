@@ -10,7 +10,7 @@ GlfwWindow::GlfwWindow()
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // don't use opengl
 
-	GLFWwindow* window = glfwCreateWindow(_size.Width, _size.Height, "Vulkan", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(_size.Width, _size.Height, "Flux", nullptr, nullptr);
 	if (window == nullptr)
 	{
 		throw std::runtime_error("Failed to create GLFWwindow");

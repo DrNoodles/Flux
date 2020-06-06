@@ -1,27 +1,99 @@
 #pragma once
 
+#include "Framework/FileService.h"
+#include "Renderer/GpuTypes.h"
+#include "Renderer/UniformBufferObjects.h"
+#include "Renderer/VulkanService.h"
 
-#include <Framework/FileService.h>
-#include <Renderer/Renderer.h>
-
-#include <vulkan/vulkan.h>
-
-#include <tuple>
-
-
-namespace UiPresenterHelpers
+namespace OnScreen
 {
-	struct PostPassResources
+	struct QuadDescriptorResources
+	{
+		u32 ImageCount = 0; 
+		std::vector<VkDescriptorSet> DescriptorSets = {};
+		std::vector<VkBuffer> UboBuffers = {};
+		std::vector<VkDeviceMemory> UboBuffersMemory = {};
+		VkDescriptorPool DescriptorPool = nullptr;
+
+
+		static QuadDescriptorResources Create(const VkDescriptorImageInfo& screenMap, u32 imageCount,
+		                                      VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
+		{
+			// Create uniform buffers
+			const auto uboSize = sizeof(PostUbo);
+			auto [uboBuffers, uboBuffersMemory]
+				= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+
+			
+			// Create descriptor pool
+			VkDescriptorPool descPool;
+			{
+				const std::vector<VkDescriptorPoolSize> poolSizes = {
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
+				};
+				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+			}
+
+
+			// Create descriptor sets
+			std::vector<VkDescriptorSet> descSets;
+			{
+				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+				
+				for (size_t i = 0; i < imageCount; i++)
+				{
+					VkDescriptorBufferInfo bufferUboInfo = {};
+					bufferUboInfo.buffer = uboBuffers[i];
+					bufferUboInfo.offset = 0;
+					bufferUboInfo.range = uboSize;
+
+					std::vector<VkWriteDescriptorSet> writes
+					{
+						vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+							&screenMap),
+						vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+					};
+					
+					vkh::UpdateDescriptorSets(device, writes);
+				}
+			}
+
+
+			
+			QuadDescriptorResources res;
+			res.ImageCount = imageCount;
+			res.UboBuffers = uboBuffers;
+			res.UboBuffersMemory = uboBuffersMemory;
+			res.DescriptorPool = descPool;
+			res.DescriptorSets = descSets;
+			return res;
+		}
+
+		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+		{
+			for (u32 i = 0; i < ImageCount; i++)
+			{
+				vkDestroyBuffer(device, UboBuffers[i], allocator);
+				vkFreeMemory(device, UboBuffersMemory[i], allocator);
+			}
+			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+			ImageCount = 0;
+		}
+	};
+
+
+	
+	// Used to render final result to the screen
+	struct QuadResources
 	{
 		// Client used
 		MeshResource Quad;
-		std::vector<VkDescriptorSet> DescriptorSets = {};
 		VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 
 		// Private resources
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
-		VkDescriptorPool DescriptorPool = nullptr;
 		
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -35,103 +107,18 @@ namespace UiPresenterHelpers
 			vkDestroyPipelineLayout(device, PipelineLayout, nullptr);
 
 			//vkFreeDescriptorSets(device, DescriptorPool, (u32)DescriptorSets.size(), DescriptorSets.data());
-			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
 			vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
 		}
 	};
-	
 
 	
-	struct FramebufferResources
+	
+	inline QuadResources CreateQuadResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
-		struct Attachment
-		{
-			VkImage Image;
-			VkDeviceMemory ImageMemory;
-			VkImageView ImageView;
+		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-			void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-			{
-				vkFreeMemory(device, ImageMemory, allocator);
-				vkDestroyImage(device, Image, allocator);
-				vkDestroyImageView(device, ImageView, allocator);
-				ImageMemory = nullptr;
-				Image = nullptr;
-				ImageView = nullptr;
-			}
-		};
-			
-		VkExtent2D Extent = {};
-		VkFormat Format = {};
-		std::vector<Attachment> Attachments = {};
-		VkFramebuffer Framebuffer = nullptr;
-
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			for (auto && attachment : Attachments)
-			{
-				attachment.Destroy(device, allocator);
-			}
-
-			vkDestroyFramebuffer(device, Framebuffer, allocator);
-		}
-	};
-
-
-	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkImageView outputImageView, VkRenderPass renderPass, VulkanService& vk)
-	{
-		const auto format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const auto extent = vk.GetSwapchain().GetExtent();
-
-		
-		// Create color attachment resources
-		FramebufferResources::Attachment colorAttachment = {};
-		{
-			const u32 mipLevels = 1;
-			const u32 layerCount = 1;
-			
-			// Create color image and memory
-			std::tie(colorAttachment.Image, colorAttachment.ImageMemory) = vkh::CreateImage2D(
-				extent.width, extent.height,
-				mipLevels,
-				vk.MsaaSamples(),
-				format,
-				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				vk.PhysicalDevice(), vk.LogicalDevice());
-
-			// Create image view
-			colorAttachment.ImageView = vkh::CreateImage2DView(colorAttachment.Image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, vk.LogicalDevice());
-		}
-
-		
-		// Create depth attachment resources
-		FramebufferResources::Attachment depthAttachment = {};
-		std::tie(depthAttachment.Image, depthAttachment.ImageMemory, depthAttachment.ImageView) = vkh::CreateDepthResources(extent, vk.MsaaSamples(), vk.LogicalDevice(), vk.PhysicalDevice());
-
-
-
-		// Create framebuffer
-		auto* framebuffer = vkh::CreateFramebuffer(vk.LogicalDevice(), 
-			extent.width,extent.height,
-			{ colorAttachment.ImageView, depthAttachment.ImageView, outputImageView }, 
-			renderPass);
-		
-		FramebufferResources res = {};
-		res.Framebuffer = framebuffer;
-		res.Extent = extent;
-		res.Format = format;
-		res.Attachments = { colorAttachment, depthAttachment };
-		
-		return res;
-	}
-
-
-	inline PostPassResources CreatePostPassResources(const VkDescriptorImageInfo& screenMap, u32 imageCount, 
-		const std::string& shaderDir, VulkanService& vk)
-	{
-		MeshResource quad;
+		// Create the quad mesh resource that we'll render to on screen
+		auto quad = [&]()
 		{
 			Vertex topLeft       = {};
 			Vertex bottomLeft    = {};
@@ -157,53 +144,36 @@ namespace UiPresenterHelpers
 			
 			const std::vector<u32> indices = { 0,1,3,3,1,2 };
 
-			quad.IndexCount = indices.size();
-			quad.VertexCount = vertices.size();
+			
+			MeshResource screenQuad;
+			screenQuad.IndexCount = indices.size();
+			screenQuad.VertexCount = vertices.size();
 
-			std::tie(quad.IndexBuffer, quad.IndexBufferMemory) = vkh::CreateIndexBuffer(indices,
-				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
+			std::tie(screenQuad.IndexBuffer, screenQuad.IndexBufferMemory) = vkh::CreateIndexBuffer(indices,
+				cmdQueue, cmdPool, physicalDevice, device);
 
-			std::tie(quad.VertexBuffer, quad.VertexBufferMemory) = vkh::CreateVertexBuffer(vertices,
-				vk.GraphicsQueue(), vk.CommandPool(), vk.PhysicalDevice(), vk.LogicalDevice());
-		}
+			std::tie(screenQuad.VertexBuffer, screenQuad.VertexBufferMemory) = vkh::CreateVertexBuffer(vertices,
+				cmdQueue, cmdPool, physicalDevice, device);
 
-		
-		VkDescriptorPool descPool;
-		{
-			const std::vector<VkDescriptorPoolSize> poolSizes = 
-			{
-				VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount }
-			};
-			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, vk.LogicalDevice());
-		}
+			return screenQuad;
+		}();
 
+	
 
 		VkDescriptorSetLayout descSetlayout;
 		{
-			descSetlayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(),
+			descSetlayout = vkh::CreateDescriptorSetLayout(device,
 				{
 					vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+					vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
 				});
 		}
 
-		
-		std::vector<VkDescriptorSet> descSets;
-		{
-			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, vk.LogicalDevice());
-
-			std::vector<VkWriteDescriptorSet> writes(descSets.size());
-			for (size_t i = 0; i < descSets.size(); i++)
-			{
-				writes[i] = vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap);
-			}
-			
-			vkh::UpdateDescriptorSets(vk.LogicalDevice(), writes);
-		}
-		
+	
 		
 		VkPipelineLayout pipelineLayout;
 		{
-			pipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { descSetlayout });
+			pipelineLayout = vkh::CreatePipelineLayout(device, { descSetlayout });
 		}
 
 
@@ -251,7 +221,7 @@ namespace UiPresenterHelpers
 
 			VkPipelineMultisampleStateCreateInfo multisampleState = {};
 			multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-			multisampleState.rasterizationSamples = vk.MsaaSamples();
+			multisampleState.rasterizationSamples = msaaSamples;
 			multisampleState.flags = 0;
 
 			std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
@@ -290,13 +260,13 @@ namespace UiPresenterHelpers
 			VkPipelineShaderStageCreateInfo vertShaderStage = {};
 			vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), vk.LogicalDevice());
+			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
 			vertShaderStage.pName = "main";
 
 			VkPipelineShaderStageCreateInfo fragShaderStage = {};
 			fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), vk.LogicalDevice());
+			fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
 			fragShaderStage.pName = "main";
 			std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{ vertShaderStage, fragShaderStage };
 
@@ -314,77 +284,29 @@ namespace UiPresenterHelpers
 			pipelineCI.pVertexInputState = &vertexInputState;
 			pipelineCI.stageCount = (u32)shaderStages.size();
 			pipelineCI.pStages = shaderStages.data();
-			pipelineCI.renderPass = vk.GetSwapchain().GetRenderPass();
+			pipelineCI.renderPass = renderPass;
 			pipelineCI.layout = pipelineLayout;
 
 			
-			if (VK_SUCCESS != vkCreateGraphicsPipelines(vk.LogicalDevice(), nullptr, 1, &pipelineCI, nullptr, &pipeline))
+			if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
 			{
 				throw std::runtime_error("Failed to create pipeline");
 			}
 
 
 			// Cleanup
-			vkDestroyShaderModule(vk.LogicalDevice(), vertShaderStage.module, nullptr);
-			vkDestroyShaderModule(vk.LogicalDevice(), fragShaderStage.module, nullptr);
+			vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
+			vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
 		}
 
 
-		PostPassResources res = {};
+		QuadResources res = {};
 		res.Quad = quad;
-		res.DescriptorSets = descSets;
 		res.DescriptorSetLayout = descSetlayout;
 		res.PipelineLayout = pipelineLayout;
 		res.Pipeline = pipeline;
-		res.DescriptorPool = descPool;
 		
 		return res;
 	}
+};
 
-	inline TextureResource CreateScreenTexture(u32 width, u32 height, VulkanService& vk)
-	{
-		const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const u32 mipLevels = 1;
-		const u32 layerCount = 1;
-
-
-		auto [image, memory] = vkh::CreateImage2D(width, height, mipLevels,
-			VK_SAMPLE_COUNT_1_BIT,
-			format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // Used in offscreen framebuffer
-			//VK_IMAGE_USAGE_TRANSFER_SRC_BIT |     // Need to convert layout to attachment optimal in prep for framebuffer writing
-			VK_IMAGE_USAGE_SAMPLED_BIT,           // Framebuffer result is used in later shader pass
-
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			vk.PhysicalDevice(), vk.LogicalDevice(),
-			layerCount);
-
-		
-		// Transition image layout
-		{
-			auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
-
-			VkImageSubresourceRange subresourceRange = {};
-			subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			subresourceRange.baseArrayLayer = 0;
-			subresourceRange.layerCount = 1;
-			subresourceRange.baseMipLevel = 0;
-			subresourceRange.levelCount = mipLevels;
-
-			vkh::TransitionImageLayout(cmdBuf, image,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
-
-			vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-		}
-
-
-		VkImageView view = vkh::CreateImage2DView(image, format, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, layerCount, vk.LogicalDevice());
-
-		
-		VkSampler sampler = vkh::CreateSampler(vk.LogicalDevice());
-
-		
-		return TextureResource{ vk.LogicalDevice(), width, height, mipLevels, layerCount, image, memory, view, sampler, format };
-	}
-}

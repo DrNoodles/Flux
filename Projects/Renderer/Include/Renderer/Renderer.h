@@ -22,9 +22,8 @@ struct RenderableMeshCreateInfo;
 class Renderer
 {
 public:
-	//VkRenderPass _renderPass = nullptr;
 
-	explicit Renderer(VulkanService* vulkanService, std::string shaderDir, const std::string& assetsDir, 
+	explicit Renderer(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IModelLoaderService& modelLoaderService);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
@@ -68,11 +67,16 @@ public:
 
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 
+	VkRenderPass GetRenderPass() const { return _renderPass; }
+
+	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
+
 
 private: // Dependencies
-	VulkanService* _vk = nullptr;
+	VulkanService& _vk;
 	std::string _shaderDir{};
 
+	VkRenderPass _renderPass = nullptr;
 	VkDescriptorPool _rendererDescriptorPool = nullptr;
 
 	// PBR

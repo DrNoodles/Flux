@@ -129,7 +129,7 @@ private:
 		const auto benchStart = std::chrono::high_resolution_clock::now();
 
 		const VkFormat irrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const i32 irrDim = 16;
+		const i32 irrDim = 64;
 		const u32 irrMips = 1;
 
 

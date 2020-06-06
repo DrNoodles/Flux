@@ -1,7 +1,6 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
-//#include "UiPresenterHelpers.h"
 
 #include <Framework/FileService.h>
 #include <State/LibraryManager.h>
@@ -11,8 +10,48 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-#include <functional>
-//namespace uvh = UiPresenterHelpers;
+
+void UiPresenter::CreateSceneFramebuffer()
+{
+	// Scene framebuffer is only the size of the scene render region on screen
+	const auto sceneRect = ViewportRect();
+	const auto sceneExtent = VkExtent2D{sceneRect.Extent.Width, sceneRect.Extent.Height};
+
+	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
+		sceneExtent,
+		VK_FORMAT_R16G16B16A16_SFLOAT,
+		_renderer.GetRenderPass(),
+		_vulkan.MsaaSamples(),
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+}
+
+void UiPresenter::CreateQuadResources(const std::string& shaderDir)
+{
+	// Create quad resources
+	_postPassResources = OnScreen::CreateQuadResources(
+		_vulkan.GetSwapchain().GetRenderPass(),
+		shaderDir,
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
+}
+
+void UiPresenter::CreateQuadDescriptorSets()
+{
+	// Create quad descriptor sets
+	_postPassDescriptors = OnScreen::QuadDescriptorResources::Create(_sceneFramebuffer.OutputDescriptor,
+	                                                                 _vulkan.GetSwapchain().GetImageCount(),
+	                                                                 _postPassResources.DescriptorSetLayout,
+	                                                                 _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+}
+
+void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+{
+	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+
+	CreateSceneFramebuffer();
+	CreateQuadDescriptorSets();
+}
+
 
 UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
@@ -31,27 +70,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-
-	
-	/*auto screenTexture = TextureResourceHelpers::LoadTexture(shaderDir + "debug.png", 
-		_vulkan.CommandPool(), _vulkan.GraphicsQueue(), _vulkan.PhysicalDevice(), _vulkan.LogicalDevice());*/
-
-	// TODO Create a texture for teh offscreen buffers that's RGBA	16
-
-	//auto width = _vulkan.SwapchainExtent().width;
-	//auto height = _vulkan.SwapchainExtent().height;
-
-	/*
-	// Offscreen renderpass setup
-	{
-		auto&& tex = UiPresenterHelpers::CreateScreenTexture(width, height, _vulkan);
-		_offscreenTextureResource = std::make_unique<TextureResource>(std::move(tex));
-
-		_offscreenFramebuffer = UiPresenterHelpers::CreateSceneOffscreenFramebuffer(_offscreenTextureResource->DescriptorImageInfo().imageView, _renderer._renderPass, _vulkan);
-	}
-	
-	_postPassResources = uvh::CreatePostPassResources(_offscreenTextureResource->DescriptorImageInfo(), vulkan.SwapchainImageCount(), shaderDir, vulkan);
-	*/
+	CreateSceneFramebuffer();
+	CreateQuadResources(shaderDir);
+	CreateQuadDescriptorSets();
 }
 
 void UiPresenter::Shutdown()
@@ -61,13 +82,11 @@ void UiPresenter::Shutdown()
 	_window->PointerWheelChanged.Detach(_pointerWheelChangedHandler);
 	_window->KeyDown.Detach(_keyDownHandler);
 	_window->KeyUp.Detach(_keyUpHandler);
-	
-	/*
+
+	// Cleanup renderpass resources
+	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	
-	_offscreenFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_offscreenTextureResource = nullptr;
-	*/
 }
 
 void UiPresenter::NextSkybox()
@@ -78,7 +97,7 @@ void UiPresenter::NextSkybox()
 
 void UiPresenter::LoadSkybox(const std::string& path) const
 {
-	const SkyboxResourceId resId = _scene.LoadAndSetSkybox(path);
+	_scene.LoadAndSetSkybox(path);
 }
 
 void UiPresenter::DeleteSelected()
@@ -295,6 +314,42 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		renderables, transforms, lights, view, camera.Position, ViewportRect());
 }
 
+void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
+{
+	// Update Ubo
+	{
+		const auto& ro = _scene.GetRenderOptions();
+		
+		PostUbo ubo;
+		ubo.ShowClipping = (int)ro.ShowClipping;
+		ubo.ExposureBias = ro.ExposureBias;
+
+		void* data;
+		const auto size = sizeof(ubo);
+		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex], 0, size, 0, &data);
+		memcpy(data, &ubo, size);
+		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex]);
+	}
+
+	// Draw
+	const MeshResource& mesh = _postPassResources.Quad;
+	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+	VkDeviceSize pOffsets = {0};
+	
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
+
+	
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
+	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(commandBuffer,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		_postPassResources.PipelineLayout,
+		0, 1,
+		&_postPassDescriptors.DescriptorSets[imageIndex], 0, nullptr);
+
+	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+}
+
 void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 {
 	// Update Ui
@@ -308,123 +363,71 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 	// Draw
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
-void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
-{	
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-	clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-	// Draw scene to screen
-	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.GetSwapchain().GetRenderPass(), 
-			_vulkan.GetSwapchain().GetFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, _vulkan.GetSwapchain().GetExtent()), 
-			clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			DrawViewport(imageIndex, commandBuffer);
-			DrawUi(commandBuffer);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
-}
-/*
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	const auto swapchainExtent = _vulkan.SwapchainExtent();
-	
+	// Clear colour
 	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-	clearColors[1].depthStencil = { 1.f, 0ui32 };
+	clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+	clearColors[1].depthStencil = {1.f, 0ui32};
 
 	auto& vk = _vulkan;
-	
-	// Prep offscreen texture for writing to 
-	{
-		const auto* cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
+	const auto& swap = vk.GetSwapchain();
+	const auto swapExtent = swap.GetExtent();
 
-		vkh::TransitionImageLayout(cmdBuf,
-			_offscreenTextureResource->Image(),
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-			VK_IMAGE_ASPECT_COLOR_BIT);
 
-		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	}
+	// Whole screen framebuffer dimensions
+	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
+	const auto framebufferViewport = vki::Viewport(framebufferRect);
+
 	
-	
+	// Scene Viewport / Region. Only the part of the screen showing the scene.
+	const auto sceneRectShared = ViewportRect();
+
 	// Draw scene to gbuf
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_renderer._renderPass, 
-			_offscreenFramebuffer.Framebuffer,
-			vki::Rect2D({0,0}, swapchainExtent), 
-			clearColors);
+		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
+		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
+		
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
+		                                                          sceneRectNoOffset,
+		                                                          clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
+			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
+			
 			DrawViewport(imageIndex, commandBuffer);
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+
+	
+	// Draw Ui full screen
+	{
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
+		                                                          swap.GetFramebuffers()[imageIndex],
+		                                                          framebufferRect,
+		                                                          clearColors);
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			const auto sceneRect = vki::Rect2D({sceneRectShared.Offset.X, sceneRectShared.Offset.Y},
+			                                   {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
+			const auto sceneViewport = vki::Viewport(sceneRect);
+
+			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
+			
+			DrawPostProcessedViewport(commandBuffer, imageIndex);
+
+			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
 			DrawUi(commandBuffer);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
-
-
-	// Prep offscreen texture for sampling from
-	{
-		const auto cmdBuf = vkh::BeginSingleTimeCommands(vk.CommandPool(), vk.LogicalDevice());
-
-		vkh::TransitionImageLayout(cmdBuf,
-			_offscreenTextureResource->Image(),
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-			VK_IMAGE_ASPECT_COLOR_BIT);
-
-		vkh::EndSingeTimeCommands(cmdBuf, vk.CommandPool(), vk.GraphicsQueue(), vk.LogicalDevice());
-	}
-
-	
-	// Draw gbuf to screen
-	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-			_vulkan.SwapchainRenderPass(), 
-			_vulkan.SwapchainFramebuffers()[imageIndex],
-			vki::Rect2D({0,0}, swapchainExtent), 
-			clearColors);
-
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			// Need to draw a quad
-			// Need pipeline
-			
-			// Render region - Note: this region is the 3d viewport only. ImGui defines it's own viewport
-			
-			auto viewport = vki::Viewport(0,0, (f32)swapchainExtent.width, (f32)swapchainExtent.height, 0,1);
-			auto scissor = vki::Rect2D({ 0,0 }, swapchainExtent);
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-
-			
-			const MeshResource mesh = _postPassResources.Quad;
-			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
-			
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.PipelineLayout, 0, 1, &_postPassResources.DescriptorSets[imageIndex], 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-			
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
 }
-*/
 
 void UiPresenter::LoadDemoScene()
 {
@@ -714,5 +717,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
+	_vulkan.InvalidateSwapchain();
 	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }

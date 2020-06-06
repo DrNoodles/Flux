@@ -95,8 +95,6 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		{
 			renderableBounds = AABB::Merge(renderableBounds, meshDef.Bounds);
 		}
-
-		
 	}
 
 	return RenderableComponent{ submeshes, renderableBounds };
