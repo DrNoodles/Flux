@@ -6,6 +6,15 @@
 // TODO Move these back to the Renderer layer
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct VignetteOptions
+{
+	bool Enabled = false;
+	glm::vec3 Color = glm::vec3(0);
+	float InnerRadius = 0.8f;
+	float OuterRadius = 1.5f;
+};
+
 struct RenderOptions
 {
 	float ExposureBias = 1;
@@ -14,6 +23,7 @@ struct RenderOptions
 	float SkyboxRotation = 0; // degrees
 	bool ShowIrradiance = true;
 	bool ShowClipping = false;
+	VignetteOptions Vignette = {};
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;

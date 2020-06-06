@@ -1,8 +1,10 @@
 #pragma once
 
+#include <imgui/imgui.h>
 #include <Framework/CommonTypes.h>
 
 #include <unordered_set>
+
 
 
 struct SkyboxInfo;
@@ -41,6 +43,9 @@ public:
 private:
 	ISceneViewDelegate* _del = nullptr;
 
+	// TODO refactor to have some control over styling - This is copied in SceneView.h
+	ImVec4 _headingColor = ImVec4{ .5,.5,.5,1 };
+	
 public:
 	SceneView() = delete;
 	explicit SceneView(ISceneViewDelegate* delegate) : _del{ delegate } {}
@@ -53,4 +58,5 @@ private:
 	void IblPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void BackdropPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void CameraPanel(ImGuiTreeNodeFlags headerFlags) const;
+	void PostPanel(ImGuiTreeNodeFlags headerFlags) const;
 };
