@@ -65,7 +65,7 @@ void main()
 
 	
 	// Vignette
-	const bool vignette = true;
+	const bool vignette = false;
 	if (vignette)
 	{
 		vec3 vinCol = vec3(0,0,0);
