@@ -70,6 +70,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
+	//CreateShadowFramebuffer();
+	_shadowResources = ShadowMap::ShadowMapResources::Create({1024,1024}, shaderDir, _vulkan);
 	CreateSceneFramebuffer();
 	CreateQuadResources(shaderDir);
 	CreateQuadDescriptorSets();
@@ -87,6 +89,7 @@ void UiPresenter::Shutdown()
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_shadowResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -395,6 +398,27 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	// Scene Viewport / Region. Only the part of the screen showing the scene.
 	const auto sceneRectShared = ViewportRect();
 
+
+	// Draw shadow pass
+	/*{
+		auto shadowRect = vki::Rect2D(0,0,1024,1024);
+		auto shadowViewport = vki::Viewport(shadowRect);
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
+		                                                          shadowRect,
+		                                                          clearColors);
+		
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
+			
+			DrawViewport(imageIndex, commandBuffer);
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}*/
+
+
+	
 	// Draw scene to gbuf
 	{
 		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});

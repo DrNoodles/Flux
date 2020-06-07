@@ -5,47 +5,6 @@
 
 namespace OffScreen
 {
-	struct FramebufferResources
-	{
-		struct Attachment
-		{
-			VkImage Image;
-			VkDeviceMemory ImageMemory;
-			VkImageView ImageView;
-
-			void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-			{
-				vkFreeMemory(device, ImageMemory, allocator);
-				vkDestroyImage(device, Image, allocator);
-				vkDestroyImageView(device, ImageView, allocator);
-				ImageMemory = nullptr;
-				Image = nullptr;
-				ImageView = nullptr;
-			}
-		};
-
-		VkExtent2D Extent = {};
-		VkFormat Format = {};
-		std::vector<Attachment> Attachments = {};
-		VkFramebuffer Framebuffer = nullptr;
-
-		// Color extras so we can sample from shader
-		VkSampler OutputSampler = nullptr;
-		VkDescriptorImageInfo OutputDescriptor;
-		
-		
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			for (auto&& attachment : Attachments) {
-				attachment.Destroy(device, allocator);
-			}
-
-			vkDestroyFramebuffer(device, Framebuffer, allocator);
-			vkDestroySampler(device, OutputSampler, allocator);
-		}
-	};
-
-	
 	inline FramebufferResources CreateSceneOffscreenFramebuffer(VkExtent2D extent, VkFormat format, VkRenderPass renderPass, VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice)
 	{
 		const u32 mipLevels = 1;

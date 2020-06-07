@@ -1,8 +1,11 @@
 #pragma once
 
 #include "IWindow.h"
-#include "OffScreen.h"
+
+// Render helpers - TODO remove all render deets from this class!
+#include "Offscreen.h"
 #include "OnScreen.h"
+#include "ShadowMap.h"
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -70,7 +73,8 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	OffScreen::FramebufferResources _sceneFramebuffer;
+	ShadowMap::ShadowMapResources _shadowResources;
+	FramebufferResources _sceneFramebuffer;
 	OnScreen::QuadResources _postPassResources;
 	OnScreen::QuadDescriptorResources _postPassDescriptors;
 
