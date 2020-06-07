@@ -5,10 +5,16 @@ layout(std140, binding = 1) uniform Ubo
 {
 	layout(offset= 0) int   showClipping;
 	layout(offset= 4) float exposureBias;
+
 	layout(offset= 8) float vignetteInnerRadius;
 	layout(offset=12) float vignetteOuterRadius;
 	layout(offset=16) vec3  vignetteColor;
 	layout(offset=32) int   enableVignette;
+
+	layout(offset=36) int   enableGrain;
+	layout(offset=40) float grainStr;
+	layout(offset=44) float grainColStr;
+	layout(offset=48) float grainSize;
 } ubo;
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 0) out vec4 outColor;
@@ -20,6 +26,21 @@ const mat3 ACESInputMat = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13
 const mat3 ACESOutputMat = mat3(1.60475, -0.10208, -0.00327,-0.53108, 1.10813, -0.07276, -0.07367, -0.00605,  1.07602);
 vec3 RRTAndODTFit(vec3 v) { return (v * (v + 0.0245786f) - 0.000090537f) / (v * (0.983729f * v + 0.4329510f) + 0.238081f); }
 vec3 ACESFitted(vec3 color) { return clamp(ACESOutputMat * RRTAndODTFit(ACESInputMat * color),0,1); }
+
+
+
+
+// Noise: http://devlog-martinsh.blogspot.com/2013/05/image-imperfections-and-film-grain-post.html
+
+
+
+
+
+
+
+
+
+
 
 
 bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001)
@@ -40,38 +61,27 @@ float linearstep(float a, float b, float v)
 
 
 
-
-// TODO pass in time
-float timer = 2;
-
-const float permTexUnit = 1.0/256.0;		// Perm texture texel-size
-const float permTexUnitHalf = 0.5/256.0;	// Half perm texture texel-size
-
-const float grainamount = 0.05; //grain amount
-bool colored = true; //colored noise?
-float coloramount = 0.6;
-float grainsize = 2.5; //grain particle size (1.5 - 2.5)
-float lumamount = 1.0; //
+float _time = 2;
+float _grainamount = 0.05;
+float _grainsize = 2.5; //grain particle size (1.5 - 2.5)
+float _coloramount = 0.6;
     
 //a random texture generator, but you can also use a pre-computed perturbation texture
 vec4 rnm(in vec2 tc) 
 {
-    float noise =  sin(dot(tc + vec2(timer,timer),vec2(12.9898,78.233))) * 43758.5453;
-
+	float noise =  sin(dot(tc + vec2(_time,_time), vec2(12.9898,78.233))) * 43758.5453;
 	float noiseR =  fract(noise)*2.0-1.0;
 	float noiseG =  fract(noise*1.2154)*2.0-1.0; 
 	float noiseB =  fract(noise*1.3453)*2.0-1.0;
 	float noiseA =  fract(noise*1.3647)*2.0-1.0;
-	
 	return vec4(noiseR,noiseG,noiseB,noiseA);
 }
-
-float fade(in float t) {
-	return t*t*t*(t*(t*6.0-15.0)+10.0);
-}
-
+float fade(in float t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
 float pnoise3D(in vec3 p)
 {
+	const float permTexUnit     = 1.0/256.0;	// Perm texture texel-size
+	const float permTexUnitHalf = 0.5/256.0;	// Half perm texture texel-size
+
 	vec3 pi = permTexUnit*floor(p)+permTexUnitHalf; // Integer part, scaled so +1 moves permTexUnit texel
 	// and offset 1/2 texel to sample texel centers
 	vec3 pf = fract(p);     // Fractional part for interpolation
@@ -116,41 +126,40 @@ float pnoise3D(in vec3 p)
 	// We're done, return the final noise value.
 	return n_xyz;
 }
-
-//2d coordinate orientation thing
-vec2 coordRot(in vec2 tc, in float angle, in float width, in float height)
+vec2 coordRot(in vec2 tc, in float angle, float aspect)
 {
-	float aspect = width/height;
 	float rotX = ((tc.x*2.0-1.0)*aspect*cos(angle)) - ((tc.y*2.0-1.0)*sin(angle));
 	float rotY = ((tc.y*2.0-1.0)*cos(angle)) + ((tc.x*2.0-1.0)*aspect*sin(angle));
 	rotX = ((rotX/aspect)*0.5+0.5);
 	rotY = rotY*0.5+0.5;
 	return vec2(rotX,rotY);
 }
-
-void mainer(vec2 texCoord, float width, float height, inout vec3 col) 
+void Grain(vec2 texCoord, vec2 size, inout vec3 col) 
 {
+	float aspect = size.x/size.y;
+	vec2 factor = size/_grainsize;
+
 	vec3 rotOffset = vec3(1.425,3.892,5.835); //rotation offset values	
-	vec2 rotCoordsR = coordRot(texCoord, timer + rotOffset.x, width, height);
-	vec3 noise = vec3(pnoise3D(vec3(rotCoordsR*vec2(width/grainsize,height/grainsize),0.0)));
+	vec2 rotCoordsR = coordRot(texCoord, _time + rotOffset.x, aspect);
+	vec3 noise = vec3(pnoise3D(vec3(rotCoordsR*factor, 0.0)));
   
-	if (colored)
+	if (_coloramount > 0.001)
 	{
-		vec2 rotCoordsG = coordRot(texCoord, timer + rotOffset.y, width, height);
-		vec2 rotCoordsB = coordRot(texCoord, timer + rotOffset.z, width, height);
-		noise.g = mix(noise.r,pnoise3D(vec3(rotCoordsG*vec2(width/grainsize,height/grainsize),1.0)),coloramount);
-		noise.b = mix(noise.r,pnoise3D(vec3(rotCoordsB*vec2(width/grainsize,height/grainsize),2.0)),coloramount);
+		vec2 rotCoordsG = coordRot(texCoord, _time + rotOffset.y, aspect);
+		vec2 rotCoordsB = coordRot(texCoord, _time + rotOffset.z, aspect);
+		noise.g = mix(noise.r, pnoise3D(vec3(rotCoordsG*factor, 1.0)), _coloramount);
+		noise.b = mix(noise.r, pnoise3D(vec3(rotCoordsB*factor, 2.0)), _coloramount);
 	}
 
 	//noisiness response curve based on scene luminance
+	const float _lumamount = 1.0; 
 	vec3 lumcoeff = vec3(0.299,0.587,0.114);
-	float luminance = mix(0.0,dot(col, lumcoeff),lumamount);
-	float lum = smoothstep(0.2,0.0,luminance);
+	float luminance = mix(0.0, dot(col, lumcoeff), _lumamount);
+	float lum = smoothstep(0.2, 0.0, luminance);
 	lum += luminance;
 	
-	
 	noise = mix(noise,vec3(0.0),pow(lum,4.0));
-	col = col+noise*grainamount;
+	col = col + noise*_grainamount;
 }
 
 
@@ -181,34 +190,32 @@ void main()
 
 	vec3 color = texture(screenMap, inTexCoord).rgb;
 
-	color *= ubo.exposureBias;          // Exposure
+	color *= ubo.exposureBias;       // Exposure
 	color = ACESFitted(color);       // Tonemap  
 	color = pow(color, vec3(1/2.2)); // Gamma: sRGB Linear -> 2.2
 
-
-
-	
+		
 	// Transform a uv so that middle = (0,0), topLeft = (-1, -1/aspect), botRight = (1, 1/aspect)
 	float aspect = res.x/float(res.y);
 	vec2 uv = (inTexCoord-.5) * 2 * vec2(aspect, 1);
 
 
 	// Preview UV coordinates
-	const bool previewUvCoords = false;
+	const bool previewUvCoords = true;
 	if (previewUvCoords)
 	{
 		color.r = mix(0, 1, uv.x > 0);
 		color.g = mix(0, 1, uv.y > 0);
 		color.b = mix(0, 1, uv.x < 0 && uv.y < 0);
 
-		color = mix(vec3(1,0,1), color, smoothstep(0.05, 0.051, length(uv-vec2(0))));
+		color = mix(vec3(1,1,1), color, smoothstep(0.2, 0.201, length(uv-vec2(0))));
+		color = mix(vec3(0,0,0), color, smoothstep(0.01, 0.011, length(uv-vec2(0))));
 		color = mix(vec3(0,1,1), color, smoothstep(0.05, 0.051, length(uv-vec2(-aspect, -1.))));
 		color = mix(vec3(0,0,1), color, smoothstep(0.05, 0.051, length(uv-vec2(aspect, 1.))));
 	}
 
 	
 	// Vignette
-	
 	if (bool(ubo.enableVignette))
 	{
 		//vec3 vinCol = vec3(0,0,0);
@@ -220,9 +227,14 @@ void main()
 		color = mix(color, ubo.vignetteColor, smoothstep(innerRadius, outerRadius, dist));
 	}
 
-//void mainer(vec2 texCoord, float width, float height, inout vec3 col) 
 
-	mainer(uv, float(res.x), float(res.y), color);
+	// Film grain
+	//if (bool(ubo.enableGrain))
+	{
+		Grain(uv, vec2(res), color);
+	}
+
+	
 
 	// Shows values clipped at white or black as bold colours
 	if (bool(ubo.showClipping))
