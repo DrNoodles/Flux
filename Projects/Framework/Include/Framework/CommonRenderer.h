@@ -9,7 +9,7 @@
 
 struct GrainOptions
 {
-	i32 Enabled = true;
+	i32 Enabled = false;
 	f32 Strength = 0.05f;
 	f32 ColorStrength = 0.6f;
 	f32 Size = 1.6f; // (1.5 - 2.5)
