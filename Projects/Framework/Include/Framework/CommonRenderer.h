@@ -7,11 +7,12 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct FilmGrainOptions
+struct GrainOptions
 {
-	bool Enabled = false;
-	bool Colored = true;
-	float Size = 2.5;
+	i32 Enabled = true;
+	f32 Strength = 0.05f;
+	f32 ColorStrength = 0.6f;
+	f32 Size = 1.6f; // (1.5 - 2.5)
 };
 
 struct VignetteOptions
@@ -31,6 +32,7 @@ struct RenderOptions
 	bool ShowIrradiance = true;
 	bool ShowClipping = false;
 	VignetteOptions Vignette = {};
+	GrainOptions Grain = {};
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;
