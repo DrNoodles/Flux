@@ -319,15 +319,22 @@ void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 i
 	// Update Ubo
 	{
 		const auto& ro = _scene.GetRenderOptions();
-		
 		PostUbo ubo;
-		ubo.ShowClipping = (int)ro.ShowClipping;
-		ubo.ExposureBias = ro.ExposureBias;
-		ubo.EnableVignette = (int)ro.Vignette.Enabled;
-		ubo.VignetteColor = ro.Vignette.Color;
+		
+		ubo.ShowClipping = (i32)ro.ShowClipping;
+		ubo.ExposureBias =      ro.ExposureBias;
+		
+		ubo.EnableVignette = (i32)ro.Vignette.Enabled;
+		ubo.VignetteColor       = ro.Vignette.Color;
 		ubo.VignetteInnerRadius = ro.Vignette.InnerRadius;
 		ubo.VignetteOuterRadius = ro.Vignette.OuterRadius;
 
+		ubo.EnableGrain   = (i32)ro.Grain.Enabled;
+		ubo.GrainStrength      = ro.Grain.Strength;
+		ubo.GrainColorStrength = ro.Grain.ColorStrength;
+		ubo.GrainSize          = ro.Grain.Size;
+
+		
 		void* data;
 		const auto size = sizeof(ubo);
 		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex], 0, size, 0, &data);

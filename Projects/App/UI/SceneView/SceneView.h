@@ -58,5 +58,8 @@ private:
 	void IblPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void BackdropPanel(ImGuiTreeNodeFlags headerFlags) const;
 	void CameraPanel(ImGuiTreeNodeFlags headerFlags) const;
+	
 	void PostPanel(ImGuiTreeNodeFlags headerFlags) const;
+	void PostVignette() const;
+	void PostGrain() const;
 };

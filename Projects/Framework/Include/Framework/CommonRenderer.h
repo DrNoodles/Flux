@@ -7,12 +7,20 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+struct GrainOptions
+{
+	i32 Enabled = true;
+	f32 Strength = 0.05f;
+	f32 ColorStrength = 0.6f;
+	f32 Size = 1.6f; // (1.5 - 2.5)
+};
+
 struct VignetteOptions
 {
 	bool Enabled = false;
 	glm::vec3 Color = glm::vec3(0);
-	float InnerRadius = 0.8f;
-	float OuterRadius = 1.5f;
+	float InnerRadius = 0.75f;
+	float OuterRadius = 1.75f;
 };
 
 struct RenderOptions
@@ -24,6 +32,7 @@ struct RenderOptions
 	bool ShowIrradiance = true;
 	bool ShowClipping = false;
 	VignetteOptions Vignette = {};
+	GrainOptions Grain = {};
 	//bool DrawDepth = false;
 	//bool DrawNormals = false;
 	//bool DisableShadows = false;

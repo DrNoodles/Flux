@@ -268,77 +268,141 @@ void SceneView::CameraPanel(ImGuiTreeNodeFlags headerFlags) const
 
 void SceneView::PostPanel(ImGuiTreeNodeFlags headerFlags) const
 {
-	float modeStart = 78;
-	float buttonRight = 35;
+	if (ImGui::CollapsingHeader("Post-Processing", headerFlags))
+	{
+		PostVignette();
+		PostGrain();
+	}
+}
 
+void SceneView::PostVignette() const
+{
+	const std::string id = "SceneView::PostPanel"; // id used to differentiate controls across all of imgui
 	auto ro = _del->GetRenderOptions();
 	auto& vo = ro.Vignette;
 	const bool cachedEnable = vo.Enabled; // this is so the UI doesn't flicker when drawing the frame enabled changes
-	
-	const std::string id = "SceneView::PostPanel"; // id used to differentiate controls across all of imgui
-
-	if (ImGui::CollapsingHeader("Post-Processing", headerFlags))
+	const float height = vo.Enabled ? 103.f : 33.f;
+	if (ImGui::BeginChild(("Vignette"+ id).c_str(), ImVec2{ 0, height }, true))
 	{
-		const float height = vo.Enabled ? 103.f : 33.f;
-		if (ImGui::BeginChild(("Vignette"+ id).c_str(), ImVec2{ 0, height }, true))
+		ImGui::Spacing();
+			
+		// Header
 		{
-			ImGui::Spacing();
-			
-			// Header
+			ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+			ImGui::Text("VIGNETTE");
+			ImGui::PopStyleColor(1);
+
+			// Enable button
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
-				ImGui::Text("VIGNETTE");
-				ImGui::PopStyleColor(1);
-
-				// Enable button
+				bool enabled = (int)vo.Enabled;
+				ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 17);
+				if (ImGui::Checkbox(("##" + id).c_str(), &enabled))
 				{
-					bool enabled = (int)vo.Enabled;
-					ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 17);
-					if (ImGui::Checkbox(("##" + id).c_str(), &enabled))
-					{
-						vo.Enabled = (bool)enabled;
-						_del->SetRenderOptions(ro);
-					}
-				}
-			}
-			
-			ImGui::Spacing();
-
-			if (cachedEnable) 
-			{
-				// Color
-				{
-					float* col = &vo.Color[0];
-					if (ImGui::ColorEdit3(("Colour##" + id).c_str(), col)) {
-						_del->SetRenderOptions(ro);
-					}
-				}
-			
-
-				// Inner Radius
-				{
-					float radius = vo.InnerRadius * 100;
-					if (ImGui::SliderFloat(("Radius##" + id).c_str(), &radius, 0, 150, "%.0f")) 
-					{
-						const auto delta = (radius / 100) - vo.InnerRadius;
-						vo.InnerRadius += delta;	
-						vo.OuterRadius += delta;	
-						_del->SetRenderOptions(ro);
-					}
-				}
-
-				
-				// Falloff
-				{
-					float falloff = (vo.OuterRadius - vo.InnerRadius) * 100;
-					if (ImGui::SliderFloat(("Falloff##" + id).c_str(), &falloff, 0, 200, "%.0f")) 
-					{
-						vo.OuterRadius = vo.InnerRadius + (falloff / 100);	
-						_del->SetRenderOptions(ro);
-					}
+					vo.Enabled = (bool)enabled;
+					_del->SetRenderOptions(ro);
 				}
 			}
 		}
-		ImGui::EndChild();
+			
+		ImGui::Spacing();
+
+		if (cachedEnable) 
+		{
+			// Color
+			{
+				float* col = &vo.Color[0];
+				if (ImGui::ColorEdit3(("Colour##" + id).c_str(), col)) {
+					_del->SetRenderOptions(ro);
+				}
+			}
+			
+
+			// Inner Radius
+			{
+				float radius = vo.InnerRadius * 100;
+				if (ImGui::SliderFloat(("Radius##" + id).c_str(), &radius, 0, 150, "%.0f")) 
+				{
+					const auto delta = (radius / 100) - vo.InnerRadius;
+					vo.InnerRadius += delta;	
+					vo.OuterRadius += delta;	
+					_del->SetRenderOptions(ro);
+				}
+			}
+
+				
+			// Falloff
+			{
+				float falloff = (vo.OuterRadius - vo.InnerRadius) * 100;
+				if (ImGui::SliderFloat(("Falloff##" + id).c_str(), &falloff, 0, 200, "%.0f")) 
+				{
+					vo.OuterRadius = vo.InnerRadius + (falloff / 100);	
+					_del->SetRenderOptions(ro);
+				}
+			}
+		}
 	}
+	ImGui::EndChild();
+}
+
+void SceneView::PostGrain() const
+{
+	const std::string id = "SceneView::PostPanel::Grain"; // id used to differentiate controls across all of imgui
+	auto ro = _del->GetRenderOptions();
+	auto& go = ro.Grain;
+	const bool cachedEnable = go.Enabled; // this is so the UI doesn't flicker when drawing the frame enabled changes
+	const float height = go.Enabled ? 103.f : 33.f;
+	if (ImGui::BeginChild(("Grain"+ id).c_str(), ImVec2{ 0, height }, true))
+	{
+		ImGui::Spacing();
+			
+		// Header
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, _headingColor);
+			ImGui::Text("GRAIN");
+			ImGui::PopStyleColor(1);
+
+			// Enable button
+			{
+				bool enabled = (int)go.Enabled;
+				ImGui::SameLine(ImGui::GetWindowContentRegionWidth() - 17);
+				if (ImGui::Checkbox(("##" + id).c_str(), &enabled))
+				{
+					go.Enabled = (bool)enabled;
+					_del->SetRenderOptions(ro);
+				}
+			}
+		}
+			
+		ImGui::Spacing();
+
+		if (cachedEnable) 
+		{
+			// Strength
+			{
+				if (ImGui::SliderFloat(("Strength##" + id).c_str(), &go.Strength, 0, 1, "%.4f", 3)) {
+					_del->SetRenderOptions(ro);
+				}
+			}
+
+			// Size
+			{
+				float min = 1.2;
+				float max = 4;
+				float ratio = (go.Size-min) / (max-min);
+				if (ImGui::SliderFloat(("Size##" + id).c_str(), &ratio, 0, 1, "%.2f")) 
+				{
+					go.Size = min + ratio*(max - min);
+					_del->SetRenderOptions(ro);
+				}
+			}
+
+			// Color Strength
+			{
+				if (ImGui::SliderFloat(("Colour##" + id).c_str(), &go.ColorStrength, 0, 1, "%.2f")) {
+					_del->SetRenderOptions(ro);
+				}
+			}
+		}
+	}
+	ImGui::EndChild();
 }
