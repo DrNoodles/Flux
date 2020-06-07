@@ -13,12 +13,19 @@ layout(std140, binding = 1) uniform Ubo
 
 	layout(offset=36) int   enableGrain;
 	layout(offset=40) float grainStr;
-	layout(offset=44) float grainColStr;
+	layout(offset=44) float grainColorStr;
 	layout(offset=48) float grainSize;
 } ubo;
+
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 0) out vec4 outColor;
 
+
+// TODO Get these from the ubo above
+float _time = 2;
+float _grainamount = 0.1;
+float _grainsize = 1.9; //grain particle size (1.5 - 2.5)
+float _coloramount = 0.6;
 
 
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
@@ -31,41 +38,8 @@ vec3 ACESFitted(vec3 color) { return clamp(ACESOutputMat * RRTAndODTFit(ACESInpu
 
 
 // Noise: http://devlog-martinsh.blogspot.com/2013/05/image-imperfections-and-film-grain-post.html
-
-
-
-
-
-
-
-
-
-
-
-
-bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001)
-{
-	return abs(a.r-b.r) < threshold 
-		&& abs(a.g-b.g) < threshold 
-		&& abs(a.b-b.b) < threshold;
-}
-
-float linearstep(float a, float b, float v)
-{
-	float len = b-a;
-	return clamp((v-a)/len, 0, 1);
-}
-
-
-
-
-
-
-float _time = 2;
-float _grainamount = 0.05;
-float _grainsize = 2.5; //grain particle size (1.5 - 2.5)
-float _coloramount = 0.6;
-    
+   
+float fade(in float t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
 //a random texture generator, but you can also use a pre-computed perturbation texture
 vec4 rnm(in vec2 tc) 
 {
@@ -76,7 +50,6 @@ vec4 rnm(in vec2 tc)
 	float noiseA =  fract(noise*1.3647)*2.0-1.0;
 	return vec4(noiseR,noiseG,noiseB,noiseA);
 }
-float fade(in float t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
 float pnoise3D(in vec3 p)
 {
 	const float permTexUnit     = 1.0/256.0;	// Perm texture texel-size
@@ -128,16 +101,18 @@ float pnoise3D(in vec3 p)
 }
 vec2 coordRot(in vec2 tc, in float angle, float aspect)
 {
-	float rotX = ((tc.x*2.0-1.0)*aspect*cos(angle)) - ((tc.y*2.0-1.0)*sin(angle));
-	float rotY = ((tc.y*2.0-1.0)*cos(angle)) + ((tc.x*2.0-1.0)*aspect*sin(angle));
+	float cosa = cos(angle);
+	float sina = sin(angle);
+	float rotX = ((tc.x*2.0-1.0)*aspect*cosa) - ((tc.y*2.0-1.0)*sina);
+	float rotY = ((tc.y*2.0-1.0)*cosa) + ((tc.x*2.0-1.0)*aspect*sina);
 	rotX = ((rotX/aspect)*0.5+0.5);
 	rotY = rotY*0.5+0.5;
 	return vec2(rotX,rotY);
 }
-void Grain(vec2 texCoord, vec2 size, inout vec3 col) 
+void Grain(vec2 texCoord, vec2 res, inout vec3 col) 
 {
-	float aspect = size.x/size.y;
-	vec2 factor = size/_grainsize;
+	float aspect = res.x/res.y;
+	vec2 factor = res/_grainsize;
 
 	vec3 rotOffset = vec3(1.425,3.892,5.835); //rotation offset values	
 	vec2 rotCoordsR = coordRot(texCoord, _time + rotOffset.x, aspect);
@@ -163,25 +138,12 @@ void Grain(vec2 texCoord, vec2 size, inout vec3 col)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+bool Equals3f(vec3 a, vec3 b, float threshold)// = 0.000001)
+{
+	return abs(a.r-b.r) < threshold 
+		&& abs(a.g-b.g) < threshold 
+		&& abs(a.b-b.b) < threshold;
+}
 
 
 void main()
@@ -201,7 +163,7 @@ void main()
 
 
 	// Preview UV coordinates
-	const bool previewUvCoords = true;
+	const bool previewUvCoords = false;
 	if (previewUvCoords)
 	{
 		color.r = mix(0, 1, uv.x > 0);
@@ -231,7 +193,7 @@ void main()
 	// Film grain
 	//if (bool(ubo.enableGrain))
 	{
-		Grain(uv, vec2(res), color);
+		Grain(inTexCoord, vec2(res), color);
 	}
 
 	
