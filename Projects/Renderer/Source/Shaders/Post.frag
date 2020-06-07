@@ -14,7 +14,9 @@ layout(std140, binding = 1) uniform Ubo
 	layout(offset=36) int   enableGrain;
 	layout(offset=40) float grainStr;
 	layout(offset=44) float grainColorStr;
-	layout(offset=48) float grainSize;
+	layout(offset=48) float grainSize;     // (1.5 - 2.5)
+
+	layout(offset=52) float time;          // seconds
 } ubo;
 
 layout(location = 0) in vec2 inTexCoord;
@@ -22,10 +24,6 @@ layout(location = 0) out vec4 outColor;
 
 
 // TODO Get these from the ubo above
-float _time = 2;
-float _grainamount = 0.1;
-float _grainsize = 1.9; //grain particle size (1.5 - 2.5)
-float _coloramount = 0.6;
 
 
 // ACES Tonemap: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
@@ -43,7 +41,7 @@ float fade(in float t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
 //a random texture generator, but you can also use a pre-computed perturbation texture
 vec4 rnm(in vec2 tc) 
 {
-	float noise =  sin(dot(tc + vec2(_time,_time), vec2(12.9898,78.233))) * 43758.5453;
+	float noise =  sin(dot(tc + vec2(ubo.time,ubo.time), vec2(12.9898,78.233))) * 43758.5453;
 	float noiseR =  fract(noise)*2.0-1.0;
 	float noiseG =  fract(noise*1.2154)*2.0-1.0; 
 	float noiseB =  fract(noise*1.3453)*2.0-1.0;
@@ -112,18 +110,18 @@ vec2 coordRot(in vec2 tc, in float angle, float aspect)
 void Grain(vec2 texCoord, vec2 res, inout vec3 col) 
 {
 	float aspect = res.x/res.y;
-	vec2 factor = res/_grainsize;
+	vec2 factor = res/ubo.grainSize;
 
 	vec3 rotOffset = vec3(1.425,3.892,5.835); //rotation offset values	
-	vec2 rotCoordsR = coordRot(texCoord, _time + rotOffset.x, aspect);
+	vec2 rotCoordsR = coordRot(texCoord, ubo.time + rotOffset.x, aspect);
 	vec3 noise = vec3(pnoise3D(vec3(rotCoordsR*factor, 0.0)));
   
-	if (_coloramount > 0.001)
+	if (ubo.grainColorStr > 0.001)
 	{
-		vec2 rotCoordsG = coordRot(texCoord, _time + rotOffset.y, aspect);
-		vec2 rotCoordsB = coordRot(texCoord, _time + rotOffset.z, aspect);
-		noise.g = mix(noise.r, pnoise3D(vec3(rotCoordsG*factor, 1.0)), _coloramount);
-		noise.b = mix(noise.r, pnoise3D(vec3(rotCoordsB*factor, 2.0)), _coloramount);
+		vec2 rotCoordsG = coordRot(texCoord, ubo.time + rotOffset.y, aspect);
+		vec2 rotCoordsB = coordRot(texCoord, ubo.time + rotOffset.z, aspect);
+		noise.g = mix(noise.r, pnoise3D(vec3(rotCoordsG*factor, 1.0)), ubo.grainColorStr);
+		noise.b = mix(noise.r, pnoise3D(vec3(rotCoordsB*factor, 2.0)), ubo.grainColorStr);
 	}
 
 	//noisiness response curve based on scene luminance
@@ -134,7 +132,7 @@ void Grain(vec2 texCoord, vec2 res, inout vec3 col)
 	lum += luminance;
 	
 	noise = mix(noise,vec3(0.0),pow(lum,4.0));
-	col = col + noise*_grainamount;
+	col = col + noise*ubo.grainStr;
 }
 
 
@@ -191,7 +189,7 @@ void main()
 
 
 	// Film grain
-	//if (bool(ubo.enableGrain))
+	if (bool(ubo.enableGrain))
 	{
 		Grain(inTexCoord, vec2(res), color);
 	}
