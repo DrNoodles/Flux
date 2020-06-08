@@ -280,6 +280,11 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 	std::vector<Light> lights;
 	std::vector<glm::mat4> transforms;
 
+	bool lightFound = false;
+	glm::mat4 lightProjection = {};
+	glm::vec3 lightPos = {};
+	glm::mat4 lightView = {};
+	
 	for (const auto& entity : entities)
 	{
 		if (entity->Renderable.has_value())
@@ -291,6 +296,15 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 			}
 		}
 
+		// Use the first directional light as shadow caster
+		if (!lightFound && entity->Light.has_value() && entity->Light->Type == LightComponent::Types::directional)
+		{
+			lightFound = true;
+			lightPos = entity->Transform.GetPos();;
+			lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+			lightView = glm::lookAt(lightPos, {0,0,0}, {0,1,0});
+		}
+		
 		if (entity->Light.has_value())
 		{
 			// Convert from LightComponent to Light
@@ -314,12 +328,28 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 	}
 
 	auto& camera = _scene.GetCamera();
-	const auto view = camera.GetViewMatrix();
+	auto view = camera.GetViewMatrix();
+	glm::vec3 camPos = camera.Position;
+	
+	// Calc Projection
+	const auto vfov = 45.f;
+	Rect2D region = ViewportRect();
+	const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+	auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
+	projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
-		
+
+	// TEMP - view the scene using the light's projection/view matrix
+	if (lightFound) 
+	{
+		view = lightView;
+		projection = lightProjection;
+		camPos = lightPos;
+	}
+
 	_renderer.Draw(
 		commandBuffer, imageIndex, _scene.GetRenderOptions(),
-		renderables, transforms, lights, view, camera.Position, ViewportRect());
+		renderables, transforms, lights, view, projection, camPos);
 }
 
 void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
@@ -436,7 +466,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			if (!lightFound && entity->Light.has_value() && entity->Light->Type == LightComponent::Types::directional)
 			{
 				lightFound = true;
-				lightProjection = glm::ortho(-10.f, 10.f, -10.f, 10.f, 0.1f, 100.f); // TODO Set the bounds dynamically
+				lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
 				lightView = glm::lookAt(entity->Transform.GetPos(), {0,0,0}, {0,1,0});
 			}
 		}
@@ -600,7 +630,7 @@ void UiPresenter::CreateDirectionalLight()
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::directional;
 	entity->Light->Intensity = 5;
-	entity->Transform.SetPos({0, -1, 0});
+	entity->Transform.SetPos({-10, -10, -10});
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));

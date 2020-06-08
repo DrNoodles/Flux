@@ -42,7 +42,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
 	const std::vector<Light>& lights,
-	glm::mat4 view, glm::vec3 camPos, const Rect2D& region)
+	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos)
 {
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
@@ -74,11 +74,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 	// Update UBOs
 	{
-		// Calc Projection
-		const auto vfov = 45.f;
-		const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+		
 
 
 		// Light ubo - TODO PERF Keep mem mapped

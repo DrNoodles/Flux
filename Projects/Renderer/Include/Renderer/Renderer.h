@@ -35,7 +35,7 @@ public:
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
 		const std::vector<Light>& lights,
-		glm::mat4 view, glm::vec3 camPos, const Rect2D& region);
+		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos);
 	
 	void CleanUp(); // TODO convert to RAII?
 

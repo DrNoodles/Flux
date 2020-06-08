@@ -130,7 +130,7 @@ namespace ShadowMap
 			VkPipelineRasterizationStateCreateInfo rasterizationState = {};
 			rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 			rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+			rasterizationState.cullMode = VK_CULL_MODE_NONE; // TODO Enable culling once this renderpass works!
 			rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 			rasterizationState.flags = 0;
 			rasterizationState.depthClampEnable = VK_FALSE;
@@ -246,12 +246,12 @@ namespace ShadowMap
 			{
 				depthAttachDesc.format = depthFormat;
 				depthAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-				depthAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				depthAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 				depthAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 				depthAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 				depthAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 				depthAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				depthAttachDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+				depthAttachDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			}
 
 
@@ -286,7 +286,7 @@ namespace ShadowMap
 			dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 			dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-			return vkh::CreateRenderPass(vk.LogicalDevice(), { depthAttachDesc }, { subpassDescription }, { dependencies });
+			return vkh::CreateRenderPass(vk.LogicalDevice(), { depthAttachDesc }, { subpassDescription }, dependencies);
 		}
 
 		static FramebufferResources CreateFramebuffer(VkExtent2D extent, VkRenderPass renderPass, VulkanService& vk)
@@ -311,7 +311,7 @@ namespace ShadowMap
 					msaaSamples,
 					depthFormat,
 					VK_IMAGE_TILING_OPTIMAL,
-					VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+					VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 					physicalDevice, device);
 
