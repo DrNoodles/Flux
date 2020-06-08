@@ -7,24 +7,96 @@
 
 namespace ShadowMap
 {
-	struct ShadowMapResources
+	struct ShadowmapDescriptorResources
 	{
+		u32 ImageCount = 0; 
+		std::vector<VkDescriptorSet> DescriptorSets = {};
+		std::vector<VkBuffer> UboBuffers = {};
+		std::vector<VkDeviceMemory> UboBuffersMemory = {};
+		VkDescriptorPool DescriptorPool = nullptr;
+
+
+		static ShadowmapDescriptorResources Create(u32 imageCount, VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
+		{
+			// Create uniform buffers
+			const auto uboSize = sizeof(ShadowVertUbo);
+			auto [uboBuffers, uboBuffersMemory]
+				= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+
+			
+			// Create descriptor pool
+			VkDescriptorPool descPool;
+			{
+				const std::vector<VkDescriptorPoolSize> poolSizes = {
+					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
+				};
+				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+			}
+
+
+			// Create descriptor sets
+			std::vector<VkDescriptorSet> descSets;
+			{
+				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+				
+				for (size_t i = 0; i < imageCount; i++)
+				{
+					VkDescriptorBufferInfo bufferUboInfo = {};
+					bufferUboInfo.buffer = uboBuffers[i];
+					bufferUboInfo.offset = 0;
+					bufferUboInfo.range = uboSize;
+
+					std::vector<VkWriteDescriptorSet> writes
+					{
+						vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+					};
+					
+					vkh::UpdateDescriptorSets(device, writes);
+				}
+			}
+
+
+			
+			ShadowmapDescriptorResources res;
+			res.ImageCount = imageCount;
+			res.UboBuffers = uboBuffers;
+			res.UboBuffersMemory = uboBuffersMemory;
+			res.DescriptorPool = descPool;
+			res.DescriptorSets = descSets;
+			return res;
+		}
+
+		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+		{
+			for (u32 i = 0; i < ImageCount; i++)
+			{
+				vkDestroyBuffer(device, UboBuffers[i], allocator);
+				vkFreeMemory(device, UboBuffersMemory[i], allocator);
+			}
+			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+			ImageCount = 0;
+		}
+	};
+	
+	struct ShadowmapDrawResources
+	{
+		VkExtent2D Size = {};
 		VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 		VkRenderPass RenderPass = nullptr;
 		FramebufferResources Framebuffer = {};
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
 
-		ShadowMapResources() = default;
+		ShadowmapDrawResources() = default;
 
-
-		static ShadowMapResources Create(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
+		static ShadowmapDrawResources Create(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
 		{
-			ShadowMapResources res;
+			ShadowmapDrawResources res = {};
+			res.Size = size;
 			res.RenderPass = CreateRenderPass(vk);
 			res.Framebuffer = CreateFramebuffer(size, res.RenderPass, vk);
 			res.DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
-				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 				});
 			res.PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { res.DescriptorSetLayout });
 			res.Pipeline = CreatePipeline(shaderDir, res.RenderPass, res.PipelineLayout, vk);
@@ -103,18 +175,13 @@ namespace ShadowMap
 
 			// Vertex Input  -  Define the format of the vertex data passed to the vert shader
 			VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
-			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(2);
+			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 			{
 				// Pos
 				vertAttrDesc[0].binding = 0;
 				vertAttrDesc[0].location = 0;
 				vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 				vertAttrDesc[0].offset = offsetof(Vertex, Pos);
-				// TexCoord
-				vertAttrDesc[1].binding = 0;
-				vertAttrDesc[1].location = 1;
-				vertAttrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
-				vertAttrDesc[1].offset = offsetof(Vertex, TexCoord);
 			}
 
 			VkPipelineVertexInputStateCreateInfo vertexInputState = {};
@@ -180,9 +247,9 @@ namespace ShadowMap
 				depthAttachDesc.format = depthFormat;
 				depthAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
 				depthAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-				depthAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-				depthAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				depthAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+				depthAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+				depthAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				depthAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 				depthAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				depthAttachDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
 			}

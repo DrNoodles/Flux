@@ -85,7 +85,7 @@ namespace OnScreen
 
 	
 	// Used to render final result to the screen
-	struct QuadResources
+	struct QuadDrawResources
 	{
 		// Client used
 		MeshResource Quad;
@@ -113,7 +113,7 @@ namespace OnScreen
 
 	
 	
-	inline QuadResources CreateQuadResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
+	inline QuadDrawResources CreateQuadResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -300,7 +300,7 @@ namespace OnScreen
 		}
 
 
-		QuadResources res = {};
+		QuadDrawResources res = {};
 		res.Quad = quad;
 		res.DescriptorSetLayout = descSetlayout;
 		res.PipelineLayout = pipelineLayout;

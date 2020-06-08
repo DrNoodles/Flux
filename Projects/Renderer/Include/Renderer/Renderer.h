@@ -23,6 +23,10 @@ class Renderer
 {
 public:
 
+	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
+	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
+
+	
 	explicit Renderer(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir, 
 	                  IModelLoaderService& modelLoaderService);
 

@@ -73,16 +73,18 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	ShadowMap::ShadowMapResources _shadowResources;
+	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
+	ShadowMap::ShadowmapDescriptorResources _shadowDescriptorResources;
 	FramebufferResources _sceneFramebuffer;
-	OnScreen::QuadResources _postPassResources;
-	OnScreen::QuadDescriptorResources _postPassDescriptors;
+	OnScreen::QuadDrawResources _postPassDrawResources;
+	OnScreen::QuadDescriptorResources _postPassDescriptorResources;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
 	PointerWheelChangedDelegate _pointerWheelChangedHandler = [this](auto* s, auto a) { OnPointerWheelChanged(s, a); };
 	KeyDownDelegate _keyDownHandler = [this](auto* s, auto a) { OnKeyDown(s, a); };
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
+	
 
 public: // METHODS
 	
