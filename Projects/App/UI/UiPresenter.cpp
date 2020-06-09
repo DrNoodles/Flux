@@ -301,7 +301,14 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			lightFound = true;
 			lightPos = entity->Transform.GetPos();;
-			lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+
+			//lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+
+			auto region = ViewportRect();
+			const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+			lightProjection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
+			lightProjection = glm::scale(lightProjection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+
 			lightView = glm::lookAt(lightPos, {0,0,0}, {0,1,0});
 		}
 		
@@ -466,7 +473,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			if (!lightFound && entity->Light.has_value() && entity->Light->Type == LightComponent::Types::directional)
 			{
 				lightFound = true;
-				lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+				//lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+
+				auto region = ViewportRect();
+				const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+				lightProjection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
+				lightProjection = glm::scale(lightProjection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+
 				lightView = glm::lookAt(entity->Transform.GetPos(), {0,0,0}, {0,1,0});
 			}
 		}
