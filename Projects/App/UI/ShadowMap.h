@@ -88,19 +88,16 @@ namespace ShadowMap
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
 
 		ShadowmapDrawResources() = default;
-
-		static ShadowmapDrawResources Create(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
+		ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
 		{
-			ShadowmapDrawResources res = {};
-			res.Size = size;
-			res.RenderPass = CreateRenderPass(vk);
-			res.Framebuffer = CreateFramebuffer(size, res.RenderPass, vk);
-			res.DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
+			Size = size;
+			RenderPass = CreateRenderPass(vk);
+			Framebuffer = CreateFramebuffer(size, RenderPass, vk);
+			DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
 				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 				});
-			res.PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { res.DescriptorSetLayout });
-			res.Pipeline = CreatePipeline(shaderDir, res.RenderPass, res.PipelineLayout, vk);
-			return res;
+			PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
+			Pipeline = CreatePipeline(shaderDir, RenderPass, PipelineLayout, vk);
 		}
 
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)

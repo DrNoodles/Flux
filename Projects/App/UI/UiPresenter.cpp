@@ -74,7 +74,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 	//CreateShadowFramebuffer();
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources::Create({ 1024,1024 }, shaderDir, _vulkan);
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 1024,1024 }, shaderDir, _vulkan};
 	_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	CreateSceneFramebuffer();
 	CreateQuadResources(shaderDir);
