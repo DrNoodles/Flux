@@ -115,8 +115,23 @@ namespace ShadowMap
 		{
 			auto* device = vk.LogicalDevice();
 			const auto vertPath = shaderDir + "Shadowmap.vert.spv";
-			const auto fragPath = shaderDir + "Shadowmap.frag.spv";
+			//const auto fragPath = shaderDir + "Shadowmap.frag.spv";
+			
+			// Shaders
+			VkPipelineShaderStageCreateInfo vertShaderStage = {};
+			vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
+			vertShaderStage.pName = "main";
 
+			//VkPipelineShaderStageCreateInfo fragShaderStage = {};
+			//fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			//fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			//fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
+			//fragShaderStage.pName = "main";
+			
+			std::vector<VkPipelineShaderStageCreateInfo> shaderStages{ vertShaderStage };
+			
 
 			VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
 			inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -132,15 +147,16 @@ namespace ShadowMap
 			rasterizationState.flags = 0;
 			rasterizationState.depthClampEnable = VK_FALSE;
 			rasterizationState.lineWidth = 1.0f;
+			//rasterizationState.depthBiasEnable = true; // TODO Enable and control dynamically via VK_DYNAMIC_STATE_SCISSOR
 
-			VkPipelineColorBlendAttachmentState blendAttachmentState = {};
+			/*VkPipelineColorBlendAttachmentState blendAttachmentState = {};
 			blendAttachmentState.colorWriteMask = 0xf;
-			blendAttachmentState.blendEnable = VK_FALSE;
+			blendAttachmentState.blendEnable = VK_FALSE;*/
 
 			VkPipelineColorBlendStateCreateInfo colorBlendState = {};
 			colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-			colorBlendState.attachmentCount = 1;
-			colorBlendState.pAttachments = &blendAttachmentState;
+			colorBlendState.attachmentCount = 0;
+			colorBlendState.pAttachments = nullptr;//&blendAttachmentState;
 
 			VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
 			depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -172,6 +188,7 @@ namespace ShadowMap
 
 			// Vertex Input  -  Define the format of the vertex data passed to the vert shader
 			VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
+			//auto vertAttrDesc = VertexHelper::AttributeDescriptions();
 			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 			{
 				// Pos
@@ -187,21 +204,7 @@ namespace ShadowMap
 			vertexInputState.pVertexBindingDescriptions = &vertBindingDesc;
 			vertexInputState.vertexAttributeDescriptionCount = (u32)vertAttrDesc.size();
 			vertexInputState.pVertexAttributeDescriptions = vertAttrDesc.data();
-
-			// Shaders
-			VkPipelineShaderStageCreateInfo vertShaderStage = {};
-			vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
-			vertShaderStage.pName = "main";
-
-			VkPipelineShaderStageCreateInfo fragShaderStage = {};
-			fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
-			fragShaderStage.pName = "main";
-			std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{ vertShaderStage, fragShaderStage };
-
+			
 
 			// Create the pipeline
 			VkGraphicsPipelineCreateInfo pipelineCI = {};
@@ -228,7 +231,7 @@ namespace ShadowMap
 
 			// Cleanup
 			vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
-			vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
+			//vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
 
 			return pipeline;
 		}
