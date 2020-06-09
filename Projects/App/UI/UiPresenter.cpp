@@ -37,10 +37,11 @@ void UiPresenter::CreateQuadResources(const std::string& shaderDir)
 void UiPresenter::CreateQuadDescriptorSets()
 {
 	// Create quad descriptor sets
-	_postPassDescriptorResources = OnScreen::QuadDescriptorResources::Create(_sceneFramebuffer.OutputDescriptor,
-	                                                                 _vulkan.GetSwapchain().GetImageCount(),
-	                                                                 _postPassDrawResources.DescriptorSetLayout,
-	                                                                 _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	_postPassDescriptorResources = OnScreen::QuadDescriptorResources::Create(
+		_sceneFramebuffer.OutputDescriptor,
+		_vulkan.GetSwapchain().GetImageCount(),
+		_postPassDrawResources.DescriptorSetLayout,
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
@@ -49,10 +50,9 @@ void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapcha
 	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 
-	
 	CreateSceneFramebuffer();
 	CreateQuadDescriptorSets();
-	_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 
@@ -543,10 +543,11 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	{
 		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
 		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
-		
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
-		                                                          sceneRectNoOffset,
-		                                                          clearColors);
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
+			_sceneFramebuffer.Framebuffer,
+			sceneRectNoOffset,
+			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{

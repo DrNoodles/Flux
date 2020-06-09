@@ -341,8 +341,8 @@ namespace ShadowMap
 			res.Format = depthFormat;
 			res.Attachments = { depthAttachment };
 			res.OutputSampler = sampler;
-			res.OutputDescriptor = VkDescriptorImageInfo{ sampler, depthAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-
+			res.OutputDescriptor = VkDescriptorImageInfo{ sampler, depthAttachment.ImageView, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+			
 			return res;
 		}
 	};
