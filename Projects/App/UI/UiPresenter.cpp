@@ -487,37 +487,34 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		// Draw the scene
 		if (lightFound)
 		{
+			const auto& renderables = _renderer.Hack_GetRenderables();
+			const auto& meshes = _renderer.Hack_GetMeshes();
+
+			// Update Ubo - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
+			for (size_t i = 0; i < renderableIds.size(); i++)
+			{
+				const auto& renderable = *renderables[renderableIds[i].Id];
+				const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory;
+
+				ShadowVertUbo ubo = {};
+				ubo.MVP = lightProjection * lightView * transforms[i];
+				
+				// Copy to gpu - TODO PERF Keep mem mapped 
+				void* data;
+				auto size = sizeof(ubo);
+				vkMapMemory(vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
+				memcpy(data, &ubo, size);
+				vkUnmapMemory(vk.LogicalDevice(), modelBufferMemory);
+			}
+
+
+			// Draw
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
-
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
 
-				
-				const auto& renderables = _renderer.Hack_GetRenderables();
-				const auto& meshes = _renderer.Hack_GetMeshes();
-				
-
-				// Update Model ubos - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
-				for (size_t i = 0; i < renderableIds.size(); i++)
-				{
-					const auto& renderable = *renderables[renderableIds[i].Id];
-					const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory;
-
-					ShadowVertUbo ubo = {};
-					ubo.MVP = lightProjection * lightView * transforms[i];
-					
-					// Copy to gpu - TODO PERF Keep mem mapped 
-					void* data;
-					auto size = sizeof(ubo);
-					vkMapMemory(vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
-					memcpy(data, &ubo, size);
-					vkUnmapMemory(vk.LogicalDevice(), modelBufferMemory);
-				}
-
-
-				// Draw meshes
 				for (const auto& id : renderableIds)
 				{
 					const auto& renderable = renderables[id.Id].get();
@@ -533,7 +530,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 						VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.PipelineLayout, 
 						0, 1, &_shadowDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);
 
-					vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+					vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 				}
 			}
 			vkCmdEndRenderPass(commandBuffer);
