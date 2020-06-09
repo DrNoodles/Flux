@@ -74,6 +74,7 @@ layout(binding = 8)  uniform sampler2D MetalnessMap;
 layout(binding = 9)  uniform sampler2D AmbientOcclusionMap;
 layout(binding = 10) uniform sampler2D EmissiveMap;
 layout(binding = 11) uniform sampler2D TransparencyMap;
+layout(binding = 12) uniform sampler2D ShadowMap;
 
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in vec3 fragColor;
@@ -107,6 +108,13 @@ float GetTransparency();
 
 void main() 
 {
+	if (ubo.showClipping) // hack
+	{
+		vec3 col = texture(ShadowMap, fragTexCoord).rgb;
+		outColor = vec4(col, 1);
+		return;
+	}
+
 	vec3 normal = GetNormal();
 	vec3 basecolor = GetBasecolor();
 	float metalness = GetMetalness();

@@ -188,15 +188,15 @@ namespace ShadowMap
 
 			// Vertex Input  -  Define the format of the vertex data passed to the vert shader
 			VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
-			//auto vertAttrDesc = VertexHelper::AttributeDescriptions();
-			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
-			{
-				// Pos
-				vertAttrDesc[0].binding = 0;
-				vertAttrDesc[0].location = 0;
-				vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-				vertAttrDesc[0].offset = offsetof(Vertex, Pos);
-			}
+			auto vertAttrDesc = VertexHelper::AttributeDescriptions();
+			//std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
+			//{
+			//	// Pos
+			//	vertAttrDesc[0].binding = 0;
+			//	vertAttrDesc[0].location = 0;
+			//	vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			//	vertAttrDesc[0].offset = offsetof(Vertex, Pos);
+			//}
 
 			VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 			vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

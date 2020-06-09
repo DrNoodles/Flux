@@ -23,8 +23,8 @@
 
 using vkh = VulkanHelpers;
 
-Renderer::Renderer(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir,
-	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
+Renderer::Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, std::string shaderDir, const std::string& assetsDir,
+	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
@@ -655,7 +655,7 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 
 	// Match these to CreatePbrDescriptorSetLayout
 	const auto numPbrUniformBuffers = 2;
-	const auto numPbrCombinedImageSamplers = 10;
+	const auto numPbrCombinedImageSamplers = 11;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
 	const auto numSkyboxUniformBuffers = 2;
@@ -714,6 +714,7 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		GetIrradianceTextureResource(),
 		GetPrefilterTextureResource(),
 		GetBrdfTextureResource(),
+		GetShadowmapTextureResource(),
 		_vk.LogicalDevice()
 	);
 
@@ -759,6 +760,8 @@ VkDescriptorSetLayout Renderer::CreatePbrDescriptorSetLayout(VkDevice device)
 		vki::DescriptorSetLayoutBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// transparencyMap
 		vki::DescriptorSetLayoutBinding(11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// shadowMap
+		vki::DescriptorSetLayoutBinding(12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
 }
 
@@ -777,11 +780,12 @@ void Renderer::WritePbrDescriptorSets(
 	const TextureResource& irradianceMap,
 	const TextureResource& prefilterMap,
 	const TextureResource& brdfMap,
+	VkDescriptorImageInfo shadowmapDescriptor,
 	VkDevice device)
 {
 	assert(count == modelUbos.size());// 1 per image in swapchain
 	assert(count == lightUbos.size());
-
+	
 	// Configure our new descriptor sets to point to our buffer/image data
 	for (size_t i = 0; i < count; ++i)
 	{
@@ -815,7 +819,7 @@ void Renderer::WritePbrDescriptorSets(
 			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.DescriptorImageInfo()),
 			vki::WriteDescriptorSet(set, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.DescriptorImageInfo()),
-
+			vki::WriteDescriptorSet(set, 12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
 		};
 
 		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
@@ -1081,6 +1085,7 @@ void Renderer::UpdateRenderableDescriptorSets()
 			GetIrradianceTextureResource(),
 			GetPrefilterTextureResource(),
 			GetBrdfTextureResource(),
+			GetShadowmapTextureResource(),
 			_vk.LogicalDevice());
 	}
 }

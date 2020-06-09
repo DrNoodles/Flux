@@ -92,6 +92,10 @@ public: // METHODS
 	~UiPresenter() = default;
 	
 	void Shutdown();
+	VkDescriptorImageInfo GetShadowmapDescriptor() const
+	{
+		return _shadowDrawResources.Framebuffer.OutputDescriptor;
+	}
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;

@@ -17,18 +17,21 @@ class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
 
+class IRendererDelegate
+{
+public:
+	virtual ~IRendererDelegate() = default;
+	virtual VkDescriptorImageInfo GetShadowmapDescriptor() = 0;
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Renderer
 {
 public:
-
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
 	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
-
 	
-	explicit Renderer(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir, 
-	                  IModelLoaderService& modelLoaderService);
+	explicit Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
 		const RenderOptions& options,
@@ -78,6 +81,7 @@ public:
 
 private: // Dependencies
 	VulkanService& _vk;
+	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
 
 	VkRenderPass _renderPass = nullptr;
@@ -113,7 +117,7 @@ private: // Dependencies
 
 	RenderOptions _lastOptions;
 
-	
+
 	void InitRenderer();
 	void DestroyRenderer();
 
@@ -134,7 +138,7 @@ private: // Dependencies
 	#pragma region Pbr
 
 	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, 
-		const RenderableMesh& renderable) const;
+	                                                                const RenderableMesh& renderable) const;
 	
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
@@ -154,6 +158,7 @@ private: // Dependencies
 		const TextureResource& irradianceMap,
 		const TextureResource& prefilterMap,
 		const TextureResource& brdfMap,
+		VkDescriptorImageInfo shadowmapDescriptor,
 		VkDevice device);
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
@@ -176,6 +181,12 @@ private: // Dependencies
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
+	}
+
+	VkDescriptorImageInfo GetShadowmapTextureResource() const
+	{
+		//TODO Write a hack to get the resource from elsewhere
+		return _delegate.GetShadowmapDescriptor();
 	}
 
 	void UpdateRenderableDescriptorSets();

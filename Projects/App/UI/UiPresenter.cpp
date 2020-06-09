@@ -354,9 +354,35 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		camPos = lightPos;
 	}
 
-	_renderer.Draw(
-		commandBuffer, imageIndex, _scene.GetRenderOptions(),
-		renderables, transforms, lights, view, projection, camPos);
+
+	
+	// Scene Viewport / Region. Only the part of the screen showing the scene.
+
+	// Clear colour
+	std::vector<VkClearValue> clearColors(2);
+	clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+	clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+	const auto sceneRectShared = ViewportRect();
+	const auto sceneRectNoOffset = vki::Rect2D({ 0, 0 }, { sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+	const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
+
+	const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
+		_sceneFramebuffer.Framebuffer,
+		sceneRectNoOffset,
+		clearColors);
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	{
+		vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
+		vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
+
+		_renderer.Draw(
+			commandBuffer, imageIndex, _scene.GetRenderOptions(),
+			renderables, transforms, lights, view, projection, camPos);
+	}
+	vkCmdEndRenderPass(commandBuffer);
+
 }
 
 void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
@@ -537,45 +563,24 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		}
 	}
 
-
 	
 	// Draw scene to gbuf
-	{
-		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
-		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
-
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
-			_sceneFramebuffer.Framebuffer,
-			sceneRectNoOffset,
-			clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
-			
-			DrawViewport(imageIndex, commandBuffer);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
+	DrawViewport(imageIndex, commandBuffer);
 
 	
 	// Draw Ui full screen
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
-		                                                          swap.GetFramebuffers()[imageIndex],
-		                                                          framebufferRect,
-		                                                          clearColors);
+		const auto sceneRect = vki::Rect2D(
+			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
+			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+		const auto sceneViewport = vki::Viewport(sceneRect);
+		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
+			framebufferRect, clearColors);
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			const auto sceneRect = vki::Rect2D({sceneRectShared.Offset.X, sceneRectShared.Offset.Y},
-			                                   {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
-			const auto sceneViewport = vki::Viewport(sceneRect);
-
 			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-			
 			DrawPostProcessedViewport(commandBuffer, imageIndex);
 
 			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);

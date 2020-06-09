@@ -35,7 +35,8 @@ class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
-	public IVulkanServiceDelegate
+	public IVulkanServiceDelegate,
+	public IRendererDelegate
 {
 public: // DATA
 	
@@ -92,7 +93,7 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto renderer = std::make_unique<Renderer>(*vulkanService, *this, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
@@ -447,6 +448,13 @@ private: // METHODS
 	{
 		return _renderer->SetSkybox(resourceId);
 	}
-	
+
+public:
+	VkDescriptorImageInfo GetShadowmapDescriptor() override
+	{
+		// HACK - Giant dirty hack in lieu of having to refactor... well... everything...
+		return _ui->GetShadowmapDescriptor();
+	}
+private:
 	#pragma endregion 
 };
