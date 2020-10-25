@@ -37,17 +37,8 @@ Renderer::Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
-void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
-	const RenderOptions& options,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
-	const std::vector<Light>& lights,
-	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos)
+void Renderer::UpdateDescriptors(const RenderOptions& options)
 {
-	assert(renderableIds.size() == transforms.size());
-	const auto startBench = std::chrono::steady_clock::now();
-
-
 	// Diff render options and force state updates where needed
 	{
 		// Process whether refreshing is required
@@ -69,14 +60,21 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			UpdateRenderableDescriptorSets();
 		}
 	}
-	
+}
+
+void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
+	const RenderOptions& options,
+	const std::vector<RenderableResourceId>& renderableIds,
+	const std::vector<glm::mat4>& transforms,
+	const std::vector<Light>& lights,
+	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos)
+{
+	assert(renderableIds.size() == transforms.size());
+	const auto startBench = std::chrono::steady_clock::now();
 
 
 	// Update UBOs
 	{
-		
-
-
 		// Light ubo - TODO PERF Keep mem mapped
 		{
 			auto lightsUbo = LightUbo::Create(lights);
@@ -87,7 +85,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			memcpy(data, &lightsUbo, size);
 			vkUnmapMemory(_vk.LogicalDevice(), _lightBuffersMemory[frameIndex]);
 		}
-
 
 		// Update skybox ubos
 		const Skybox* skybox = GetCurrentSkyboxOrNull();
@@ -127,7 +124,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			}
 		}
 
-
 		// Update Pbr Model ubos
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
@@ -137,7 +133,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.Projection = projection;
 			info.CamPos = camPos;
 			info.ExposureBias = options.ExposureBias;
-			info.IblStrength = options. IblStrength;
+			info.IblStrength = options.IblStrength;
 			info.ShowClipping = options.ShowClipping;
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
@@ -145,7 +141,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			const auto& renderable = *_renderables[renderableIds[i].Id];
 			const auto& modelBufferMemory = renderable.FrameResources[frameIndex].UniformBufferMemory;
 			const auto modelUbo = UniversalUbo::Create(info, renderable.Mat);
-			
+
 			// Copy to gpu - TODO PERF Keep mem mapped 
 			void* data;
 			auto size = sizeof(modelUbo);
@@ -153,51 +149,73 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			memcpy(data, &modelUbo, size);
 			vkUnmapMemory(_vk.LogicalDevice(), modelBufferMemory);
 		}
+	}
 
+
+	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
+	std::vector<RenderableResourceId> opaqueObjects = {};
+	std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
+
+	for (size_t i = 0; i < renderableIds.size(); i++)
+	{
+		const auto& id = renderableIds[i];
+		const auto& mat = _renderables[id.Id]->Mat;
 		
-		std::vector<RenderableResourceId> opaqueObjects = {};
-		std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {};
-		
-		// Split renderables into an opaque and ordered transparent collections.
-		for (size_t i = 0; i < renderableIds.size(); i++)
+		if (mat.UsingTransparencyMap())
 		{
-			const auto& id = renderableIds[i];
-			const auto& mat = _renderables[id.Id]->Mat;
+			// Depth sort transparent object
 			
-			if (mat.UsingTransparencyMap())
-			{
-				// Depth sort transparent object
-				
-				// Calc depth of from camera to object transform - this isn't fullproof!
-				const auto& tf = transforms[i];
-				auto objPos = glm::vec3(tf[3]);
-				glm::vec3 diff = objPos-camPos;
-				float dist2 = glm::dot(diff,diff);
+			// Calc depth of from camera to object transform - this isn't fullproof!
+			const auto& tf = transforms[i];
+			auto objPos = glm::vec3(tf[3]);
+			glm::vec3 diff = objPos-camPos;
+			float dist2 = glm::dot(diff,diff);
 
-				auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
-				while (!success)
-				{
-					// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
-					dist2 += 0.001f * (float(rand())/RAND_MAX);
-					std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
-					//std::cerr << "Failed to depth sort object\n";
-				}
-			}
-			else // Opaque
+			auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
+			while (!success)
 			{
-				opaqueObjects.emplace_back(id);
+				// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+				dist2 += 0.001f * (float(rand())/RAND_MAX);
+				std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
+				//std::cerr << "Failed to depth sort object\n";
 			}
 		}
-
-
-		// Record Command Buffer
-
-		// Draw Skybox
-		if (skybox)
+		else // Opaque
 		{
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
+			opaqueObjects.emplace_back(id);
+		}
+	}
 
-			const auto& mesh = *_meshes[skybox->MeshId.Id];
+	
+	// Draw Skybox
+	const Skybox* skybox = GetCurrentSkyboxOrNull();
+	if (skybox)
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
+
+		const auto& mesh = *_meshes[skybox->MeshId.Id];
+
+		// Draw mesh
+		VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipelineLayout,
+			0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+		vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+	}
+
+	
+	// Draw Pbr Objects
+	{
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
+
+		// Draw Opaque objects
+		for (const auto& opaqueObj : opaqueObjects)
+		{
+			const auto& renderable = _renderables[opaqueObj.Id].get();
+			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
 			// Draw mesh
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
@@ -205,59 +223,36 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipelineLayout,
-				0, 1, &skybox->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
+				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+
+			/*const void* pValues;
+			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
+
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 
-
-		// Draw Pbr Objects
+		// Draw transparent objects (reverse iterated)
+		for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
 		{
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
+			auto [dist2, renderableId] = *it;
+			
+			const auto& renderable = _renderables[renderableId.Id].get();
+			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
-			// Draw Opaque objects
-			for (const auto& opaqueObj : opaqueObjects)
-			{
-				const auto& renderable = _renderables[opaqueObj.Id].get();
-				const auto& mesh = *_meshes[renderable->MeshId.Id];
+			// Draw mesh
+			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(commandBuffer,
+				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
+				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
 
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
-					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+			/*const void* pValues;
+			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
 
-				/*const void* pValues;
-				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-			}
-
-			// Draw transparent objects (reverse iterated)
-			for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
-			{
-				auto [dist2, renderableId] = *it;
-				
-				const auto& renderable = _renderables[renderableId.Id].get();
-				const auto& mesh = *_meshes[renderable->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
-					0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-				/*const void* pValues;
-				vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
-				vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
-			}
+			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 	}
 

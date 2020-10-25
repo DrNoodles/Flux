@@ -154,7 +154,6 @@ private: // METHODS
 	}
 
 	void BuildImGui();
-	void DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer);
 	void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
 	void DrawUi(VkCommandBuffer commandBuffer);
 

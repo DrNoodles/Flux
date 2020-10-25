@@ -204,7 +204,6 @@ private: // METHODS
 				}
 			}
 		}
-		
 	}
 
 	void Draw(const float dt) const

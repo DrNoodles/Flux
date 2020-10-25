@@ -108,13 +108,6 @@ float GetTransparency();
 
 void main() 
 {
-	if (ubo.showClipping) // hack
-	{
-		vec3 col = texture(ShadowMap, fragTexCoord).rgb;
-		outColor = vec4(col, 1);
-		return;
-	}
-
 	vec3 normal = GetNormal();
 	vec3 basecolor = GetBasecolor();
 	float metalness = GetMetalness();
