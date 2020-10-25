@@ -119,6 +119,15 @@ public:
 	{
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
 		LoadObjectArray();
+
+		// TEMP: Add directional light to help test shadowmaps
+		auto entity = std::make_unique<Entity>();
+		entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+		entity->Light = LightComponent{};
+		entity->Light->Type = LightComponent::Types::directional;
+		entity->Light->Intensity = 5;
+		entity->Transform.SetPos({-10, -10, -10});
+		_scene.AddEntity(std::move(entity));
 	}
 
 	void LoadDemoScene()

@@ -7,88 +7,88 @@
 
 namespace ShadowMap
 {
-	struct ShadowmapDescriptorResources
-	{
-		u32 ImageCount = 0; 
-		std::vector<VkDescriptorSet> DescriptorSets = {};
-		std::vector<VkBuffer> UboBuffers = {};
-		std::vector<VkDeviceMemory> UboBuffersMemory = {};
-		VkDescriptorPool DescriptorPool = nullptr;
+	//struct ShadowmapDescriptorResources
+	//{
+	//	u32 ImageCount = 0; 
+	//	std::vector<VkDescriptorSet> DescriptorSets = {};
+	//	std::vector<VkBuffer> UboBuffers = {};
+	//	std::vector<VkDeviceMemory> UboBuffersMemory = {};
+	//	VkDescriptorPool DescriptorPool = nullptr;
 
 
-		static ShadowmapDescriptorResources Create(u32 imageCount, VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
-		{
-			// Create uniform buffers
-			const auto uboSize = sizeof(ShadowVertUbo);
-			auto [uboBuffers, uboBuffersMemory]
-				= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+	//	static ShadowmapDescriptorResources Create(u32 imageCount, VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
+	//	{
+	//		// Create uniform buffers
+	//		const auto uboSize = sizeof(UniversalUbo);
+	//		auto [uboBuffers, uboBuffersMemory]
+	//			= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
 
-			
-			// Create descriptor pool
-			VkDescriptorPool descPool;
-			{
-				const std::vector<VkDescriptorPoolSize> poolSizes = {
-					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
-				};
-				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
-			}
-
-
-			// Create descriptor sets
-			std::vector<VkDescriptorSet> descSets;
-			{
-				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
-				
-				for (size_t i = 0; i < imageCount; i++)
-				{
-					VkDescriptorBufferInfo bufferUboInfo = {};
-					bufferUboInfo.buffer = uboBuffers[i];
-					bufferUboInfo.offset = 0;
-					bufferUboInfo.range = uboSize;
-
-					std::vector<VkWriteDescriptorSet> writes
-					{
-						vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-					};
-					
-					vkh::UpdateDescriptorSets(device, writes);
-				}
-			}
+	//		
+	//		// Create descriptor pool
+	//		VkDescriptorPool descPool;
+	//		{
+	//			const std::vector<VkDescriptorPoolSize> poolSizes = {
+	//				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
+	//			};
+	//			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+	//		}
 
 
-			
-			ShadowmapDescriptorResources res;
-			res.ImageCount = imageCount;
-			res.UboBuffers = uboBuffers;
-			res.UboBuffersMemory = uboBuffersMemory;
-			res.DescriptorPool = descPool;
-			res.DescriptorSets = descSets;
-			return res;
-		}
+	//		// Create descriptor sets
+	//		std::vector<VkDescriptorSet> descSets;
+	//		{
+	//			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+	//			
+	//			for (size_t i = 0; i < imageCount; i++)
+	//			{
+	//				VkDescriptorBufferInfo bufferUboInfo = {};
+	//				bufferUboInfo.buffer = uboBuffers[i];
+	//				bufferUboInfo.offset = 0;
+	//				bufferUboInfo.range = uboSize;
 
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			for (u32 i = 0; i < ImageCount; i++)
-			{
-				vkDestroyBuffer(device, UboBuffers[i], allocator);
-				vkFreeMemory(device, UboBuffersMemory[i], allocator);
-			}
-			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
-			ImageCount = 0;
-		}
-	};
-	
+	//				std::vector<VkWriteDescriptorSet> writes
+	//				{
+	//					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+	//				};
+	//				
+	//				vkh::UpdateDescriptorSets(device, writes);
+	//			}
+	//		}
+
+
+	//		
+	//		ShadowmapDescriptorResources res;
+	//		res.ImageCount = imageCount;
+	//		res.UboBuffers = uboBuffers;
+	//		res.UboBuffersMemory = uboBuffersMemory;
+	//		res.DescriptorPool = descPool;
+	//		res.DescriptorSets = descSets;
+	//		return res;
+	//	}
+
+	//	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+	//	{
+	//		for (u32 i = 0; i < ImageCount; i++)
+	//		{
+	//			vkDestroyBuffer(device, UboBuffers[i], allocator);
+	//			vkFreeMemory(device, UboBuffersMemory[i], allocator);
+	//		}
+	//		vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+	//		ImageCount = 0;
+	//	}
+	//};
+	//
 	struct ShadowmapDrawResources
 	{
 		VkExtent2D Size = {};
-		VkPipelineLayout PipelineLayout = nullptr;
+		//VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 		VkRenderPass RenderPass = nullptr;
 		FramebufferResources Framebuffer = {};
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
 
 		ShadowmapDrawResources() = default;
-		ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
+		ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
 		{
 			Size = size;
 			RenderPass = CreateRenderPass(vk);
@@ -96,14 +96,14 @@ namespace ShadowMap
 			DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
 				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 				});
-			PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
-			Pipeline = CreatePipeline(shaderDir, RenderPass, PipelineLayout, vk);
+			//PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
+			Pipeline = CreatePipeline(shaderDir, RenderPass, pipelineLayout, vk);
 		}
 
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
 			vkDestroyPipeline(device, Pipeline, allocator);
-			vkDestroyPipelineLayout(device, PipelineLayout, allocator);
+			//vkDestroyPipelineLayout(device, PipelineLayout, allocator);
 			vkDestroyRenderPass(device, RenderPass, allocator);
 			vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
 			Framebuffer.Destroy(device, allocator);

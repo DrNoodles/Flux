@@ -48,11 +48,11 @@ void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapcha
 {
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 
 	CreateSceneFramebuffer();
 	CreateQuadDescriptorSets();
-	_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 
@@ -74,8 +74,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 	//CreateShadowFramebuffer();
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 1024,1024 }, shaderDir, _vulkan};
-	_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 1024,1024 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	CreateSceneFramebuffer();
 	CreateQuadResources(shaderDir);
 	CreateQuadDescriptorSets();
@@ -94,7 +94,7 @@ void UiPresenter::Shutdown()
 	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -273,20 +273,48 @@ void UiPresenter::BuildImGui()
 	ImGui::Render();
 }
 
+
+struct ShadowCaster
+{
+	glm::mat4 Projection;
+	glm::mat4 View;
+	glm::vec3 Pos;
+};
+
+std::optional<ShadowCaster> FindShadowCaster(Entity* entity, Rect2D region)
+{
+	assert(entity != nullptr);
+
+	if (!entity->Light.has_value() || !(entity->Light->Type == LightComponent::Types::directional))
+		return std::nullopt;
+	
+	ShadowCaster s = {};
+	s.Pos = entity->Transform.GetPos();
+	s.View = glm::lookAt(s.Pos, {0,0,0}, {0,1,0});
+
+	
+	//s.Projection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+	
+	const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+	s.Projection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
+	s.Projection = glm::scale(s.Projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+	
+	return s;
+}
+
+
 void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	const auto& entities = _scene.EntitiesView();
 	std::vector<RenderableResourceId> renderables;
 	std::vector<Light> lights;
 	std::vector<glm::mat4> transforms;
+	std::optional<ShadowCaster> shadowCaster = std::nullopt;
 
-	bool lightFound = false;
-	glm::mat4 lightProjection = {};
-	glm::vec3 lightPos = {};
-	glm::mat4 lightView = {};
 	
 	for (const auto& entity : entities)
 	{
+		// Gather all renderables and associated transforms
 		if (entity->Renderable.has_value())
 		{
 			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
@@ -296,40 +324,37 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 			}
 		}
 
-		// Use the first directional light as shadow caster
-		if (!lightFound && entity->Light.has_value() && entity->Light->Type == LightComponent::Types::directional)
-		{
-			lightFound = true;
-			lightPos = entity->Transform.GetPos();;
-
-			//lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
-
-			auto region = ViewportRect();
-			const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-			lightProjection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
-			lightProjection = glm::scale(lightProjection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-			lightView = glm::lookAt(lightPos, {0,0,0}, {0,1,0});
-		}
-		
+		// Gather light info
 		if (entity->Light.has_value())
 		{
-			// Convert from LightComponent to Light
-
-			auto& lightComp = *entity->Light;
-			Light light{};
-
-			light.Color = lightComp.Color;
-			light.Intensity = lightComp.Intensity;
-			switch (lightComp.Type) {
-			case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-			case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-				//case Types::spot: 
-			default:
-				throw std::invalid_argument("Unsupport light component type");
+			
+			// Find the first shadow casting light
+			if (!shadowCaster.has_value())
+			{
+				shadowCaster = FindShadowCaster(entity.get(), ViewportRect());
 			}
 
+			
+			// Map LightComponent to Light
+			auto light = [&entity]() -> Light
+			{
+				auto& lightComp = *entity->Light;
+
+				Light light = {};
+				light.Color = lightComp.Color;
+				light.Intensity = lightComp.Intensity;
+				switch (lightComp.Type) {
+				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+					//case Types::spot: 
+				default:
+					throw std::invalid_argument("Unsupport light component type");
+				}
+				return light;
+			}();
+
 			light.Pos = entity->Transform.GetPos();
+			
 			lights.emplace_back(light);
 		}
 	}
@@ -347,11 +372,11 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 
 	// TEMP - view the scene using the light's projection/view matrix
-	if (lightFound) 
+	if (shadowCaster.has_value()) 
 	{
-		view = lightView;
-		projection = lightProjection;
-		camPos = lightPos;
+		projection = shadowCaster->Projection;
+		view = shadowCaster->View;
+		camPos = shadowCaster->Pos;
 	}
 
 
@@ -448,11 +473,6 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	// Clear colour
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
-	clearColors[1].depthStencil = {1.f, 0ui32};
-
 	auto& vk = _vulkan;
 	const auto& swap = vk.GetSwapchain();
 	const auto swapExtent = swap.GetExtent();
@@ -469,18 +489,8 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 	// Draw shadow pass - One big HACK to get it working
 	{
-		auto shadow = _shadowDrawResources;
-		auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
-		auto shadowViewport = vki::Viewport(shadowRect);
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
-			shadowRect,
-			clearColors);
-
-
-		// Prep scene objects for drawing - TODO Duplicate effort done here and DrawViewport
-		bool lightFound = false;
-		glm::mat4 lightProjection = {};
-		glm::mat4 lightView = {};
+		// Prep scene objects for drawing - TODO There's duplicate effort done here and DrawViewport
+		std::optional<ShadowCaster> shadowCaster = {};
 		std::vector<RenderableResourceId> renderableIds = {};
 		std::vector<glm::mat4> transforms = {};
 		
@@ -495,23 +505,12 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 				}
 			}
 
-			// Use the first directional light as shadow caster
-			if (!lightFound && entity->Light.has_value() && entity->Light->Type == LightComponent::Types::directional)
-			{
-				lightFound = true;
-				//lightProjection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
-
-				auto region = ViewportRect();
-				const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-				lightProjection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
-				lightProjection = glm::scale(lightProjection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-				lightView = glm::lookAt(entity->Transform.GetPos(), {0,0,0}, {0,1,0});
-			}
+			if (!shadowCaster.has_value())
+				shadowCaster = FindShadowCaster(entity.get(), ViewportRect());
 		}
 
 		// Draw the scene
-		if (lightFound)
+		if (shadowCaster.has_value())
 		{
 			const auto& renderables = _renderer.Hack_GetRenderables();
 			const auto& meshes = _renderer.Hack_GetMeshes();
@@ -520,10 +519,12 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			for (size_t i = 0; i < renderableIds.size(); i++)
 			{
 				const auto& renderable = *renderables[renderableIds[i].Id];
-				const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory;
+				const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This is relevant to UniversalUbo PBR rendering!
 
-				ShadowVertUbo ubo = {};
-				ubo.MVP = lightProjection * lightView * transforms[i];
+				UniversalUbo ubo = {};
+				ubo.Projection = shadowCaster->Projection;
+				ubo.View = shadowCaster->View;
+				ubo.Model = transforms[i];
 				
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
@@ -535,6 +536,20 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 
 			// Draw
+
+			// Clear colour
+			std::vector<VkClearValue> clearColors(1);
+			clearColors[0].depthStencil = { 1.f, 0 };
+
+			float depthBiasConstant = 1.25f;
+			float depthBiasSlope = 1.75f;
+			auto shadow = _shadowDrawResources;
+			auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
+			auto shadowViewport = vki::Viewport(shadowRect);
+			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
+				shadowRect,
+				clearColors);
+			
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
@@ -551,10 +566,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 					VkDeviceSize offsets[] = { 0 };
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
 					vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer.Hack_GetPbrPipelineLayout(), 
+						0, 1, &renderable->FrameResources[imageIndex].DescriptorSet, 0, nullptr);
+					
+					/*vkCmdBindDescriptorSets(commandBuffer,
 						VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.PipelineLayout, 
-						0, 1, &_shadowDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);
+						0, 1, &_shadowDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);*/
 
 					vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 				}
@@ -570,6 +588,11 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	
 	// Draw Ui full screen
 	{
+		// Clear colour
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+		clearColors[1].depthStencil = {1.f, 0ui32};
+			
 		const auto sceneRect = vki::Rect2D(
 			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
 			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });

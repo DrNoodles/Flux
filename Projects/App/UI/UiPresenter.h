@@ -74,7 +74,7 @@ private: // DATA
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
-	ShadowMap::ShadowmapDescriptorResources _shadowDescriptorResources;
+	//ShadowMap::ShadowmapDescriptorResources _shadowDescriptorResources;
 	FramebufferResources _sceneFramebuffer;
 	OnScreen::QuadDrawResources _postPassDrawResources;
 	OnScreen::QuadDescriptorResources _postPassDescriptorResources;
