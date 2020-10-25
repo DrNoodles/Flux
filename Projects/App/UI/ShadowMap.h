@@ -142,12 +142,12 @@ namespace ShadowMap
 			VkPipelineRasterizationStateCreateInfo rasterizationState = {};
 			rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 			rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationState.cullMode = VK_CULL_MODE_NONE; // TODO Enable culling once this renderpass works!
+			rasterizationState.cullMode = VK_CULL_MODE_NONE; // TODO Enable culling once this renderpass works
 			rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 			rasterizationState.flags = 0;
 			rasterizationState.depthClampEnable = VK_FALSE;
 			rasterizationState.lineWidth = 1.0f;
-			//rasterizationState.depthBiasEnable = true; // TODO Enable and control dynamically via VK_DYNAMIC_STATE_SCISSOR
+			rasterizationState.depthBiasEnable = true; // Enabled in dynamic state
 
 			/*VkPipelineColorBlendAttachmentState blendAttachmentState = {};
 			blendAttachmentState.colorWriteMask = 0xf;
@@ -176,8 +176,10 @@ namespace ShadowMap
 			multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 			multisampleState.flags = 0;
 
-			// TODO These can be static as shadowmap dims are fixed
-			std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+			std::vector<VkDynamicState> dynamicStateEnables = {
+				VK_DYNAMIC_STATE_VIEWPORT,
+				VK_DYNAMIC_STATE_SCISSOR,
+				VK_DYNAMIC_STATE_DEPTH_BIAS };
 
 			VkPipelineDynamicStateCreateInfo dynamicState = {};
 			dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
