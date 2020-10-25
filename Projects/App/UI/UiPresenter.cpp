@@ -309,7 +309,7 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 	std::vector<RenderableResourceId> renderables;
 	std::vector<Light> lights;
 	std::vector<glm::mat4> transforms;
-	std::optional<ShadowCaster> shadowCaster = std::nullopt;
+	//std::optional<ShadowCaster> shadowCaster = std::nullopt;
 
 	
 	for (const auto& entity : entities)
@@ -327,14 +327,14 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 		// Gather light info
 		if (entity->Light.has_value())
 		{
-			
-			// Find the first shadow casting light
-			if (!shadowCaster.has_value())
-			{
-				shadowCaster = FindShadowCaster(entity.get(), ViewportRect());
-			}
+			//
+			//// Find the first shadow casting light
+			//if (!shadowCaster.has_value())
+			//{
+			//	shadowCaster = FindShadowCaster(entity.get(), ViewportRect());
+			//}
 
-			
+			//
 			// Map LightComponent to Light
 			auto light = [&entity]() -> Light
 			{
@@ -371,13 +371,13 @@ void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
 	projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
 
-	// TEMP - view the scene using the light's projection/view matrix
-	if (shadowCaster.has_value()) 
-	{
-		projection = shadowCaster->Projection;
-		view = shadowCaster->View;
-		camPos = shadowCaster->Pos;
-	}
+	//// TEMP - view the scene using the light's projection/view matrix
+	//if (shadowCaster.has_value()) 
+	//{
+	//	projection = shadowCaster->Projection;
+	//	view = shadowCaster->View;
+	//	camPos = shadowCaster->Pos;
+	//}
 
 
 	
