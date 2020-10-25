@@ -554,7 +554,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
-				//vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
+				vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
 
 				for (const auto& id : renderableIds)
