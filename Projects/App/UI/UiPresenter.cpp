@@ -278,10 +278,10 @@ struct ShadowCaster
 {
 	glm::mat4 Projection;
 	glm::mat4 View;
-	glm::vec3 Pos;
+	//glm::vec3 Pos;
 };
 
-std::optional<ShadowCaster> FindShadowCaster(Entity* entity, Rect2D region)
+std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
 {
 	assert(entity != nullptr);
 
@@ -289,16 +289,9 @@ std::optional<ShadowCaster> FindShadowCaster(Entity* entity, Rect2D region)
 		return std::nullopt;
 	
 	ShadowCaster s = {};
-	s.Pos = entity->Transform.GetPos();
-	s.View = glm::lookAt(-s.Pos, {0,0,0}, {0,1,0});
-
-	
-	s.Projection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
-	
-	//const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-	//s.Projection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
-	//s.Projection = glm::scale(s.Projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-	
+	const auto eye = entity->Transform.GetPos();
+	s.View = glm::lookAt(eye, {0,0,0}, {0,1,0});
+	s.Projection = glm::ortho(-10.f, 10.f, 10.f, -10.f, 0.01f, 30.f); // TODO Set the bounds dynamically	
 	return s;
 }
 
@@ -398,31 +391,31 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		if (!shadowCaster.has_value())
 		{
-			shadowCaster = FindShadowCaster(entity.get(), ViewportRect());
+			shadowCaster = FindShadowCaster(entity.get());
 		}
 
 		if (entity->Light.has_value())
+		{
+			auto light = [&entity]() -> Light
 			{
-				auto light = [&entity]() -> Light
-				{
-					auto& lightComp = *entity->Light;
+				auto& lightComp = *entity->Light;
 
-					Light light = {};
-					light.Pos = entity->Transform.GetPos();
-					light.Color = lightComp.Color;
-					light.Intensity = lightComp.Intensity;
-					switch (lightComp.Type) {
-					case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-					case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-						//case Types::spot: 
-					default:
-						throw std::invalid_argument("Unsupport light component type");
-					}
-					return light;
-				}();
+				Light light = {};
+				light.Pos = entity->Transform.GetPos();
+				light.Color = lightComp.Color;
+				light.Intensity = lightComp.Intensity;
+				switch (lightComp.Type) {
+				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+					//case Types::spot: 
+				default:
+					throw std::invalid_argument("Unsupport light component type");
+				}
+				return light;
+			}();
 
-				lights.emplace_back(light);
-			}
+			lights.emplace_back(light);
+		}
 	}
 
 
@@ -431,7 +424,10 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	// shadow? post? gui?
 
 	
-
+	auto lightSpaceMatrix = shadowCaster.has_value()
+		? shadowCaster->Projection * shadowCaster->View
+		: glm::identity<glm::mat4>();
+	
 	// Draw shadow pass
 	if (shadowCaster.has_value())
 	{
@@ -442,11 +438,11 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
 			const auto& renderable = *renderables[renderableIds[i].Id];
+			// TODO need to create UBOs 
 			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This is relevant to UniversalUbo PBR rendering!
 
 			UniversalUbo ubo = {};
-			ubo.Projection = shadowCaster->Projection;
-			ubo.View = shadowCaster->View;
+			ubo.LightSpaceMatrix = lightSpaceMatrix;
 			ubo.Model = transforms[i];
 			
 			// Copy to gpu - TODO PERF Keep mem mapped 
@@ -464,8 +460,8 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		std::vector<VkClearValue> clearColors(1);
 		clearColors[0].depthStencil = { 1.f, 0 };
 
-		float depthBiasConstant = 1.25f;
-		float depthBiasSlope = 1.75f;
+		float depthBiasConstant = 1.0f;
+		float depthBiasSlope = 1.f;
 		auto shadow = _shadowDrawResources;
 		auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
 		auto shadowViewport = vki::Viewport(shadowRect);
@@ -505,9 +501,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		auto& camera = _scene.GetCamera();
 		auto view = camera.GetViewMatrix();
 		glm::vec3 camPos = camera.Position;
-		auto lightSpaceMatrix = shadowCaster.has_value()
-			? shadowCaster->Projection * shadowCaster->View
-			: glm::identity<glm::mat4>();
 
 		// Calc Projection
 		const auto vfov = 45.f;

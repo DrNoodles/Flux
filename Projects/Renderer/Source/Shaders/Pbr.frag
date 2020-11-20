@@ -103,6 +103,29 @@ float GetAmbientOcclusion();
 vec3 GetEmissive();
 float GetTransparency();
 
+float textureProj(vec4 shadowCoord, vec2 off)
+{
+	float shadow = 1.0;
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
+	{
+		float dist = texture( ShadowMap, shadowCoord.st + off ).r;
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
+		{
+			shadow = 0.0;
+		}
+	}
+	return shadow;
+}
+//
+//float ShadowCalculation(vec4 fragPosLightSpace)
+//{
+//	vec4 projCoords = fragPosLightSpace / fragPosLightSpace.w;
+//	//projCoords = projCoords * 0.5 + 0.5;
+//	float closestDepth = texture(ShadowMap, projCoords.xy).r;
+//	float currentDepth = projCoords.z;
+//	float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+//	return shadow;
+//}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +133,23 @@ float GetTransparency();
 
 void main() 
 {
+	float shadow = textureProj(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
+	if (shadow < 0.90)
+	{
+		outColor = vec4(1,0,0,1);
+		return;
+	}
+//	if (shadow > 0.50)
+//	{
+//		outColor = vec4(0,1,0,1);
+//		return;
+//	}
+//	if (shadow > 0.001)
+//	{
+//		outColor = vec4(0,0,1,1);
+//		return;
+//	}
+
 	vec3 normal = GetNormal();
 	vec3 basecolor = GetBasecolor();
 	float metalness = GetMetalness();
@@ -194,7 +234,7 @@ void main()
 		}
 
 		// Outgoing radiance due to light hitting surface
-		Lo += brdf * incomingRadiance * NdotL;
+		Lo += brdf * incomingRadiance * NdotL;// * (1 - ShadowCalculation(fragPosLightSpace)); // TODO Shadows should be limted shadow casting lights
 	}
 
 

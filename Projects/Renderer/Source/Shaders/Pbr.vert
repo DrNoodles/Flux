@@ -42,5 +42,6 @@ void main()
 	fragNormal = normalize(normalMatrix * inNormal);
 	fragTBN = mat3(T, B, N);
 	fragPosLightSpace = (biasMat * ubo.lightSpaceMatrix * ubo.model) * vec4(inPosition, 1);
+	//fragPosLightSpace = (ubo.lightSpaceMatrix * ubo.model) * vec4(inPosition, 1);
 	gl_Position = ubo.projection * ubo.view * vec4(fragPos, 1);
 }
