@@ -290,14 +290,14 @@ std::optional<ShadowCaster> FindShadowCaster(Entity* entity, Rect2D region)
 	
 	ShadowCaster s = {};
 	s.Pos = entity->Transform.GetPos();
-	s.View = glm::lookAt(s.Pos, {0,0,0}, {0,1,0});
+	s.View = glm::lookAt(-s.Pos, {0,0,0}, {0,1,0});
 
 	
-	//s.Projection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
+	s.Projection = glm::ortho(-5.f, 5.f, 5.f, -5.f, 0.01f, 20.f); // TODO Set the bounds dynamically
 	
-	const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-	s.Projection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
-	s.Projection = glm::scale(s.Projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+	//const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+	//s.Projection = glm::perspective(glm::radians(45.f), aspect, 2.f, 20.f);
+	//s.Projection = glm::scale(s.Projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 	
 	return s;
 }
