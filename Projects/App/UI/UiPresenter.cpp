@@ -505,6 +505,9 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		auto& camera = _scene.GetCamera();
 		auto view = camera.GetViewMatrix();
 		glm::vec3 camPos = camera.Position;
+		auto lightSpaceMatrix = shadowCaster.has_value()
+			? shadowCaster->Projection * shadowCaster->View
+			: glm::identity<glm::mat4>();
 
 		// Calc Projection
 		const auto vfov = 45.f;
@@ -535,7 +538,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
 
-			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos);
+			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
 		}
 		vkCmdEndRenderPass(commandBuffer);
 

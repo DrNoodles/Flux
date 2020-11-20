@@ -19,13 +19,14 @@ layout(std140, binding = 0) uniform UniversalUbo
 	//mat4 model;
 	//mat4 view;
 	//mat4 projection;
-	layout(offset=192) mat4 cubemapRotation;
-	layout(offset=256) vec3 camPos;
+	//mat4 lightSpaceMatrix;
+	layout(offset=256) mat4 cubemapRotation;
+	layout(offset=320) vec3 camPos;
 
-	layout(offset=272) vec3 basecolor;
-	layout(offset=288) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
+	layout(offset=336) vec3 basecolor;
+	layout(offset=352) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
 
-	layout(offset=304) 
+	layout(offset=368) 
 	bool  useBasecolorMap;   
 	bool  useNormalMap;      
 
@@ -76,11 +77,12 @@ layout(binding = 10) uniform sampler2D EmissiveMap;
 layout(binding = 11) uniform sampler2D TransparencyMap;
 layout(binding = 12) uniform sampler2D ShadowMap;
 
-layout(location = 0) in vec3 fragPos;
-layout(location = 1) in vec3 fragColor;
-layout(location = 2) in vec2 fragTexCoord;
-layout(location = 3) in vec3 fragNormal;
-layout(location = 4) in mat3 fragTBN;
+layout(location = 0) in vec4 fragPosLightSpace;
+layout(location = 1) in vec3 fragPos; // in world space
+layout(location = 2) in vec3 fragColor;
+layout(location = 3) in vec2 fragTexCoord;
+layout(location = 4) in vec3 fragNormal;
+layout(location = 5) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 

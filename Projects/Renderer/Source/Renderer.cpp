@@ -67,7 +67,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
 	const std::vector<Light>& lights,
-	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos)
+	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix)
 {
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
@@ -131,6 +131,7 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.Model = transforms[i];
 			info.View = view;
 			info.Projection = projection;
+			info.LightSpaceMatrix = lightSpaceMatrix;
 			info.CamPos = camPos;
 			info.ExposureBias = options.ExposureBias;
 			info.IblStrength = options.IblStrength;
