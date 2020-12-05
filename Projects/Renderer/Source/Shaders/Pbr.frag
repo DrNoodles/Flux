@@ -198,7 +198,7 @@ void main()
 
 		// Incoming light direction - point or directional
 		const vec3 pointDir = lightPos - fragPos;
-		const vec3 directionalDir = -lightPos;
+		const vec3 directionalDir = lightPos;
 		const vec3 L = normalize(mix(pointDir, directionalDir, lightType));
 		const float NdotL = max(dot(normal,L), 0.0);
 		

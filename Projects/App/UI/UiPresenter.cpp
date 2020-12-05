@@ -400,18 +400,20 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			{
 				auto& lightComp = *entity->Light;
 
-				Light light = {};
-				light.Pos = entity->Transform.GetPos();
-				light.Color = lightComp.Color;
-				light.Intensity = lightComp.Intensity;
+				Light l = {};
+				l.Pos = entity->Transform.GetPos();
+				l.Color = lightComp.Color;
+				l.Intensity = lightComp.Intensity;
+				
 				switch (lightComp.Type) {
-				case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-				case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
+				case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
 					//case Types::spot: 
 				default:
 					throw std::invalid_argument("Unsupport light component type");
 				}
-				return light;
+				
+				return l;
 			}();
 
 			lights.emplace_back(light);
