@@ -121,13 +121,24 @@ public:
 		LoadObjectArray();
 
 		// TEMP: Add directional light to help test shadowmaps
-		auto entity = std::make_unique<Entity>();
-		entity->Name = "DirectionalLight" + std::to_string(entity->Id);
-		entity->Light = LightComponent{};
-		entity->Light->Type = LightComponent::Types::directional;
-		entity->Light->Intensity = 5;
-		entity->Transform.SetPos({-10, -10, -10});
-		_scene.AddEntity(std::move(entity));
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+			entity->Light = LightComponent{};
+			entity->Light->Type = LightComponent::Types::directional;
+			entity->Light->Intensity = 5;
+			entity->Transform.SetPos({-10, -10, -10});
+			_scene.AddEntity(std::move(entity));
+		}
+		
+
+		// TEMP: Add a ground plane to catch shadows
+		{
+			auto x = CreateCube();
+			x->Transform.SetScale({7.5, 2, 7.5});
+			x->Transform.SetPos({0,-4,0});
+			_scene.AddEntity(std::move(x));
+		}
 	}
 
 	void LoadDemoScene()
