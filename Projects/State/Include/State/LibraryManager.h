@@ -127,7 +127,7 @@ public:
 			entity->Light = LightComponent{};
 			entity->Light->Type = LightComponent::Types::directional;
 			entity->Light->Intensity = 5;
-			entity->Transform.SetPos({-10, -10, -10});
+			entity->Transform.SetPos({10, 10, 10});
 			_scene.AddEntity(std::move(entity));
 		}
 		

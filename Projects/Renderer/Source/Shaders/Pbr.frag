@@ -103,7 +103,7 @@ float GetAmbientOcclusion();
 vec3 GetEmissive();
 float GetTransparency();
 
-float textureProj(vec4 shadowCoord, vec2 off)
+float textureProj2(vec4 shadowCoord, vec2 off)
 {
 	float shadow = 1.0;
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
@@ -133,12 +133,12 @@ float textureProj(vec4 shadowCoord, vec2 off)
 
 void main() 
 {
-	float shadow = textureProj(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
-	if (shadow < 0.90)
-	{
-		outColor = vec4(1,0,0,1);
-		return;
-	}
+//	float shadow = textureProj(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
+//	if (shadow < 0.90)
+//	{
+//		outColor = vec4(1,0,0,1);
+//		return;
+//	}
 //	if (shadow > 0.50)
 //	{
 //		outColor = vec4(0,1,0,1);
@@ -234,7 +234,8 @@ void main()
 		}
 
 		// Outgoing radiance due to light hitting surface
-		Lo += brdf * incomingRadiance * NdotL;// * (1 - ShadowCalculation(fragPosLightSpace)); // TODO Shadows should be limted shadow casting lights
+		float shadow = textureProj2(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
+		Lo += brdf * incomingRadiance * NdotL * shadow; // TODO Shadows should be limted shadow casting lights
 	}
 
 

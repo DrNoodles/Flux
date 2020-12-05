@@ -74,7 +74,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 	//CreateShadowFramebuffer();
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 1024,1024 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
 	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	CreateSceneFramebuffer();
 	CreateQuadResources(shaderDir);
@@ -291,7 +291,7 @@ std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
 	ShadowCaster s = {};
 	const auto eye = entity->Transform.GetPos();
 	s.View = glm::lookAt(eye, {0,0,0}, {0,1,0});
-	s.Projection = glm::ortho(-10.f, 10.f, 10.f, -10.f, 0.01f, 30.f); // TODO Set the bounds dynamically	
+	s.Projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
 	return s;
 }
 
@@ -620,10 +620,11 @@ void UiPresenter::CreateDirectionalLight()
 
 	auto entity = std::make_unique<Entity>();
 	entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+	entity->Transform.SetPos({10, 10, 10});
+
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::directional;
 	entity->Light->Intensity = 5;
-	entity->Transform.SetPos({-10, -10, -10});
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
