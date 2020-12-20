@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Renderer/GpuTypes.h"
+#include "Renderer/UniformBufferObjects.h"
 #include "Renderer/VulkanService.h"
 
 namespace OffScreen

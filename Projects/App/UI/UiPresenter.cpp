@@ -11,48 +11,29 @@
 #include <imgui/imgui_impl_vulkan.h>
 
 
-void UiPresenter::CreateSceneFramebuffer()
+void UiPresenter::CreateDescriptorChain()
 {
 	// Scene framebuffer is only the size of the scene render region on screen
-	const auto sceneRect = ViewportRect();
-	const auto sceneExtent = VkExtent2D{sceneRect.Extent.Width, sceneRect.Extent.Height};
+	{
+		const auto sceneRect = ViewportRect();
+		const auto sceneExtent = VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height };
 
-	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-		sceneExtent,
-		VK_FORMAT_R16G16B16A16_SFLOAT,
-		_renderer.GetRenderPass(),
-		_vulkan.MsaaSamples(),
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-}
-
-void UiPresenter::CreateQuadResources(const std::string& shaderDir)
-{
-	// Create quad resources
-	_postPassDrawResources = OnScreen::CreateQuadResources(
-		_vulkan.GetSwapchain().GetRenderPass(),
-		shaderDir,
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
-}
-
-void UiPresenter::CreateQuadDescriptorSets()
-{
-	// Create quad descriptor sets
-	_postPassDescriptorResources = OnScreen::QuadDescriptorResources::Create(
-		_sceneFramebuffer.OutputDescriptor,
-		_vulkan.GetSwapchain().GetImageCount(),
-		_postPassDrawResources.DescriptorSetLayout,
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
+			sceneExtent,
+			VK_FORMAT_R16G16B16A16_SFLOAT,
+			_renderer.GetRenderPass(),
+			_vulkan.MsaaSamples(),
+			_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	}
+	
+	_postProcessPass.CreateDescriptorResources(_sceneFramebuffer.OutputDescriptor);
 }
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-
-	CreateSceneFramebuffer();
-	CreateQuadDescriptorSets();
-	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	_postProcessPass.DestroyDescriptorResources();
+	CreateDescriptorChain();
 }
 
 
@@ -76,9 +57,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	//CreateShadowFramebuffer();
 	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
 	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-	CreateSceneFramebuffer();
-	CreateQuadResources(shaderDir);
-	CreateQuadDescriptorSets();
+
+	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
+	CreateDescriptorChain();
 }
 
 void UiPresenter::Shutdown()
@@ -91,9 +72,10 @@ void UiPresenter::Shutdown()
 
 	// Cleanup renderpass resources
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postProcessPass.Destroy();
 	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
@@ -296,53 +278,6 @@ std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
 }
 
 
-void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
-{
-	// Update Ubo
-	{
-		const auto& ro = _scene.GetRenderOptions();
-		PostUbo ubo;
-		
-		ubo.ShowClipping = (i32)ro.ShowClipping;
-		ubo.ExposureBias =      ro.ExposureBias;
-		
-		ubo.EnableVignette = (i32)ro.Vignette.Enabled;
-		ubo.VignetteColor       = ro.Vignette.Color;
-		ubo.VignetteInnerRadius = ro.Vignette.InnerRadius;
-		ubo.VignetteOuterRadius = ro.Vignette.OuterRadius;
-
-		ubo.EnableGrain   = (i32)ro.Grain.Enabled;
-		ubo.GrainStrength      = ro.Grain.Strength;
-		ubo.GrainColorStrength = ro.Grain.ColorStrength;
-		ubo.GrainSize          = ro.Grain.Size;
-
-		
-		void* data;
-		const auto size = sizeof(ubo);
-		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex], 0, size, 0, &data);
-		memcpy(data, &ubo, size);
-		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex]);
-	}
-
-	// Draw
-	const MeshResource& mesh = _postPassDrawResources.Quad;
-	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-	VkDeviceSize pOffsets = {0};
-	
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassDrawResources.Pipeline);
-
-	
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
-	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		_postPassDrawResources.PipelineLayout,
-		0, 1,
-		&_postPassDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);
-
-	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-}
-
 void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 {
 	// Update Ui
@@ -539,7 +474,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 	}
 
-	
 	// Draw Ui full screen
 	{
 		// Clear colour
@@ -558,7 +492,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-			DrawPostProcessedViewport(commandBuffer, imageIndex);
+			_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
 
 			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
 			DrawUi(commandBuffer);

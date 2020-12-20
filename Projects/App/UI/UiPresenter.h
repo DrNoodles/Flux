@@ -4,7 +4,7 @@
 
 // Render helpers - TODO remove all render deets from this class!
 #include "Offscreen.h"
-#include "OnScreen.h"
+#include "PostProcess.h"
 #include "ShadowMap.h"
 
 #include "PropsView/LightVm.h"
@@ -74,10 +74,9 @@ private: // DATA
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
-	//ShadowMap::ShadowmapDescriptorResources _shadowDescriptorResources;
 	FramebufferResources _sceneFramebuffer;
-	OnScreen::QuadDrawResources _postPassDrawResources;
-	OnScreen::QuadDescriptorResources _postPassDescriptorResources;
+	PostProcessPass _postProcessPass;
+	
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -85,6 +84,7 @@ private: // DATA
 	KeyDownDelegate _keyDownHandler = [this](auto* s, auto a) { OnKeyDown(s, a); };
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
 	
+
 
 public: // METHODS
 	
@@ -121,10 +121,7 @@ public: // METHODS
 
 private: // METHODS
 
-	// TODO Make these static so the coupling is deterministic
-	void CreateSceneFramebuffer();
-	void CreateQuadResources(const std::string& shaderDir);
-	void CreateQuadDescriptorSets();
+	void CreateDescriptorChain();
 
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
@@ -154,7 +151,7 @@ private: // METHODS
 	}
 
 	void BuildImGui();
-	void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
+	//void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
 	void DrawUi(VkCommandBuffer commandBuffer);
 
 
