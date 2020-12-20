@@ -28,7 +28,7 @@ void UiPresenter::CreateSceneFramebuffer()
 void UiPresenter::CreateQuadResources(const std::string& shaderDir)
 {
 	// Create quad resources
-	_postPassResources = OnScreen::CreateQuadResources(
+	_postPassDrawResources = OnScreen::CreateQuadResources(
 		_vulkan.GetSwapchain().GetRenderPass(),
 		shaderDir,
 		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
@@ -37,19 +37,22 @@ void UiPresenter::CreateQuadResources(const std::string& shaderDir)
 void UiPresenter::CreateQuadDescriptorSets()
 {
 	// Create quad descriptor sets
-	_postPassDescriptors = OnScreen::QuadDescriptorResources::Create(_sceneFramebuffer.OutputDescriptor,
-	                                                                 _vulkan.GetSwapchain().GetImageCount(),
-	                                                                 _postPassResources.DescriptorSetLayout,
-	                                                                 _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+	_postPassDescriptorResources = OnScreen::QuadDescriptorResources::Create(
+		_sceneFramebuffer.OutputDescriptor,
+		_vulkan.GetSwapchain().GetImageCount(),
+		_postPassDrawResources.DescriptorSetLayout,
+		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 
 	CreateSceneFramebuffer();
 	CreateQuadDescriptorSets();
+	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 }
 
 
@@ -70,6 +73,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
+	//CreateShadowFramebuffer();
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	CreateSceneFramebuffer();
 	CreateQuadResources(shaderDir);
 	CreateQuadDescriptorSets();
@@ -85,8 +91,10 @@ void UiPresenter::Shutdown()
 
 	// Cleanup renderpass resources
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptors.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -265,54 +273,28 @@ void UiPresenter::BuildImGui()
 	ImGui::Render();
 }
 
-void UiPresenter::DrawViewport(u32 imageIndex, VkCommandBuffer commandBuffer)
+
+struct ShadowCaster
 {
-	const auto& entities = _scene.EntitiesView();
-	std::vector<RenderableResourceId> renderables;
-	std::vector<Light> lights;
-	std::vector<glm::mat4> transforms;
+	glm::mat4 Projection;
+	glm::mat4 View;
+	//glm::vec3 Pos;
+};
 
-	for (const auto& entity : entities)
-	{
-		if (entity->Renderable.has_value())
-		{
-			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
-			{
-				renderables.emplace_back(componentSubmesh.Id);
-				transforms.emplace_back(entity->Transform.GetMatrix());
-			}
-		}
+std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
+{
+	assert(entity != nullptr);
 
-		if (entity->Light.has_value())
-		{
-			// Convert from LightComponent to Light
-
-			auto& lightComp = *entity->Light;
-			Light light{};
-
-			light.Color = lightComp.Color;
-			light.Intensity = lightComp.Intensity;
-			switch (lightComp.Type) {
-			case LightComponent::Types::point:       light.Type = Light::LightType::Point;       break;
-			case LightComponent::Types::directional: light.Type = Light::LightType::Directional; break;
-				//case Types::spot: 
-			default:
-				throw std::invalid_argument("Unsupport light component type");
-			}
-
-			light.Pos = entity->Transform.GetPos();
-			lights.emplace_back(light);
-		}
-	}
-
-	auto& camera = _scene.GetCamera();
-	const auto view = camera.GetViewMatrix();
-
-		
-	_renderer.Draw(
-		commandBuffer, imageIndex, _scene.GetRenderOptions(),
-		renderables, transforms, lights, view, camera.Position, ViewportRect());
+	if (!entity->Light.has_value() || !(entity->Light->Type == LightComponent::Types::directional))
+		return std::nullopt;
+	
+	ShadowCaster s = {};
+	const auto eye = entity->Transform.GetPos();
+	s.View = glm::lookAt(eye, {0,0,0}, {0,1,0});
+	s.Projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
+	return s;
 }
+
 
 void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
 {
@@ -337,26 +319,26 @@ void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 i
 		
 		void* data;
 		const auto size = sizeof(ubo);
-		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex], 0, size, 0, &data);
+		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex], 0, size, 0, &data);
 		memcpy(data, &ubo, size);
-		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptors.UboBuffersMemory[imageIndex]);
+		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex]);
 	}
 
 	// Draw
-	const MeshResource& mesh = _postPassResources.Quad;
+	const MeshResource& mesh = _postPassDrawResources.Quad;
 	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 	VkDeviceSize pOffsets = {0};
 	
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassResources.Pipeline);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassDrawResources.Pipeline);
 
 	
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
 	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		_postPassResources.PipelineLayout,
+		_postPassDrawResources.PipelineLayout,
 		0, 1,
-		&_postPassDescriptors.DescriptorSets[imageIndex], 0, nullptr);
+		&_postPassDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);
 
 	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 }
@@ -377,60 +359,205 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	// Clear colour
-	std::vector<VkClearValue> clearColors(2);
-	clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
-	clearColors[1].depthStencil = {1.f, 0ui32};
-
 	auto& vk = _vulkan;
 	const auto& swap = vk.GetSwapchain();
 	const auto swapExtent = swap.GetExtent();
 
-
 	// Whole screen framebuffer dimensions
 	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
 	const auto framebufferViewport = vki::Viewport(framebufferRect);
-
 	
 	// Scene Viewport / Region. Only the part of the screen showing the scene.
 	const auto sceneRectShared = ViewportRect();
 
+	
+	// Prep scene objects for drawing - TODO There's duplicate effort done here and DrawViewport
+	std::optional<ShadowCaster> shadowCaster = {};
+	std::vector<RenderableResourceId> renderableIds = {};
+	std::vector<glm::mat4> transforms = {};
+	std::vector<Light> lights;
+	
+	for (const auto& entity : _scene.EntitiesView())
+	{
+		// Gather renderable/transform pairs
+		if (entity->Renderable.has_value())
+		{
+			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+			{
+				renderableIds.emplace_back(componentSubmesh.Id);
+				transforms.emplace_back(entity->Transform.GetMatrix());
+			}
+		}
+
+		if (!shadowCaster.has_value())
+		{
+			shadowCaster = FindShadowCaster(entity.get());
+		}
+
+		if (entity->Light.has_value())
+		{
+			auto light = [&entity]() -> Light
+			{
+				auto& lightComp = *entity->Light;
+
+				Light l = {};
+				l.Pos = entity->Transform.GetPos();
+				l.Color = lightComp.Color;
+				l.Intensity = lightComp.Intensity;
+				
+				switch (lightComp.Type) {
+				case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
+				case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
+					//case Types::spot: 
+				default:
+					throw std::invalid_argument("Unsupport light component type");
+				}
+				
+				return l;
+			}();
+
+			lights.emplace_back(light);
+		}
+	}
+
+
+	// Update all descriptors
+	_renderer.UpdateDescriptors(GetRenderOptions());
+	// shadow? post? gui?
+
+	
+	auto lightSpaceMatrix = shadowCaster.has_value()
+		? shadowCaster->Projection * shadowCaster->View
+		: glm::identity<glm::mat4>();
+	
+	// Draw shadow pass
+	if (shadowCaster.has_value())
+	{
+		const auto& renderables = _renderer.Hack_GetRenderables();
+		const auto& meshes = _renderer.Hack_GetMeshes();
+
+		// Update Ubo - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
+		for (size_t i = 0; i < renderableIds.size(); i++)
+		{
+			const auto& renderable = *renderables[renderableIds[i].Id];
+			// TODO need to create UBOs 
+			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This is relevant to UniversalUbo PBR rendering!
+
+			UniversalUbo ubo = {};
+			ubo.LightSpaceMatrix = lightSpaceMatrix;
+			ubo.Model = transforms[i];
+			
+			// Copy to gpu - TODO PERF Keep mem mapped 
+			void* data;
+			auto size = sizeof(ubo);
+			vkMapMemory(vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
+			memcpy(data, &ubo, size);
+			vkUnmapMemory(vk.LogicalDevice(), modelBufferMemory);
+		}
+
+		
+		// Draw
+
+		// Clear colour
+		std::vector<VkClearValue> clearColors(1);
+		clearColors[0].depthStencil = { 1.f, 0 };
+
+		float depthBiasConstant = 1.0f;
+		float depthBiasSlope = 1.f;
+		auto shadow = _shadowDrawResources;
+		auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
+		auto shadowViewport = vki::Viewport(shadowRect);
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
+			shadowRect,
+			clearColors);
+		
+		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
+			vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
+
+			for (const auto& id : renderableIds)
+			{
+				const auto& renderable = renderables[id.Id].get();
+				const auto& mesh = *meshes[renderable->MeshId.Id];
+
+				// Draw mesh
+				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer.Hack_GetPbrPipelineLayout(),
+					0, 1, &renderable->FrameResources[imageIndex].DescriptorSet, 0, nullptr);
+				vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+			}
+		}
+		vkCmdEndRenderPass(commandBuffer);
+	}
+
+
 	// Draw scene to gbuf
 	{
-		const auto sceneRectNoOffset = vki::Rect2D({0, 0}, {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
+		auto& camera = _scene.GetCamera();
+		auto view = camera.GetViewMatrix();
+		glm::vec3 camPos = camera.Position;
+
+		// Calc Projection
+		const auto vfov = 45.f;
+		Rect2D region = ViewportRect();
+		const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
+		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
+		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+
+
+		// Scene Viewport / Region. Only the part of the screen showing the scene.
+
+		// Clear colour
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
+		clearColors[1].depthStencil = { 1.f, 0ui32 };
+
+		const auto sceneRectShared = ViewportRect();
+		const auto sceneRectNoOffset = vki::Rect2D({ 0, 0 }, { sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
 		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
-		
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(), _sceneFramebuffer.Framebuffer,
-		                                                          sceneRectNoOffset,
-		                                                          clearColors);
+
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
+			_sceneFramebuffer.Framebuffer,
+			sceneRectNoOffset,
+			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
 			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
-			
-			DrawViewport(imageIndex, commandBuffer);
+
+			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
 		}
 		vkCmdEndRenderPass(commandBuffer);
+
 	}
 
 	
 	// Draw Ui full screen
 	{
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(),
-		                                                          swap.GetFramebuffers()[imageIndex],
-		                                                          framebufferRect,
-		                                                          clearColors);
+		// Clear colour
+		std::vector<VkClearValue> clearColors(2);
+		clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+		clearColors[1].depthStencil = {1.f, 0ui32};
+			
+		const auto sceneRect = vki::Rect2D(
+			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
+			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+		const auto sceneViewport = vki::Viewport(sceneRect);
+		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
+			framebufferRect, clearColors);
 
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			const auto sceneRect = vki::Rect2D({sceneRectShared.Offset.X, sceneRectShared.Offset.Y},
-			                                   {sceneRectShared.Extent.Width, sceneRectShared.Extent.Height});
-			const auto sceneViewport = vki::Viewport(sceneRect);
-
 			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-			
 			DrawPostProcessedViewport(commandBuffer, imageIndex);
 
 			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
@@ -493,10 +620,11 @@ void UiPresenter::CreateDirectionalLight()
 
 	auto entity = std::make_unique<Entity>();
 	entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+	entity->Transform.SetPos({10, 10, 10});
+
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::directional;
 	entity->Light->Intensity = 5;
-	entity->Transform.SetPos({0, -1, 0});
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));

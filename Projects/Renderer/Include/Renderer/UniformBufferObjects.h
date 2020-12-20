@@ -69,6 +69,7 @@ struct UniversalUboCreateInfo
 	glm::mat4 Model{};
 	glm::mat4 View{};
 	glm::mat4 Projection{};
+	glm::mat4 LightSpaceMatrix{};
 	glm::vec3 CamPos{};
 
 	// Render options
@@ -86,6 +87,7 @@ struct UniversalUbo
 	alignas(16) glm::mat4 Model;         
 	alignas(16) glm::mat4 View;          
 	alignas(16) glm::mat4 Projection;
+	alignas(16) glm::mat4 LightSpaceMatrix;
 	
 	alignas(16) glm::mat4 CubemapRotation;
 	alignas(16) glm::vec3 CamPos;
@@ -135,6 +137,7 @@ struct UniversalUbo
 		ubo.Model = info.Model;
 		ubo.View = info.View;
 		ubo.Projection = info.Projection;
+		ubo.LightSpaceMatrix = info.LightSpaceMatrix;
 		ubo.CamPos = info.CamPos;
 
 		// Material
@@ -176,6 +179,14 @@ struct UniversalUbo
 		return ubo;
 	}
 };
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//struct ShadowVertUbo
+//{
+//	alignas(16) glm::mat4 Projections;
+//	alignas(16) glm::mat4 View;
+//	alignas(16) glm::mat4 Model;
+//};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PostUbo

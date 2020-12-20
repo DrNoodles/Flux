@@ -19,13 +19,14 @@ layout(std140, binding = 0) uniform UniversalUbo
 	//mat4 model;
 	//mat4 view;
 	//mat4 projection;
-	layout(offset=192) mat4 cubemapRotation;
-	layout(offset=256) vec3 camPos;
+	//mat4 lightSpaceMatrix;
+	layout(offset=256) mat4 cubemapRotation;
+	layout(offset=320) vec3 camPos;
 
-	layout(offset=272) vec3 basecolor;
-	layout(offset=288) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
+	layout(offset=336) vec3 basecolor;
+	layout(offset=352) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
 
-	layout(offset=304) 
+	layout(offset=368) 
 	bool  useBasecolorMap;   
 	bool  useNormalMap;      
 
@@ -74,12 +75,14 @@ layout(binding = 8)  uniform sampler2D MetalnessMap;
 layout(binding = 9)  uniform sampler2D AmbientOcclusionMap;
 layout(binding = 10) uniform sampler2D EmissiveMap;
 layout(binding = 11) uniform sampler2D TransparencyMap;
+layout(binding = 12) uniform sampler2D ShadowMap;
 
-layout(location = 0) in vec3 fragPos;
-layout(location = 1) in vec3 fragColor;
-layout(location = 2) in vec2 fragTexCoord;
-layout(location = 3) in vec3 fragNormal;
-layout(location = 4) in mat3 fragTBN;
+layout(location = 0) in vec4 fragPosLightSpace;
+layout(location = 1) in vec3 fragPos; // in world space
+layout(location = 2) in vec3 fragColor;
+layout(location = 3) in vec2 fragTexCoord;
+layout(location = 4) in vec3 fragNormal;
+layout(location = 5) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
 
@@ -100,6 +103,29 @@ float GetAmbientOcclusion();
 vec3 GetEmissive();
 float GetTransparency();
 
+float textureProj2(vec4 shadowCoord, vec2 off)
+{
+	float shadow = 1.0;
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
+	{
+		float dist = texture( ShadowMap, shadowCoord.st + off ).r;
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
+		{
+			shadow = 0.0;
+		}
+	}
+	return shadow;
+}
+//
+//float ShadowCalculation(vec4 fragPosLightSpace)
+//{
+//	vec4 projCoords = fragPosLightSpace / fragPosLightSpace.w;
+//	//projCoords = projCoords * 0.5 + 0.5;
+//	float closestDepth = texture(ShadowMap, projCoords.xy).r;
+//	float currentDepth = projCoords.z;
+//	float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+//	return shadow;
+//}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +133,23 @@ float GetTransparency();
 
 void main() 
 {
+//	float shadow = textureProj(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
+//	if (shadow < 0.90)
+//	{
+//		outColor = vec4(1,0,0,1);
+//		return;
+//	}
+//	if (shadow > 0.50)
+//	{
+//		outColor = vec4(0,1,0,1);
+//		return;
+//	}
+//	if (shadow > 0.001)
+//	{
+//		outColor = vec4(0,0,1,1);
+//		return;
+//	}
+
 	vec3 normal = GetNormal();
 	vec3 basecolor = GetBasecolor();
 	float metalness = GetMetalness();
@@ -155,7 +198,7 @@ void main()
 
 		// Incoming light direction - point or directional
 		const vec3 pointDir = lightPos - fragPos;
-		const vec3 directionalDir = -lightPos;
+		const vec3 directionalDir = lightPos;
 		const vec3 L = normalize(mix(pointDir, directionalDir, lightType));
 		const float NdotL = max(dot(normal,L), 0.0);
 		
@@ -191,7 +234,8 @@ void main()
 		}
 
 		// Outgoing radiance due to light hitting surface
-		Lo += brdf * incomingRadiance * NdotL;
+		float shadow = textureProj2(fragPosLightSpace / fragPosLightSpace.w, vec2(0.0));
+		Lo += brdf * incomingRadiance * NdotL * shadow; // TODO Shadows should be limted shadow casting lights
 	}
 
 
