@@ -371,12 +371,12 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		const auto& renderables = _renderer.Hack_GetRenderables();
 		const auto& meshes = _renderer.Hack_GetMeshes();
 
-		// Update Ubo - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
+		// Update all UBOs - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
 		for (size_t i = 0; i < renderableIds.size(); i++)
 		{
 			const auto& renderable = *renderables[renderableIds[i].Id];
 			// TODO need to create UBOs 
-			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This is relevant to UniversalUbo PBR rendering!
+			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This memory is used for UniversalUbo PBR rendering!
 
 			UniversalUbo ubo = {};
 			ubo.LightSpaceMatrix = lightSpaceMatrix;
@@ -391,7 +391,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		}
 
 		
-		// Draw
+		// Draw all objects
 
 		// Clear colour
 		std::vector<VkClearValue> clearColors(1);
@@ -400,7 +400,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		float depthBiasConstant = 1.0f;
 		float depthBiasSlope = 1.f;
 		auto shadow = _shadowDrawResources;
-		auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
+		auto shadowRect = vki::Rect2D(0, 0, shadow.Resolution.width, shadow.Resolution.height);
 		auto shadowViewport = vki::Viewport(shadowRect);
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
 			shadowRect,

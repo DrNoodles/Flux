@@ -80,7 +80,7 @@ namespace ShadowMap
 	//
 	struct ShadowmapDrawResources
 	{
-		VkExtent2D Size = {};
+		VkExtent2D Resolution = {};
 		//VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 		VkRenderPass RenderPass = nullptr;
@@ -90,7 +90,7 @@ namespace ShadowMap
 		ShadowmapDrawResources() = default;
 		ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
 		{
-			Size = size;
+			Resolution = size;
 			RenderPass = CreateRenderPass(vk);
 			Framebuffer = CreateFramebuffer(size, RenderPass, vk);
 			DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {

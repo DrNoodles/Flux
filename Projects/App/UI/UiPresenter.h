@@ -3,9 +3,9 @@
 #include "IWindow.h"
 
 // Render helpers - TODO remove all render deets from this class!
-#include "Offscreen.h"
-#include "PostProcess.h"
-#include "ShadowMap.h"
+#include <Renderer/RenderPasses/Offscreen.h>
+#include <Renderer/RenderPasses/PostProcess.h>
+#include <Renderer/RenderPasses/ShadowMap.h>
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
