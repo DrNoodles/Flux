@@ -11,8 +11,18 @@
 #include <imgui/imgui_impl_vulkan.h>
 
 
-void UiPresenter::CreateDescriptorChain()
+void UiPresenter::BuildFrame()
 {
+	//asdfas
+	/*
+	TODO
+	- call this every frame - just rebuild it all, why not...
+	- encapsulate each pass.
+		- pass constructor receives inputData and &outputData.. need to store create that here and store in a member var?
+	- entire chain defined here clearly.
+	*/
+
+	
 	// Scene framebuffer is only the size of the scene render region on screen
 	{
 		const auto sceneRect = ViewportRect();
@@ -26,14 +36,20 @@ void UiPresenter::CreateDescriptorChain()
 			_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	}
 	
-	_postProcessPass.CreateDescriptorResources(_sceneFramebuffer.OutputDescriptor);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
+}
+
+
+void UiPresenter::DrawFrame()
+{
+	assert(false);
 }
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postProcessPass.DestroyDescriptorResources();
-	CreateDescriptorChain();
+	BuildFrame();
 }
 
 
@@ -54,12 +70,10 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-	//CreateShadowFramebuffer();
+	
 	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
-	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
-	CreateDescriptorChain();
+	BuildFrame();
 }
 
 void UiPresenter::Shutdown()
@@ -72,11 +86,8 @@ void UiPresenter::Shutdown()
 
 	// Cleanup renderpass resources
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	//_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	//_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postProcessPass.Destroy();
-	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()

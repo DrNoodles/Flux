@@ -76,7 +76,6 @@ private: // DATA
 	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
 	FramebufferResources _sceneFramebuffer;
 	PostProcessPass _postProcessPass;
-	
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -121,7 +120,6 @@ public: // METHODS
 
 private: // METHODS
 
-	void CreateDescriptorChain();
 
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
@@ -150,6 +148,9 @@ private: // METHODS
 		return r;
 	}
 
+	void BuildFrame();
+	void DrawFrame();
+	
 	void BuildImGui();
 	//void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
 	void DrawUi(VkCommandBuffer commandBuffer);

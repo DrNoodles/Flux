@@ -6,6 +6,11 @@
 #include "Renderer/VulkanService.h"
 
 
+struct TextureData
+{
+	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
+};
+
 class PostProcessPass
 {
 	struct DescriptorResources
@@ -71,11 +76,11 @@ public:
 		_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
 	}
 
-	void CreateDescriptorResources(VkDescriptorImageInfo& sceneMap)
+	void CreateDescriptorResources(TextureData input)
 	{
 		_descriptorResources = CreateDescriptorResources(
 			_screenQuadResources.DescriptorSetLayout,
-			sceneMap,
+			input.Texture,
 			_vulkan->GetSwapchain().GetImageCount(),
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice());
 	}

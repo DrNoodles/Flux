@@ -108,9 +108,45 @@ private: // Dependencies
 	SkyboxResourceId _activeSkybox = {};
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<RenderableMesh>> _renderables{};
-	
-	std::vector<std::unique_ptr<MeshResource>> _meshes{};
-	std::vector<std::unique_ptr<TextureResource>> _textures{};
+
+
+	//TODO
+	/*
+	Split up concepts clearly.
+
+	Scene:
+		- Deals with user level resources.
+		- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
+		- Uses SceneAssets to define unique user assets in the scene.
+		- Scene itself joins these unique AssetDescs to build the scene itself.
+
+		Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
+
+		SceneAssets:
+			Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
+
+			struct AssetDesc
+				GUID Id
+				string Path
+				AssetType Type // Texture/Mesh/Ibl
+				// Maybe this needs subclassing for control
+
+	Renderer:
+		- Consumes a scene description: probably a scene graph with AssetDescs?
+
+		AssetToResourceMap
+			Maps an AssetDesc.Id to 1 to n resources.
+			Necessary abstraction for things like Ibl which is one concept, but has many texture resources.
+				
+			- Queries RendererResourceManager for resources based on AssetDesc.Id (Lazy?) loads any resources
+
+		RendererResourceManager:
+			- Used exclusively by Renderer to manage resources
+			ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
+		
+	*/
+	std::vector<std::unique_ptr<MeshResource>> _meshes{};      // TODO Move these to a resource registry
+	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
 
 	bool _refreshRenderableDescriptorSets = false;
 	bool _refreshSkyboxDescriptorSets = false;
