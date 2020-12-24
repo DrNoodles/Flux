@@ -13,44 +13,26 @@
 
 void UiPresenter::BuildFramebuffer()
 {
-	//asdfas
-	/*
-	TODO
-	- call this every frame - just rebuild it all, why not...
-	- encapsulate each pass.
-		- pass constructor receives inputData and &outputData.. need to store create that here and store in a member var?
-	- entire chain defined here clearly.
-	*/
-
-	
 	// Scene framebuffer is only the size of the scene render region on screen
 	{
 		const auto sceneRect = ViewportRect();
-		const auto sceneExtent = VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height };
-
 		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-			sceneExtent,
+			VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height },
 			VK_FORMAT_R16G16B16A16_SFLOAT,
 			_renderer.GetRenderPass(),
-			_vulkan.MsaaSamples(),
-			_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
+			_vk.MsaaSamples(),
+			_vk.LogicalDevice(), _vk.PhysicalDevice());
 	}
-	
 }
 
-
-void UiPresenter::DrawFrame()
-{
-	assert(false);
-}
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_sceneFramebuffer.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	_postProcessPass.DestroyDescriptorResources();
 	
-	BuildFramebuffer();
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
+	BuildFramebuffer(); // resolution
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor}); // num images
 }
 
 
@@ -59,7 +41,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_scene{scene},
 	_library{library},
 	_renderer{renderer},
-	_vulkan{vulkan},
+	_vk{vulkan},
 	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
@@ -74,9 +56,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 
 
-	// TODO Try pull the framebuffer out of _shadowDrawResources. Can i then recreate teh shadowDrawResources every frame?
-	
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, _shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout()};
 	
 	BuildFramebuffer();
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
@@ -92,9 +72,9 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postProcessPass.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_sceneFramebuffer.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+	_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -314,20 +294,9 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	// TODO Just update the descriptor for this imageIndex????
 	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
-	
-	auto& vk = _vulkan;
-	const auto& swap = vk.GetSwapchain();
-	const auto swapExtent = swap.GetExtent();
-
-	// Whole screen framebuffer dimensions
-	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
-	const auto framebufferViewport = vki::Viewport(framebufferRect);
-	
-	// Scene Viewport / Region. Only the part of the screen showing the scene.
-	const auto sceneRectShared = ViewportRect();
 
 	
-	// Prep scene objects for drawing - TODO There's duplicate effort done here and DrawViewport
+	// Prep scene objects for drawing - TODO There's duplicate effort done below
 	std::optional<ShadowCaster> shadowCaster = {};
 	std::vector<RenderableResourceId> renderableIds = {};
 	std::vector<glm::mat4> transforms = {};
@@ -406,9 +375,9 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			// Copy to gpu - TODO PERF Keep mem mapped 
 			void* data;
 			auto size = sizeof(ubo);
-			vkMapMemory(vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
+			vkMapMemory(_vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
 			memcpy(data, &ubo, size);
-			vkUnmapMemory(vk.LogicalDevice(), modelBufferMemory);
+			vkUnmapMemory(_vk.LogicalDevice(), modelBufferMemory);
 		}
 
 		
@@ -501,11 +470,19 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		std::vector<VkClearValue> clearColors(2);
 		clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
 		clearColors[1].depthStencil = {1.f, 0ui32};
-			
+
+		// Whole screen framebuffer dimensions
+		const auto& swap = _vk.GetSwapchain();
+		const auto framebufferRect = vki::Rect2D({ 0, 0 }, swap.GetExtent());
+		const auto framebufferViewport = vki::Viewport(framebufferRect);
+
+		const auto sceneRectShared = ViewportRect();
 		const auto sceneRect = vki::Rect2D(
 			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
 			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+		
 		const auto sceneViewport = vki::Viewport(sceneRect);
+		
 		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
 			framebufferRect, clearColors);
 
@@ -811,6 +788,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
-	_vulkan.InvalidateSwapchain();
+	_vk.InvalidateSwapchain();
 	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }

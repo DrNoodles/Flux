@@ -43,7 +43,7 @@ private: // DATA
 	SceneManager& _scene;
 	LibraryManager& _library;
 	Renderer& _renderer; // temp, move to ViewportView
-	VulkanService& _vulkan; // temp, remove
+	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
 	// Views
