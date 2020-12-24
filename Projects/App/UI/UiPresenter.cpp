@@ -16,23 +16,24 @@ void UiPresenter::BuildFramebuffer()
 	// Scene framebuffer is only the size of the scene render region on screen
 	{
 		const auto sceneRect = ViewportRect();
-		_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
+		
+		_sceneFramebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
 			VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height },
 			VK_FORMAT_R16G16B16A16_SFLOAT,
 			_renderer.GetRenderPass(),
 			_vk.MsaaSamples(),
-			_vk.LogicalDevice(), _vk.PhysicalDevice());
+			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 }
 
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_sceneFramebuffer.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+	_sceneFramebuffer->Destroy();
 	_postProcessPass.DestroyDescriptorResources();
 	
 	BuildFramebuffer(); // resolution
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor}); // num images
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor}); // num images
 }
 
 
@@ -60,7 +61,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	
 	BuildFramebuffer();
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
 }
 
 void UiPresenter::Shutdown()
@@ -72,7 +73,7 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneFramebuffer.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+	_sceneFramebuffer->Destroy();
 	_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
@@ -389,10 +390,10 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		float depthBiasConstant = 1.0f;
 		float depthBiasSlope = 1.f;
-		auto shadow = _shadowDrawResources;
+		auto& shadow = _shadowDrawResources;
 		auto shadowRect = vki::Rect2D(0, 0, shadow.Resolution.width, shadow.Resolution.height);
 		auto shadowViewport = vki::Viewport(shadowRect);
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
+		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer->Framebuffer,
 			shadowRect,
 			clearColors);
 		
@@ -444,19 +445,19 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
 		clearColors[1].depthStencil = { 1.f, 0ui32 };
 
-		const auto sceneRectShared = ViewportRect();
-		const auto sceneRectNoOffset = vki::Rect2D({ 0, 0 }, { sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
-		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
-
+	
+		auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneFramebuffer->Desc.Extent });
+		auto renderViewport = vki::Viewport(renderRect);
+		
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
-			_sceneFramebuffer.Framebuffer,
-			sceneRectNoOffset,
+			_sceneFramebuffer->Framebuffer,
+			renderRect,
 			clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
+			vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &renderRect);
 
 			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
 		}

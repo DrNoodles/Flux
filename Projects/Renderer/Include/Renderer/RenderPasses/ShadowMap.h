@@ -2,6 +2,7 @@
 
 #include "Renderer/GpuTypes.h"
 #include "Renderer/VulkanService.h"
+#include "Renderer/Framebuffer.h"
 
 // Temp file to encapsulate code related to generating a shadowmap
 
@@ -84,7 +85,7 @@ namespace ShadowMap
 		//VkPipelineLayout PipelineLayout = nullptr;
 		VkPipeline Pipeline = nullptr;
 		VkRenderPass RenderPass = nullptr;
-		FramebufferResources Framebuffer = {};
+		std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
 
 		ShadowmapDrawResources() = default;
@@ -92,7 +93,7 @@ namespace ShadowMap
 		{
 			Resolution = size;
 			RenderPass = CreateRenderPass(vk);
-			Framebuffer = CreateFramebuffer(size, RenderPass, vk);
+			Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, RenderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
 			DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
 				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 				});
@@ -106,7 +107,8 @@ namespace ShadowMap
 			//vkDestroyPipelineLayout(device, PipelineLayout, allocator);
 			vkDestroyRenderPass(device, RenderPass, allocator);
 			vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
-			Framebuffer.Destroy(device, allocator);
+			Framebuffer->Destroy();
+			Framebuffer = nullptr;
 		}
 
 	private:
@@ -286,66 +288,6 @@ namespace ShadowMap
 			dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 			return vkh::CreateRenderPass(vk.LogicalDevice(), { depthAttachDesc }, { subpassDescription }, dependencies);
-		}
-
-		static FramebufferResources CreateFramebuffer(VkExtent2D extent, VkRenderPass renderPass, VulkanService& vk)
-		{
-			const u32 mipLevels = 1;
-			const u32 layerCount = 1;
-			const auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-
-			auto* physicalDevice = vk.PhysicalDevice();
-			auto* device = vk.LogicalDevice();
-
-			const VkFormat depthFormat = vkh::FindDepthFormat(physicalDevice);
-
-			// Create depth attachment
-			FramebufferResources::Attachment depthAttachment = {};
-			{
-
-				// Create depth image and memory
-				std::tie(depthAttachment.Image, depthAttachment.ImageMemory) = vkh::CreateImage2D(
-					extent.width, extent.height,
-					mipLevels,
-					msaaSamples,
-					depthFormat,
-					VK_IMAGE_TILING_OPTIMAL,
-					VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					physicalDevice, device);
-
-				// Create image view
-				depthAttachment.ImageView = vkh::CreateImage2DView(
-					depthAttachment.Image,
-					depthFormat,
-					VK_IMAGE_VIEW_TYPE_2D,
-					VK_IMAGE_ASPECT_DEPTH_BIT,
-					mipLevels,
-					layerCount,
-					device);
-			}
-
-
-			// Create framebuffer
-			auto* framebuffer = vkh::CreateFramebuffer(device, extent.width, extent.height,
-				{ depthAttachment.ImageView }, renderPass);
-
-
-			// Sampler so it can be sampled from a shader
-			auto* sampler = vkh::CreateSampler(device,
-				VK_FILTER_LINEAR, VK_FILTER_LINEAR,
-				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-
-
-			FramebufferResources res = {};
-			res.Framebuffer = framebuffer;
-			res.Extent = extent;
-			res.Format = depthFormat;
-			res.Attachments = { depthAttachment };
-			res.OutputSampler = sampler;
-			res.OutputDescriptor = VkDescriptorImageInfo{ sampler, depthAttachment.ImageView, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
-			
-			return res;
 		}
 	};
 }

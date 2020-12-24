@@ -6,6 +6,7 @@
 #include <Renderer/RenderPasses/Offscreen.h>
 #include <Renderer/RenderPasses/PostProcess.h>
 #include <Renderer/RenderPasses/ShadowMap.h>
+#include <Renderer/Framebuffer.h>
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -74,7 +75,7 @@ private: // DATA
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
-	FramebufferResources _sceneFramebuffer;
+	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	PostProcessPass _postProcessPass;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
@@ -93,7 +94,7 @@ public: // METHODS
 	void Shutdown();
 	VkDescriptorImageInfo GetShadowmapDescriptor() const
 	{
-		return _shadowDrawResources.Framebuffer.OutputDescriptor;
+		return _shadowDrawResources.Framebuffer->OutputDescriptor;
 	}
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
