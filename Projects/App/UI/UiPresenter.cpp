@@ -11,7 +11,7 @@
 #include <imgui/imgui_impl_vulkan.h>
 
 
-void UiPresenter::BuildFrame()
+void UiPresenter::BuildFramebuffer()
 {
 	//asdfas
 	/*
@@ -36,7 +36,6 @@ void UiPresenter::BuildFrame()
 			_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
 	}
 	
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 }
 
 
@@ -49,7 +48,9 @@ void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapcha
 {
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_postProcessPass.DestroyDescriptorResources();
-	BuildFrame();
+	
+	BuildFramebuffer();
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 }
 
 
@@ -62,7 +63,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
-	_viewportView{ViewportView{this, renderer}}
+	_viewportView{ViewportView{this, renderer}},
+	_shaderDir{shaderDir}
 {
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
 	_window->PointerMoved.Attach(_pointerMovedHandler);
@@ -70,10 +72,15 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
+
+
+	// TODO Try pull the framebuffer out of _shadowDrawResources. Can i then recreate teh shadowDrawResources every frame?
 	
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, _shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
+	
+	BuildFramebuffer();
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
-	BuildFrame();
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 }
 
 void UiPresenter::Shutdown()
@@ -87,7 +94,7 @@ void UiPresenter::Shutdown()
 	// Cleanup renderpass resources
 	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postProcessPass.Destroy();
+	_postProcessPass.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -305,6 +312,9 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
+	// TODO Just update the descriptor for this imageIndex????
+	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
+	
 	auto& vk = _vulkan;
 	const auto& swap = vk.GetSwapchain();
 	const auto swapExtent = swap.GetExtent();

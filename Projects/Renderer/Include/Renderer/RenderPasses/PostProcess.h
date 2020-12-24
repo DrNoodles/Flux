@@ -70,12 +70,12 @@ public:
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
-	void Destroy()
+	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 	{
-		_descriptorResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
-		_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
+		DestroyDescriptorResources();
+		_screenQuadResources.Destroy(device, allocator);
 	}
-
+	
 	void CreateDescriptorResources(TextureData input)
 	{
 		_descriptorResources = CreateDescriptorResources(
