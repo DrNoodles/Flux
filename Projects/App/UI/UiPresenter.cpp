@@ -11,36 +11,22 @@
 #include <imgui/imgui_impl_vulkan.h>
 
 
-void UiPresenter::BuildFramebuffer()
-{
-	// Scene framebuffer is only the size of the scene render region on screen
-	{
-		const auto sceneRect = ViewportRect();
-		
-		_sceneFramebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
-			VkExtent2D{ sceneRect.Extent.Width, sceneRect.Extent.Height },
-			VK_FORMAT_R16G16B16A16_SFLOAT,
-			_renderer.GetRenderPass(),
-			_vk.MsaaSamples(),
-			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
-	}
-}
 
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_sceneFramebuffer->Destroy();
 	_postProcessPass.DestroyDescriptorResources();
-	
-	BuildFramebuffer(); // resolution
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor}); // num images
+
+	_sceneRenderer.HandleSwapchainRecreated(width, height, numSwapchainImages);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()}); // num images
 }
 
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
+	_sceneRenderer{sceneRenderer},
 	_renderer{renderer},
 	_vk{vulkan},
 	_window{window},
@@ -58,10 +44,10 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 
 	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout()};
-	
-	BuildFramebuffer();
+
+	sceneRenderer.Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
 }
 
 void UiPresenter::Shutdown()
@@ -73,7 +59,7 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneFramebuffer->Destroy();
+	_sceneRenderer.Destroy();
 	_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
@@ -293,6 +279,7 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
+	_sceneRenderer.Draw();
 	// TODO Just update the descriptor for this imageIndex????
 	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 
@@ -446,11 +433,11 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		clearColors[1].depthStencil = { 1.f, 0ui32 };
 
 	
-		auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneFramebuffer->Desc.Extent });
+		auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneRenderer.TEMP_GetFramebufferRef().Desc.Extent });
 		auto renderViewport = vki::Viewport(renderRect);
 		
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
-			_sceneFramebuffer->Framebuffer,
+			_sceneRenderer.TEMP_GetFramebufferRef().Framebuffer,
 			renderRect,
 			clearColors);
 

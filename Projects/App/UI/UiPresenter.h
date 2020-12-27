@@ -44,7 +44,8 @@ private: // DATA
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	LibraryManager& _library;
-	Renderer& _renderer; // temp, move to ViewportView
+	SceneRenderer& _sceneRenderer;
+	Renderer& _renderer; // temp, remove
 	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
@@ -76,7 +77,6 @@ private: // DATA
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
 	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
-	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	PostProcessPass _postProcessPass;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
@@ -89,7 +89,7 @@ private: // DATA
 
 public: // METHODS
 	
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
 	
 	void Shutdown();
@@ -150,8 +150,8 @@ private: // METHODS
 		return r;
 	}
 
-	void BuildFramebuffer();
-	void DrawFrame();
+	
+	
 	
 	void BuildImGui();
 	//void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);

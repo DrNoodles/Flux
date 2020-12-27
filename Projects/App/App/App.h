@@ -49,6 +49,7 @@ private: // DATA
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
 	std::unique_ptr<Renderer>            _renderer           = nullptr;
+	std::unique_ptr<SceneRenderer>       _sceneRenderer      = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
 
 	// Window
@@ -94,7 +95,8 @@ public: // METHODS
 
 		// UI
 		auto renderer = std::make_unique<Renderer>(*vulkanService, *this, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
+		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, *renderer, options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *sceneRenderer, *renderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
 		
@@ -102,6 +104,7 @@ public: // METHODS
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
 		_renderer = std::move(renderer);
+		_sceneRenderer = std::move(sceneRenderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
 		_library = std::move(library);
