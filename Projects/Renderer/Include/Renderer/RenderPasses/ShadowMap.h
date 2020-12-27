@@ -1,13 +1,14 @@
 #pragma once
 
+#include "Framework/FileService.h"
+
 #include "Renderer/GpuTypes.h"
 #include "Renderer/VulkanService.h"
 #include "Renderer/Framebuffer.h"
 
+
 // Temp file to encapsulate code related to generating a shadowmap
 
-namespace ShadowMap
-{
 	//struct ShadowmapDescriptorResources
 	//{
 	//	u32 ImageCount = 0; 
@@ -79,215 +80,214 @@ namespace ShadowMap
 	//	}
 	//};
 	//
-	struct ShadowmapDrawResources
+struct ShadowmapDrawResources
+{
+	VkExtent2D Resolution = {};
+	//VkPipelineLayout PipelineLayout = nullptr;
+	VkPipeline Pipeline = nullptr;
+	VkRenderPass RenderPass = nullptr;
+	std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
+	VkDescriptorSetLayout DescriptorSetLayout = nullptr;
+
+	ShadowmapDrawResources() = default;
+	ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
 	{
-		VkExtent2D Resolution = {};
-		//VkPipelineLayout PipelineLayout = nullptr;
-		VkPipeline Pipeline = nullptr;
-		VkRenderPass RenderPass = nullptr;
-		std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
-		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
+		Resolution = size;
+		RenderPass = CreateRenderPass(vk);
+		Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, RenderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
+		DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
+			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			});
+		//PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
+		Pipeline = CreatePipeline(shaderDir, RenderPass, pipelineLayout, vk);
+	}
 
-		ShadowmapDrawResources() = default;
-		ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
+	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+	{
+		vkDestroyPipeline(device, Pipeline, allocator);
+		//vkDestroyPipelineLayout(device, PipelineLayout, allocator);
+		vkDestroyRenderPass(device, RenderPass, allocator);
+		vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
+		Framebuffer->Destroy();
+		Framebuffer = nullptr;
+	}
+
+private:
+	static VkPipeline CreatePipeline(const std::string& shaderDir, VkRenderPass renderPass,
+		VkPipelineLayout pipelineLayout, VulkanService& vk)
+	{
+		auto* device = vk.LogicalDevice();
+		const auto vertPath = shaderDir + "Shadowmap.vert.spv";
+		//const auto fragPath = shaderDir + "Shadowmap.frag.spv";
+
+		// Shaders
+		VkPipelineShaderStageCreateInfo vertShaderStage = {};
+		vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
+		vertShaderStage.pName = "main";
+
+		//VkPipelineShaderStageCreateInfo fragShaderStage = {};
+		//fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		//fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		//fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
+		//fragShaderStage.pName = "main";
+
+		std::vector<VkPipelineShaderStageCreateInfo> shaderStages{ vertShaderStage };
+
+
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
+		inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		inputAssemblyState.flags = 0;
+		inputAssemblyState.primitiveRestartEnable = VK_FALSE;
+
+		VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+		rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationState.cullMode = VK_CULL_MODE_NONE; // TODO Enable culling once this renderpass works
+		rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationState.flags = 0;
+		rasterizationState.depthClampEnable = VK_FALSE;
+		rasterizationState.lineWidth = 1.0f;
+		rasterizationState.depthBiasEnable = true; // Enabled in dynamic state
+
+		/*VkPipelineColorBlendAttachmentState blendAttachmentState = {};
+		blendAttachmentState.colorWriteMask = 0xf;
+		blendAttachmentState.blendEnable = VK_FALSE;*/
+
+		VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+		colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlendState.attachmentCount = 0;
+		colorBlendState.pAttachments = nullptr;//&blendAttachmentState;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
+		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencilState.depthTestEnable = true;
+		depthStencilState.depthWriteEnable = true;
+		depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		depthStencilState.back.compareOp = VK_COMPARE_OP_ALWAYS;
+
+		VkPipelineViewportStateCreateInfo viewportState = {};
+		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		viewportState.viewportCount = 1;
+		viewportState.scissorCount = 1;
+		viewportState.flags = 0;
+
+		VkPipelineMultisampleStateCreateInfo multisampleState = {};
+		multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		multisampleState.flags = 0;
+
+		std::vector<VkDynamicState> dynamicStateEnables = {
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR,
+			VK_DYNAMIC_STATE_DEPTH_BIAS };
+
+		VkPipelineDynamicStateCreateInfo dynamicState = {};
+		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicState.pDynamicStates = dynamicStateEnables.data();
+		dynamicState.dynamicStateCount = (u32)dynamicStateEnables.size();
+		dynamicState.flags = 0;
+
+
+		// Vertex Input  -  Define the format of the vertex data passed to the vert shader
+		VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
+		//auto vertAttrDesc = VertexHelper::AttributeDescriptions();
+		std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
 		{
-			Resolution = size;
-			RenderPass = CreateRenderPass(vk);
-			Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, RenderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
-			DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
-				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-				});
-			//PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
-			Pipeline = CreatePipeline(shaderDir, RenderPass, pipelineLayout, vk);
+			// Pos
+			vertAttrDesc[0].binding = 0;
+			vertAttrDesc[0].location = 0;
+			vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertAttrDesc[0].offset = offsetof(Vertex, Pos);
 		}
 
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+		VkPipelineVertexInputStateCreateInfo vertexInputState = {};
+		vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputState.vertexBindingDescriptionCount = 1;
+		vertexInputState.pVertexBindingDescriptions = &vertBindingDesc;
+		vertexInputState.vertexAttributeDescriptionCount = (u32)vertAttrDesc.size();
+		vertexInputState.pVertexAttributeDescriptions = vertAttrDesc.data();
+
+
+		// Create the pipeline
+		VkGraphicsPipelineCreateInfo pipelineCI = {};
+		pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineCI.pInputAssemblyState = &inputAssemblyState;
+		pipelineCI.pRasterizationState = &rasterizationState;
+		pipelineCI.pColorBlendState = &colorBlendState;
+		pipelineCI.pMultisampleState = &multisampleState;
+		pipelineCI.pViewportState = &viewportState;
+		pipelineCI.pDepthStencilState = &depthStencilState;
+		pipelineCI.pDynamicState = &dynamicState;
+		pipelineCI.pVertexInputState = &vertexInputState;
+		pipelineCI.stageCount = (u32)shaderStages.size();
+		pipelineCI.pStages = shaderStages.data();
+		pipelineCI.renderPass = renderPass;
+		pipelineCI.layout = pipelineLayout;
+
+
+		VkPipeline pipeline;
+		if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
 		{
-			vkDestroyPipeline(device, Pipeline, allocator);
-			//vkDestroyPipelineLayout(device, PipelineLayout, allocator);
-			vkDestroyRenderPass(device, RenderPass, allocator);
-			vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
-			Framebuffer->Destroy();
-			Framebuffer = nullptr;
+			throw std::runtime_error("Failed to create pipeline");
 		}
 
-	private:
-		static VkPipeline CreatePipeline(const std::string& shaderDir, VkRenderPass renderPass,
-			VkPipelineLayout pipelineLayout, VulkanService& vk)
+		// Cleanup
+		vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
+		//vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
+
+		return pipeline;
+	}
+
+	static VkRenderPass CreateRenderPass(VulkanService& vk)
+	{
+		const VkFormat depthFormat = vkh::FindDepthFormat(vk.PhysicalDevice());
+
+
+		// Define attachments
+		VkAttachmentDescription depthAttachDesc = {};
 		{
-			auto* device = vk.LogicalDevice();
-			const auto vertPath = shaderDir + "Shadowmap.vert.spv";
-			//const auto fragPath = shaderDir + "Shadowmap.frag.spv";
-			
-			// Shaders
-			VkPipelineShaderStageCreateInfo vertShaderStage = {};
-			vertShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			vertShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(vertPath), device);
-			vertShaderStage.pName = "main";
-
-			//VkPipelineShaderStageCreateInfo fragShaderStage = {};
-			//fragShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			//fragShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			//fragShaderStage.module = vkh::CreateShaderModule(FileService::ReadFile(fragPath), device);
-			//fragShaderStage.pName = "main";
-			
-			std::vector<VkPipelineShaderStageCreateInfo> shaderStages{ vertShaderStage };
-			
-
-			VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-			inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-			inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-			inputAssemblyState.flags = 0;
-			inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-
-			VkPipelineRasterizationStateCreateInfo rasterizationState = {};
-			rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-			rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationState.cullMode = VK_CULL_MODE_NONE; // TODO Enable culling once this renderpass works
-			rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-			rasterizationState.flags = 0;
-			rasterizationState.depthClampEnable = VK_FALSE;
-			rasterizationState.lineWidth = 1.0f;
-			rasterizationState.depthBiasEnable = true; // Enabled in dynamic state
-
-			/*VkPipelineColorBlendAttachmentState blendAttachmentState = {};
-			blendAttachmentState.colorWriteMask = 0xf;
-			blendAttachmentState.blendEnable = VK_FALSE;*/
-
-			VkPipelineColorBlendStateCreateInfo colorBlendState = {};
-			colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-			colorBlendState.attachmentCount = 0;
-			colorBlendState.pAttachments = nullptr;//&blendAttachmentState;
-
-			VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-			depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-			depthStencilState.depthTestEnable = true;
-			depthStencilState.depthWriteEnable = true;
-			depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-			depthStencilState.back.compareOp = VK_COMPARE_OP_ALWAYS;
-
-			VkPipelineViewportStateCreateInfo viewportState = {};
-			viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-			viewportState.viewportCount = 1;
-			viewportState.scissorCount = 1;
-			viewportState.flags = 0;
-
-			VkPipelineMultisampleStateCreateInfo multisampleState = {};
-			multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-			multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-			multisampleState.flags = 0;
-
-			std::vector<VkDynamicState> dynamicStateEnables = {
-				VK_DYNAMIC_STATE_VIEWPORT,
-				VK_DYNAMIC_STATE_SCISSOR,
-				VK_DYNAMIC_STATE_DEPTH_BIAS };
-
-			VkPipelineDynamicStateCreateInfo dynamicState = {};
-			dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-			dynamicState.pDynamicStates = dynamicStateEnables.data();
-			dynamicState.dynamicStateCount = (u32)dynamicStateEnables.size();
-			dynamicState.flags = 0;
-
-
-			// Vertex Input  -  Define the format of the vertex data passed to the vert shader
-			VkVertexInputBindingDescription vertBindingDesc = VertexHelper::BindingDescription();
-			//auto vertAttrDesc = VertexHelper::AttributeDescriptions();
-			std::vector<VkVertexInputAttributeDescription> vertAttrDesc(1);
-			{
-				// Pos
-				vertAttrDesc[0].binding = 0;
-				vertAttrDesc[0].location = 0;
-				vertAttrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-				vertAttrDesc[0].offset = offsetof(Vertex, Pos);
-			}
-
-			VkPipelineVertexInputStateCreateInfo vertexInputState = {};
-			vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-			vertexInputState.vertexBindingDescriptionCount = 1;
-			vertexInputState.pVertexBindingDescriptions = &vertBindingDesc;
-			vertexInputState.vertexAttributeDescriptionCount = (u32)vertAttrDesc.size();
-			vertexInputState.pVertexAttributeDescriptions = vertAttrDesc.data();
-			
-
-			// Create the pipeline
-			VkGraphicsPipelineCreateInfo pipelineCI = {};
-			pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-			pipelineCI.pInputAssemblyState = &inputAssemblyState;
-			pipelineCI.pRasterizationState = &rasterizationState;
-			pipelineCI.pColorBlendState = &colorBlendState;
-			pipelineCI.pMultisampleState = &multisampleState;
-			pipelineCI.pViewportState = &viewportState;
-			pipelineCI.pDepthStencilState = &depthStencilState;
-			pipelineCI.pDynamicState = &dynamicState;
-			pipelineCI.pVertexInputState = &vertexInputState;
-			pipelineCI.stageCount = (u32)shaderStages.size();
-			pipelineCI.pStages = shaderStages.data();
-			pipelineCI.renderPass = renderPass;
-			pipelineCI.layout = pipelineLayout;
-
-
-			VkPipeline pipeline;
-			if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
-			{
-				throw std::runtime_error("Failed to create pipeline");
-			}
-
-			// Cleanup
-			vkDestroyShaderModule(device, vertShaderStage.module, nullptr);
-			//vkDestroyShaderModule(device, fragShaderStage.module, nullptr);
-
-			return pipeline;
+			depthAttachDesc.format = depthFormat;
+			depthAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			depthAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		}
 
-		static VkRenderPass CreateRenderPass(VulkanService& vk)
+
+		// Define Subpass
+		VkAttachmentReference depthAttachRef = { 0, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+		VkSubpassDescription subpassDescription = {};
 		{
-			const VkFormat depthFormat = vkh::FindDepthFormat(vk.PhysicalDevice());
-
-
-			// Define attachments
-			VkAttachmentDescription depthAttachDesc = {};
-			{
-				depthAttachDesc.format = depthFormat;
-				depthAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-				depthAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				depthAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-				depthAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-				depthAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-				depthAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				depthAttachDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-			}
-
-
-			// Define Subpass
-			VkAttachmentReference depthAttachRef = { 0, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
-			VkSubpassDescription subpassDescription = {};
-			{
-				subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-				subpassDescription.colorAttachmentCount = 0;	
-				subpassDescription.pDepthStencilAttachment = &depthAttachRef;
-			}
-
-
-			// Define dependencies for layout transitions
-			std::vector<VkSubpassDependency> dependencies(2);
-			dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-			dependencies[0].dstSubpass = 0;
-			dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-			dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-			dependencies[1].srcSubpass = 0;
-			dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-			dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-			return vkh::CreateRenderPass(vk.LogicalDevice(), { depthAttachDesc }, { subpassDescription }, dependencies);
+			subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpassDescription.colorAttachmentCount = 0;
+			subpassDescription.pDepthStencilAttachment = &depthAttachRef;
 		}
-	};
-}
+
+
+		// Define dependencies for layout transitions
+		std::vector<VkSubpassDependency> dependencies(2);
+		dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[0].dstSubpass = 0;
+		dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		dependencies[1].srcSubpass = 0;
+		dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+		dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+		return vkh::CreateRenderPass(vk.LogicalDevice(), { depthAttachDesc }, { subpassDescription }, dependencies);
+	}
+};

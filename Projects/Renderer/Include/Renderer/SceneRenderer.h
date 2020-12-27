@@ -1,10 +1,9 @@
 #pragma once
 
 #include "Renderer.h"
-#include "GpuTypes.h"
-#include "RenderableMesh.h"
+#include "RenderPasses/ShadowMap.h"
+
 #include "Framebuffer.h"
-#include "TextureResource.h"
 #include "VulkanService.h" // TODO Investigate why compilation breaks if above TextureResource.h
 #include "CubemapTextureLoader.h"
 
@@ -12,6 +11,7 @@
 #include <Framework/CommonTypes.h>
 
 #include <vector>
+
 
 
 class SceneRenderer
@@ -22,31 +22,34 @@ private:// Data
 	VulkanService& _vk;
 	Renderer& _renderer;
 
-	// Framebuffers
+	// Resources
 	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
-
-
-	// Renderpasses
+	ShadowmapDrawResources _shadowDrawResources;
+	std::string _shaderDir;
 
 public: // Methods
-	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer)
+	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _shaderDir(std::move(shaderDir))
 	{
-
-	}
-	void Destroy()
-	{
-		_sceneFramebuffer->Destroy();
 	}
 
 	void Init(u32 width, u32 height)
 	{
-		BuildFramebuffer(width, height);
+		_shadowDrawResources = ShadowmapDrawResources{ { 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout() };
+
+		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
 	}
 
-	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+	void Destroy()
 	{
 		_sceneFramebuffer->Destroy();
-		BuildFramebuffer(width, height); // resolution
+		_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+	}
+
+	
+	void Resize(u32 width, u32 height)
+	{
+		_sceneFramebuffer->Destroy();
+		_sceneFramebuffer = CreateSceneFramebuffer(width, height); 
 	}
 
 	void Draw()
@@ -54,15 +57,20 @@ public: // Methods
 
 	}
 
-	FramebufferResources& TEMP_GetFramebufferRef() const { return *_sceneFramebuffer; }
 	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
+
+	const FramebufferResources& TEMP_GetFramebufferRef() const { return *_sceneFramebuffer; }
+	const ShadowmapDrawResources& TEMP_GetShadowmapResourcesRef() const { return _shadowDrawResources; }
+
+	VkDescriptorImageInfo TEMP_GetShadowmapDescriptor() const { return _shadowDrawResources.Framebuffer->OutputDescriptor; }
+
 private:// Methods
 
 
-	void BuildFramebuffer(u32 width, u32 height)
+	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height) const
 	{
 		// Scene framebuffer is only the size of the scene render region on screen
-		_sceneFramebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
+		return std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
 			VkExtent2D{ width, height },
 			VK_FORMAT_R16G16B16A16_SFLOAT,
 			_renderer.GetRenderPass(),

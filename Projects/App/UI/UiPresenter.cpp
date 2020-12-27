@@ -16,8 +16,9 @@
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_postProcessPass.DestroyDescriptorResources();
-
-	_sceneRenderer.HandleSwapchainRecreated(width, height, numSwapchainImages);
+	
+	_sceneRenderer.Resize(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	
 	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()}); // num images
 }
 
@@ -43,8 +44,6 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 
 
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout()};
-
 	sceneRenderer.Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
 	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
@@ -60,7 +59,6 @@ void UiPresenter::Shutdown()
 
 	// Cleanup renderpass resources
 	_sceneRenderer.Destroy();
-	_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
@@ -377,7 +375,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		float depthBiasConstant = 1.0f;
 		float depthBiasSlope = 1.f;
-		auto& shadow = _shadowDrawResources;
+		auto& shadow = _sceneRenderer.TEMP_GetShadowmapResourcesRef();
 		auto shadowRect = vki::Rect2D(0, 0, shadow.Resolution.width, shadow.Resolution.height);
 		auto shadowViewport = vki::Viewport(shadowRect);
 		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer->Framebuffer,

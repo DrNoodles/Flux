@@ -4,10 +4,7 @@
 
 // Render helpers - TODO remove all render deets from this class!
 #include <Renderer/SceneRenderer.h>
-#include <Renderer/RenderPasses/Offscreen.h>
 #include <Renderer/RenderPasses/PostProcess.h>
-#include <Renderer/RenderPasses/ShadowMap.h>
-#include <Renderer/Framebuffer.h>
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -76,7 +73,6 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
 	PostProcessPass _postProcessPass;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
@@ -95,7 +91,7 @@ public: // METHODS
 	void Shutdown();
 	VkDescriptorImageInfo GetShadowmapDescriptor() const
 	{
-		return _shadowDrawResources.Framebuffer->OutputDescriptor;
+		return _sceneRenderer.TEMP_GetShadowmapDescriptor();
 	}
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
