@@ -3,6 +3,7 @@
 #include "IWindow.h"
 
 // Render helpers - TODO remove all render deets from this class!
+#include <Renderer/SceneRenderer.h>
 #include <Renderer/RenderPasses/Offscreen.h>
 #include <Renderer/RenderPasses/PostProcess.h>
 #include <Renderer/RenderPasses/ShadowMap.h>

@@ -1,7 +1,6 @@
 #pragma once
 
 
-#include <Framework/Vertex.h>
 #include <Framework/CommonTypes.h>
 
 #include <vulkan/vulkan.h>
@@ -211,7 +210,7 @@ public:
 		const VkFormat depthFormat = vkh::FindDepthFormat(physicalDevice);
 
 		// Create depth attachment
-		FramebufferResources::Attachment depthAttachment = {};
+		Attachment depthAttachment = {};
 		{
 
 			// Create depth image and memory
