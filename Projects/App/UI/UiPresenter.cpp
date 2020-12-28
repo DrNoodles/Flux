@@ -1,6 +1,7 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
+#include "RendererConverters.h"
 
 #include <Framework/FileService.h>
 #include <State/LibraryManager.h>
@@ -9,7 +10,6 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
-
 
 
 
@@ -266,7 +266,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		SceneRendererPrimitives s = {};
 		for (const auto& entity : _scene.EntitiesView())
 		{
-			// Gather renderable/transform pairs
 			if (entity->Renderable.has_value())
 			{
 				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
@@ -278,27 +277,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 			if (entity->Light.has_value())
 			{
-				auto light = [&entity]() -> Light
-				{
-					auto& lightComp = *entity->Light;
-
-					Light l = {};
-					l.Pos = entity->Transform.GetPos();
-					l.Color = lightComp.Color;
-					l.Intensity = lightComp.Intensity;
-
-					switch (lightComp.Type) {
-					case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
-					case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
-						//case Types::spot: 
-					default:
-						throw std::invalid_argument("Unsupport light component type");
-					}
-
-					return l;
-				}();
-
-				s.Lights.emplace_back(light);
+				s.Lights.emplace_back(Converters::ToLight(*entity));
 			}
 		}
 
