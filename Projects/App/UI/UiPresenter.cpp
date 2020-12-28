@@ -11,29 +11,16 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-
-
-void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
-{
-	_postProcessPass.DestroyDescriptorResources();
-	
-	_sceneRenderer.Resize(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
-	
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()}); // num images
-}
-
-
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
 	_sceneRenderer{sceneRenderer},
-	_renderer{renderer},
 	_vk{vulkan},
 	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
-	_viewportView{ViewportView{this, renderer}},
+	_viewportView{ViewportView{this, sceneRenderer}},
 	_shaderDir{shaderDir}
 {
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
@@ -41,8 +28,6 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->PointerWheelChanged.Attach(_pointerWheelChangedHandler);
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
-
-
 
 	sceneRenderer.Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
 	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
@@ -238,20 +223,11 @@ void UiPresenter::BuildImGui()
 	ImGui::Render();
 }
 
-
-
-void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
+void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	// Update Ui
-	const auto currentTime = std::chrono::high_resolution_clock::now();
-	if (currentTime - _lastUiUpdate > _uiUpdateRate)
-	{
-		_lastUiUpdate = currentTime;
-		BuildImGui();
-	}
-
-	// Draw
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+	_postProcessPass.DestroyDescriptorResources();
+	_sceneRenderer.Resize(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
@@ -315,12 +291,28 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-			_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
+			// Post Processing
+			{
+				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
+				_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
+			}
 
-			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-			DrawUi(commandBuffer);
+			// UI
+			{
+				vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
+
+				// Update Ui
+				const auto currentTime = std::chrono::high_resolution_clock::now();
+				if (currentTime - _lastUiUpdate > _uiUpdateRate)
+				{
+					_lastUiUpdate = currentTime;
+					BuildImGui();
+				}
+
+				// Draw
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+			}
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}

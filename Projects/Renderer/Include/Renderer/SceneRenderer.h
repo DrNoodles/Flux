@@ -66,23 +66,18 @@ public: // Methods
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options)
 	{
 		// Update all descriptors
-		_renderer.UpdateDescriptors(options);
-		// shadow? post? gui?
+		_renderer.UpdateDescriptors(options); // also update other passes?
 
 		
 		const auto& renderableIds = scene.RenderableIds;
 		const auto& transforms = scene.RenderableTransforms;
 		const auto& lights = scene.Lights;
 		
-		auto lightSpaceMatrix = glm::identity<glm::mat4>();
-		std::optional<ShadowCaster> shadowCaster = FindShadowCaster(lights);
 
-		
 		// Draw shadow pass
-		if (shadowCaster.has_value())
+		auto lightSpaceMatrix = glm::identity<glm::mat4>();
+		if (FindShadowCasterMatrix(lights, lightSpaceMatrix))
 		{
-			lightSpaceMatrix = shadowCaster->Projection * shadowCaster->View;
-			
 			const auto& renderables = _renderer.Hack_GetRenderables(); // TODO extract resources from Renderer
 			const auto& meshes = _renderer.Hack_GetMeshes();           // TODO extract resources from Renderer
 
@@ -194,13 +189,6 @@ public: // Methods
 
 private:// Methods
 
-	struct ShadowCaster
-	{
-		glm::mat4 Projection;
-		glm::mat4 View;
-		//glm::vec3 Pos;
-	};
-
 	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height) const
 	{
 		// Scene framebuffer is only the size of the scene render region on screen
@@ -212,21 +200,23 @@ private:// Methods
 			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 
-	
-	static std::optional<ShadowCaster> FindShadowCaster(const std::vector<Light>& lights) 
+	// Returns light transform matrix if found, otherwise identity
+	static bool FindShadowCasterMatrix(const std::vector<Light>& lights, glm::mat4& outMatrix)
 	{
 		// Find teh first direction light as use as a shadow caster
 		for (auto&& light : lights)
 		{
 			if (light.Type == Light::LightType::Directional)
 			{
-				ShadowCaster s = {};
-				s.View = glm::lookAt(light.Pos, { 0,0,0 }, { 0,1,0 });
-				s.Projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
-				return s;
+				const auto view = glm::lookAt(light.Pos, { 0,0,0 }, { 0,1,0 });
+				const auto projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
+
+				outMatrix = projection * view;
+				return true;
 			}
 		}
 
-		return std::nullopt;
+		outMatrix = glm::identity<glm::mat4>();
+		return false;
 	}
 };

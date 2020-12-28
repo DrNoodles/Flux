@@ -2,8 +2,9 @@
 
 #include "IWindow.h"
 
-// Render helpers - TODO remove all render deets from this class!
 #include <Renderer/SceneRenderer.h>
+
+// Render helpers - TODO remove all render deets from this class! Algorithm is okay.
 #include <Renderer/RenderPasses/PostProcess.h>
 
 #include "PropsView/LightVm.h"
@@ -42,7 +43,6 @@ private: // DATA
 	SceneManager& _scene;
 	LibraryManager& _library;
 	SceneRenderer& _sceneRenderer;
-	Renderer& _renderer; // temp, remove
 	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
@@ -85,7 +85,7 @@ private: // DATA
 
 public: // METHODS
 	
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
 	~UiPresenter() = default;
 	
 	void Shutdown();
@@ -147,12 +147,7 @@ private: // METHODS
 	}
 
 	
-	
-	
 	void BuildImGui();
-	//void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
-	void DrawUi(VkCommandBuffer commandBuffer);
-
 
 
 	// Event handlers
