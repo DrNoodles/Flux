@@ -65,34 +65,26 @@ public: // Methods
 
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options)
 	{
-
-		// Prep scene objects for drawing - TODO There's duplicate effort done below
-		std::optional<ShadowCaster> shadowCaster = {};
-		
-		const auto& renderableIds = scene.RenderableIds;
-		const auto& transforms = scene.RenderableTransforms;
-		const auto& lights = scene.Lights;
-
-
-		if (!shadowCaster.has_value())
-		{
-			shadowCaster = FindShadowCaster(lights);
-		}
-
 		// Update all descriptors
 		_renderer.UpdateDescriptors(options);
 		// shadow? post? gui?
 
+		
+		const auto& renderableIds = scene.RenderableIds;
+		const auto& transforms = scene.RenderableTransforms;
+		const auto& lights = scene.Lights;
+		
+		auto lightSpaceMatrix = glm::identity<glm::mat4>();
+		std::optional<ShadowCaster> shadowCaster = FindShadowCaster(lights);
 
-		auto lightSpaceMatrix = shadowCaster.has_value()
-			? shadowCaster->Projection * shadowCaster->View
-			: glm::identity<glm::mat4>();
-
+		
 		// Draw shadow pass
 		if (shadowCaster.has_value())
 		{
-			const auto& renderables = _renderer.Hack_GetRenderables();
-			const auto& meshes = _renderer.Hack_GetMeshes();
+			lightSpaceMatrix = shadowCaster->Projection * shadowCaster->View;
+			
+			const auto& renderables = _renderer.Hack_GetRenderables(); // TODO extract resources from Renderer
+			const auto& meshes = _renderer.Hack_GetMeshes();           // TODO extract resources from Renderer
 
 			
 			// Update UBOs - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
