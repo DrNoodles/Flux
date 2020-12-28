@@ -239,27 +239,6 @@ void UiPresenter::BuildImGui()
 }
 
 
-struct ShadowCaster
-{
-	glm::mat4 Projection;
-	glm::mat4 View;
-	//glm::vec3 Pos;
-};
-
-std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
-{
-	assert(entity != nullptr);
-
-	if (!entity->Light.has_value() || !(entity->Light->Type == LightComponent::Types::directional))
-		return std::nullopt;
-	
-	ShadowCaster s = {};
-	const auto eye = entity->Transform.GetPos();
-	s.View = glm::lookAt(eye, {0,0,0}, {0,1,0});
-	s.Projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
-	return s;
-}
-
 
 void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 {
@@ -277,184 +256,67 @@ void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	_sceneRenderer.Draw();
 	// TODO Just update the descriptor for this imageIndex????
 	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 
-	
-	// Prep scene objects for drawing - TODO There's duplicate effort done below
-	std::optional<ShadowCaster> shadowCaster = {};
-	std::vector<RenderableResourceId> renderableIds = {};
-	std::vector<glm::mat4> transforms = {};
-	std::vector<Light> lights;
-	
-	for (const auto& entity : _scene.EntitiesView())
+
+	// Draw Scene
 	{
-		// Gather renderable/transform pairs
-		if (entity->Renderable.has_value())
+		// Convert scene to render primitives
+		SceneRendererPrimitives s = {};
+		for (const auto& entity : _scene.EntitiesView())
 		{
-			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+			// Gather renderable/transform pairs
+			if (entity->Renderable.has_value())
 			{
-				renderableIds.emplace_back(componentSubmesh.Id);
-				transforms.emplace_back(entity->Transform.GetMatrix());
-			}
-		}
-
-		if (!shadowCaster.has_value())
-		{
-			shadowCaster = FindShadowCaster(entity.get());
-		}
-
-		if (entity->Light.has_value())
-		{
-			auto light = [&entity]() -> Light
-			{
-				auto& lightComp = *entity->Light;
-
-				Light l = {};
-				l.Pos = entity->Transform.GetPos();
-				l.Color = lightComp.Color;
-				l.Intensity = lightComp.Intensity;
-				
-				switch (lightComp.Type) {
-				case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
-				case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
-					//case Types::spot: 
-				default:
-					throw std::invalid_argument("Unsupport light component type");
+				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+				{
+					s.RenderableIds.emplace_back(componentSubmesh.Id);
+					s.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
 				}
-				
-				return l;
-			}();
+			}
 
-			lights.emplace_back(light);
-		}
-	}
-
-
-	// Update all descriptors
-	_renderer.UpdateDescriptors(GetRenderOptions());
-	// shadow? post? gui?
-
-	
-	auto lightSpaceMatrix = shadowCaster.has_value()
-		? shadowCaster->Projection * shadowCaster->View
-		: glm::identity<glm::mat4>();
-	
-	// Draw shadow pass
-	if (shadowCaster.has_value())
-	{
-		const auto& renderables = _renderer.Hack_GetRenderables();
-		const auto& meshes = _renderer.Hack_GetMeshes();
-
-		// Update all UBOs - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
-		for (size_t i = 0; i < renderableIds.size(); i++)
-		{
-			const auto& renderable = *renderables[renderableIds[i].Id];
-			// TODO need to create UBOs 
-			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This memory is used for UniversalUbo PBR rendering!
-
-			UniversalUbo ubo = {};
-			ubo.LightSpaceMatrix = lightSpaceMatrix;
-			ubo.Model = transforms[i];
-			
-			// Copy to gpu - TODO PERF Keep mem mapped 
-			void* data;
-			auto size = sizeof(ubo);
-			vkMapMemory(_vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
-			memcpy(data, &ubo, size);
-			vkUnmapMemory(_vk.LogicalDevice(), modelBufferMemory);
-		}
-
-		
-		// Draw all objects
-
-		// Clear colour
-		std::vector<VkClearValue> clearColors(1);
-		clearColors[0].depthStencil = { 1.f, 0 };
-
-		float depthBiasConstant = 1.0f;
-		float depthBiasSlope = 1.f;
-		auto& shadow = _sceneRenderer.TEMP_GetShadowmapResourcesRef();
-		auto shadowRect = vki::Rect2D(0, 0, shadow.Resolution.width, shadow.Resolution.height);
-		auto shadowViewport = vki::Viewport(shadowRect);
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer->Framebuffer,
-			shadowRect,
-			clearColors);
-		
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
-			vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
-
-			for (const auto& id : renderableIds)
+			if (entity->Light.has_value())
 			{
-				const auto& renderable = renderables[id.Id].get();
-				const auto& mesh = *meshes[renderable->MeshId.Id];
+				auto light = [&entity]() -> Light
+				{
+					auto& lightComp = *entity->Light;
 
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer.Hack_GetPbrPipelineLayout(),
-					0, 1, &renderable->FrameResources[imageIndex].DescriptorSet, 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+					Light l = {};
+					l.Pos = entity->Transform.GetPos();
+					l.Color = lightComp.Color;
+					l.Intensity = lightComp.Intensity;
+
+					switch (lightComp.Type) {
+					case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
+					case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
+						//case Types::spot: 
+					default:
+						throw std::invalid_argument("Unsupport light component type");
+					}
+
+					return l;
+				}();
+
+				s.Lights.emplace_back(light);
 			}
 		}
-		vkCmdEndRenderPass(commandBuffer);
-	}
 
-
-	// Draw scene to gbuf
-	{
-		auto& camera = _scene.GetCamera();
-		auto view = camera.GetViewMatrix();
-		glm::vec3 camPos = camera.Position;
-
-		// Calc Projection
-		const auto vfov = 45.f;
-		Rect2D region = ViewportRect();
-		const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-
-		// Scene Viewport / Region. Only the part of the screen showing the scene.
-
-		// Clear colour
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-	
-		auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneRenderer.TEMP_GetFramebufferRef().Desc.Extent });
-		auto renderViewport = vki::Viewport(renderRect);
+		// Get camera deets
+		const auto& camera = _scene.GetCamera();
+		s.ViewPosition = camera.Position;
+		s.ViewMatrix = camera.GetViewMatrix();
 		
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
-			_sceneRenderer.TEMP_GetFramebufferRef().Framebuffer,
-			renderRect,
-			clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &renderRect);
-
-			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-
+		_sceneRenderer.Draw(imageIndex, commandBuffer, s, GetRenderOptions());
 	}
+	
+
 
 	// Draw Ui full screen
 	{
 		// Clear colour
 		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+		clearColors[0].color = {0.f, 1.f, 1.f, 1.f};
 		clearColors[1].depthStencil = {1.f, 0ui32};
 
 		// Whole screen framebuffer dimensions

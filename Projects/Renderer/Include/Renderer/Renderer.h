@@ -11,8 +11,6 @@
 
 #include <vector>
 
-
-
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
