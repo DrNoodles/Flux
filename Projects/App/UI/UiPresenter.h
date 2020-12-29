@@ -5,7 +5,7 @@
 #include <Renderer/SceneRenderer.h>
 
 // Render helpers - TODO remove all render deets from this class! Algorithm is okay.
-#include <Renderer/RenderPasses/PostProcess.h>
+#include <Renderer/RenderPasses/PostProcessRenderPass.h>
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"

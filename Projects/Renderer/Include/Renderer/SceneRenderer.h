@@ -47,7 +47,6 @@ public: // Methods
 	void Init(u32 width, u32 height)
 	{
 		_shadowDrawResources = ShadowmapDrawResources{ { 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout() };
-
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
 	}
 
@@ -145,27 +144,14 @@ public: // Methods
 
 		// Draw scene to gbuf
 		{
-			//auto& camera = _scene.GetCamera();
-			const auto& view = scene.ViewMatrix;
-			const auto& camPos = scene.ViewPosition;
-
-			// Calc Projection
-			const auto vfov = 45.f;
-			const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
-			auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-
-			// Scene Viewport / Region. Only the part of the screen showing the scene.
+			// Scene Viewport - Only the part of the screen showing the scene.
+			auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneFramebuffer->Desc.Extent });
+			auto renderViewport = vki::Viewport(renderRect);
 
 			// Clear colour
 			std::vector<VkClearValue> clearColors(2);
 			clearColors[0].color = { 1.f, 1.f, 0.f, 1.f };
 			clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-
-			auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneFramebuffer->Desc.Extent });
-			auto renderViewport = vki::Viewport(renderRect);
 
 			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
 				_sceneFramebuffer->Framebuffer,
@@ -177,7 +163,13 @@ public: // Methods
 				vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &renderRect);
 
-				_renderer.Draw(commandBuffer, imageIndex, options, renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
+				// Calc Projection
+				const auto vfov = 45.f;
+				const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
+				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
+				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+				
+				_renderer.Draw(commandBuffer, imageIndex, options, renderableIds, transforms, lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}

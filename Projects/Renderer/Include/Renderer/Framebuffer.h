@@ -2,12 +2,11 @@
 
 
 #include <Framework/CommonTypes.h>
-
 #include <vulkan/vulkan.h>
 
-#include <vector>
-
 #include "VulkanHelpers.h"
+
+#include <vector>
 
 using vkh = VulkanHelpers;
 
@@ -43,9 +42,6 @@ public:
 	};
 
 	FramebufferDesc Desc = {};
-	
-	//VkExtent2D Extent = {};
-	//VkFormat Format = {};
 	std::vector<Attachment> Attachments = {};
 	VkFramebuffer Framebuffer = nullptr;
 	
@@ -53,7 +49,7 @@ public:
 	VkDescriptorImageInfo OutputDescriptor = {};
 
 	FramebufferResources(FramebufferDesc desc, VkDevice device, VkAllocationCallbacks* allocator, VkPhysicalDevice physicalDevice) :
-		_device{ device }, _allocator{ allocator }, Desc{desc}
+		Desc{desc}, _device{ device }, _allocator{ allocator }
 	{
 		const u32 mipLevels = 1;
 		const u32 layerCount = 1;
@@ -271,5 +267,4 @@ private:
 	VkAllocationCallbacks* _allocator = nullptr;
 
 	FramebufferResources() = default;
-	
 };

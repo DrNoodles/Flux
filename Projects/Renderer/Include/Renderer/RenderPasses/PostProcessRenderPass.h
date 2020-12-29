@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vulkan/vulkan.h>
+
 #include "Framework/FileService.h"
 #include "Renderer/GpuTypes.h"
 #include "Renderer/UniformBufferObjects.h"

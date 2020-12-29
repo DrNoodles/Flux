@@ -79,7 +79,7 @@
 	//		ImageCount = 0;
 	//	}
 	//};
-	//
+	
 struct ShadowmapDrawResources
 {
 	VkExtent2D Resolution = {};
