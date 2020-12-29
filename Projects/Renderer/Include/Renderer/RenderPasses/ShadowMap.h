@@ -7,15 +7,16 @@
 #include <Renderer/VulkanService.h>
 
 
-struct ShadowmapPushConstants
-{
-	glm::mat4 ShadowMatrix;
-};
 
-class ShadowmapDrawResources
+
+class DirectionalShadowRenderPass
 {
 public:
-	std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
+	struct PushConstants
+	{
+		glm::mat4 ShadowMatrix;
+	};
+	
 
 private:
 	VkPipeline _pipeline = nullptr;
@@ -23,17 +24,16 @@ private:
 	VkRenderPass _renderPass = nullptr;
 
 public:
-	ShadowmapDrawResources() = default;
-	ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
+	DirectionalShadowRenderPass() = default;
+	DirectionalShadowRenderPass(const std::string& shaderDir, VulkanService& vk)
 	{
 		_renderPass = CreateRenderPass(vk);
-		Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, _renderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
 
 		// Pipeline Layout
 		{
 			VkPushConstantRange pushConstantRange = {};
 			pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-			pushConstantRange.size = sizeof(ShadowmapPushConstants);
+			pushConstantRange.size = sizeof(PushConstants);
 			pushConstantRange.offset = 0;
 			_pipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), {}, { pushConstantRange });
 		}
@@ -45,10 +45,10 @@ public:
 	{
 		vkDestroyPipeline(device, _pipeline, allocator);
 		vkDestroyRenderPass(device, _renderPass, allocator);
-		Framebuffer->Destroy();
-		Framebuffer = nullptr;
 	}
 
+	VkRenderPass GetRenderPass() const { return _renderPass; }
+	
 	void Draw(VkCommandBuffer commandBuffer, VkRect2D renderArea, const SceneRendererPrimitives& scene, const glm::mat4& lightSpaceMatrix,
 		const std::vector<std::unique_ptr<RenderableMesh>>& renderables,
 		const std::vector<std::unique_ptr<MeshResource>>& meshes) const
@@ -68,7 +68,7 @@ public:
 			const auto& renderable = *renderables[scene.RenderableIds[i].Id];
 			const auto& mesh = *meshes[renderable.MeshId.Id];
 
-			ShadowmapPushConstants pushConstants{};
+			PushConstants pushConstants{};
 			pushConstants.ShadowMatrix = lightSpaceMatrix * scene.RenderableTransforms[i];
 
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
@@ -76,10 +76,11 @@ public:
 
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdPushConstants(commandBuffer, _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowmapPushConstants), &pushConstants);
+			vkCmdPushConstants(commandBuffer, _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 		}
 	}
+
 
 private:
 	static VkPipeline CreatePipeline(const std::string& shaderDir, VkRenderPass renderPass,

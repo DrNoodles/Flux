@@ -22,33 +22,44 @@ private:// Data
 	// Dependencies
 	VulkanService& _vk;
 	Renderer& _renderer;
-
-	// Resources
-	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
-	ShadowmapDrawResources _shadowDrawResources;
 	std::string _shaderDir;
+	
+	// Framebuffers
+	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
+	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
+
+	// Renderpasses
+	DirectionalShadowRenderPass _directionalShadowRenderPass;
+	
 
 public: // Methods
 	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _shaderDir(std::move(shaderDir))
 	{
 	}
 
+	
 	void Init(u32 width, u32 height)
 	{
-		_shadowDrawResources = ShadowmapDrawResources{ { 4096,4096 }, _shaderDir, _vk };
-		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
+		_directionalShadowRenderPass = DirectionalShadowRenderPass{ _shaderDir, _vk };
+		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _directionalShadowRenderPass.GetRenderPass());
+		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _renderer.GetRenderPass());
 	}
 
 	void Destroy()
 	{
 		_sceneFramebuffer->Destroy();
-		_shadowDrawResources.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+		_sceneFramebuffer = nullptr;
+
+		_shadowmapFramebuffer->Destroy();
+		_shadowmapFramebuffer = nullptr;
+		
+		_directionalShadowRenderPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	}
 
 	void Resize(u32 width, u32 height)
 	{
 		_sceneFramebuffer->Destroy();
-		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
+		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _renderer.GetRenderPass());
 	}
 	
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options)
@@ -61,12 +72,12 @@ public: // Methods
 		auto lightSpaceMatrix = glm::identity<glm::mat4>();
 		if (FindShadowCasterMatrix(scene.Lights, lightSpaceMatrix))
 		{
-			const auto shadowRenderArea = vki::Rect2D({}, _shadowDrawResources.Framebuffer->Desc.Extent);
+			const auto shadowRenderArea = vki::Rect2D({}, _shadowmapFramebuffer->Desc.Extent);
 			
-			auto beginInfo = vki::RenderPassBeginInfo(*_shadowDrawResources.Framebuffer, shadowRenderArea);
+			auto beginInfo = vki::RenderPassBeginInfo(*_shadowmapFramebuffer, shadowRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				_shadowDrawResources.Draw(commandBuffer, shadowRenderArea, 
+				_directionalShadowRenderPass.Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
 					_renderer.Hack_GetRenderables(),// TODO extract resources from Renderer into a common resource manager
 					_renderer.Hack_GetMeshes());    // TODO extract resources from Renderer into a common resource manager
@@ -105,21 +116,30 @@ public: // Methods
 
 	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
 
-	VkDescriptorImageInfo TEMP_GetShadowmapDescriptor() const { return _shadowDrawResources.Framebuffer->OutputDescriptor; }
+	VkDescriptorImageInfo TEMP_GetShadowmapDescriptor() const { return _shadowmapFramebuffer->OutputDescriptor; }
 
 private:// Methods
 
-	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height) const
+	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
 	{
 		// Scene framebuffer is only the size of the scene render region on screen
 		return std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
-			VkExtent2D{ width, height },
+			{ width, height },
 			VK_FORMAT_R16G16B16A16_SFLOAT,
-			_renderer.GetRenderPass(),
+			renderPass,
 			_vk.MsaaSamples(),
 			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 
+	std::unique_ptr<FramebufferResources> CreateShadowmapFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
+	{
+		return std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(
+			{ width, height }, 
+			renderPass, 
+			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
+	}
+
+	
 	// Returns light transform matrix if found, otherwise identity
 	static bool FindShadowCasterMatrix(const std::vector<Light>& lights, glm::mat4& outMatrix)
 	{
