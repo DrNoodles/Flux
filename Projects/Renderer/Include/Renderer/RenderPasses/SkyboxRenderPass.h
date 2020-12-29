@@ -43,7 +43,6 @@ private:// Data
 	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
 
 	bool _refreshSkyboxDescriptorSets = false;
-	bool _refreshRenderableDescriptorSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;
@@ -58,7 +57,7 @@ public: // Members
 
 	void Destroy();
 	
-	void UpdateDescriptors(const RenderOptions& options);
+	bool UpdateDescriptors(const RenderOptions& options);
 	
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		const RenderOptions& options,
@@ -94,15 +93,11 @@ private:
 	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
 
 	
-#pragma region Shared
-
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
 
-#pragma endregion Shared
 
-
-#pragma region Pbr
-
+public:
+	
 	const TextureResource& GetIrradianceTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
@@ -121,22 +116,17 @@ private:
 		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
 	}
 
-#pragma endregion Pbr
-
-
-
-#pragma region Skybox - Everything cubemap: resources, pipelines, etc and rendering
-
+private:
 	const Skybox* GetCurrentSkyboxOrNull() const
 	{
 		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Id].get();
 	}
 
-	const TextureResource& GetSkyboxTextureResource() const
+	/*const TextureResource& GetSkyboxTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
 		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
-	}
+	}*/
 
 	std::vector<SkyboxResourceFrame> CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
 
@@ -158,7 +148,5 @@ private:
 		const VkExtent2D& swapchainExtent);
 
 	void UpdateSkyboxesDescriptorSets();
-
-#pragma endregion Skybox
 
 };

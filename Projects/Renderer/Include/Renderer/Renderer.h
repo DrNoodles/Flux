@@ -80,28 +80,19 @@ private:// Data
 	VkPipelineLayout _pbrPipelineLayout = nullptr;
 	VkDescriptorSetLayout _pbrDescriptorSetLayout = nullptr;
 
-	// Skybox
-	VkPipeline _skyboxPipeline = nullptr;
-	VkPipelineLayout _skyboxPipelineLayout = nullptr;
-	VkDescriptorSetLayout _skyboxDescriptorSetLayout = nullptr;
-
 	// Resources
 	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
 	std::vector<VkDeviceMemory> _lightBuffersMemory{};
 
-	SkyboxResourceId _activeSkybox = {};
-	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<RenderableMesh>> _renderables{};
 
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};      // TODO Move these to a resource registry
 	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
 
 	bool _refreshRenderableDescriptorSets = false;
-	bool _refreshSkyboxDescriptorSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;
-	MeshResourceId _skyboxMesh;
 
 	RenderOptions _lastOptions;
 
@@ -114,7 +105,7 @@ public: // Members
 
 	void Destroy();
 	
-	void UpdateDescriptors(const RenderOptions& options);
+	bool UpdateDescriptors(const RenderOptions& options);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		const RenderOptions& options,
@@ -125,24 +116,14 @@ public: // Members
 
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-
-	// Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel. Ordered +X -X +Y -Y +Z -Z
-	[[deprecated]] // the cubemaps will appear mirrored (text is backwards)
-	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
-
-	// Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
-	IblTextureResourceIds CreateIblTextureResources(const std::string& path);
-	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
-	
-	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
 	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
 
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
-	void SetSkybox(const SkyboxResourceId& resourceId);
 
+	
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 
 private:
@@ -190,28 +171,8 @@ private:
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
 		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
-	const TextureResource& GetIrradianceTextureResource() const
-	{
-		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
-	}
 
-	const TextureResource& GetPrefilterTextureResource() const
-	{
-		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Id : _placeholderTexture.Id];
-	}
-
-	const TextureResource& GetBrdfTextureResource() const
-	{
-		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
-	}
-
-	VkDescriptorImageInfo GetShadowmapTextureResource() const
-	{
-		return _delegate.GetShadowmapDescriptor();
-	}
+	VkDescriptorImageInfo GetShadowmapTextureResource() const { return _delegate.GetShadowmapDescriptor(); }
 
 	void UpdateRenderableDescriptorSets();
 
@@ -219,40 +180,38 @@ private:
 
 
 
-#pragma region Skybox - Everything cubemap: resources, pipelines, etc and rendering
+#pragma region Skybox
 
-	const Skybox* GetCurrentSkyboxOrNull() const
+public:
+	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) const
 	{
-		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Id].get();
+		return _skyboxRP->CreateSkybox(createInfo);
 	}
 
-	const TextureResource& GetSkyboxTextureResource() const
+	void SetSkybox(const SkyboxResourceId& resourceId)
 	{
-		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
+		_skyboxRP->SetSkybox(resourceId);
+		_refreshRenderableDescriptorSets = true;
 	}
 
-	std::vector<SkyboxResourceFrame> CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
+	
+	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format) const
+	{
+		return _skyboxRP->CreateCubemapTextureResource(sidePaths, format);
+	}
+	
+	// Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
+	IblTextureResourceIds CreateIblTextureResources(const std::string& path) const
+	{
+		return _skyboxRP->CreateIblTextureResources(path);
+	}
+	
 
-	// Defines the layout of the data bound to the shaders
-	static VkDescriptorSetLayout CreateSkyboxDescriptorSetLayout(VkDevice device);
-
-	// Associates the UBO and texture to sets for use in shaders
-	static void WriteSkyboxDescriptorSets(
-		u32 count,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& skyboxVertUbo,
-		const std::vector<VkBuffer>& skyboxFragUbo,
-		const TextureResource& skyboxMap,
-		VkDevice device);
-
-	// The uniform and push values referenced by the shader that can be updated at draw time
-	static VkPipeline CreateSkyboxGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
-		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
-		const VkExtent2D& swapchainExtent);
-
-	void UpdateSkyboxesDescriptorSets();
-
+private:
+	const TextureResource& GetIrradianceTextureResource() const { return _skyboxRP->GetIrradianceTextureResource(); }
+	const TextureResource& GetPrefilterTextureResource() const { return _skyboxRP->GetPrefilterTextureResource(); }
+	const TextureResource& GetBrdfTextureResource() const { return _skyboxRP->GetBrdfTextureResource(); }
+	
 #pragma endregion Skybox
 
 };

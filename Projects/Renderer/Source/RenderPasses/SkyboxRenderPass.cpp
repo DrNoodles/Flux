@@ -29,10 +29,10 @@ SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, const std::stri
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
 	
-	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");
+	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");  // TODO Move this to some common resources code
 
 	// Load a cube
-	auto model = modelLoaderService.LoadModel(assetsDir + "skybox.obj");
+	auto model = modelLoaderService.LoadModel(assetsDir + "skybox.obj");  // TODO Move this to some common resources code
 	auto& meshDefinition = model.value().Meshes[0];
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
@@ -227,8 +227,10 @@ VkRenderPass SkyboxRenderPass::CreateRenderPass(VkFormat format, VulkanService& 
 	return renderPass;
 }
 
-void SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
+bool SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
 {
+	bool wasUpdated = false;
+	
 	// Diff render options and force state updates where needed
 		// Process whether refreshing is required
 	_refreshSkyboxDescriptorSets |= _lastOptions.ShowIrradiance != options.ShowIrradiance;
@@ -241,7 +243,10 @@ void SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
 	{
 		_refreshSkyboxDescriptorSets = false;
 		UpdateSkyboxesDescriptorSets();
+		wasUpdated = true;
 	}
+
+	return wasUpdated;
 }
 
 void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
@@ -427,7 +432,6 @@ void SkyboxRenderPass::SetSkybox(const SkyboxResourceId& resourceId)
 {
 	// Set skybox
 	_activeSkybox = resourceId;
-	_refreshRenderableDescriptorSets = true; // Renderables depend on skybox resources for IBL
 }
 
 #pragma region Shared
