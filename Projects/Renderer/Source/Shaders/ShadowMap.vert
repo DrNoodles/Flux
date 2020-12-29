@@ -1,17 +1,14 @@
 #version 450
 
-layout(std140, binding = 0) uniform UniversalUbo
+layout(std140, push_constant) uniform PushConstants
 {
-	mat4 model;
-	mat4 view;
-	mat4 projection;
-	mat4 lightSpaceMatrix;
-} ubo;
+	layout (offset = 0) mat4 shadowMatrix;
+} pushConsts;
 
 layout(location = 0) in vec3 inPosition;
 
 
 void main() 
 {
-	gl_Position = ubo.lightSpaceMatrix * ubo.model * vec4(inPosition, 1.0);
+	gl_Position = pushConsts.shadowMatrix * vec4(inPosition, 1.0);
 }

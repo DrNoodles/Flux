@@ -2,92 +2,23 @@
 
 #include "Framework/FileService.h"
 
-#include "Renderer/GpuTypes.h"
-#include "Renderer/VulkanService.h"
-#include "Renderer/Framebuffer.h"
+#include <Renderer/Framebuffer.h>
+#include <Renderer/GpuTypes.h>
+#include <Renderer/VulkanService.h>
 
 
-// Temp file to encapsulate code related to generating a shadowmap
+struct ShadowmapPushConstants
+{
+	glm::mat4 ShadowMatrix;
+};
 
-	//struct ShadowmapDescriptorResources
-	//{
-	//	u32 ImageCount = 0; 
-	//	std::vector<VkDescriptorSet> DescriptorSets = {};
-	//	std::vector<VkBuffer> UboBuffers = {};
-	//	std::vector<VkDeviceMemory> UboBuffersMemory = {};
-	//	VkDescriptorPool DescriptorPool = nullptr;
-
-
-	//	static ShadowmapDescriptorResources Create(u32 imageCount, VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
-	//	{
-	//		// Create uniform buffers
-	//		const auto uboSize = sizeof(UniversalUbo);
-	//		auto [uboBuffers, uboBuffersMemory]
-	//			= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
-
-	//		
-	//		// Create descriptor pool
-	//		VkDescriptorPool descPool;
-	//		{
-	//			const std::vector<VkDescriptorPoolSize> poolSizes = {
-	//				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
-	//			};
-	//			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
-	//		}
-
-
-	//		// Create descriptor sets
-	//		std::vector<VkDescriptorSet> descSets;
-	//		{
-	//			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
-	//			
-	//			for (size_t i = 0; i < imageCount; i++)
-	//			{
-	//				VkDescriptorBufferInfo bufferUboInfo = {};
-	//				bufferUboInfo.buffer = uboBuffers[i];
-	//				bufferUboInfo.offset = 0;
-	//				bufferUboInfo.range = uboSize;
-
-	//				std::vector<VkWriteDescriptorSet> writes
-	//				{
-	//					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-	//				};
-	//				
-	//				vkh::UpdateDescriptorSets(device, writes);
-	//			}
-	//		}
-
-
-	//		
-	//		ShadowmapDescriptorResources res;
-	//		res.ImageCount = imageCount;
-	//		res.UboBuffers = uboBuffers;
-	//		res.UboBuffersMemory = uboBuffersMemory;
-	//		res.DescriptorPool = descPool;
-	//		res.DescriptorSets = descSets;
-	//		return res;
-	//	}
-
-	//	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-	//	{
-	//		for (u32 i = 0; i < ImageCount; i++)
-	//		{
-	//			vkDestroyBuffer(device, UboBuffers[i], allocator);
-	//			vkFreeMemory(device, UboBuffersMemory[i], allocator);
-	//		}
-	//		vkDestroyDescriptorPool(device, DescriptorPool, allocator);
-	//		ImageCount = 0;
-	//	}
-	//};
-	
 struct ShadowmapDrawResources
 {
 	VkExtent2D Resolution = {};
-	//VkPipelineLayout PipelineLayout = nullptr;
+	VkPipelineLayout PipelineLayout = nullptr;
 	VkPipeline Pipeline = nullptr;
 	VkRenderPass RenderPass = nullptr;
 	std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
-	VkDescriptorSetLayout DescriptorSetLayout = nullptr;
 
 	ShadowmapDrawResources() = default;
 	ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
@@ -95,19 +26,23 @@ struct ShadowmapDrawResources
 		Resolution = size;
 		RenderPass = CreateRenderPass(vk);
 		Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, RenderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
-		DescriptorSetLayout = vkh::CreateDescriptorSetLayout(vk.LogicalDevice(), {
-			vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			});
-		//PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), { DescriptorSetLayout });
+
+		// Pipeline Layout
+		{
+			VkPushConstantRange pushConstantRange = {};
+			pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+			pushConstantRange.size = sizeof(ShadowmapPushConstants);
+			pushConstantRange.offset = 0;
+			PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), {}, { pushConstantRange });
+		}
+		
 		Pipeline = CreatePipeline(shaderDir, RenderPass, pipelineLayout, vk);
 	}
 
 	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 	{
 		vkDestroyPipeline(device, Pipeline, allocator);
-		//vkDestroyPipelineLayout(device, PipelineLayout, allocator);
 		vkDestroyRenderPass(device, RenderPass, allocator);
-		vkDestroyDescriptorSetLayout(device, DescriptorSetLayout, allocator);
 		Framebuffer->Destroy();
 		Framebuffer = nullptr;
 	}

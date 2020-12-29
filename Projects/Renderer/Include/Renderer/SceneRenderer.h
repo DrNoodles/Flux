@@ -122,19 +122,20 @@ public: // Methods
 				vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
 
-				for (const auto& id : renderableIds)
+				for (size_t i = 0; i < renderableIds.size(); i++)//const auto& id : renderableIds)
 				{
-					const auto& renderable = renderables[id.Id].get();
-					const auto& mesh = *meshes[renderable->MeshId.Id];
+					const auto& renderable = *renderables[renderableIds[i].Id];
+					const auto& mesh = *meshes[renderable.MeshId.Id];
 
-					// Draw mesh
+					ShadowmapPushConstants pushConstants{};
+					pushConstants.ShadowMatrix = lightSpaceMatrix * transforms[i];
+
 					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 					VkDeviceSize offsets[] = { 0 };
+					
 					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdBindDescriptorSets(commandBuffer,
-						VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer.Hack_GetPbrPipelineLayout(),
-						0, 1, &renderable->FrameResources[imageIndex].DescriptorSet, 0, nullptr);
+					vkCmdPushConstants(commandBuffer, _shadowDrawResources.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowmapPushConstants), &pushConstants);
 					vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 				}
 			}
