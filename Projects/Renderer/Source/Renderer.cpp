@@ -37,6 +37,234 @@ Renderer::Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, st
 	_skyboxMesh = CreateMeshResource(meshDefinition);
 }
 
+void Renderer::Destroy()
+{
+	vkDeviceWaitIdle(_vk.LogicalDevice());
+	
+	DestroyRenderResourcesDependentOnSwapchain();
+	DestroyRenderer();
+}
+
+
+void Renderer::InitRenderer()
+{
+	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
+	
+	// PBR pipe
+	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk.LogicalDevice());
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _pbrDescriptorSetLayout });
+
+	// Skybox pipe
+	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_vk.LogicalDevice());
+	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _skyboxDescriptorSetLayout });
+}
+void Renderer::DestroyRenderer()
+{
+	// Resources
+	for (auto& mesh : _meshes)
+	{
+		//mesh.Vertices.clear();
+		//mesh.Indices.clear();
+		vkDestroyBuffer(_vk.LogicalDevice(), mesh->IndexBuffer, nullptr);
+		vkFreeMemory(_vk.LogicalDevice(), mesh->IndexBufferMemory, nullptr);
+		vkDestroyBuffer(_vk.LogicalDevice(), mesh->VertexBuffer, nullptr);
+		vkFreeMemory(_vk.LogicalDevice(), mesh->VertexBufferMemory, nullptr);
+	}
+
+	_textures.clear(); // RAII will cleanup
+
+
+	// Renderer
+	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
+
+	vkDestroyPipelineLayout(_vk.LogicalDevice(), _skyboxPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _skyboxDescriptorSetLayout, nullptr);
+
+	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
+}
+
+void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
+{
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
+
+	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice(), _vk.GetSwapchain().GetExtent());
+
+
+	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk.LogicalDevice());
+
+
+	// Create light uniform buffers per swapchain image
+	std::tie(_lightBuffers, _lightBuffersMemory)
+		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _vk.LogicalDevice(), _vk.PhysicalDevice());
+
+	// Create model uniform buffers and descriptor sets per swapchain image
+	for (auto& renderable : _renderables)
+	{
+		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight, *renderable);
+	}
+
+	// Create frame resources for skybox
+	for (auto& skybox : _skyboxes)
+	{
+		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
+	}
+}
+void Renderer::DestroyRenderResourcesDependentOnSwapchain()
+{
+	for (auto& skybox : _skyboxes)
+	{
+		for (auto& info : skybox->FrameResources)
+		{
+			vkDestroyBuffer(_vk.LogicalDevice(), info.VertUniformBuffer, nullptr);
+			vkFreeMemory(_vk.LogicalDevice(), info.VertUniformBufferMemory, nullptr);
+			vkDestroyBuffer(_vk.LogicalDevice(), info.FragUniformBuffer, nullptr);
+			vkFreeMemory(_vk.LogicalDevice(), info.FragUniformBufferMemory, nullptr);
+			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+		}
+	}
+
+	for (auto& renderable : _renderables)
+	{
+		for (auto& info : renderable->FrameResources)
+		{
+			vkDestroyBuffer(_vk.LogicalDevice(), info.UniformBuffer, nullptr);
+			vkFreeMemory(_vk.LogicalDevice(), info.UniformBufferMemory, nullptr);
+			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
+		}
+	}
+
+	for (auto& x : _lightBuffers) { vkDestroyBuffer(_vk.LogicalDevice(), x, nullptr); }
+	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_vk.LogicalDevice(), x, nullptr); }
+
+	vkDestroyDescriptorPool(_vk.LogicalDevice(), _rendererDescriptorPool, nullptr);
+
+	vkDestroyPipeline(_vk.LogicalDevice(), _pbrPipeline, nullptr);
+	vkDestroyPipeline(_vk.LogicalDevice(), _skyboxPipeline, nullptr);
+}
+
+void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+{
+	DestroyRenderResourcesDependentOnSwapchain();
+	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
+}
+
+VkRenderPass Renderer::CreateRenderPass(VkFormat format, VulkanService& vk)
+{
+	auto* physicalDevice = vk.PhysicalDevice();
+	auto* device = vk.LogicalDevice();
+	const auto msaaSamples = vk.MsaaSamples();
+	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
+
+	// Color attachment
+	VkAttachmentDescription colorAttachmentDesc = {};
+	{
+		colorAttachmentDesc.format = format;
+		colorAttachmentDesc.samples = msaaSamples;
+		colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
+		colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
+		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
+		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+	VkAttachmentReference colorAttachmentRef = {};
+	{
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+
+
+	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
+	VkAttachmentDescription depthAttachmentDesc = {};
+	{
+		depthAttachmentDesc.format = vkh::FindDepthFormat(physicalDevice);
+		depthAttachmentDesc.samples = msaaSamples;
+		depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
+		depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
+		depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	}
+	VkAttachmentReference depthAttachmentRef = {};
+	{
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	}
+
+	// Resolve attachment  -  Resolve MSAA to single sample image
+	VkAttachmentDescription resolveAttachDesc = {};
+	{
+		resolveAttachDesc.format = format;
+		resolveAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+		resolveAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		resolveAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
+		resolveAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; 
+		resolveAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		resolveAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		resolveAttachDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+	VkAttachmentReference resolveAttachRef = {};
+	{
+		resolveAttachRef.attachment = 2;
+		resolveAttachRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+	
+	
+	// Associate color and depth attachements with a subpass
+	VkSubpassDescription subpassDesc = {};
+	{
+		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDesc.colorAttachmentCount = 1;
+		subpassDesc.pColorAttachments = &colorAttachmentRef;
+		subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
+		subpassDesc.pResolveAttachments = usingMsaa ? &resolveAttachRef : nullptr;
+	}
+
+
+	// TODO Review these dependencies!
+	
+	
+	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
+	VkSubpassDependency subpassDependency = {};
+	{
+		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
+		subpassDependency.dstSubpass = 0; // this pass
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcAccessMask = 0;
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	}
+
+
+	// Create render pass
+	std::vector<VkAttachmentDescription> attachments = { colorAttachmentDesc, depthAttachmentDesc };
+	if (usingMsaa)	{
+		attachments.push_back(resolveAttachDesc);
+	}
+
+	
+	VkRenderPassCreateInfo renderPassCI = {};
+	{
+		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCI.attachmentCount = (u32)attachments.size();
+		renderPassCI.pAttachments = attachments.data();
+		renderPassCI.subpassCount = 1;
+		renderPassCI.pSubpasses = &subpassDesc;
+		renderPassCI.dependencyCount = 1;
+		renderPassCI.pDependencies = &subpassDependency;
+	}
+
+	VkRenderPass renderPass;
+	if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create render pass");
+	}
+
+	return renderPass;
+}
+
 void Renderer::UpdateDescriptors(const RenderOptions& options)
 {
 	// Diff render options and force state updates where needed
@@ -263,14 +491,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 }
 
-void Renderer::CleanUp()
-{
-	vkDeviceWaitIdle(_vk.LogicalDevice());
-	
-	DestroyRenderResourcesDependentOnSwapchain();
-	DestroyRenderer();
-}
-
 IblTextureResourceIds
 Renderer::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 {
@@ -421,226 +641,6 @@ void Renderer::SetSkybox(const SkyboxResourceId& resourceId)
 	_activeSkybox = resourceId;
 	_refreshRenderableDescriptorSets = true; // Renderables depend on skybox resources for IBL
 }
-
-void Renderer::InitRenderer()
-{
-	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
-	
-	// PBR pipe
-	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk.LogicalDevice());
-	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _pbrDescriptorSetLayout });
-
-	// Skybox pipe
-	_skyboxDescriptorSetLayout = CreateSkyboxDescriptorSetLayout(_vk.LogicalDevice());
-	_skyboxPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _skyboxDescriptorSetLayout });
-}
-void Renderer::DestroyRenderer()
-{
-	// Resources
-	for (auto& mesh : _meshes)
-	{
-		//mesh.Vertices.clear();
-		//mesh.Indices.clear();
-		vkDestroyBuffer(_vk.LogicalDevice(), mesh->IndexBuffer, nullptr);
-		vkFreeMemory(_vk.LogicalDevice(), mesh->IndexBufferMemory, nullptr);
-		vkDestroyBuffer(_vk.LogicalDevice(), mesh->VertexBuffer, nullptr);
-		vkFreeMemory(_vk.LogicalDevice(), mesh->VertexBufferMemory, nullptr);
-	}
-
-	_textures.clear(); // RAII will cleanup
-
-
-	// Renderer
-	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
-
-	vkDestroyPipelineLayout(_vk.LogicalDevice(), _skyboxPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _skyboxDescriptorSetLayout, nullptr);
-
-	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
-}
-
-void Renderer::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
-{
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
-
-	_skyboxPipeline = CreateSkyboxGraphicsPipeline(_shaderDir, _skyboxPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice(), _vk.GetSwapchain().GetExtent());
-
-
-	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk.LogicalDevice());
-
-
-	// Create light uniform buffers per swapchain image
-	std::tie(_lightBuffers, _lightBuffersMemory)
-		= vkh::CreateUniformBuffers(numImagesInFlight, sizeof(LightUbo), _vk.LogicalDevice(), _vk.PhysicalDevice());
-
-	// Create model uniform buffers and descriptor sets per swapchain image
-	for (auto& renderable : _renderables)
-	{
-		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight, *renderable);
-	}
-
-	// Create frame resources for skybox
-	for (auto& skybox : _skyboxes)
-	{
-		skybox->FrameResources = CreateSkyboxModelFrameResources(numImagesInFlight, *skybox);
-	}
-}
-void Renderer::DestroyRenderResourcesDependentOnSwapchain()
-{
-	for (auto& skybox : _skyboxes)
-	{
-		for (auto& info : skybox->FrameResources)
-		{
-			vkDestroyBuffer(_vk.LogicalDevice(), info.VertUniformBuffer, nullptr);
-			vkFreeMemory(_vk.LogicalDevice(), info.VertUniformBufferMemory, nullptr);
-			vkDestroyBuffer(_vk.LogicalDevice(), info.FragUniformBuffer, nullptr);
-			vkFreeMemory(_vk.LogicalDevice(), info.FragUniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
-		}
-	}
-
-	for (auto& renderable : _renderables)
-	{
-		for (auto& info : renderable->FrameResources)
-		{
-			vkDestroyBuffer(_vk.LogicalDevice(), info.UniformBuffer, nullptr);
-			vkFreeMemory(_vk.LogicalDevice(), info.UniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
-		}
-	}
-
-	for (auto& x : _lightBuffers) { vkDestroyBuffer(_vk.LogicalDevice(), x, nullptr); }
-	for (auto& x : _lightBuffersMemory) { vkFreeMemory(_vk.LogicalDevice(), x, nullptr); }
-
-	vkDestroyDescriptorPool(_vk.LogicalDevice(), _rendererDescriptorPool, nullptr);
-
-	vkDestroyPipeline(_vk.LogicalDevice(), _pbrPipeline, nullptr);
-	vkDestroyPipeline(_vk.LogicalDevice(), _skyboxPipeline, nullptr);
-}
-
-void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
-{
-	DestroyRenderResourcesDependentOnSwapchain();
-	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
-}
-
-VkRenderPass Renderer::CreateRenderPass(VkFormat format, VulkanService& vk)
-{
-	auto* physicalDevice = vk.PhysicalDevice();
-	auto* device = vk.LogicalDevice();
-	const auto msaaSamples = vk.MsaaSamples();
-	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
-
-	// Color attachment
-	VkAttachmentDescription colorAttachmentDesc = {};
-	{
-		colorAttachmentDesc.format = format;
-		colorAttachmentDesc.samples = msaaSamples;
-		colorAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // what to do with color/depth data before rendering
-		colorAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // what to do with color/depth data after rendering
-		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
-		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	}
-	VkAttachmentReference colorAttachmentRef = {};
-	{
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	}
-
-
-	// Depth attachment  -  multisample depth doesn't need to be resolved as it won't be displayed
-	VkAttachmentDescription depthAttachmentDesc = {};
-	{
-		depthAttachmentDesc.format = vkh::FindDepthFormat(physicalDevice);
-		depthAttachmentDesc.samples = msaaSamples;
-		depthAttachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // not used after drawing
-		depthAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // 
-		depthAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	}
-	VkAttachmentReference depthAttachmentRef = {};
-	{
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	}
-
-	// Resolve attachment  -  Resolve MSAA to single sample image
-	VkAttachmentDescription resolveAttachDesc = {};
-	{
-		resolveAttachDesc.format = format;
-		resolveAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-		resolveAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		resolveAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
-		resolveAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; 
-		resolveAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		resolveAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		resolveAttachDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	}
-	VkAttachmentReference resolveAttachRef = {};
-	{
-		resolveAttachRef.attachment = 2;
-		resolveAttachRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	}
-	
-	
-	// Associate color and depth attachements with a subpass
-	VkSubpassDescription subpassDesc = {};
-	{
-		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDesc.colorAttachmentCount = 1;
-		subpassDesc.pColorAttachments = &colorAttachmentRef;
-		subpassDesc.pDepthStencilAttachment = &depthAttachmentRef;
-		subpassDesc.pResolveAttachments = usingMsaa ? &resolveAttachRef : nullptr;
-	}
-
-
-	// TODO Review these dependencies!
-	
-	
-	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
-	VkSubpassDependency subpassDependency = {};
-	{
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-		subpassDependency.dstSubpass = 0; // this pass
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	}
-
-
-	// Create render pass
-	std::vector<VkAttachmentDescription> attachments = { colorAttachmentDesc, depthAttachmentDesc };
-	if (usingMsaa)	{
-		attachments.push_back(resolveAttachDesc);
-	}
-
-	
-	VkRenderPassCreateInfo renderPassCI = {};
-	{
-		renderPassCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCI.attachmentCount = (u32)attachments.size();
-		renderPassCI.pAttachments = attachments.data();
-		renderPassCI.subpassCount = 1;
-		renderPassCI.pSubpasses = &subpassDesc;
-		renderPassCI.dependencyCount = 1;
-		renderPassCI.pDependencies = &subpassDependency;
-	}
-
-	VkRenderPass renderPass;
-	if (vkCreateRenderPass(device, &renderPassCI, nullptr, &renderPass) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create render pass");
-	}
-
-	return renderPass;
-}
-
 
 #pragma region Shared
 
@@ -799,26 +799,23 @@ void Renderer::WritePbrDescriptorSets(
 			lightUboInfo.range = sizeof(LightUbo);
 		}
 
-		const auto& set = descriptorSets[i];
+		const auto& s = descriptorSets[i];
 		
-		std::vector<VkWriteDescriptorSet> descriptorWrites
-		{
-			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-			vki::WriteDescriptorSet(set, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
-			vki::WriteDescriptorSet(set, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &basecolorMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &normalMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.DescriptorImageInfo()),
-			vki::WriteDescriptorSet(set, 12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
-		};
-
-		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+		vkh::UpdateDescriptorSets(device, {
+			vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+			vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
+			vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &basecolorMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &normalMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.ImageInfo()),
+			vki::WriteDescriptorSet(s, 12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor)
+			});
 	}
 }
 
@@ -1168,16 +1165,14 @@ void Renderer::WriteSkyboxDescriptorSets(
 		fragBufferUboInfo.buffer = skyboxFragUbo[i];
 		fragBufferUboInfo.offset = 0;
 		fragBufferUboInfo.range = sizeof(SkyboxFragUbo);
+
+		const auto& set = descriptorSets[i];
 		
-		auto& set = descriptorSets[i];
-		std::array<VkWriteDescriptorSet, 3> descriptorWrites
-		{
+		vkh::UpdateDescriptorSets(device, {
 			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &vertBufferUboInfo),
 			vki::WriteDescriptorSet(set, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &fragBufferUboInfo),
-			vki::WriteDescriptorSet(set, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &skyboxMap.DescriptorImageInfo()),
-		};
-
-		vkUpdateDescriptorSets(device, (u32)descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+			vki::WriteDescriptorSet(set, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &skyboxMap.ImageInfo()),
+			});
 	}
 }
 

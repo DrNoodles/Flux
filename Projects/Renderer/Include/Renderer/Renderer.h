@@ -1,15 +1,52 @@
 #pragma once
 
+#include "VulkanService.h"
 #include "GpuTypes.h"
 #include "RenderableMesh.h"
 #include "TextureResource.h"
-#include "VulkanService.h" // TODO Investigate why compilation breaks if above TextureResource.h
 #include "CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
 
 #include <vector>
+
+
+
+/* TODO TODO TODO TODO TODO
+Split up concepts clearly.
+
+Scene:
+	- Deals with user level resources.
+	- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
+	- Uses SceneAssets to define unique user assets in the scene.
+	- Scene itself joins these unique AssetDescs to build the scene itself.
+
+	Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
+
+	SceneAssets:
+		Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
+
+		struct AssetDesc
+			GUID Id
+			string Path
+			AssetType Type // Texture/Mesh/Ibl
+			// Maybe this needs subclassing for control
+
+Renderer:
+	- Consumes a scene description: probably a scene graph with AssetDescs?
+
+	AssetToResourceMap
+		Maps an AssetDesc.Id to 1 to n resources.
+		Necessary abstraction for things like Ibl which is one concept, but has many texture resources.
+
+		- Queries RendererResourceManager for resources based on AssetDesc.Id (Lazy?) loads any resources
+
+	RendererResourceManager:
+		- Used exclusively by Renderer to manage resources
+		ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
+
+*/
 
 class VulkanService;
 struct UniversalUbo;
@@ -25,61 +62,9 @@ public:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Renderer
 {
-public:
-	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
-	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
-	
-	explicit Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
-
-	void UpdateDescriptors(const RenderOptions& options);
-	
-	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, 
-		const RenderOptions& options,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
-		const std::vector<Light>& lights,
-		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
-	
-	void CleanUp(); // TODO convert to RAII?
-
-	TextureResourceId CreateTextureResource(const std::string& path);
-
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
-
-
-
-	/**
-	 * Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel.
-	 * Ordered +X -X +Y -Y +Z -Z
-	 */
-	[[deprecated]] // the cubemaps will appear mirrored (text is backwards)
-	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
-
-	/**
-	 * Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
-	 */
-	IblTextureResourceIds CreateIblTextureResources(const std::string& path);
-	
-	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
-
-	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
-
-	//const RenderableMesh& GetRenderableMesh(const RenderableResourceId& id) const { return *_renderables[id.Id]; }
-	
-	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
-	void SetSkybox(const SkyboxResourceId& resourceId);
-
-	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
-
-	VkRenderPass GetRenderPass() const { return _renderPass; }
-
-	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
-
-
-private: // Dependencies
+public: // Data
+private:// Data
+	// Dependencies
 	VulkanService& _vk;
 	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
@@ -96,7 +81,7 @@ private: // Dependencies
 	VkPipeline _skyboxPipeline = nullptr;
 	VkPipelineLayout _skyboxPipelineLayout = nullptr;
 	VkDescriptorSetLayout _skyboxDescriptorSetLayout = nullptr;
-	
+
 	// Resources
 	std::vector<VkBuffer> _lightBuffers{}; // 1 per frame in flight
 	std::vector<VkDeviceMemory> _lightBuffersMemory{};
@@ -105,42 +90,6 @@ private: // Dependencies
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 	std::vector<std::unique_ptr<RenderableMesh>> _renderables{};
 
-
-	//TODO
-	/*
-	Split up concepts clearly.
-
-	Scene:
-		- Deals with user level resources.
-		- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
-		- Uses SceneAssets to define unique user assets in the scene.
-		- Scene itself joins these unique AssetDescs to build the scene itself.
-
-		Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
-
-		SceneAssets:
-			Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
-
-			struct AssetDesc
-				GUID Id
-				string Path
-				AssetType Type // Texture/Mesh/Ibl
-				// Maybe this needs subclassing for control
-
-	Renderer:
-		- Consumes a scene description: probably a scene graph with AssetDescs?
-
-		AssetToResourceMap
-			Maps an AssetDesc.Id to 1 to n resources.
-			Necessary abstraction for things like Ibl which is one concept, but has many texture resources.
-				
-			- Queries RendererResourceManager for resources based on AssetDesc.Id (Lazy?) loads any resources
-
-		RendererResourceManager:
-			- Used exclusively by Renderer to manage resources
-			ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
-		
-	*/
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};      // TODO Move these to a resource registry
 	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
 
@@ -154,28 +103,65 @@ private: // Dependencies
 	RenderOptions _lastOptions;
 
 
+public: // Members
+	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
+	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
+
+	explicit Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+
+	void Destroy();
+	
+	void UpdateDescriptors(const RenderOptions& options);
+
+	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
+		const RenderOptions& options,
+		const std::vector<RenderableResourceId>& renderableIds,
+		const std::vector<glm::mat4>& transforms,
+		const std::vector<Light>& lights,
+		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
+
+	TextureResourceId CreateTextureResource(const std::string& path);
+	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
+
+	// Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel. Ordered +X -X +Y -Y +Z -Z
+	[[deprecated]] // the cubemaps will appear mirrored (text is backwards)
+	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);
+
+	// Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
+	IblTextureResourceIds CreateIblTextureResources(const std::string& path);
+	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format);
+	
+	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo);
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
+
+	VkRenderPass GetRenderPass() const { return _renderPass; }
+	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
+
+	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	void SetSkybox(const SkyboxResourceId& resourceId);
+
+	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
+
+private:
 	void InitRenderer();
 	void DestroyRenderer();
-
 	void InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight);
 	void DestroyRenderResourcesDependentOnSwapchain();
-
+	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
 
 	
-	#pragma region Shared
+#pragma region Shared
 
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
-	//static VkRenderPass CreateRenderPass(VkSampleCountFlagBits msaaSamples, VkDevice device, VkPhysicalDevice physicalDevice);
 
-	#pragma endregion Shared
+#pragma endregion Shared
 
 
-	
-	#pragma region Pbr
+#pragma region Pbr
 
-	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, 
-	                                                                const RenderableMesh& renderable) const;
-	
+	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight,
+		const RenderableMesh& renderable) const;
+
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
@@ -199,7 +185,7 @@ private: // Dependencies
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
 	static VkPipeline CreatePbrGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
-			VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
+		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
 	const TextureResource& GetIrradianceTextureResource() const
 	{
@@ -221,17 +207,16 @@ private: // Dependencies
 
 	VkDescriptorImageInfo GetShadowmapTextureResource() const
 	{
-		//TODO Write a hack to get the resource from elsewhere
 		return _delegate.GetShadowmapDescriptor();
 	}
 
 	void UpdateRenderableDescriptorSets();
 
-	#pragma endregion Pbr
+#pragma endregion Pbr
 
 
-	
-	#pragma region Skybox - Everything cubemap: resources, pipelines, etc and rendering
+
+#pragma region Skybox - Everything cubemap: resources, pipelines, etc and rendering
 
 	const Skybox* GetCurrentSkyboxOrNull() const
 	{
@@ -265,6 +250,6 @@ private: // Dependencies
 
 	void UpdateSkyboxesDescriptorSets();
 
-	#pragma endregion Skybox
-	
+#pragma endregion Skybox
+
 };

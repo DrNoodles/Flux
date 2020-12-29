@@ -103,7 +103,7 @@ public:
 			descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, in.Device)[0]; // NOTE: [0]
 
 			auto write = vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
-				&srcTexture.DescriptorImageInfo());
+				&srcTexture.ImageInfo());
 
 			vkh::UpdateDescriptorSets(in.Device, { write });
 		}

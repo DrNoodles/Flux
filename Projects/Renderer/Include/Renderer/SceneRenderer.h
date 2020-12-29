@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Renderer.h"
+#include "UniformBufferObjects.h"
 #include "RenderPasses/DirectionalShadowRenderPass.h"
-#include "Renderer/UniformBufferObjects.h"
 
 #include "Framebuffer.h"
-#include "VulkanService.h" // TODO Investigate why compilation breaks if above TextureResource.h
+#include "VulkanService.h"
 #include "CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
