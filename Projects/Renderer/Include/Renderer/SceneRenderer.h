@@ -29,7 +29,7 @@ private:// Data
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
 
 	// Renderpasses
-	DirectionalShadowRenderPass _directionalShadowRenderPass;
+	DirectionalShadowRenderPass _dirShadowPass;
 	
 
 public: // Methods
@@ -40,8 +40,8 @@ public: // Methods
 	
 	void Init(u32 width, u32 height)
 	{
-		_directionalShadowRenderPass = DirectionalShadowRenderPass{ _shaderDir, _vk };
-		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _directionalShadowRenderPass.GetRenderPass());
+		_dirShadowPass = DirectionalShadowRenderPass{ _shaderDir, _vk };
+		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowPass.GetRenderPass());
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _renderer.GetRenderPass());
 	}
 
@@ -53,7 +53,7 @@ public: // Methods
 		_shadowmapFramebuffer->Destroy();
 		_shadowmapFramebuffer = nullptr;
 		
-		_directionalShadowRenderPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
+		_dirShadowPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 	}
 
 	void Resize(u32 width, u32 height)
@@ -77,7 +77,7 @@ public: // Methods
 			auto beginInfo = vki::RenderPassBeginInfo(*_shadowmapFramebuffer, shadowRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				_directionalShadowRenderPass.Draw(commandBuffer, shadowRenderArea, 
+				_dirShadowPass.Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
 					_renderer.Hack_GetRenderables(),// TODO extract resources from Renderer into a common resource manager
 					_renderer.Hack_GetMeshes());    // TODO extract resources from Renderer into a common resource manager

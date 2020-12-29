@@ -30,7 +30,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyUp.Attach(_keyUpHandler);
 
 	sceneRenderer.Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
-	_postProcessPass = PostProcessPass(shaderDir, &vulkan);
+	_postProcessPass = PostProcessRenderPass(shaderDir, &vulkan);
 	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
 }
 

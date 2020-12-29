@@ -13,8 +13,9 @@ struct TextureData
 	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
 };
 
-class PostProcessPass
+class PostProcessRenderPass
 {
+private: // Types
 	struct DescriptorResources
 	{
 		u32 ImageCount = 0;
@@ -62,9 +63,15 @@ class PostProcessPass
 	};
 
 
-public:
-	PostProcessPass() = default;
-	PostProcessPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+public:  // Data
+private: // Data
+	DrawResources _screenQuadResources;
+	DescriptorResources _descriptorResources;
+	VulkanService* _vulkan = nullptr;
+
+public: // Methods
+	PostProcessRenderPass() = default;
+	PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
@@ -136,11 +143,7 @@ public:
 		vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 	}
 
-private:
-	DrawResources _screenQuadResources;
-	DescriptorResources _descriptorResources;
-	VulkanService* _vulkan = nullptr;
-
+private: // Methods
 	static DrawResources CreateDrawResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
@@ -376,6 +379,4 @@ private:
 		res.DescriptorSets = descSets;
 		return res;
 	}
-
 };
-
