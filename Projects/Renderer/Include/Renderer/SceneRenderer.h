@@ -62,7 +62,7 @@ public: // Methods
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _renderer.GetRenderPass());
 	}
 	
-	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options)
+	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options) const
 	{
 		// Update all descriptors
 		_renderer.UpdateDescriptors(options); // also update other passes?
