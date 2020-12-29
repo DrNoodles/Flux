@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Renderer.h"
-#include "RenderPasses/ShadowMap.h"
+#include "RenderPasses/DirectionalShadowRenderPass.h"
 #include "Renderer/UniformBufferObjects.h"
 
 #include "Framebuffer.h"
