@@ -16,6 +16,7 @@ struct FramebufferDesc
 	VkFormat Format = {};
 	VkSampleCountFlagBits MsaaSamples;
 	VkRenderPass RenderPass{};
+	std::vector<VkClearValue> ClearValues;
 };
 
 
@@ -48,7 +49,7 @@ public:
 	VkSampler OutputSampler = nullptr;
 	VkDescriptorImageInfo OutputDescriptor = {};
 
-	FramebufferResources(FramebufferDesc desc, VkDevice device, VkAllocationCallbacks* allocator, VkPhysicalDevice physicalDevice) :
+	FramebufferResources(const FramebufferDesc& desc, VkDevice device, VkAllocationCallbacks* allocator, VkPhysicalDevice physicalDevice) :
 		Desc{desc}, _device{ device }, _allocator{ allocator }
 	{
 		const u32 mipLevels = 1;
@@ -191,6 +192,10 @@ public:
 		desc.MsaaSamples = msaaSamples;
 		desc.RenderPass = renderPass;
 
+		desc.ClearValues.resize(2);
+		desc.ClearValues[0].color = { 1.f, 1.f, 0.f, 1.f };
+		desc.ClearValues[1].depthStencil = { 1.f, 0ui32 };
+
 		auto obj = FramebufferResources(desc, device, allocator, physicalDevice);
 		return obj;
 	}
@@ -247,6 +252,9 @@ public:
 		desc.Format = vkh::FindDepthFormat(physicalDevice);
 		desc.MsaaSamples = msaaSamples;
 		desc.RenderPass = renderPass;
+		
+		desc.ClearValues.resize(1);
+		desc.ClearValues[0].depthStencil = { 1, 0 };
 
 		
 		FramebufferResources res = {};

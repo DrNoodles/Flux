@@ -76,8 +76,6 @@ public:
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
 
-	VkPipelineLayout Hack_GetPbrPipelineLayout() const { return _pbrPipelineLayout; }
-	
 	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
 
 

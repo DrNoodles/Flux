@@ -2,6 +2,7 @@
 
 #include <Framework/Vertex.h>
 #include <Framework/CommonTypes.h>
+#include <Framework/CommonRenderer.h>
 
 #include <vulkan/vulkan.h>
 
@@ -125,4 +126,16 @@ struct QueueFamilyIndices
 	{
 		return GraphicsFamily.has_value() && PresentFamily.has_value();
 	}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct SceneRendererPrimitives
+{
+	std::vector<RenderableResourceId> RenderableIds;
+	std::vector<glm::mat4> RenderableTransforms;
+	std::vector<Light> Lights;
+	glm::vec3 ViewPosition;
+	glm::mat4 ViewMatrix;
+	glm::mat4 ProjectionMatrix;
+	glm::mat4 LightSpaceMatrix;
 };

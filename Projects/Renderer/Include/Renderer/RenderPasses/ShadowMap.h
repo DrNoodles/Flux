@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Framework/FileService.h"
+#include <Framework/FileService.h>
 
 #include <Renderer/Framebuffer.h>
 #include <Renderer/GpuTypes.h>
@@ -12,20 +12,22 @@ struct ShadowmapPushConstants
 	glm::mat4 ShadowMatrix;
 };
 
-struct ShadowmapDrawResources
+class ShadowmapDrawResources
 {
-	VkExtent2D Resolution = {};
-	VkPipelineLayout PipelineLayout = nullptr;
-	VkPipeline Pipeline = nullptr;
-	VkRenderPass RenderPass = nullptr;
+public:
 	std::unique_ptr<FramebufferResources> Framebuffer = nullptr;
 
+private:
+	VkPipeline _pipeline = nullptr;
+	VkPipelineLayout _pipelineLayout = nullptr;
+	VkRenderPass _renderPass = nullptr;
+
+public:
 	ShadowmapDrawResources() = default;
-	ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk, VkPipelineLayout pipelineLayout)
+	ShadowmapDrawResources(VkExtent2D size, const std::string& shaderDir, VulkanService& vk)
 	{
-		Resolution = size;
-		RenderPass = CreateRenderPass(vk);
-		Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, RenderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
+		_renderPass = CreateRenderPass(vk);
+		Framebuffer = std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(size, _renderPass, vk.LogicalDevice(), vk.PhysicalDevice(), vk.Allocator()));
 
 		// Pipeline Layout
 		{
@@ -33,18 +35,50 @@ struct ShadowmapDrawResources
 			pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 			pushConstantRange.size = sizeof(ShadowmapPushConstants);
 			pushConstantRange.offset = 0;
-			PipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), {}, { pushConstantRange });
+			_pipelineLayout = vkh::CreatePipelineLayout(vk.LogicalDevice(), {}, { pushConstantRange });
 		}
 		
-		Pipeline = CreatePipeline(shaderDir, RenderPass, pipelineLayout, vk);
+		_pipeline = CreatePipeline(shaderDir, _renderPass, _pipelineLayout, vk);
 	}
 
 	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 	{
-		vkDestroyPipeline(device, Pipeline, allocator);
-		vkDestroyRenderPass(device, RenderPass, allocator);
+		vkDestroyPipeline(device, _pipeline, allocator);
+		vkDestroyRenderPass(device, _renderPass, allocator);
 		Framebuffer->Destroy();
 		Framebuffer = nullptr;
+	}
+
+	void Draw(VkCommandBuffer commandBuffer, VkRect2D renderArea, const SceneRendererPrimitives& scene, const glm::mat4& lightSpaceMatrix,
+		const std::vector<std::unique_ptr<RenderableMesh>>& renderables,
+		const std::vector<std::unique_ptr<MeshResource>>& meshes) const
+	{
+		auto viewport = vki::Viewport(renderArea);
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
+		
+		const float depthBiasConstant = 1.0f;
+		const float depthBiasSlope = 1.f;
+		
+		vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
+
+		for (size_t i = 0; i < scene.RenderableIds.size(); i++)
+		{
+			const auto& renderable = *renderables[scene.RenderableIds[i].Id];
+			const auto& mesh = *meshes[renderable.MeshId.Id];
+
+			ShadowmapPushConstants pushConstants{};
+			pushConstants.ShadowMatrix = lightSpaceMatrix * scene.RenderableTransforms[i];
+
+			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdPushConstants(commandBuffer, _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowmapPushConstants), &pushConstants);
+			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+		}
 	}
 
 private:

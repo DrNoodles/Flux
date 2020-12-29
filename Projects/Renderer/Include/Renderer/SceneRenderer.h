@@ -14,17 +14,6 @@
 #include <vector>
 
 
-struct SceneRendererPrimitives
-{
-	std::vector<RenderableResourceId> RenderableIds;
-	std::vector<glm::mat4> RenderableTransforms;
-	std::vector<Light> Lights;
-	glm::vec3 ViewPosition;
-	glm::mat4 ViewMatrix;
-	glm::mat4 ProjectionMatrix;
-	glm::mat4 LightSpaceMatrix;
-};
-
 
 class SceneRenderer
 {
@@ -46,7 +35,7 @@ public: // Methods
 
 	void Init(u32 width, u32 height)
 	{
-		_shadowDrawResources = ShadowmapDrawResources{ { 4096,4096 }, _shaderDir, _vk, _renderer.Hack_GetPbrPipelineLayout() };
+		_shadowDrawResources = ShadowmapDrawResources{ { 4096,4096 }, _shaderDir, _vk };
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
 	}
 
@@ -61,83 +50,26 @@ public: // Methods
 		_sceneFramebuffer->Destroy();
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height);
 	}
-
+	
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options)
 	{
 		// Update all descriptors
 		_renderer.UpdateDescriptors(options); // also update other passes?
 
-		
-		const auto& renderableIds = scene.RenderableIds;
-		const auto& transforms = scene.RenderableTransforms;
-		const auto& lights = scene.Lights;
-		
 
 		// Draw shadow pass
 		auto lightSpaceMatrix = glm::identity<glm::mat4>();
-		if (FindShadowCasterMatrix(lights, lightSpaceMatrix))
+		if (FindShadowCasterMatrix(scene.Lights, lightSpaceMatrix))
 		{
-			const auto& renderables = _renderer.Hack_GetRenderables(); // TODO extract resources from Renderer
-			const auto& meshes = _renderer.Hack_GetMeshes();           // TODO extract resources from Renderer
-
+			const auto shadowRenderArea = vki::Rect2D({}, _shadowDrawResources.Framebuffer->Desc.Extent);
 			
-			// Update UBOs - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
-			for (size_t i = 0; i < renderableIds.size(); i++)
+			auto beginInfo = vki::RenderPassBeginInfo(*_shadowDrawResources.Framebuffer, shadowRenderArea);
+			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				const auto& renderable = *renderables[renderableIds[i].Id];
-				// TODO need to create UBOs 
-				const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This memory is used for UniversalUbo PBR rendering!
-
-				UniversalUbo ubo = {};
-				ubo.LightSpaceMatrix = lightSpaceMatrix;
-				ubo.Model = transforms[i];
-
-				// Copy to gpu - TODO PERF Keep mem mapped 
-				void* data;
-				auto size = sizeof(ubo);
-				vkMapMemory(_vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
-				memcpy(data, &ubo, size);
-				vkUnmapMemory(_vk.LogicalDevice(), modelBufferMemory);
-			}
-
-
-			// Draw objects
-
-			std::vector<VkClearValue> clearColors(1);
-			clearColors[0].depthStencil = { 1.f, 0 };
-
-			float depthBiasConstant = 1.0f;
-			float depthBiasSlope = 1.f;
-			auto& shadow = _shadowDrawResources;
-			auto shadowRect = vki::Rect2D(0, 0, shadow.Resolution.width, shadow.Resolution.height);
-			auto shadowViewport = vki::Viewport(shadowRect);
-			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer->Framebuffer,
-				shadowRect,
-				clearColors);
-
-			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			{
-				vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
-				vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
-				vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
-
-				for (size_t i = 0; i < renderableIds.size(); i++)//const auto& id : renderableIds)
-				{
-					const auto& renderable = *renderables[renderableIds[i].Id];
-					const auto& mesh = *meshes[renderable.MeshId.Id];
-
-					ShadowmapPushConstants pushConstants{};
-					pushConstants.ShadowMatrix = lightSpaceMatrix * transforms[i];
-
-					VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-					VkDeviceSize offsets[] = { 0 };
-					
-					vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-					vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-					vkCmdPushConstants(commandBuffer, _shadowDrawResources.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowmapPushConstants), &pushConstants);
-					vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-				}
+				_shadowDrawResources.Draw(commandBuffer, shadowRenderArea, 
+					scene, lightSpaceMatrix, 
+					_renderer.Hack_GetRenderables(),// TODO extract resources from Renderer into a common resource manager
+					_renderer.Hack_GetMeshes());    // TODO extract resources from Renderer into a common resource manager
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
@@ -146,23 +78,18 @@ public: // Methods
 		// Draw scene to gbuf
 		{
 			// Scene Viewport - Only the part of the screen showing the scene.
-			auto renderRect = vki::Rect2D({ 0, 0 }, { _sceneFramebuffer->Desc.Extent });
-			auto renderViewport = vki::Viewport(renderRect);
-
-			// Clear colour
-			std::vector<VkClearValue> clearColors(2);
-			clearColors[0].color = { 1.f, 1.f, 0.f, 1.f };
-			clearColors[1].depthStencil = { 1.f, 0ui32 };
+			auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
+			auto sceneViewport = vki::Viewport(sceneRenderArea);
 
 			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
 				_sceneFramebuffer->Framebuffer,
-				renderRect,
-				clearColors);
+				sceneRenderArea,
+				_sceneFramebuffer->Desc.ClearValues);
 
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				vkCmdSetViewport(commandBuffer, 0, 1, &renderViewport);
-				vkCmdSetScissor(commandBuffer, 0, 1, &renderRect);
+				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRenderArea);
 
 				// Calc Projection
 				const auto vfov = 45.f;
@@ -170,7 +97,7 @@ public: // Methods
 				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 				
-				_renderer.Draw(commandBuffer, imageIndex, options, renderableIds, transforms, lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+				_renderer.Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}

@@ -86,7 +86,6 @@ public:
 			_vulkan->GetSwapchain().GetImageCount(),
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice());
 	}
-
 	void DestroyDescriptorResources()
 	{
 		_descriptorResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
@@ -126,8 +125,6 @@ public:
 		VkDeviceSize pOffsets = { 0 };
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _screenQuadResources.Pipeline);
-
-
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
 		vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffer,
