@@ -15,6 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 
+#include <utility>
 #include <vector>
 #include <string>
 #include <chrono>
@@ -22,8 +23,8 @@
 
 using vkh = VulkanHelpers;
 
-PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir,
-	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(shaderDir)
+PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
+	: _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());

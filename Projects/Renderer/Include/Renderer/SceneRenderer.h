@@ -50,7 +50,6 @@ Renderer:
 
 */
 
-
 class SceneRenderer final : public IPbrModelRenderPassDelegate
 {
 public: // Data
@@ -80,7 +79,7 @@ public: // Lifetime
 		_modelLoaderService(modelLoaderService)
 	{
 		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _shaderDir, _assetsDir, _modelLoaderService);
-		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, *this, _shaderDir, _assetsDir, _modelLoaderService);
+		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, *this, _shaderDir, _assetsDir);
 		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
 		
 		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowRenderPass->GetRenderPass());
@@ -168,7 +167,7 @@ public: // Methods
 				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
-				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.ViewMatrix, projection);
 				
 				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}

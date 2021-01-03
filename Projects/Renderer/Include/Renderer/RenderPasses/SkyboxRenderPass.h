@@ -52,7 +52,7 @@ private:// Data
 
 public: // Members
 
-	explicit SkyboxRenderPass(VulkanService& vulkanService, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	explicit SkyboxRenderPass(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Destroy();
 	
@@ -62,8 +62,7 @@ public: // Members
 		const RenderOptions& options,
 		const std::vector<RenderableResourceId>& renderableIds,
 		const std::vector<glm::mat4>& transforms,
-		const std::vector<Light>& lights,
-		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
+		const glm::mat4& view, const glm::mat4& projection);
 
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);

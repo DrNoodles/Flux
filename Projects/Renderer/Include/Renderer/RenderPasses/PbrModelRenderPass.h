@@ -65,7 +65,7 @@ public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
 	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
 
-	explicit PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	explicit PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
 
 	void Destroy();
 	

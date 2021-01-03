@@ -17,6 +17,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 
+#include <utility>
 #include <vector>
 #include <string>
 #include <chrono>
@@ -24,8 +25,8 @@
 
 using vkh = VulkanHelpers;
 
-SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, const std::string& shaderDir, const std::string& assetsDir,
-	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(shaderDir)
+SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir,
+	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
 {
 	InitResources();
 	InitResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
@@ -254,8 +255,7 @@ void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
 	const std::vector<RenderableResourceId>& renderableIds,
 	const std::vector<glm::mat4>& transforms,
-	const std::vector<Light>& lights,
-	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix)
+	const glm::mat4& view, const glm::mat4& projection)
 {
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
