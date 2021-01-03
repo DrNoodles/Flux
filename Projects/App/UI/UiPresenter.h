@@ -20,7 +20,7 @@
 
 class LibraryManager;
 class SceneManager;
-class Renderer;
+class PbrModelRenderPass;
 
 class IUiPresenterDelegate
 {

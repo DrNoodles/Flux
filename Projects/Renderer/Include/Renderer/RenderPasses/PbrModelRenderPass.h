@@ -12,42 +12,6 @@
 #include <vector>
 
 
-
-/* TODO TODO TODO TODO TODO
-Split up concepts clearly.
-
-Scene:
-	- Deals with user level resources.
-	- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
-	- Uses SceneAssets to define unique user assets in the scene.
-	- Scene itself joins these unique AssetDescs to build the scene itself.
-
-	Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
-
-	SceneAssets:
-		Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
-
-		struct AssetDesc
-			GUID Id
-			string Path
-			AssetType Type // Texture/Mesh/Ibl
-			// Maybe this needs subclassing for control
-
-Renderer:
-	- Consumes a scene description: probably a scene graph with AssetDescs?
-
-	AssetToResourceMap
-		Maps an AssetDesc.Id to 1 to n resources.
-		Necessary abstraction for things like Ibl which is one concept, but has many texture resources.
-
-		- Queries RendererResourceManager for resources based on AssetDesc.Id (Lazy?) loads any resources
-
-	RendererResourceManager:
-		- Used exclusively by Renderer to manage resources
-		ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
-
-*/
-
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
@@ -63,7 +27,7 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class Renderer
+class PbrModelRenderPass
 {
 public: // Data
 private:// Data
@@ -102,7 +66,7 @@ public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
 	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
 
-	explicit Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	explicit PbrModelRenderPass(VulkanService& vulkanService, IRendererDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Destroy();
 	

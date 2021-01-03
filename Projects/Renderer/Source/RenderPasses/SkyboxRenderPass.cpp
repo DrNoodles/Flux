@@ -1,7 +1,6 @@
 
 #include "RenderPasses/SkyboxRenderPass.h"
 
-#include "Renderer.h"
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
 #include "VulkanInitializers.h"

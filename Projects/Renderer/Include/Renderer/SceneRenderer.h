@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Renderer.h"
+#include "RenderPasses/PbrModelRenderPass.h"
 #include "UniformBufferObjects.h"
 #include "RenderPasses/DirectionalShadowRenderPass.h"
 #include "RenderPasses/SkyboxRenderPass.h"
@@ -15,6 +15,41 @@
 #include <vector>
 
 
+/* TODO TODO TODO TODO TODO
+Split up concepts clearly.
+
+Scene:
+	- Deals with user level resources.
+	- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
+	- Uses SceneAssets to define unique user assets in the scene.
+	- Scene itself joins these unique AssetDescs to build the scene itself.
+
+	Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
+
+	SceneAssets:
+		Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
+
+		struct AssetDesc
+			GUID Id
+			string Path
+			AssetType Type // Texture/Mesh/Ibl
+			// Maybe this needs subclassing for control
+
+Renderer:
+	- Consumes a scene description: probably a scene graph with AssetDescs?
+
+	AssetToResourceMap
+		Maps an AssetDesc.Id to 1 to n resources.
+		Necessary abstraction for things like Ibl which is one concept, but has many texture resources.
+
+		- Queries RendererResourceManager for resources based on AssetDesc.Id (Lazy?) loads any resources
+
+	RendererResourceManager:
+		- Used exclusively by Renderer to manage resources
+		ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
+
+*/
+
 
 class SceneRenderer
 {
@@ -22,7 +57,7 @@ public: // Data
 private:// Data
 	// Dependencies
 	VulkanService& _vk;
-	Renderer& _renderer;
+	PbrModelRenderPass& _renderer;
 	SkyboxRenderPass& _skyboxRenderPass;
 	std::string _shaderDir;
 	
@@ -35,7 +70,7 @@ private:// Data
 	
 
 public: // Methods
-	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, SkyboxRenderPass& skyboxRenderPass, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _skyboxRenderPass(skyboxRenderPass), _shaderDir(std::move(shaderDir))
+	SceneRenderer(VulkanService& vulkanService, PbrModelRenderPass& renderer, SkyboxRenderPass& skyboxRenderPass, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _skyboxRenderPass(skyboxRenderPass), _shaderDir(std::move(shaderDir))
 	{
 	}
 
@@ -82,8 +117,8 @@ public: // Methods
 			{
 				_dirShadowPass.Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
-					_renderer.Hack_GetRenderables(),// TODO extract resources from Renderer into a common resource manager
-					_renderer.Hack_GetMeshes());    // TODO extract resources from Renderer into a common resource manager
+					_renderer.Hack_GetRenderables(),// TODO extract resources from PbrModelRenderPass into a common resource manager
+					_renderer.Hack_GetMeshes());    // TODO extract resources from PbrModelRenderPass into a common resource manager
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
