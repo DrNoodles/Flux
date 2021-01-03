@@ -14,12 +14,6 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-#define GLFW_INCLUDE_NONE
-#define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
-#include <GLFW/glfw3.h>
-
-#include <vulkan/vulkan.h>
-
 #include <algorithm>
 #include <chrono>
 #include <iomanip>

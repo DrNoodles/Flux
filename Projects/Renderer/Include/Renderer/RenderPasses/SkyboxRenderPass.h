@@ -28,22 +28,20 @@ private:// Data
 	std::string _shaderDir{};
 
 	VkRenderPass _renderPass = nullptr;
-	VkDescriptorPool _rendererDescriptorPool = nullptr;
-
-	// Skybox
-	VkPipeline _skyboxPipeline = nullptr;
-	VkPipelineLayout _skyboxPipelineLayout = nullptr;
-	VkDescriptorSetLayout _skyboxDescriptorSetLayout = nullptr;
+	VkPipeline _pipeline = nullptr;
+	VkPipelineLayout _pipelineLayout = nullptr;
+	
+	VkDescriptorPool _descPool = nullptr;
+	VkDescriptorSetLayout _descSetLayout = nullptr;
 
 	// Resources
-
 	SkyboxResourceId _activeSkybox = {};
 	std::vector<std::unique_ptr<Skybox>> _skyboxes{};
 
 	std::vector<std::unique_ptr<MeshResource>> _meshes{};      // TODO Move these to a resource registry
 	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
 
-	bool _refreshSkyboxDescriptorSets = false;
+	bool _refreshDescSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;
@@ -87,12 +85,12 @@ public: // Members
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 
 private:
-	void InitRenderer();
-	void DestroyRenderer();
-	void InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight);
-	void DestroyRenderResourcesDependentOnSwapchain();
+	void InitResources();
+	void DestroyResources();
+	void InitResourcesDependentOnSwapchain(u32 numImagesInFlight);
+	void DestroyResourcesDependentOnSwapchain();
 	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
-	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
+	static VkDescriptorPool CreateDescPool(u32 numImagesInFlight, VkDevice device);
 
 
 public:
@@ -127,13 +125,13 @@ private:
 		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
 	}*/
 
-	std::vector<SkyboxResourceFrame> CreateSkyboxModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
+	std::vector<SkyboxResourceFrame> CreateModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const;
 
 	// Defines the layout of the data bound to the shaders
-	static VkDescriptorSetLayout CreateSkyboxDescriptorSetLayout(VkDevice device);
+	static VkDescriptorSetLayout CreateDescSetLayout(VkDevice device);
 
 	// Associates the UBO and texture to sets for use in shaders
-	static void WriteSkyboxDescriptorSets(
+	static void WriteDescSets(
 		u32 count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& skyboxVertUbo,
@@ -142,9 +140,8 @@ private:
 		VkDevice device);
 
 	// The uniform and push values referenced by the shader that can be updated at draw time
-	static VkPipeline CreateSkyboxGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
-		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device,
-		const VkExtent2D& swapchainExtent);
+	static VkPipeline CreateGraphicsPipeline(const std::string& shaderDir, VkPipelineLayout pipelineLayout,
+		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
-	void UpdateSkyboxesDescriptorSets();
+	void UpdateDescSets();
 };
