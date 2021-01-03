@@ -293,7 +293,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			// Post Processing
+			// Post Processing - TODO This should be in SceneRenderer.
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
