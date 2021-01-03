@@ -30,15 +30,11 @@ Renderer::Renderer(VulkanService& vulkanService, IRendererDelegate& delegate, co
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
 	
 	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
-
-	_skyboxRP = std::make_unique<SkyboxRenderPass>(vulkanService, shaderDir, assetsDir, modelLoaderService);
 }
 
 void Renderer::Destroy()
 {
 	vkDeviceWaitIdle(_vk.LogicalDevice());
-
-	_skyboxRP->Destroy();
 	
 	DestroyRenderResourcesDependentOnSwapchain();
 	DestroyRenderer();
@@ -115,8 +111,6 @@ void Renderer::DestroyRenderResourcesDependentOnSwapchain()
 
 void Renderer::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_skyboxRP->HandleSwapchainRecreated(width, height, numSwapchainImages);
-	
 	DestroyRenderResourcesDependentOnSwapchain();
 	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
 }
@@ -237,22 +231,54 @@ VkRenderPass Renderer::CreateRenderPass(VkFormat format, VulkanService& vk)
 	return renderPass;
 }
 
-bool Renderer::UpdateDescriptors(const RenderOptions& options)
+bool Renderer::UpdateDescriptors(const RenderOptions& options, bool skyboxUpdated)
 {
+	const bool updateDescriptors = skyboxUpdated || _refreshRenderableDescriptorSets;
+	
 	_lastOptions = options;
-	bool wasUpdated = false;
-	
-	const bool skyboxWasUpdated = _skyboxRP->UpdateDescriptors(options);
-	
+	_refreshRenderableDescriptorSets = false;
+
 	// Rebuild descriptor sets as needed
-	if (skyboxWasUpdated || _refreshRenderableDescriptorSets)
+	if (updateDescriptors)
 	{
-		_refreshRenderableDescriptorSets = false;
-		UpdateRenderableDescriptorSets();
-		wasUpdated = true;
+		for (auto& renderable : _renderables)
+		{
+			// Gather descriptor sets and uniform buffers
+			const auto count = renderable->FrameResources.size();
+			std::vector<VkDescriptorSet> descriptorSets{};
+			std::vector<VkBuffer> modelBuffers{};
+			descriptorSets.resize(count);
+			modelBuffers.resize(count);
+			for (size_t i = 0; i < count; i++)
+			{
+				descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
+				modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
+			}
+
+			// Get the id of an existing texture, fallback to placeholder if necessary.
+			const auto pid = _placeholderTexture.Id;
+			auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+
+			// Write updated descriptor sets
+			WritePbrDescriptorSets((u32)count, descriptorSets,
+				modelBuffers,
+				_lightBuffers,
+				*_textures[GetId(renderable->Mat.BasecolorMap)],
+				*_textures[GetId(renderable->Mat.NormalMap)],
+				*_textures[GetId(renderable->Mat.RoughnessMap)],
+				*_textures[GetId(renderable->Mat.MetalnessMap)],
+				*_textures[GetId(renderable->Mat.AoMap)],
+				*_textures[GetId(renderable->Mat.EmissiveMap)],
+				*_textures[GetId(renderable->Mat.TransparencyMap)],
+				_delegate.GetIrradianceTextureResource(),
+				_delegate.GetPrefilterTextureResource(),
+				_delegate.GetBrdfTextureResource(),
+				_delegate.GetShadowmapDescriptor(),
+				_vk.LogicalDevice());
+		}
 	}
 
-	return wasUpdated;
+	return updateDescriptors;
 }
 
 void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
@@ -265,9 +291,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
 
-
-	_skyboxRP->Draw(commandBuffer, frameIndex, options, renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
-	
 	// Update UBOs
 	{
 		// Light ubo - TODO PERF Keep mem mapped
@@ -363,10 +386,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindDescriptorSets(commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
 				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-			/*const void* pValues;
-			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 
@@ -386,10 +405,6 @@ void Renderer::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindDescriptorSets(commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
 				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-
-			/*const void* pValues;
-			vkCmdPushConstants(cmdBuf, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 1, pValues);*/
-
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 	}
@@ -481,15 +496,15 @@ void Renderer::SetMaterial(const RenderableResourceId& renderableResId, const Ma
 VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
 	const u32 maxPbrObjects = 10000; // Max scene objects! This is gross, but it'll do for now.
-	const u32 maxSkyboxObjects = 1;
+	//const u32 maxSkyboxObjects = 1;
 
 	// Match these to CreatePbrDescriptorSetLayout
 	const auto numPbrUniformBuffers = 2;
 	const auto numPbrCombinedImageSamplers = 11;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
-	const auto numSkyboxUniformBuffers = 2;
-	const auto numSkyboxCombinedImageSamplers = 1;
+	//const auto numSkyboxUniformBuffers = 2;
+	//const auto numSkyboxCombinedImageSamplers = 1;
 	
 	// Define which descriptor types our descriptor sets contain
 	const std::vector<VkDescriptorPoolSize> poolSizes
@@ -499,11 +514,11 @@ VkDescriptorPool Renderer::CreateDescriptorPool(u32 numImagesInFlight, VkDevice 
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numPbrCombinedImageSamplers * maxPbrObjects * numImagesInFlight},
 
 		// Skybox Object
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numSkyboxUniformBuffers * maxSkyboxObjects * numImagesInFlight},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numSkyboxCombinedImageSamplers * maxSkyboxObjects * numImagesInFlight},
+		//{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numSkyboxUniformBuffers * maxSkyboxObjects * numImagesInFlight},
+		//{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numSkyboxCombinedImageSamplers * maxSkyboxObjects * numImagesInFlight},
 	};
 
-	const auto totalDescSets = (maxPbrObjects + maxSkyboxObjects) * numImagesInFlight;
+	const auto totalDescSets = (maxPbrObjects/* + maxSkyboxObjects*/) * numImagesInFlight;
 
 	return vkh::CreateDescriptorPool(poolSizes, totalDescSets, device);
 }
@@ -528,6 +543,8 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto pid = _placeholderTexture.Id;
 	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+
+
 	
 	WritePbrDescriptorSets(
 		numImagesInFlight,
@@ -541,10 +558,10 @@ std::vector<PbrModelResourceFrame> Renderer::CreatePbrModelFrameResources(u32 nu
 		*_textures[GetId(renderable.Mat.AoMap)],
 		*_textures[GetId(renderable.Mat.EmissiveMap)],
 		*_textures[GetId(renderable.Mat.TransparencyMap)],
-		GetIrradianceTextureResource(),
-		GetPrefilterTextureResource(),
-		GetBrdfTextureResource(),
-		GetShadowmapTextureResource(),
+		_delegate.GetIrradianceTextureResource(),
+		_delegate.GetPrefilterTextureResource(),
+		_delegate.GetBrdfTextureResource(),
+		_delegate.GetShadowmapDescriptor(),
 		_vk.LogicalDevice()
 	);
 
@@ -874,47 +891,6 @@ VkPipeline Renderer::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 
 	return pipeline;
-}
-
-void Renderer::UpdateRenderableDescriptorSets()
-{
-	// Rebuild all objects descriptor sets
-	for (auto& renderable : _renderables)
-	{
-		// Gather descriptor sets and uniform buffers
-		const auto count = renderable->FrameResources.size();
-		std::vector<VkDescriptorSet> descriptorSets{};
-		std::vector<VkBuffer> modelBuffers{};
-		descriptorSets.resize(count);
-		modelBuffers.resize(count);
-		for (size_t i = 0; i < count; i++)
-		{
-			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
-			modelBuffers[i] = renderable->FrameResources[i].UniformBuffer;
-		}
-
-
-		// Get the id of an existing texture, fallback to placeholder if necessary.
-		const auto pid = _placeholderTexture.Id;
-		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
-		
-		// Write updated descriptor sets
-		WritePbrDescriptorSets((u32)count, descriptorSets,
-			modelBuffers,
-			_lightBuffers,
-			*_textures[GetId(renderable->Mat.BasecolorMap)],
-			*_textures[GetId(renderable->Mat.NormalMap)],
-			*_textures[GetId(renderable->Mat.RoughnessMap)],
-			*_textures[GetId(renderable->Mat.MetalnessMap)],
-			*_textures[GetId(renderable->Mat.AoMap)],
-			*_textures[GetId(renderable->Mat.EmissiveMap)],
-			*_textures[GetId(renderable->Mat.TransparencyMap)],
-			GetIrradianceTextureResource(),
-			GetPrefilterTextureResource(),
-			GetBrdfTextureResource(),
-			GetShadowmapTextureResource(),
-			_vk.LogicalDevice());
-	}
 }
 
 #pragma endregion Pbr

@@ -3,6 +3,7 @@
 #include "Renderer.h"
 #include "UniformBufferObjects.h"
 #include "RenderPasses/DirectionalShadowRenderPass.h"
+#include "RenderPasses/SkyboxRenderPass.h"
 
 #include "Framebuffer.h"
 #include "VulkanService.h"
@@ -22,6 +23,7 @@ private:// Data
 	// Dependencies
 	VulkanService& _vk;
 	Renderer& _renderer;
+	SkyboxRenderPass& _skyboxRenderPass;
 	std::string _shaderDir;
 	
 	// Framebuffers
@@ -33,7 +35,7 @@ private:// Data
 	
 
 public: // Methods
-	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _shaderDir(std::move(shaderDir))
+	SceneRenderer(VulkanService& vulkanService, Renderer& renderer, SkyboxRenderPass& skyboxRenderPass, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService) : _vk(vulkanService), _renderer(renderer), _skyboxRenderPass(skyboxRenderPass), _shaderDir(std::move(shaderDir))
 	{
 	}
 
@@ -65,7 +67,8 @@ public: // Methods
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options) const
 	{
 		// Update all descriptors
-		_renderer.UpdateDescriptors(options); // also update other passes?
+		const auto skyboxDescUpdated = _skyboxRenderPass.UpdateDescriptors(options);
+		_renderer.UpdateDescriptors(options, skyboxDescUpdated); // also update other passes?
 
 
 		// Draw shadow pass
@@ -107,6 +110,8 @@ public: // Methods
 				const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
 				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+
+				_skyboxRenderPass.Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 				
 				_renderer.Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}

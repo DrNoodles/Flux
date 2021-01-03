@@ -49,6 +49,7 @@ private: // DATA
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
 	std::unique_ptr<Renderer>            _renderer           = nullptr;
+	std::unique_ptr<SkyboxRenderPass>    _skyboxRP           = nullptr;
 	std::unique_ptr<SceneRenderer>       _sceneRenderer      = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
 
@@ -94,8 +95,10 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
+		
+		auto skyboxRP = std::make_unique<SkyboxRenderPass>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto renderer = std::make_unique<Renderer>(*vulkanService, *this, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, *renderer, options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, *renderer, *skyboxRP, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *sceneRenderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
@@ -104,6 +107,7 @@ public: // METHODS
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
 		_renderer = std::move(renderer);
+		_skyboxRP = std::move(skyboxRP);
 		_sceneRenderer = std::move(sceneRenderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
@@ -122,6 +126,7 @@ public: // METHODS
 		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
 		
 		_renderer->Destroy();
+		_skyboxRP->Destroy();
 		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
@@ -392,6 +397,7 @@ private: // METHODS
 
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{
+		_skyboxRP->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		_ui->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
@@ -442,15 +448,16 @@ private: // METHODS
 	}
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
-		return _renderer->CreateIblTextureResources(path);
+		return _skyboxRP->CreateIblTextureResources(path);
 	}
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
 	{
-		return _renderer->CreateSkybox(createInfo);
+		return _skyboxRP->CreateSkybox(createInfo);
 	}
 	void SetSkybox(const SkyboxResourceId& resourceId) override
 	{
-		return _renderer->SetSkybox(resourceId);
+		_skyboxRP->SetSkybox(resourceId);
+		_renderer->SetSkyboxDirty();
 	}
 
 public:
@@ -458,6 +465,21 @@ public:
 	{
 		// HACK - Giant dirty hack in lieu of having to refactor... well... everything...
 		return _ui->GetShadowmapDescriptor();
+	}
+
+	const TextureResource& GetIrradianceTextureResource()  override
+	{
+		return _skyboxRP->GetIrradianceTextureResource();
+	}
+	
+	const TextureResource& GetPrefilterTextureResource() override
+	{
+		return _skyboxRP->GetPrefilterTextureResource();
+	}
+	
+	const TextureResource& GetBrdfTextureResource() override
+	{
+		return _skyboxRP->GetBrdfTextureResource();
 	}
 private:
 	#pragma endregion 

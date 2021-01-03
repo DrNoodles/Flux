@@ -5,7 +5,6 @@
 #include "RenderableMesh.h"
 #include "TextureResource.h"
 #include "CubemapTextureLoader.h"
-#include "RenderPasses/SkyboxRenderPass.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
@@ -58,6 +57,9 @@ class IRendererDelegate
 public:
 	virtual ~IRendererDelegate() = default;
 	virtual VkDescriptorImageInfo GetShadowmapDescriptor() = 0;
+	virtual const TextureResource& GetIrradianceTextureResource() = 0;
+	virtual const TextureResource& GetPrefilterTextureResource() = 0;
+	virtual const TextureResource& GetBrdfTextureResource() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -65,12 +67,11 @@ class Renderer
 {
 public: // Data
 private:// Data
+
 	// Dependencies
 	VulkanService& _vk;
 	IRendererDelegate& _delegate;
 	std::string _shaderDir{};
-
-	std::unique_ptr<SkyboxRenderPass> _skyboxRP = nullptr;
 	
 	VkRenderPass _renderPass = nullptr;
 	VkDescriptorPool _rendererDescriptorPool = nullptr;
@@ -105,7 +106,7 @@ public: // Members
 
 	void Destroy();
 	
-	bool UpdateDescriptors(const RenderOptions& options);
+	bool UpdateDescriptors(const RenderOptions& options, bool skyboxUpdated);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		const RenderOptions& options,
@@ -122,6 +123,7 @@ public: // Members
 	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
 
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	void SetSkyboxDirty() { _refreshRenderableDescriptorSets = true; }
 
 	
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
@@ -172,46 +174,5 @@ private:
 		VkSampleCountFlagBits msaaSamples, VkRenderPass renderPass, VkDevice device);
 
 
-	VkDescriptorImageInfo GetShadowmapTextureResource() const { return _delegate.GetShadowmapDescriptor(); }
-
-	void UpdateRenderableDescriptorSets();
-
 #pragma endregion Pbr
-
-
-
-#pragma region Skybox
-
-public:
-	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) const
-	{
-		return _skyboxRP->CreateSkybox(createInfo);
-	}
-
-	void SetSkybox(const SkyboxResourceId& resourceId)
-	{
-		_skyboxRP->SetSkybox(resourceId);
-		_refreshRenderableDescriptorSets = true;
-	}
-
-	
-	TextureResourceId CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, CubemapFormat format) const
-	{
-		return _skyboxRP->CreateCubemapTextureResource(sidePaths, format);
-	}
-	
-	// Generate Image Based Lighting resources from an Equirectangular HDRI map. 32b/channel
-	IblTextureResourceIds CreateIblTextureResources(const std::string& path) const
-	{
-		return _skyboxRP->CreateIblTextureResources(path);
-	}
-	
-
-private:
-	const TextureResource& GetIrradianceTextureResource() const { return _skyboxRP->GetIrradianceTextureResource(); }
-	const TextureResource& GetPrefilterTextureResource() const { return _skyboxRP->GetPrefilterTextureResource(); }
-	const TextureResource& GetBrdfTextureResource() const { return _skyboxRP->GetBrdfTextureResource(); }
-	
-#pragma endregion Skybox
-
 };

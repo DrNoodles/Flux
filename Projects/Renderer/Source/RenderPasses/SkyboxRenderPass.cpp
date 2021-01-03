@@ -1,4 +1,6 @@
 
+#include "RenderPasses/SkyboxRenderPass.h"
+
 #include "Renderer.h"
 #include "GpuTypes.h"
 #include "VulkanHelpers.h"
@@ -258,53 +260,47 @@ void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 {
 	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
-
-
-	// Update UBOs
-	{
-		// Update skybox ubos
-		const Skybox* skybox = GetCurrentSkyboxOrNull();
-		if (skybox)
-		{
-			// Vert ubo
-			{
-				// Populate
-				auto skyboxVertUbo = SkyboxVertUbo{};
-				skyboxVertUbo.Projection = projection; // same as camera
-				skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
-				skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
-
-				// Copy to gpu - TODO PERF Keep mem mapped 
-				void* data;
-				auto size = sizeof(skyboxVertUbo);
-				vkMapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
-				memcpy(data, &skyboxVertUbo, size);
-				vkUnmapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory);
-			}
-
-			// Frag ubo
-			{
-				// Populate
-				auto skyboxFragUbo = SkyboxFragUbo{};
-				skyboxFragUbo.ExposureBias = options.ExposureBias;
-				skyboxFragUbo.ShowClipping = options.ShowClipping;
-				skyboxFragUbo.IblStrength = options.IblStrength;
-				skyboxFragUbo.BackdropBrightness = options.BackdropBrightness;
-
-				// Copy to gpu - TODO PERF Keep mem mapped 
-				void* data;
-				auto size = sizeof(skyboxFragUbo);
-				vkMapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
-				memcpy(data, &skyboxFragUbo, size);
-				vkUnmapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory);
-			}
-		}
-	}
+	
+	const Skybox* skybox = GetCurrentSkyboxOrNull();
+	assert(skybox); // dont draw this at all if there's no skybox?
 
 	
+	// Update Vert UBO
+	{
+		// Populate
+		auto skyboxVertUbo = SkyboxVertUbo{};
+		skyboxVertUbo.Projection = projection; // same as camera
+		skyboxVertUbo.Rotation = rotate(glm::radians(options.SkyboxRotation), glm::vec3{ 0,1,0 });
+		skyboxVertUbo.View = glm::mat4{ glm::mat3{view} }; // only keep view rotation
+
+		// Copy to gpu - TODO PERF Keep mem mapped 
+		void* data;
+		const auto size = sizeof(skyboxVertUbo);
+		vkMapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory, 0, size, 0, &data);
+		memcpy(data, &skyboxVertUbo, size);
+		vkUnmapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].VertUniformBufferMemory);
+	}
+
+
+	// Update Frag UBO
+	{
+		// Populate
+		auto skyboxFragUbo = SkyboxFragUbo{};
+		skyboxFragUbo.ExposureBias = options.ExposureBias;
+		skyboxFragUbo.ShowClipping = options.ShowClipping;
+		skyboxFragUbo.IblStrength = options.IblStrength;
+		skyboxFragUbo.BackdropBrightness = options.BackdropBrightness;
+
+		// Copy to gpu - TODO PERF Keep mem mapped 
+		void* data;
+		const auto size = sizeof(skyboxFragUbo);
+		vkMapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory, 0, size, 0, &data);
+		memcpy(data, &skyboxFragUbo, size);
+		vkUnmapMemory(_vk.LogicalDevice(), skybox->FrameResources[frameIndex].FragUniformBufferMemory);
+	}
+
+
 	// Draw Skybox
-	const Skybox* skybox = GetCurrentSkyboxOrNull();
-	if (skybox)
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _skyboxPipeline);
 
@@ -438,12 +434,7 @@ void SkyboxRenderPass::SetSkybox(const SkyboxResourceId& resourceId)
 
 VkDescriptorPool SkyboxRenderPass::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
-	const u32 maxPbrObjects = 10000; // Max scene objects! This is gross, but it'll do for now.
-	const u32 maxSkyboxObjects = 1;
-
-	// Match these to CreatePbrDescriptorSetLayout
-	const auto numPbrUniformBuffers = 2;
-	const auto numPbrCombinedImageSamplers = 11;
+	const u32 maxSkyboxObjects = 100; // User can load 100 skyboxes in 1 session
 
 	// Match these to CreateSkyboxDescriptorSetLayout
 	const auto numSkyboxUniformBuffers = 2;
@@ -452,16 +443,12 @@ VkDescriptorPool SkyboxRenderPass::CreateDescriptorPool(u32 numImagesInFlight, V
 	// Define which descriptor types our descriptor sets contain
 	const std::vector<VkDescriptorPoolSize> poolSizes
 	{
-		// PBR Objects
-		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numPbrUniformBuffers * maxPbrObjects * numImagesInFlight},
-		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numPbrCombinedImageSamplers * maxPbrObjects * numImagesInFlight},
-
 		// Skybox Object
 		{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numSkyboxUniformBuffers * maxSkyboxObjects * numImagesInFlight},
 		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numSkyboxCombinedImageSamplers * maxSkyboxObjects * numImagesInFlight},
 	};
 
-	const auto totalDescSets = (maxPbrObjects + maxSkyboxObjects) * numImagesInFlight;
+	const auto totalDescSets = (maxSkyboxObjects) * numImagesInFlight;
 
 	return vkh::CreateDescriptorPool(poolSizes, totalDescSets, device);
 }

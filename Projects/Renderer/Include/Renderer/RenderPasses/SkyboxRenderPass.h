@@ -21,6 +21,7 @@ class SkyboxRenderPass
 {
 public: // Data
 private:// Data
+	
 	// Dependencies
 	VulkanService& _vk;
 
@@ -91,8 +92,6 @@ private:
 	void InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight);
 	void DestroyRenderResourcesDependentOnSwapchain();
 	static VkRenderPass CreateRenderPass(VkFormat format, VulkanService& vk);
-
-	
 	static VkDescriptorPool CreateDescriptorPool(u32 numImagesInFlight, VkDevice device);
 
 
@@ -148,5 +147,4 @@ private:
 		const VkExtent2D& swapchainExtent);
 
 	void UpdateSkyboxesDescriptorSets();
-
 };
