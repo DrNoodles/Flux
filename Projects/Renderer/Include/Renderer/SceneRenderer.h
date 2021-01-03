@@ -72,28 +72,28 @@ private:// Data
 	std::unique_ptr<DirectionalShadowRenderPass> _dirShadowRenderPass = nullptr;
 
 
-public: // Methods
-	SceneRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService) :
+public: // Lifetime
+	SceneRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
 		_vk(vulkanService),
 		_shaderDir(std::move(shaderDir)),
 		_assetsDir(std::move(assetsDir)),
 		_modelLoaderService(modelLoaderService)
-	{
-	}
-	~SceneRenderer() override {}
-
-	
-	void Init(u32 width, u32 height)
 	{
 		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, *this, _shaderDir, _assetsDir, _modelLoaderService);
 		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
 		
 		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowRenderPass->GetRenderPass());
-		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderPass->GetRenderPass());
+		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderPass->GetRenderPass());
 	}
 
-	void Destroy()
+	SceneRenderer(const SceneRenderer&) = delete;
+	SceneRenderer& operator=(const SceneRenderer&) = delete;
+
+	SceneRenderer(SceneRenderer&& other) = default;
+	SceneRenderer& operator=(SceneRenderer&& other) = default;
+
+	~SceneRenderer() override
 	{
 		_sceneFramebuffer->Destroy();
 		_sceneFramebuffer = nullptr;
@@ -111,6 +111,7 @@ public: // Methods
 		_skyboxRenderPass = nullptr;
 	}
 
+public: // Methods
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 	{
 		_skyboxRenderPass->HandleSwapchainRecreated(width, height, numSwapchainImages);
@@ -243,7 +244,6 @@ private:// Methods
 			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 
-	
 	// Returns light transform matrix if found, otherwise identity
 	static bool FindShadowCasterMatrix(const std::vector<Light>& lights, glm::mat4& outMatrix)
 	{

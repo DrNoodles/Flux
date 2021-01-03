@@ -27,8 +27,8 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService);
-	_sceneRenderer->Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
+		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
 	
 	_postProcessPass = PostProcessRenderPass(shaderDir, &vulkan);
 	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
@@ -45,7 +45,7 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneRenderer->Destroy();
+	_sceneRenderer = nullptr; // RAII
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 

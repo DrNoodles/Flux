@@ -386,7 +386,7 @@ void SceneView::PostGrain() const
 
 			// Size
 			{
-				float min = 1.2;
+				float min = 1.2f;
 				float max = 4;
 				float ratio = (go.Size-min) / (max-min);
 				if (ImGui::SliderFloat(("Size##" + id).c_str(), &ratio, 0, 1, "%.2f")) 

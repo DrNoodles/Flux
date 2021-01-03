@@ -85,7 +85,7 @@ private: // DATA
 public: // METHODS
 	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService);
-	~UiPresenter() = default;
+	~UiPresenter() override = default;
 	
 	void Shutdown();
 
