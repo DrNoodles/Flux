@@ -119,7 +119,9 @@ public: // METHODS
 	App& operator=(App&& other) = delete;
 	~App()
 	{
-		_renderer->Destroy(); // TODO Fix this: Need to do first as renderer cleanup waits for device to idle.
+		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
+		
+		_renderer->Destroy();
 		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
