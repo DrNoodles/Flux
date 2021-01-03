@@ -39,7 +39,6 @@ private: // DATA
 	std::unique_ptr<SceneManager>        _scene              = nullptr;
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
-	std::unique_ptr<SceneRenderer>       _sceneRenderer      = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
 
 	// Window
@@ -84,16 +83,13 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		
-		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *sceneRenderer, *vulkanService, window.get(), options.ShaderDir);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *vulkanService, window.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
 		
 		// Set all teh things
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
-		_sceneRenderer = std::move(sceneRenderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
 		_library = std::move(library);
@@ -402,11 +398,11 @@ private: // METHODS
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
 	{
-		return _sceneRenderer->CreateRenderable(meshId, material);
+		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId, material);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
-		return _sceneRenderer->CreateMeshResource(meshDefinition);
+		return _ui->HACK_GetSceneRendererRef().CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion
@@ -417,27 +413,27 @@ private: // METHODS
 	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
-		return _sceneRenderer->CreateTextureResource(path);
+		return _ui->HACK_GetSceneRendererRef().CreateTextureResource(path);
 	}
 	const Material& GetMaterial(const RenderableResourceId& id) override
 	{
-		return _sceneRenderer->GetMaterial(id);
+		return _ui->HACK_GetSceneRendererRef().GetMaterial(id);
 	}
 	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
 	{
-		return _sceneRenderer->SetMaterial(id, newMat);
+		return _ui->HACK_GetSceneRendererRef().SetMaterial(id, newMat);
 	}
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
-		return _sceneRenderer->CreateIblTextureResources(path);
+		return _ui->HACK_GetSceneRendererRef().CreateIblTextureResources(path);
 	}
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
 	{
-		return _sceneRenderer->CreateSkybox(createInfo);
+		return _ui->HACK_GetSceneRendererRef().CreateSkybox(createInfo);
 	}
 	void SetSkybox(const SkyboxResourceId& resourceId) override
 	{
-		_sceneRenderer->SetSkybox(resourceId);
+		_ui->HACK_GetSceneRendererRef().SetSkybox(resourceId);
 	}
 
 private:

@@ -9,10 +9,11 @@ class ViewportView
 private:
 	// Dependencies
 	IViewportViewDelegate* _delegate = nullptr;
-	SceneRenderer& _sceneRenderer;
+	SceneRenderer* _sceneRenderer = nullptr;
 
 public:
-	ViewportView(IViewportViewDelegate* delegate, SceneRenderer& renderer) :
+	ViewportView() = default;
+	ViewportView(IViewportViewDelegate* delegate, SceneRenderer* renderer) :
 		_delegate(delegate),
 		_sceneRenderer(renderer)
 	{

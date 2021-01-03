@@ -11,16 +11,14 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService) :
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
-	_sceneRenderer{sceneRenderer},
 	_vk{vulkan},
 	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
-	_viewportView{ViewportView{this, sceneRenderer}},
 	_shaderDir{shaderDir}
 {
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
@@ -29,9 +27,13 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-	sceneRenderer.Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService);
+	_sceneRenderer->Init(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	
 	_postProcessPass = PostProcessRenderPass(shaderDir, &vulkan);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
+
+	_viewportView = ViewportView{this, _sceneRenderer.get()};
 }
 
 void UiPresenter::Shutdown()
@@ -43,7 +45,7 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneRenderer.Destroy();
+	_sceneRenderer->Destroy();
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
@@ -226,8 +228,8 @@ void UiPresenter::BuildImGui()
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_postProcessPass.DestroyDescriptorResources();
-	_sceneRenderer.HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
+	_sceneRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
@@ -262,7 +264,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		scene.ViewPosition = camera.Position;
 		scene.ViewMatrix = camera.GetViewMatrix();
 		
-		_sceneRenderer.Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
+		_sceneRenderer->Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
 	}
 	
 

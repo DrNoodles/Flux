@@ -40,10 +40,11 @@ private: // DATA
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	LibraryManager& _library;
-	SceneRenderer& _sceneRenderer;
 	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
+	std::unique_ptr<SceneRenderer> _sceneRenderer;
+	
 	// Views
 	SceneView _sceneView;
 	PropsView _propsView;
@@ -83,7 +84,7 @@ private: // DATA
 
 public: // METHODS
 	
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, SceneRenderer& sceneRenderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService);
 	~UiPresenter() = default;
 	
 	void Shutdown();
@@ -110,6 +111,8 @@ public: // METHODS
 	}
 
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
+
+	SceneRenderer& HACK_GetSceneRendererRef() const { return *_sceneRenderer; }
 
 private: // METHODS
 
