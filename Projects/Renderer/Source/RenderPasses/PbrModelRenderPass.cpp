@@ -22,7 +22,7 @@
 
 using vkh = VulkanHelpers;
 
-PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IRendererDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir,
+PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir,
 	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _delegate(delegate), _shaderDir(shaderDir)
 {
 	InitRenderer();

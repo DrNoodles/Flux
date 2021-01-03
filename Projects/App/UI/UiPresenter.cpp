@@ -226,7 +226,7 @@ void UiPresenter::BuildImGui()
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	_postProcessPass.DestroyDescriptorResources();
-	_sceneRenderer.Resize(ViewportRect().Extent.Width, ViewportRect().Extent.Height);
+	_sceneRenderer.HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
 	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer.GetOutputDescritpor()});
 }
 
@@ -239,30 +239,30 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	// Draw Scene
 	{
 		// Convert scene to render primitives
-		SceneRendererPrimitives s = {};
+		SceneRendererPrimitives scene = {};
 		for (const auto& entity : _scene.EntitiesView())
 		{
 			if (entity->Renderable.has_value())
 			{
 				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
 				{
-					s.RenderableIds.emplace_back(componentSubmesh.Id);
-					s.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
+					scene.RenderableIds.emplace_back(componentSubmesh.Id);
+					scene.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
 				}
 			}
 
 			if (entity->Light.has_value())
 			{
-				s.Lights.emplace_back(Converters::ToLight(*entity));
+				scene.Lights.emplace_back(Converters::ToLight(*entity));
 			}
 		}
 
 		// Get camera deets
 		const auto& camera = _scene.GetCamera();
-		s.ViewPosition = camera.Position;
-		s.ViewMatrix = camera.GetViewMatrix();
+		scene.ViewPosition = camera.Position;
+		scene.ViewMatrix = camera.GetViewMatrix();
 		
-		_sceneRenderer.Draw(imageIndex, commandBuffer, s, GetRenderOptions());
+		_sceneRenderer.Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
 	}
 	
 

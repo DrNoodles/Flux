@@ -6,9 +6,7 @@
 #include "FpsCounter.h"
 #include "UI/UiPresenter.h"
 
-#include <Renderer/CubemapTextureLoader.h>
-#include <Renderer/RenderPasses/PbrModelRenderPass.h>
-#include <Renderer/VulkanService.h>
+#include <Renderer/SceneRenderer.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
@@ -35,8 +33,7 @@ class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
-	public IVulkanServiceDelegate,
-	public IRendererDelegate
+	public IVulkanServiceDelegate
 {
 public: // DATA
 	
@@ -48,8 +45,6 @@ private: // DATA
 	std::unique_ptr<SceneManager>        _scene              = nullptr;
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
-	std::unique_ptr<PbrModelRenderPass>  _pbrModelRenderPass = nullptr;
-	std::unique_ptr<SkyboxRenderPass>    _skyboxRenderPass   = nullptr;
 	std::unique_ptr<SceneRenderer>       _sceneRenderer      = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
 
@@ -96,9 +91,7 @@ public: // METHODS
 
 		// UI
 		
-		auto skyboxRP = std::make_unique<SkyboxRenderPass>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto renderer = std::make_unique<PbrModelRenderPass>(*vulkanService, *this, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, *renderer, *skyboxRP, options.ShaderDir, options.AssetsDir, *modelLoaderService);
+		auto sceneRenderer = std::make_unique<SceneRenderer>(*vulkanService, options.ShaderDir, options.AssetsDir, *modelLoaderService);
 		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *sceneRenderer, *vulkanService, window.get(), options.ShaderDir);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
@@ -106,8 +99,6 @@ public: // METHODS
 		// Set all teh things
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
-		_pbrModelRenderPass = std::move(renderer);
-		_skyboxRenderPass = std::move(skyboxRP);
 		_sceneRenderer = std::move(sceneRenderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
@@ -125,8 +116,6 @@ public: // METHODS
 	{
 		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
 		
-		_pbrModelRenderPass->Destroy();
-		_skyboxRenderPass->Destroy();
 		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
@@ -397,8 +386,6 @@ private: // METHODS
 
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{
-		_skyboxRenderPass->HandleSwapchainRecreated(width, height, numSwapchainImages);
-		_pbrModelRenderPass->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		_ui->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
 	
@@ -421,11 +408,11 @@ private: // METHODS
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
 	{
-		return _pbrModelRenderPass->CreateRenderable(meshId, material);
+		return _sceneRenderer->CreateRenderable(meshId, material);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
-		return _pbrModelRenderPass->CreateMeshResource(meshDefinition);
+		return _sceneRenderer->CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion
@@ -436,51 +423,29 @@ private: // METHODS
 	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
-		return _pbrModelRenderPass->CreateTextureResource(path);
+		return _sceneRenderer->CreateTextureResource(path);
 	}
 	const Material& GetMaterial(const RenderableResourceId& id) override
 	{
-		return _pbrModelRenderPass->GetMaterial(id);
+		return _sceneRenderer->GetMaterial(id);
 	}
 	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
 	{
-		return _pbrModelRenderPass->SetMaterial(id, newMat);
+		return _sceneRenderer->SetMaterial(id, newMat);
 	}
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
-		return _skyboxRenderPass->CreateIblTextureResources(path);
+		return _sceneRenderer->CreateIblTextureResources(path);
 	}
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
 	{
-		return _skyboxRenderPass->CreateSkybox(createInfo);
+		return _sceneRenderer->CreateSkybox(createInfo);
 	}
 	void SetSkybox(const SkyboxResourceId& resourceId) override
 	{
-		_skyboxRenderPass->SetSkybox(resourceId);
-		_pbrModelRenderPass->SetSkyboxDirty();
+		_sceneRenderer->SetSkybox(resourceId);
 	}
 
-public:
-	VkDescriptorImageInfo GetShadowmapDescriptor() override
-	{
-		// HACK - Giant dirty hack in lieu of having to refactor... well... everything...
-		return _ui->GetShadowmapDescriptor();
-	}
-
-	const TextureResource& GetIrradianceTextureResource()  override
-	{
-		return _skyboxRenderPass->GetIrradianceTextureResource();
-	}
-	
-	const TextureResource& GetPrefilterTextureResource() override
-	{
-		return _skyboxRenderPass->GetPrefilterTextureResource();
-	}
-	
-	const TextureResource& GetBrdfTextureResource() override
-	{
-		return _skyboxRenderPass->GetBrdfTextureResource();
-	}
 private:
 	#pragma endregion 
 };

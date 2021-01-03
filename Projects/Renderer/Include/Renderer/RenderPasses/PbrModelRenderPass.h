@@ -11,15 +11,14 @@
 
 #include <vector>
 
-
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
 
-class IRendererDelegate
+class IPbrModelRenderPassDelegate
 {
 public:
-	virtual ~IRendererDelegate() = default;
+	virtual ~IPbrModelRenderPassDelegate() = default;
 	virtual VkDescriptorImageInfo GetShadowmapDescriptor() = 0;
 	virtual const TextureResource& GetIrradianceTextureResource() = 0;
 	virtual const TextureResource& GetPrefilterTextureResource() = 0;
@@ -34,7 +33,7 @@ private:// Data
 
 	// Dependencies
 	VulkanService& _vk;
-	IRendererDelegate& _delegate;
+	IPbrModelRenderPassDelegate& _delegate;
 	std::string _shaderDir{};
 	
 	VkRenderPass _renderPass = nullptr;
@@ -66,7 +65,7 @@ public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
 	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
 
-	explicit PbrModelRenderPass(VulkanService& vulkanService, IRendererDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	explicit PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, const std::string& shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Destroy();
 	

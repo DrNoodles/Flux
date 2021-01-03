@@ -3,9 +3,7 @@
 #include "IWindow.h"
 
 #include <Renderer/SceneRenderer.h>
-
-// Render helpers - TODO remove all render deets from this class! Algorithm is okay.
-#include <Renderer/RenderPasses/PostProcessRenderPass.h>
+#include <Renderer/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpass from this class
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -89,10 +87,7 @@ public: // METHODS
 	~UiPresenter() = default;
 	
 	void Shutdown();
-	VkDescriptorImageInfo GetShadowmapDescriptor() const
-	{
-		return _sceneRenderer.TEMP_GetShadowmapDescriptor();
-	}
+
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
