@@ -98,15 +98,10 @@ public:
 
 
 		// Create Descriptor Set
-		VkDescriptorSet descSet;
-		{
-			descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, in.Device)[0]; // NOTE: [0]
-
-			auto write = vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
-				&srcTexture.DescriptorImageInfo());
-
-			vkh::UpdateDescriptorSets(in.Device, { write });
-		}
+		VkDescriptorSet descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, in.Device)[0]; // NOTE: [0]
+		vkh::UpdateDescriptorSets(in.Device, {
+			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &srcTexture.ImageInfo())
+			});
 
 
 		// Create Pipeline Layout

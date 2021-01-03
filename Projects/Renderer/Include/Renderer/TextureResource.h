@@ -104,7 +104,7 @@ public:
 	inline u32 LayerCount() const { return _layerCount; }
 	inline const VkImage& Image() const { return _image; }
 	inline const VkDeviceMemory& Memory() const { return _memory; }
-	inline const VkDescriptorImageInfo& DescriptorImageInfo() const { return _descriptorImageInfo; }
+	inline const VkDescriptorImageInfo& ImageInfo() const { return _descriptorImageInfo; }
 	
 private:
 	VkDevice _device;

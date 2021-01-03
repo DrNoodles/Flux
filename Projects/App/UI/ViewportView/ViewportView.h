@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IViewportViewDelegate.h"
-#include "Renderer/Renderer.h"
+#include <Renderer/SceneRenderer.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ViewportView
@@ -9,12 +9,13 @@ class ViewportView
 private:
 	// Dependencies
 	IViewportViewDelegate* _delegate = nullptr;
-	Renderer& _renderer;
+	SceneRenderer* _sceneRenderer = nullptr;
 
 public:
-	ViewportView(IViewportViewDelegate* delegate, Renderer& renderer) :
+	ViewportView() = default;
+	ViewportView(IViewportViewDelegate* delegate, SceneRenderer* renderer) :
 		_delegate(delegate),
-		_renderer(renderer)
+		_sceneRenderer(renderer)
 	{
 	}
 	

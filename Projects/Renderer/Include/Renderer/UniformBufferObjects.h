@@ -48,15 +48,15 @@ struct LightUbo
 		
 		for (size_t i = 0; i < lights.size(); i++)
 		{
-			auto& light = lights[i];
-			ubo.Lights[i].LightColorIntensity[0] = light.Color.r;
-			ubo.Lights[i].LightColorIntensity[1] = light.Color.g;
-			ubo.Lights[i].LightColorIntensity[2] = light.Color.b;
-			ubo.Lights[i].LightColorIntensity[3] = light.Intensity;
-			ubo.Lights[i].LightPosType[0] = light.Pos.x;
-			ubo.Lights[i].LightPosType[1] = light.Pos.y;
-			ubo.Lights[i].LightPosType[2] = light.Pos.z;
-			ubo.Lights[i].LightPosType[3] = float(light.Type);
+			const auto& l = lights[i];
+			ubo.Lights[i].LightColorIntensity[0] = l.Color.r;
+			ubo.Lights[i].LightColorIntensity[1] = l.Color.g;
+			ubo.Lights[i].LightColorIntensity[2] = l.Color.b;
+			ubo.Lights[i].LightColorIntensity[3] = l.Intensity;
+			ubo.Lights[i].LightPosType[0] = l.Pos.x;
+			ubo.Lights[i].LightPosType[1] = l.Pos.y;
+			ubo.Lights[i].LightPosType[2] = l.Pos.z;
+			ubo.Lights[i].LightPosType[3] = f32(l.Type);
 		}
 
 		return ubo;
@@ -179,14 +179,6 @@ struct UniversalUbo
 		return ubo;
 	}
 };
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//struct ShadowVertUbo
-//{
-//	alignas(16) glm::mat4 Projections;
-//	alignas(16) glm::mat4 View;
-//	alignas(16) glm::mat4 Model;
-//};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PostUbo

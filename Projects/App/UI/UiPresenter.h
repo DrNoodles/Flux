@@ -2,10 +2,8 @@
 
 #include "IWindow.h"
 
-// Render helpers - TODO remove all render deets from this class!
-#include "Offscreen.h"
-#include "OnScreen.h"
-#include "ShadowMap.h"
+#include <Renderer/SceneRenderer.h>
+#include <Renderer/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpass from this class
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
@@ -20,7 +18,7 @@
 
 class LibraryManager;
 class SceneManager;
-class Renderer;
+class PbrModelRenderPass;
 
 class IUiPresenterDelegate
 {
@@ -42,10 +40,11 @@ private: // DATA
 	IUiPresenterDelegate& _delegate;
 	SceneManager& _scene;
 	LibraryManager& _library;
-	Renderer& _renderer; // temp, move to ViewportView
-	VulkanService& _vulkan; // temp, remove
+	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
+	std::unique_ptr<SceneRenderer> _sceneRenderer;
+	
 	// Views
 	SceneView _sceneView;
 	PropsView _propsView;
@@ -73,29 +72,23 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	ShadowMap::ShadowmapDrawResources _shadowDrawResources;
-	//ShadowMap::ShadowmapDescriptorResources _shadowDescriptorResources;
-	FramebufferResources _sceneFramebuffer;
-	OnScreen::QuadDrawResources _postPassDrawResources;
-	OnScreen::QuadDescriptorResources _postPassDescriptorResources;
+	PostProcessRenderPass _postProcessPass;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
 	PointerWheelChangedDelegate _pointerWheelChangedHandler = [this](auto* s, auto a) { OnPointerWheelChanged(s, a); };
 	KeyDownDelegate _keyDownHandler = [this](auto* s, auto a) { OnKeyDown(s, a); };
 	KeyUpDelegate _keyUpHandler = [this](auto* s, auto a) { OnKeyUp(s, a); };
-	
+	std::string _shaderDir;
+
 
 public: // METHODS
 	
-	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir);
-	~UiPresenter() = default;
+	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService);
+	~UiPresenter() override = default;
 	
 	void Shutdown();
-	VkDescriptorImageInfo GetShadowmapDescriptor() const
-	{
-		return _shadowDrawResources.Framebuffer.OutputDescriptor;
-	}
+
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -119,12 +112,10 @@ public: // METHODS
 
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
 
+	SceneRenderer& HACK_GetSceneRendererRef() const { return *_sceneRenderer; }
+
 private: // METHODS
 
-	// TODO Make these static so the coupling is deterministic
-	void CreateSceneFramebuffer();
-	void CreateQuadResources(const std::string& shaderDir);
-	void CreateQuadDescriptorSets();
 
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
@@ -153,10 +144,8 @@ private: // METHODS
 		return r;
 	}
 
+	
 	void BuildImGui();
-	void DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex);
-	void DrawUi(VkCommandBuffer commandBuffer);
-
 
 
 	// Event handlers

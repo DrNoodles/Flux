@@ -1,6 +1,6 @@
 #version 450 core 
 
-layout(push_constant) uniform PushConsts 
+layout(std140, push_constant) uniform PushConsts 
 {
 	layout (offset = 0) mat4 mvp;
 } pushConsts;

@@ -2,6 +2,7 @@
 
 #include <Framework/Vertex.h>
 #include <Framework/CommonTypes.h>
+#include <Framework/CommonRenderer.h>
 
 #include <vulkan/vulkan.h>
 
@@ -9,46 +10,6 @@
 #include <optional>
 #include <vector>
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct FramebufferResources // NOTE: Not sure if i'm keeping this class - just thrown together for quick renderpasses
-{
-	struct Attachment
-	{
-		VkImage Image;
-		VkDeviceMemory ImageMemory;
-		VkImageView ImageView;
-
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			vkFreeMemory(device, ImageMemory, allocator);
-			vkDestroyImage(device, Image, allocator);
-			vkDestroyImageView(device, ImageView, allocator);
-			ImageMemory = nullptr;
-			Image = nullptr;
-			ImageView = nullptr;
-		}
-	};
-
-	VkExtent2D Extent = {};
-	VkFormat Format = {};
-	std::vector<Attachment> Attachments = {};
-	VkFramebuffer Framebuffer = nullptr;
-
-	VkSampler OutputSampler = nullptr;
-	VkDescriptorImageInfo OutputDescriptor = {};
-	
-	
-	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-	{
-		for (auto&& attachment : Attachments) {
-			attachment.Destroy(device, allocator);
-		}
-
-		vkDestroyFramebuffer(device, Framebuffer, allocator);
-		vkDestroySampler(device, OutputSampler, allocator);
-	}
-};
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -165,4 +126,16 @@ struct QueueFamilyIndices
 	{
 		return GraphicsFamily.has_value() && PresentFamily.has_value();
 	}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct SceneRendererPrimitives
+{
+	std::vector<RenderableResourceId> RenderableIds;
+	std::vector<glm::mat4> RenderableTransforms;
+	std::vector<Light> Lights;
+	glm::vec3 ViewPosition;
+	glm::mat4 ViewMatrix;
+	glm::mat4 ProjectionMatrix;
+	glm::mat4 LightSpaceMatrix;
 };

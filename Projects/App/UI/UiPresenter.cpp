@@ -1,6 +1,7 @@
 #include "UiPresenter.h"
 #include "PropsView/MaterialViewState.h"
 #include "PropsView/PropsView.h"
+#include "RendererConverters.h"
 
 #include <Framework/FileService.h>
 #include <State/LibraryManager.h>
@@ -10,62 +11,15 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-
-void UiPresenter::CreateSceneFramebuffer()
-{
-	// Scene framebuffer is only the size of the scene render region on screen
-	const auto sceneRect = ViewportRect();
-	const auto sceneExtent = VkExtent2D{sceneRect.Extent.Width, sceneRect.Extent.Height};
-
-	_sceneFramebuffer = OffScreen::CreateSceneOffscreenFramebuffer(
-		sceneExtent,
-		VK_FORMAT_R16G16B16A16_SFLOAT,
-		_renderer.GetRenderPass(),
-		_vulkan.MsaaSamples(),
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-}
-
-void UiPresenter::CreateQuadResources(const std::string& shaderDir)
-{
-	// Create quad resources
-	_postPassDrawResources = OnScreen::CreateQuadResources(
-		_vulkan.GetSwapchain().GetRenderPass(),
-		shaderDir,
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice(), _vulkan.CommandPool(), _vulkan.GraphicsQueue());
-}
-
-void UiPresenter::CreateQuadDescriptorSets()
-{
-	// Create quad descriptor sets
-	_postPassDescriptorResources = OnScreen::QuadDescriptorResources::Create(
-		_sceneFramebuffer.OutputDescriptor,
-		_vulkan.GetSwapchain().GetImageCount(),
-		_postPassDrawResources.DescriptorSetLayout,
-		_vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-}
-
-void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
-{
-	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-
-	CreateSceneFramebuffer();
-	CreateQuadDescriptorSets();
-	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(numSwapchainImages, _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-}
-
-
-UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, Renderer& renderer, VulkanService& vulkan, IWindow* window, const std::string& shaderDir):
+UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService) :
 	_delegate(dgate),
 	_scene{scene},
 	_library{library},
-	_renderer{renderer},
-	_vulkan{vulkan},
+	_vk{vulkan},
 	_window{window},
 	_sceneView{SceneView{this}},
 	_propsView{PropsView{this}},
-	_viewportView{ViewportView{this, renderer}}
+	_shaderDir{shaderDir}
 {
 	_window->WindowSizeChanged.Attach(_windowSizeChangedHandler);
 	_window->PointerMoved.Attach(_pointerMovedHandler);
@@ -73,12 +27,13 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-	//CreateShadowFramebuffer();
-	_shadowDrawResources = ShadowMap::ShadowmapDrawResources{{ 4096,4096 }, shaderDir, _vulkan, _renderer.Hack_GetPbrPipelineLayout()};
-	//_shadowDescriptorResources = ShadowMap::ShadowmapDescriptorResources::Create(_vulkan.GetSwapchain().GetImageCount(), _shadowDrawResources.DescriptorSetLayout, _vulkan.LogicalDevice(), _vulkan.PhysicalDevice());
-	CreateSceneFramebuffer();
-	CreateQuadResources(shaderDir);
-	CreateQuadDescriptorSets();
+	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
+		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
+	
+	_postProcessPass = PostProcessRenderPass(shaderDir, &vulkan);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
+
+	_viewportView = ViewportView{this, _sceneRenderer.get()};
 }
 
 void UiPresenter::Shutdown()
@@ -90,11 +45,8 @@ void UiPresenter::Shutdown()
 	_window->KeyUp.Detach(_keyUpHandler);
 
 	// Cleanup renderpass resources
-	_sceneFramebuffer.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_postPassDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	_shadowDrawResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
-	//_shadowDescriptorResources.Destroy(_vulkan.LogicalDevice(), _vulkan.Allocator());
+	_sceneRenderer = nullptr; // RAII
+	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
 void UiPresenter::NextSkybox()
@@ -273,295 +225,96 @@ void UiPresenter::BuildImGui()
 	ImGui::Render();
 }
 
-
-struct ShadowCaster
+void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	glm::mat4 Projection;
-	glm::mat4 View;
-	//glm::vec3 Pos;
-};
-
-std::optional<ShadowCaster> FindShadowCaster(Entity* entity)
-{
-	assert(entity != nullptr);
-
-	if (!entity->Light.has_value() || !(entity->Light->Type == LightComponent::Types::directional))
-		return std::nullopt;
-	
-	ShadowCaster s = {};
-	const auto eye = entity->Transform.GetPos();
-	s.View = glm::lookAt(eye, {0,0,0}, {0,1,0});
-	s.Projection = glm::ortho(-50.f, 50.f, -50.f, 50.f, -50.f, 50.f); // TODO Set the bounds dynamically. Near/Far clip planes seems weird. -50 near solves odd clipping issues. Check my understanding of this.
-	return s;
-}
-
-
-void UiPresenter::DrawPostProcessedViewport(VkCommandBuffer commandBuffer, i32 imageIndex)
-{
-	// Update Ubo
-	{
-		const auto& ro = _scene.GetRenderOptions();
-		PostUbo ubo;
-		
-		ubo.ShowClipping = (i32)ro.ShowClipping;
-		ubo.ExposureBias =      ro.ExposureBias;
-		
-		ubo.EnableVignette = (i32)ro.Vignette.Enabled;
-		ubo.VignetteColor       = ro.Vignette.Color;
-		ubo.VignetteInnerRadius = ro.Vignette.InnerRadius;
-		ubo.VignetteOuterRadius = ro.Vignette.OuterRadius;
-
-		ubo.EnableGrain   = (i32)ro.Grain.Enabled;
-		ubo.GrainStrength      = ro.Grain.Strength;
-		ubo.GrainColorStrength = ro.Grain.ColorStrength;
-		ubo.GrainSize          = ro.Grain.Size;
-
-		
-		void* data;
-		const auto size = sizeof(ubo);
-		vkMapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex], 0, size, 0, &data);
-		memcpy(data, &ubo, size);
-		vkUnmapMemory(_vulkan.LogicalDevice(), _postPassDescriptorResources.UboBuffersMemory[imageIndex]);
-	}
-
-	// Draw
-	const MeshResource& mesh = _postPassDrawResources.Quad;
-	VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-	VkDeviceSize pOffsets = {0};
-	
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _postPassDrawResources.Pipeline);
-
-	
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
-	vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		_postPassDrawResources.PipelineLayout,
-		0, 1,
-		&_postPassDescriptorResources.DescriptorSets[imageIndex], 0, nullptr);
-
-	vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
-}
-
-void UiPresenter::DrawUi(VkCommandBuffer commandBuffer)
-{
-	// Update Ui
-	const auto currentTime = std::chrono::high_resolution_clock::now();
-	if (currentTime - _lastUiUpdate > _uiUpdateRate)
-	{
-		_lastUiUpdate = currentTime;
-		BuildImGui();
-	}
-
-	// Draw
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+	_postProcessPass.DestroyDescriptorResources();
+	_sceneRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
+	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
-	auto& vk = _vulkan;
-	const auto& swap = vk.GetSwapchain();
-	const auto swapExtent = swap.GetExtent();
+	// TODO Just update the descriptor for this imageIndex????
+	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 
-	// Whole screen framebuffer dimensions
-	const auto framebufferRect = vki::Rect2D({0, 0}, swapExtent);
-	const auto framebufferViewport = vki::Viewport(framebufferRect);
-	
-	// Scene Viewport / Region. Only the part of the screen showing the scene.
-	const auto sceneRectShared = ViewportRect();
 
-	
-	// Prep scene objects for drawing - TODO There's duplicate effort done here and DrawViewport
-	std::optional<ShadowCaster> shadowCaster = {};
-	std::vector<RenderableResourceId> renderableIds = {};
-	std::vector<glm::mat4> transforms = {};
-	std::vector<Light> lights;
-	
-	for (const auto& entity : _scene.EntitiesView())
+	// Draw Scene
 	{
-		// Gather renderable/transform pairs
-		if (entity->Renderable.has_value())
+		// Convert scene to render primitives
+		SceneRendererPrimitives scene = {};
+		for (const auto& entity : _scene.EntitiesView())
 		{
-			for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+			if (entity->Renderable.has_value())
 			{
-				renderableIds.emplace_back(componentSubmesh.Id);
-				transforms.emplace_back(entity->Transform.GetMatrix());
-			}
-		}
-
-		if (!shadowCaster.has_value())
-		{
-			shadowCaster = FindShadowCaster(entity.get());
-		}
-
-		if (entity->Light.has_value())
-		{
-			auto light = [&entity]() -> Light
-			{
-				auto& lightComp = *entity->Light;
-
-				Light l = {};
-				l.Pos = entity->Transform.GetPos();
-				l.Color = lightComp.Color;
-				l.Intensity = lightComp.Intensity;
-				
-				switch (lightComp.Type) {
-				case LightComponent::Types::point:       l.Type = Light::LightType::Point;       break;
-				case LightComponent::Types::directional: l.Type = Light::LightType::Directional; break;
-					//case Types::spot: 
-				default:
-					throw std::invalid_argument("Unsupport light component type");
+				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+				{
+					scene.RenderableIds.emplace_back(componentSubmesh.Id);
+					scene.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
 				}
-				
-				return l;
-			}();
+			}
 
-			lights.emplace_back(light);
-		}
-	}
-
-
-	// Update all descriptors
-	_renderer.UpdateDescriptors(GetRenderOptions());
-	// shadow? post? gui?
-
-	
-	auto lightSpaceMatrix = shadowCaster.has_value()
-		? shadowCaster->Projection * shadowCaster->View
-		: glm::identity<glm::mat4>();
-	
-	// Draw shadow pass
-	if (shadowCaster.has_value())
-	{
-		const auto& renderables = _renderer.Hack_GetRenderables();
-		const auto& meshes = _renderer.Hack_GetMeshes();
-
-		// Update Ubo - TODO introduce a new MVP only vert shader only ubo for use with Pbr and Shadow shaders. 
-		for (size_t i = 0; i < renderableIds.size(); i++)
-		{
-			const auto& renderable = *renderables[renderableIds[i].Id];
-			// TODO need to create UBOs 
-			const auto& modelBufferMemory = renderable.FrameResources[imageIndex].UniformBufferMemory; // NOTE This is relevant to UniversalUbo PBR rendering!
-
-			UniversalUbo ubo = {};
-			ubo.LightSpaceMatrix = lightSpaceMatrix;
-			ubo.Model = transforms[i];
-			
-			// Copy to gpu - TODO PERF Keep mem mapped 
-			void* data;
-			auto size = sizeof(ubo);
-			vkMapMemory(vk.LogicalDevice(), modelBufferMemory, 0, size, 0, &data);
-			memcpy(data, &ubo, size);
-			vkUnmapMemory(vk.LogicalDevice(), modelBufferMemory);
-		}
-
-		
-		// Draw
-
-		// Clear colour
-		std::vector<VkClearValue> clearColors(1);
-		clearColors[0].depthStencil = { 1.f, 0 };
-
-		float depthBiasConstant = 1.0f;
-		float depthBiasSlope = 1.f;
-		auto shadow = _shadowDrawResources;
-		auto shadowRect = vki::Rect2D(0, 0, shadow.Size.width, shadow.Size.height);
-		auto shadowViewport = vki::Viewport(shadowRect);
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(shadow.RenderPass, shadow.Framebuffer.Framebuffer,
-			shadowRect,
-			clearColors);
-		
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &shadowViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &shadowRect);
-			vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.Pipeline);
-
-			for (const auto& id : renderableIds)
+			if (entity->Light.has_value())
 			{
-				const auto& renderable = renderables[id.Id].get();
-				const auto& mesh = *meshes[renderable->MeshId.Id];
-
-				// Draw mesh
-				VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdBindDescriptorSets(commandBuffer,
-					VK_PIPELINE_BIND_POINT_GRAPHICS, _renderer.Hack_GetPbrPipelineLayout(),
-					0, 1, &renderable->FrameResources[imageIndex].DescriptorSet, 0, nullptr);
-				vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+				scene.Lights.emplace_back(Converters::ToLight(*entity));
 			}
 		}
-		vkCmdEndRenderPass(commandBuffer);
+
+		// Get camera deets
+		const auto& camera = _scene.GetCamera();
+		scene.ViewPosition = camera.Position;
+		scene.ViewMatrix = camera.GetViewMatrix();
+		
+		_sceneRenderer->Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
 	}
-
-
-	// Draw scene to gbuf
-	{
-		auto& camera = _scene.GetCamera();
-		auto view = camera.GetViewMatrix();
-		glm::vec3 camPos = camera.Position;
-
-		// Calc Projection
-		const auto vfov = 45.f;
-		Rect2D region = ViewportRect();
-		const auto aspect = region.Extent.Width / (f32)region.Extent.Height;
-		auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-		projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-
-		// Scene Viewport / Region. Only the part of the screen showing the scene.
-
-		// Clear colour
-		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = { 0.f, 1.f, 0.f, 1.f };
-		clearColors[1].depthStencil = { 1.f, 0ui32 };
-
-		const auto sceneRectShared = ViewportRect();
-		const auto sceneRectNoOffset = vki::Rect2D({ 0, 0 }, { sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
-		const auto sceneViewportNoOffset = vki::Viewport(sceneRectNoOffset);
-
-		const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_renderer.GetRenderPass(),
-			_sceneFramebuffer.Framebuffer,
-			sceneRectNoOffset,
-			clearColors);
-
-		vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewportNoOffset);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRectNoOffset);
-
-			_renderer.Draw(commandBuffer, imageIndex, GetRenderOptions(), renderableIds, transforms, lights, view, projection, camPos, lightSpaceMatrix);
-		}
-		vkCmdEndRenderPass(commandBuffer);
-
-	}
-
 	
+
+
 	// Draw Ui full screen
 	{
 		// Clear colour
 		std::vector<VkClearValue> clearColors(2);
-		clearColors[0].color = {0.f, 1.f, 0.f, 1.f};
+		clearColors[0].color = {0.f, 1.f, 1.f, 1.f};
 		clearColors[1].depthStencil = {1.f, 0ui32};
-			
+
+		// Whole screen framebuffer dimensions
+		const auto& swap = _vk.GetSwapchain();
+		const auto framebufferRect = vki::Rect2D({ 0, 0 }, swap.GetExtent());
+		const auto framebufferViewport = vki::Viewport(framebufferRect);
+
+		const auto sceneRectShared = ViewportRect();
 		const auto sceneRect = vki::Rect2D(
 			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
 			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+		
 		const auto sceneViewport = vki::Viewport(sceneRect);
+		
 		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
 			framebufferRect, clearColors);
 
 		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
-			vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-			DrawPostProcessedViewport(commandBuffer, imageIndex);
+			// Post Processing - TODO This should be in SceneRenderer.
+			{
+				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
+				_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
+			}
 
-			vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-			DrawUi(commandBuffer);
+			// UI
+			{
+				vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
+
+				// Update Ui
+				const auto currentTime = std::chrono::high_resolution_clock::now();
+				if (currentTime - _lastUiUpdate > _uiUpdateRate)
+				{
+					_lastUiUpdate = currentTime;
+					BuildImGui();
+				}
+
+				// Draw
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+			}
 		}
 		vkCmdEndRenderPass(commandBuffer);
 	}
@@ -856,6 +609,6 @@ void UiPresenter::OnPointerMoved(IWindow* sender, PointerEventArgs args)
 }
 void UiPresenter::OnWindowSizeChanged(IWindow* sender, const WindowSizeChangedEventArgs args)
 {
-	_vulkan.InvalidateSwapchain();
+	_vk.InvalidateSwapchain();
 	//std::cout << "OnWindowSizeChanged: (" << args.Size.Width << "," << args.Size.Height << ")\n";
 }

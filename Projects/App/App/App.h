@@ -6,21 +6,13 @@
 #include "FpsCounter.h"
 #include "UI/UiPresenter.h"
 
-#include <Renderer/CubemapTextureLoader.h>
-#include <Renderer/Renderer.h>
-#include <Renderer/VulkanService.h>
+#include <Renderer/SceneRenderer.h>
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
-
-#define GLFW_INCLUDE_NONE
-#define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
-#include <GLFW/glfw3.h>
-
-#include <vulkan/vulkan.h>
 
 #include <algorithm>
 #include <chrono>
@@ -35,8 +27,7 @@ class App final :
 	public IUiPresenterDelegate,
 	public ILibraryManagerDelegate,
 	public ISceneManagerDelegate,
-	public IVulkanServiceDelegate,
-	public IRendererDelegate
+	public IVulkanServiceDelegate
 {
 public: // DATA
 	
@@ -48,7 +39,6 @@ private: // DATA
 	std::unique_ptr<SceneManager>        _scene              = nullptr;
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
-	std::unique_ptr<Renderer>            _renderer           = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
 
 	// Window
@@ -93,15 +83,13 @@ public: // METHODS
 		auto library = std::make_unique<LibraryManager>(*this, *scene, *modelLoaderService, options.AssetsDir);
 
 		// UI
-		auto renderer = std::make_unique<Renderer>(*vulkanService, *this, options.ShaderDir, options.AssetsDir, *modelLoaderService);
-		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *renderer, *vulkanService, window.get(), options.ShaderDir);
+		auto ui = std::make_unique<UiPresenter>(*this, *library, *scene, *vulkanService, window.get(), options.ShaderDir, options.AssetsDir, *modelLoaderService);
 
 		InitImgui(window->GetGlfwWindow(), *vulkanService);
 		
 		// Set all teh things
 		_appOptions = std::move(options);
 		_modelLoaderService = std::move(modelLoaderService);
-		_renderer = std::move(renderer);
 		_scene = std::move(scene);
 		_ui = std::move(ui);
 		_library = std::move(library);
@@ -116,7 +104,8 @@ public: // METHODS
 	App& operator=(App&& other) = delete;
 	~App()
 	{
-		_renderer->CleanUp(); // TODO Fix this: Need to do first as renderer cleanup waits for device to idle.
+		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
+		
 		_ui->Shutdown();
 		DestroyImgui();
 		_vulkanService->Shutdown();
@@ -387,7 +376,6 @@ private: // METHODS
 
 	void NotifySwapchainUpdated(u32 width, u32 height, u32 numSwapchainImages) override
 	{
-		_renderer->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		_ui->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	}
 	
@@ -410,11 +398,11 @@ private: // METHODS
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
 	{
-		return _renderer->CreateRenderable(meshId, material);
+		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId, material);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
-		return _renderer->CreateMeshResource(meshDefinition);
+		return _ui->HACK_GetSceneRendererRef().CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion
@@ -425,35 +413,29 @@ private: // METHODS
 	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
-		return _renderer->CreateTextureResource(path);
+		return _ui->HACK_GetSceneRendererRef().CreateTextureResource(path);
 	}
 	const Material& GetMaterial(const RenderableResourceId& id) override
 	{
-		return _renderer->GetMaterial(id);
+		return _ui->HACK_GetSceneRendererRef().GetMaterial(id);
 	}
 	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
 	{
-		return _renderer->SetMaterial(id, newMat);
+		return _ui->HACK_GetSceneRendererRef().SetMaterial(id, newMat);
 	}
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
-		return _renderer->CreateIblTextureResources(path);
+		return _ui->HACK_GetSceneRendererRef().CreateIblTextureResources(path);
 	}
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
 	{
-		return _renderer->CreateSkybox(createInfo);
+		return _ui->HACK_GetSceneRendererRef().CreateSkybox(createInfo);
 	}
 	void SetSkybox(const SkyboxResourceId& resourceId) override
 	{
-		return _renderer->SetSkybox(resourceId);
+		_ui->HACK_GetSceneRendererRef().SetSkybox(resourceId);
 	}
 
-public:
-	VkDescriptorImageInfo GetShadowmapDescriptor() override
-	{
-		// HACK - Giant dirty hack in lieu of having to refactor... well... everything...
-		return _ui->GetShadowmapDescriptor();
-	}
 private:
 	#pragma endregion 
 };

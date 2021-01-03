@@ -1,74 +1,28 @@
 #pragma once
 
+#include <vulkan/vulkan.h>
+
 #include "Framework/FileService.h"
 #include "Renderer/GpuTypes.h"
 #include "Renderer/UniformBufferObjects.h"
 #include "Renderer/VulkanService.h"
 
-namespace OnScreen
+
+struct TextureData
 {
-	struct QuadDescriptorResources
+	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
+};
+
+class PostProcessRenderPass
+{
+private: // Types
+	struct DescriptorResources
 	{
-		u32 ImageCount = 0; 
+		u32 ImageCount = 0;
 		std::vector<VkDescriptorSet> DescriptorSets = {};
 		std::vector<VkBuffer> UboBuffers = {};
 		std::vector<VkDeviceMemory> UboBuffersMemory = {};
 		VkDescriptorPool DescriptorPool = nullptr;
-
-
-		static QuadDescriptorResources Create(const VkDescriptorImageInfo& screenMap, u32 imageCount,
-		                                      VkDescriptorSetLayout descSetlayout, VkDevice device, VkPhysicalDevice physicalDevice)
-		{
-			// Create uniform buffers
-			const auto uboSize = sizeof(PostUbo);
-			auto [uboBuffers, uboBuffersMemory]
-				= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
-
-			
-			// Create descriptor pool
-			VkDescriptorPool descPool;
-			{
-				const std::vector<VkDescriptorPoolSize> poolSizes = {
-					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
-					VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
-				};
-				descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
-			}
-
-
-			// Create descriptor sets
-			std::vector<VkDescriptorSet> descSets;
-			{
-				descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
-				
-				for (size_t i = 0; i < imageCount; i++)
-				{
-					VkDescriptorBufferInfo bufferUboInfo = {};
-					bufferUboInfo.buffer = uboBuffers[i];
-					bufferUboInfo.offset = 0;
-					bufferUboInfo.range = uboSize;
-
-					std::vector<VkWriteDescriptorSet> writes
-					{
-						vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
-							&screenMap),
-						vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-					};
-					
-					vkh::UpdateDescriptorSets(device, writes);
-				}
-			}
-
-
-			
-			QuadDescriptorResources res;
-			res.ImageCount = imageCount;
-			res.UboBuffers = uboBuffers;
-			res.UboBuffersMemory = uboBuffersMemory;
-			res.DescriptorPool = descPool;
-			res.DescriptorSets = descSets;
-			return res;
-		}
 
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
@@ -82,10 +36,7 @@ namespace OnScreen
 		}
 	};
 
-
-	
-	// Used to render final result to the screen
-	struct QuadDrawResources
+	struct DrawResources
 	{
 		// Client used
 		MeshResource Quad;
@@ -94,7 +45,7 @@ namespace OnScreen
 
 		// Private resources
 		VkDescriptorSetLayout DescriptorSetLayout = nullptr;
-		
+
 		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
 		{
 			//Quad
@@ -111,40 +62,120 @@ namespace OnScreen
 		}
 	};
 
-	
-	
-	inline QuadDrawResources CreateQuadResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
+
+public:  // Data
+private: // Data
+	DrawResources _screenQuadResources;
+	DescriptorResources _descriptorResources;
+	VulkanService* _vulkan = nullptr;
+
+public: // Methods
+	PostProcessRenderPass() = default;
+	PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+	{
+		// Create quad resources
+		_screenQuadResources = CreateDrawResources(
+			_vulkan->GetSwapchain().GetRenderPass(),
+			shaderDir,
+			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
+	}
+	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+	{
+		DestroyDescriptorResources();
+		_screenQuadResources.Destroy(device, allocator);
+	}
+
+	void CreateDescriptorResources(TextureData input)
+	{
+		_descriptorResources = CreateDescriptorResources(
+			_screenQuadResources.DescriptorSetLayout,
+			input.Texture,
+			_vulkan->GetSwapchain().GetImageCount(),
+			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice());
+	}
+	void DestroyDescriptorResources()
+	{
+		_descriptorResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
+	}
+
+	void Draw(VkCommandBuffer commandBuffer, i32 imageIndex, const RenderOptions& ro)
+	{
+		// Update Ubo
+		{
+			//const auto& ro = _scene.GetRenderOptions();
+			PostUbo ubo;
+
+			ubo.ShowClipping = (i32)ro.ShowClipping;
+			ubo.ExposureBias = ro.ExposureBias;
+
+			ubo.EnableVignette = (i32)ro.Vignette.Enabled;
+			ubo.VignetteColor = ro.Vignette.Color;
+			ubo.VignetteInnerRadius = ro.Vignette.InnerRadius;
+			ubo.VignetteOuterRadius = ro.Vignette.OuterRadius;
+
+			ubo.EnableGrain = (i32)ro.Grain.Enabled;
+			ubo.GrainStrength = ro.Grain.Strength;
+			ubo.GrainColorStrength = ro.Grain.ColorStrength;
+			ubo.GrainSize = ro.Grain.Size;
+
+
+			void* data;
+			const auto size = sizeof(ubo);
+			vkMapMemory(_vulkan->LogicalDevice(), _descriptorResources.UboBuffersMemory[imageIndex], 0, size, 0, &data);
+			memcpy(data, &ubo, size);
+			vkUnmapMemory(_vulkan->LogicalDevice(), _descriptorResources.UboBuffersMemory[imageIndex]);
+		}
+
+		// Draw
+		const MeshResource& mesh = _screenQuadResources.Quad;
+		VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
+		VkDeviceSize pOffsets = { 0 };
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _screenQuadResources.Pipeline);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, &pOffsets);
+		vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			_screenQuadResources.PipelineLayout,
+			0, 1,
+			&_descriptorResources.DescriptorSets[imageIndex], 0, nullptr);
+
+		vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+	}
+
+private: // Methods
+	static DrawResources CreateDrawResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 		// Create the quad mesh resource that we'll render to on screen
-		auto quad = [&]()
+		auto quad = [&]() -> MeshResource
 		{
-			Vertex topLeft       = {};
-			Vertex bottomLeft    = {};
-			Vertex bottomRight   = {};
-			Vertex topRight      = {};
-			
-			topLeft.Pos          = {-1,-1,0};
-			bottomLeft.Pos       = {-1, 1,0};
-			bottomRight.Pos      = { 1, 1,0};
-			topRight.Pos         = { 1,-1,0};
-			
-			topLeft.TexCoord     = {0,0};
-			bottomLeft.TexCoord  = {0,1};
-			bottomRight.TexCoord = {1,1};
-			topRight.TexCoord    = {1,0};
-			
+			Vertex topLeft = {};
+			Vertex bottomLeft = {};
+			Vertex bottomRight = {};
+			Vertex topRight = {};
+
+			topLeft.Pos = { -1,-1,0 };
+			bottomLeft.Pos = { -1, 1,0 };
+			bottomRight.Pos = { 1, 1,0 };
+			topRight.Pos = { 1,-1,0 };
+
+			topLeft.TexCoord = { 0,0 };
+			bottomLeft.TexCoord = { 0,1 };
+			bottomRight.TexCoord = { 1,1 };
+			topRight.TexCoord = { 1,0 };
+
 			const std::vector<Vertex> vertices = {
 				topLeft,
 				bottomLeft,
 				bottomRight,
 				topRight,
 			};
-			
+
 			const std::vector<u32> indices = { 0,1,3,3,1,2 };
 
-			
+
 			MeshResource screenQuad;
 			screenQuad.IndexCount = indices.size();
 			screenQuad.VertexCount = vertices.size();
@@ -158,24 +189,13 @@ namespace OnScreen
 			return screenQuad;
 		}();
 
-	
 
-		VkDescriptorSetLayout descSetlayout;
-		{
-			descSetlayout = vkh::CreateDescriptorSetLayout(device,
-				{
-					vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-					vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-				});
-		}
+		VkDescriptorSetLayout descSetlayout = vkh::CreateDescriptorSetLayout(device, {
+				vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+				vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+			});
 
-	
-		
-		VkPipelineLayout pipelineLayout;
-		{
-			pipelineLayout = vkh::CreatePipelineLayout(device, { descSetlayout });
-		}
-
+		VkPipelineLayout pipelineLayout = vkh::CreatePipelineLayout(device, { descSetlayout });
 
 		VkPipeline pipeline;
 		{
@@ -248,7 +268,7 @@ namespace OnScreen
 				vertAttrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
 				vertAttrDesc[1].offset = offsetof(Vertex, TexCoord);
 			}
-			
+
 			VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 			vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 			vertexInputState.vertexBindingDescriptionCount = 1;
@@ -287,7 +307,7 @@ namespace OnScreen
 			pipelineCI.renderPass = renderPass;
 			pipelineCI.layout = pipelineLayout;
 
-			
+
 			if (VK_SUCCESS != vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &pipeline))
 			{
 				throw std::runtime_error("Failed to create pipeline");
@@ -300,13 +320,60 @@ namespace OnScreen
 		}
 
 
-		QuadDrawResources res = {};
+		DrawResources res = {};
 		res.Quad = quad;
 		res.DescriptorSetLayout = descSetlayout;
 		res.PipelineLayout = pipelineLayout;
 		res.Pipeline = pipeline;
-		
+
+		return res;
+	}
+
+	static DescriptorResources CreateDescriptorResources(VkDescriptorSetLayout descSetlayout, const VkDescriptorImageInfo& screenMap,
+		u32 imageCount, VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		// Create uniform buffers
+		const auto uboSize = sizeof(PostUbo);
+		auto [uboBuffers, uboBuffersMemory]
+			= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+
+
+		// Create descriptor pool
+		VkDescriptorPool descPool;
+		{
+			const std::vector<VkDescriptorPoolSize> poolSizes = {
+				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
+				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
+			};
+			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+		}
+
+
+		// Create descriptor sets
+		std::vector<VkDescriptorSet> descSets;
+		{
+			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+
+			for (size_t i = 0; i < imageCount; i++)
+			{
+				VkDescriptorBufferInfo bufferUboInfo = {};
+				bufferUboInfo.buffer = uboBuffers[i];
+				bufferUboInfo.offset = 0;
+				bufferUboInfo.range = uboSize;
+
+				vkh::UpdateDescriptorSets(device, {
+					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap),
+					vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+					});
+			}
+		}
+
+		DescriptorResources res;
+		res.ImageCount = imageCount;
+		res.UboBuffers = uboBuffers;
+		res.UboBuffersMemory = uboBuffersMemory;
+		res.DescriptorPool = descPool;
+		res.DescriptorSets = descSets;
 		return res;
 	}
 };
-
