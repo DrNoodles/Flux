@@ -102,6 +102,12 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 
 std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& path)
 {
+	if (path.empty())
+	{
+		std::cerr << "Skipped loading texture with empty path.\n";
+		return std::nullopt;
+	}
+	
 	// Is teh tex already loaded?
 	const auto it = _loadedTexturesCache.find(path);
 	if (it != _loadedTexturesCache.end())
@@ -116,7 +122,7 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	}
 	catch (const std::exception& e)
 	{
-		std::cerr << "Failed to load texture " << path << std::endl;
+		std::cerr << "Failed to load texture \"" << path << "\"" << std::endl;
 		return std::nullopt;
 	}
 	
