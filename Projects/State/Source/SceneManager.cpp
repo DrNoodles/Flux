@@ -131,6 +131,25 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	return resId;
 }
 
+//std::vector<Material> SceneManager::GatherAllMaterials() const
+//{
+//	std::vector<Material> mats{};
+//
+//	// TODO HACK. This is disgusting. Scene should own the materials.
+//	for (auto&& entity : _entities)
+//	{
+//		if (entity->Renderable.has_value())
+//		{
+//			for (const auto& componentSubmesh : entity->Renderable->GetSubmeshes())
+//			{
+//				mats.push_back(_delegate.GetMaterial(componentSubmesh.Id));
+//			}
+//		}
+//	}
+//
+//	return mats;
+//}
+
 const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
 {
 	return _delegate.GetMaterial(resourceId);

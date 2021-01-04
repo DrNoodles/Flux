@@ -50,12 +50,12 @@ void PropsView::BuildUI(int selectionCount,
 			DrawLightPanel(lvm.value());
 		}
 		
-		auto rvm = _delegate->GetMaterialState();
-		if (rvm.has_value())
+		auto mvm = _delegate->GetMaterialState();
+		if (mvm.has_value())
 		{
 			ImGui::Spacing();
 			ImGui::Spacing();
-			DrawRenderablePanel(rvm.value());
+			DrawMaterialPanel(mvm.value());
 		}
 	}
 	ImGui::End();
@@ -108,25 +108,25 @@ void SubSectionSpacing()
 float modeStart = 78;
 float buttonRight = 35;
 
-void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
+void PropsView::DrawMaterialPanel(MaterialViewState& mvm) const
 {
-	if (ImGui::CollapsingHeader("Model", headerFlags))
+	if (ImGui::CollapsingHeader("Material", headerFlags))
 	{
 		ImGui::Spacing();
+		
+		const auto& submeshes = _delegate->GetMaterials();
 
-		const auto& submeshes = _delegate->GetSubmeshes();
-
-		ImGui::Text("Sub-Mesh");
-		const auto height = glm::min(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
-		if (ImGui::BeginChild("Sub-Mesh Panel", ImVec2{ 0,height }, true))
+		ImGui::Text("Materials");
+		const auto height = glm::min<int>(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
+		if (ImGui::BeginChild("Materials", ImVec2{ 0,height }, true))
 		{
 			for (int i = 0; i < submeshes.size(); ++i)
 			{
 				const auto& mesh = submeshes[i];
 
-				if (ImGui::Selectable((mesh + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedSubMesh()))
+				if (ImGui::Selectable((mesh + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedMaterial()))
 				{
-					_delegate->SelectSubMesh(i);
+					_delegate->SelectMaterial(i);
 				}
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip(mesh.c_str());
 			}
@@ -140,40 +140,40 @@ void PropsView::DrawRenderablePanel(MaterialViewState& rvm) const
 
 		ImGui::Text("Material");
 		
-		int soloSelection = (int)rvm.ActiveSolo;
+		int soloSelection = (int)mvm.ActiveSolo;
 		// NOTE: The order must match TextureType
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
 		ImGui::SetNextItemWidth(100);
 		if (ImGui::Combo("Solo Texture", &soloSelection, 
 			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency\0"))
 		{
-			rvm.ActiveSolo = soloSelection;
-			_delegate->CommitMaterialChanges(rvm);
+			mvm.ActiveSolo = soloSelection;
+			_delegate->CommitMaterialChanges(mvm);
 		}
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Display only the selected texture.");
 
 		if (ImGui::BeginChild("Material Panel", ImVec2{ 0,0 }, true))
 		{
 			ImGui::Spacing();
-			Basecolor(rvm);
+			Basecolor(mvm);
 			SubSectionSpacing();
 
-			Normals(rvm);
+			Normals(mvm);
 			SubSectionSpacing();
 
-			Metalness(rvm);
+			Metalness(mvm);
 			SubSectionSpacing();
 
-			Roughness(rvm);
+			Roughness(mvm);
 			SubSectionSpacing();
 
-			AmbientOcclusion(rvm);
+			AmbientOcclusion(mvm);
 			SubSectionSpacing();
 
-			Emissive(rvm);
+			Emissive(mvm);
 			SubSectionSpacing();
 
-			Transparency(rvm);
+			Transparency(mvm);
 		}
 		ImGui::EndChild();
 	}

@@ -201,6 +201,7 @@ public:
 				
 				// config mat
 				Material mat = {};
+				mat.Name = name;
 				mat.Basecolor = glm::vec3{ 1 };
 				mat.Roughness = roughness;
 				mat.Metalness = metalness;
@@ -220,6 +221,7 @@ public:
 	{
 		std::cout << "Loading axis" << std::endl;
 
+		std::string name;
 		std::string basecolorPath;
 		std::string normalPath;
 		std::string ormPath;
@@ -227,6 +229,7 @@ public:
 		auto ApplyMat = [&](RenderableComponent& renComp)
 		{
 			Material mat;
+			mat.Name = name;
 			
 			// Load basecolor map
 			mat.BasecolorMap = { *_scene.LoadTexture(basecolorPath), basecolorPath };
@@ -253,9 +256,11 @@ public:
 		};
 
 		
-		{  // Sphere
+		{
+			name = "Sphere";
+			
 			auto entity = CreateSphere();
-			entity->Name = "Sphere";
+			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(1));
 			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -268,9 +273,11 @@ public:
 			_scene.AddEntity(std::move(entity));
 		}
 		
-		{  // GreasyPan
+		{
+			name = "GreasyPan";
+			
 			auto entity = CreateBlob();
-			entity->Name = "GreasyPan";
+			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -283,9 +290,11 @@ public:
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Gold
+		{
+			name = "Gold";
+			
 			auto entity = CreateBlob();
-			entity->Name = "Gold";
+			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -298,9 +307,11 @@ public:
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Rusted Metal
+		{
+			name = "Rusted Metal";
+			
 			auto entity = CreateBlob();
-			entity->Name = "RustedMetal";
+			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -313,9 +324,11 @@ public:
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Bumpy Plastic
+		{
+			name = "Bumpy Plastic";
+			
 			auto entity = CreateBlob();
-			entity->Name = "BumpyPlastic";
+			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
@@ -478,12 +491,15 @@ public:
 		// X
 		{
 			auto entity = CreateSphere();
-			entity->Name = "Axis-X";
+			auto name = "Axis-X";
+			entity->Name = name;
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
 
 			Material mat{};
 			{
+				mat.Name = name;
+
 				mat.Basecolor = { 1,0,0 };
 
 				const auto normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
@@ -512,11 +528,13 @@ public:
 		// Y
 		{
 			auto entity = CreateSphere();
-			entity->Name = "Axis-Y";
+			auto name = "Axis-Y";
+			entity->Name = name;
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
 			
 			Material mat{};
+			mat.Name = name;
 			mat.Basecolor = { 0,1,0 };
 			mat.Roughness = 0;
 			_scene.SetMaterial(*entity->Renderable, mat);
@@ -527,11 +545,13 @@ public:
 		// Z
 		{
 			auto entity = CreateSphere();
-			entity->Name = "Axis-Z";
+			auto name = "Axis-Z";
+			entity->Name = name;
 			entity->Transform.SetScale(scale);
 			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
 			
 			Material mat{};
+			mat.Name = name;
 			mat.Basecolor = { 0,0,1 };
 			mat.Roughness = 0;
 			_scene.SetMaterial(*entity->Renderable, mat);
@@ -544,6 +564,7 @@ public:
 	static Material CreateRandomDielectricMaterial()
 	{
 		Material m{};
+		m.Name = "RandomDielectricMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 0;
 		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
@@ -553,6 +574,7 @@ public:
 	static Material CreateRandomMetalMaterial()
 	{
 		Material m{};
+		m.Name = "CreateRandomMetalMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 1;
 		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };

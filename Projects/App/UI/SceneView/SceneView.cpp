@@ -176,6 +176,27 @@ void SceneView::OutlinerPanel(const std::vector<Entity*>& ents, std::unordered_s
 			}
 		}
 		ImGui::EndChild();
+
+
+		
+		const auto& submeshes = _del->GetSubmeshes();
+
+		ImGui::Text("Sub-Mesh");
+		const auto height = glm::min<int>(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
+		if (ImGui::BeginChild("Sub-Mesh Panel", ImVec2{ 0,height }, true))
+		{
+			for (int i = 0; i < submeshes.size(); ++i)
+			{
+				const auto& mesh = submeshes[i];
+
+				if (ImGui::Selectable((mesh + "##" + std::to_string(i)).c_str(), i == _del->GetSelectedSubMesh()))
+				{
+					_del->SelectSubMesh(i);
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip(mesh.c_str());
+			}
+		}
+		ImGui::EndChild();
 	}
 }
 

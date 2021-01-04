@@ -49,6 +49,8 @@ struct Material
 		Alpha = 3,
 	};
 
+	std::string Name = "Default";
+	
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
 	float Roughness = 0.3f;

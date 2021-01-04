@@ -218,6 +218,27 @@ void UiPresenter::BuildImGui()
 				// Same selection as last frame
 			}
 
+			// Collect materials - TODO This is disgusting.
+			//_selectedMaterial = 0;
+			_materials.clear();
+			for (auto&& entity : _scene.EntitiesView())
+			{
+				if (entity->Renderable.has_value())
+				{
+					for (const auto& componentSubmesh : entity->Renderable->GetSubmeshes())
+					{
+						std::pair<std::string, RenderableResourceId> pair = std::make_pair(
+							_scene.GetMaterial(componentSubmesh.Id).Name, 
+							componentSubmesh.Id);
+						
+						_materials.emplace_back(std::move(pair));
+					}
+				}
+			}
+
+			if (_selectedMaterial > _materials.size())
+				_selectedMaterial =  (int)_materials.size() - 1;
+
 			_propsView.BuildUI(selectionCount, _tvm, _lvm);
 		}
 	}
@@ -480,32 +501,48 @@ void UiPresenter::SetActiveSkybox(u32 idx)
 	_activeSkybox = idx;
 }
 
+std::vector<std::string> UiPresenter::GetMaterials()
+{	
+	std::vector<std::string> matNames(_materials.size());
+	
+	for (size_t i = 0; i < _materials.size(); i++)
+	{
+		matNames[i] = _materials[i].first;
+	}
+	
+	return matNames;
+}
+
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 {
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	const auto& [name, id] = _materials[_selectedMaterial];
+	const auto& mat = _scene.GetMaterial(id);
+	
+	/*Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 
 	if (!selection || !selection->Renderable.has_value())
 		return std::nullopt;
 
 	const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto& mat = _scene.GetMaterial(componentSubmesh.Id);
+	const auto& mat = _scene.GetMaterial(componentSubmesh.Id);*/
 
 	return MaterialViewState::CreateFrom(mat);
 }
 
 void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 {
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	const auto newMat = MaterialViewState::ToMaterial(state, _scene);
+	
+	/*Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 	if (!selection) {
 		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
 	}
 	
-	const auto newMat = MaterialViewState::ToMaterial(state, _scene);
-
+	
 	const auto& renComp = *selection->Renderable;
-	const auto& componentSubmesh = renComp.GetSubmeshes()[_selectedSubMesh];
+	const auto& componentSubmesh = renComp.GetSubmeshes()[_selectedSubMesh];*/
 
-	_scene.SetMaterial(componentSubmesh.Id, newMat);
+	_scene.SetMaterial(_materials[_selectedMaterial].second, newMat);
 }
 
 

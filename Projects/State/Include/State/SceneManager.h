@@ -44,8 +44,9 @@ public:
 	
 	std::optional<RenderableComponent> LoadRenderableComponentFromFile(const std::string& path);
 	std::optional<TextureResourceId> LoadTexture(const std::string& path);
+
+	//std::vector<Material> GatherAllMaterials() const;
 	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
-	
 	void SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const;
 	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const;
 

@@ -10,6 +10,8 @@
 
 struct MaterialViewState
 {
+	std::string Name;
+	
 	bool UseBasecolorMap = false;
 	//bool UseNormalMap = false;
 	bool UseMetalnessMap = false;
@@ -51,6 +53,8 @@ struct MaterialViewState
 	{
 		MaterialViewState state = {};
 
+		state.Name = mat.Name;
+		
 		state.UseBasecolorMap = mat.UseBasecolorMap;
 		state.UseMetalnessMap = mat.UseMetalnessMap;
 		state.UseRoughnessMap = mat.UseRoughnessMap;
@@ -108,9 +112,12 @@ struct MaterialViewState
 		return state;
 	}
 
+
 	static Material ToMaterial(const MaterialViewState& state, SceneManager& sm)
 	{
 		Material mat;
+
+		mat.Name = state.Name;
 		
 		mat.UseBasecolorMap = state.UseBasecolorMap;
 		mat.UseMetalnessMap = state.UseMetalnessMap;

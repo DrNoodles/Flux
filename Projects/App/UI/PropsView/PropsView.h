@@ -18,12 +18,12 @@ public:
 
 	// Transform?
 	
-	// Submeshes
-	virtual int GetSelectedSubMesh() const = 0;
-	virtual void SelectSubMesh(int i) = 0;
-	virtual const std::vector<std::string>& GetSubmeshes() = 0;
+	// Materials list
+	virtual std::vector<std::string> GetMaterials() = 0;
+	virtual int GetSelectedMaterial() const = 0;
+	virtual void SelectMaterial(int i) = 0;
 
-	// Material
+	// Material editing
 	virtual std::optional<MaterialViewState> GetMaterialState() = 0;
 	virtual void CommitMaterialChanges(const MaterialViewState& state) = 0;
 
@@ -47,7 +47,7 @@ public:
 private:
 	void DrawTransformPanel(TransformVm& tvm) const;
 	void DrawLightPanel(LightVm& lvm) const;
-	void DrawRenderablePanel(MaterialViewState& rvm) const;
+	void DrawMaterialPanel(MaterialViewState& mvm) const;
 	
 	void Basecolor(MaterialViewState& rvm) const;
 	void Normals(MaterialViewState& rvm) const;
