@@ -24,17 +24,19 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 	AABB renderableBounds;
 	std::vector<RenderableComponentSubmesh> submeshes;
 
-	for (const auto& meshDef : modelDefinition->Meshes)
+
+	
+	// Load Materials
+	std::vector<Material> materials(modelDefinition->Materials.size());
+	for (size_t i = 0; i < modelDefinition->Materials.size(); i++)
 	{
-		// Create the Mesh resource
-		auto meshId = _delegate.CreateMeshResource(meshDef); 
-
-
-		// Create Texture resources and config Material
-		Material mat = {};
-		mat.Name = meshDef.MaterialName;
+		const auto& matDef = modelDefinition->Materials[i];
+		auto& mat = materials[i];
 		
-		for (const auto& texDef : meshDef.Textures)
+		// Create Texture resources and config Material
+		mat.Name = matDef.Name;
+		
+		for (const auto& texDef : matDef.Textures)
 		{
 			const auto texResId = LoadTexture(texDef.Path);
 			if (!texResId.has_value())
@@ -81,9 +83,17 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 				std::cerr << "Discarding unknown texture type" << std::endl;
 			}
 		}
+	}
 
 
-		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.MeshName };
+	// Load Meshes
+	for (const auto& meshDef : modelDefinition->Meshes)
+	{
+		// Create the Mesh resource
+		auto meshId = _delegate.CreateMeshResource(meshDef);
+		auto& mat = materials[meshDef.MaterialIndex];
+
+		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name };
 		submeshes.emplace_back(submesh);
 
 		
