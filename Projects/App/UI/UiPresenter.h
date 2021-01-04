@@ -174,13 +174,8 @@ private: // METHODS
 
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
 	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
-	void SelectSubMesh(int index) override
-	{
-		_selectedSubMesh = index;
+	void SelectSubMesh(int index) override;
 
-		// TODO Find and select the material associated with this submesh
-	}
-	
 	RenderOptions GetRenderOptions() override;
 	void SetRenderOptions(const RenderOptions& ro) override;
 	void LoadAndSetSkybox() override;
@@ -199,13 +194,8 @@ private: // METHODS
 
 	std::vector<std::string> GetMaterials() override;
 	int GetSelectedMaterial() const override { return _selectedMaterial; }
-	void SelectMaterial(int i) override
-	{
-		_selectedMaterial = i;
+	void SelectMaterial(int i) override;
 
-		// TODO Apply to current submesh selection
-	}
-	
 	std::optional<MaterialViewState> GetMaterialState() override;
 	void CommitMaterialChanges(const MaterialViewState& state) override;
 	

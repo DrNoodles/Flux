@@ -203,7 +203,6 @@ void UiPresenter::BuildImGui()
 
 
 				// Collect submeshes
-				_selectedSubMesh = 0;
 				_submeshes.clear();
 				if (selection->Renderable.has_value())
 				{
@@ -212,6 +211,8 @@ void UiPresenter::BuildImGui()
 						_submeshes.emplace_back(componentSubmesh.Name);
 					}
 				}
+
+				SelectSubMesh(0);
 			}
 			else
 			{
@@ -467,6 +468,36 @@ void UiPresenter::DeleteAll()
 	_delegate.Delete(ids);
 }
 
+void UiPresenter::SelectSubMesh(int index)
+{
+	_selectedSubMesh = index;
+
+	// TODO Find and select the material associated with this submesh
+	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	if (!selection)
+	{
+		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+	}
+
+	if (!selection->Renderable.has_value())
+	{
+		return; // There is no submesh to select
+	}
+	
+	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+
+	_selectedMaterial = [&]() -> int
+	{
+		for (size_t m = 0; m < _materials.size(); m++)
+		{
+			if (_materials[m].second.Id == targetSubmesh.Id.Id)
+				return (int)m;
+		}
+
+		throw std::runtime_error("Couldn't find the material for the given submesh");
+	}();
+}
+
 RenderOptions UiPresenter::GetRenderOptions()
 {
 	return _scene.GetRenderOptions();
@@ -513,6 +544,23 @@ std::vector<std::string> UiPresenter::GetMaterials()
 	return matNames;
 }
 
+void UiPresenter::SelectMaterial(int i)
+{
+	_selectedMaterial = i;
+	
+	// Apply to current submesh selection
+	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	if (!selection)
+	{
+		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+	}
+
+	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+	const Material mat = _scene.GetMaterial(_materials[_selectedMaterial].second);
+
+	_scene.SetMaterial(targetSubmesh.Id, mat);
+}
+
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 {
 	const auto& [name, id] = _materials[_selectedMaterial];
@@ -532,17 +580,21 @@ std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 {
 	const auto newMat = MaterialViewState::ToMaterial(state, _scene);
+
+	//const auto renderableResId = _materials[_selectedMaterial].second;
+	//_scene.SetMaterial(renderableResId, newMat);
 	
-	/*Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	
+	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
 	if (!selection) {
 		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
 	}
-	
-	
-	const auto& renComp = *selection->Renderable;
-	const auto& componentSubmesh = renComp.GetSubmeshes()[_selectedSubMesh];*/
 
-	_scene.SetMaterial(_materials[_selectedMaterial].second, newMat);
+	assert(selection->Renderable.has_value()); // TODO This should simply edit the current material reference and nothing more.
+	
+	const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+
+	_scene.SetMaterial(componentSubmesh.Id, newMat);
 }
 
 
