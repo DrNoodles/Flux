@@ -40,6 +40,9 @@ public:
 		const auto directory = path.substr(0, path.find_last_of("/\\") + 1); // TODO Use FileService to split path
 		ProcessNode(modelDefinition, scene->mRootNode, scene, directory);
 
+		// TODO Process Materials independent to the meshes that use them. And add a materials list to the modelDefinition
+		//ProcessMaterials(modelDefinition, scene);
+		
 		return modelDefinition;
 	}
 
@@ -69,7 +72,7 @@ private:
 	{
 		MeshDefinition meshDefinition{};
 
-		meshDefinition.Name = mesh->mName.C_Str();
+		meshDefinition.MeshName = mesh->mName.C_Str();
 
 
 		// Tally positions - for use in computing bounds
@@ -139,6 +142,8 @@ private:
 		if (mesh->mMaterialIndex >= 0)
 		{
 			aiMaterial* aiMat = aiScene->mMaterials[mesh->mMaterialIndex];
+
+			meshDefinition.MaterialName = aiMat->GetName().C_Str();
 			
 			auto basecolor = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
 			auto normals = LoadMaterialTextures(aiMat, aiTextureType_NORMALS, directory);

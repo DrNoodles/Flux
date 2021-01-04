@@ -32,6 +32,8 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 
 		// Create Texture resources and config Material
 		Material mat = {};
+		mat.Name = meshDef.MaterialName;
+		
 		for (const auto& texDef : meshDef.Textures)
 		{
 			const auto texResId = LoadTexture(texDef.Path);
@@ -81,7 +83,7 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		}
 
 
-		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name };
+		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.MeshName };
 		submeshes.emplace_back(submesh);
 
 		

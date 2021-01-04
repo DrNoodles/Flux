@@ -17,7 +17,8 @@ struct TextureDefinition
 
 struct MeshDefinition
 {
-	std::string Name{};
+	std::string MeshName{};
+	std::string MaterialName{};
 	std::vector<Vertex> Vertices{};
 	std::vector<u32> Indices{};
 	std::vector<TextureDefinition> Textures{};
