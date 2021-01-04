@@ -14,7 +14,7 @@ struct LightPacked
 	vec4 PosType;       // floats [X,Y,Z], int [Type:Point=0,Directional=1]
 };
 
-layout(std140, binding = 0) uniform UniversalUbo
+layout(std140, binding = 0) uniform PbrMaterialUbo
 {
 	//mat4 model;
 	//mat4 view;

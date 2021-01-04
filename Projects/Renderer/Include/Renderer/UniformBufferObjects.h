@@ -64,7 +64,7 @@ struct LightUbo
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct UniversalUboCreateInfo
+struct PbrUboCreateInfo
 {
 	glm::mat4 Model{};
 	glm::mat4 View{};
@@ -81,13 +81,35 @@ struct UniversalUboCreateInfo
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct UniversalUbo
+struct PbrMeshVsUbo
 {
-	// Data types and alignment to match shader exactly.
 	alignas(16) glm::mat4 Model;         
 	alignas(16) glm::mat4 View;          
 	alignas(16) glm::mat4 Projection;
 	alignas(16) glm::mat4 LightSpaceMatrix;
+
+	static PbrMeshVsUbo Create(const PbrUboCreateInfo& info)
+	{
+		PbrMeshVsUbo ubo{};
+		
+		ubo.Model = info.Model;
+		ubo.View = info.View;
+		ubo.Projection = info.Projection;
+		ubo.LightSpaceMatrix = info.LightSpaceMatrix;
+		
+		return ubo;
+	}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct PbrMaterialUbo
+{
+	// TODO Remove this temp padding once PbrMeshVsUbo is working
+	alignas(16) glm::mat4 Pad1;         
+	alignas(16) glm::mat4 Pad2;          
+	alignas(16) glm::mat4 Pad3;
+	alignas(16) glm::mat4 Pad4;
+
 	
 	alignas(16) glm::mat4 CubemapRotation;
 	alignas(16) glm::vec3 CamPos;
@@ -125,19 +147,12 @@ struct UniversalUbo
 	alignas(4)  bool ShowNormalMap;
 	alignas(4)  bool ShowClipping; 
 	alignas(4)  f32  ExposureBias;  
-	alignas(4)  f32  IblStrength;   
+	alignas(4)  f32  IblStrength;
 
-
-	
-	// Create a UniversalUbo packed to match shader standards. MUST unpack in shader.
-	static UniversalUbo Create(const UniversalUboCreateInfo& info, const Material& material)
+	static PbrMaterialUbo Create(const PbrUboCreateInfo& info, const Material& material)
 	{
-		UniversalUbo ubo{};
-		
-		ubo.Model = info.Model;
-		ubo.View = info.View;
-		ubo.Projection = info.Projection;
-		ubo.LightSpaceMatrix = info.LightSpaceMatrix;
+		PbrMaterialUbo ubo{};
+
 		ubo.CamPos = info.CamPos;
 
 		// Material

@@ -117,7 +117,8 @@ private:
 	static void WritePbrDescriptorSets(
 		uint32_t count,
 		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& modelUbos,
+		const std::vector<VkBuffer>& meshUbos,
+		const std::vector<VkBuffer>& materialUbos,
 		const std::vector<VkBuffer>& lightUbos,
 		const TextureResource& basecolorMap,
 		const TextureResource& normalMap,
