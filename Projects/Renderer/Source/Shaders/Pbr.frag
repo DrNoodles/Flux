@@ -16,17 +16,13 @@ struct LightPacked
 
 layout(std140, binding = 0) uniform PbrMaterialUbo
 {
-	//mat4 model;
-	//mat4 view;
-	//mat4 projection;
-	//mat4 lightSpaceMatrix;
-	layout(offset=256) mat4 cubemapRotation;
-	layout(offset=320) vec3 camPos;
+	layout(offset=0) mat4 cubemapRotation;
+	layout(offset=64) vec3 camPos;
 
-	layout(offset=336) vec3 basecolor;
-	layout(offset=352) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
+	layout(offset=80) vec3 basecolor;
+	layout(offset=96) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
 
-	layout(offset=368) 
+	layout(offset=112) 
 	bool  useBasecolorMap;   
 	bool  useNormalMap;      
 

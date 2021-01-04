@@ -104,13 +104,6 @@ struct PbrMeshVsUbo
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PbrMaterialUbo
 {
-	// TODO Remove this temp padding once PbrMeshVsUbo is working
-	alignas(16) glm::mat4 Pad1;         
-	alignas(16) glm::mat4 Pad2;          
-	alignas(16) glm::mat4 Pad3;
-	alignas(16) glm::mat4 Pad4;
-
-	
 	alignas(16) glm::mat4 CubemapRotation;
 	alignas(16) glm::vec3 CamPos;
 
