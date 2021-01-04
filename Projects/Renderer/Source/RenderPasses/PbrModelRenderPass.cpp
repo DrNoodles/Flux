@@ -521,7 +521,7 @@ VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight,
 	//const u32 maxSkyboxObjects = 1;
 
 	// Match these to CreatePbrDescriptorSetLayout
-	const auto numPbrUniformBuffers = 2;
+	const auto numPbrUniformBuffers = 3;
 	const auto numPbrCombinedImageSamplers = 11;
 
 	// Match these to CreateSkyboxDescriptorSetLayout
