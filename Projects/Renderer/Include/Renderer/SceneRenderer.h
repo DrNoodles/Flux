@@ -20,14 +20,18 @@ Split up concepts clearly.
 
 Scene:
 	- Deals with user level resources.
-	- Eg. loads Caustic.fbx which contains a mesh and textures for diff layers.
-	- Uses SceneAssets to define unique user assets in the scene.
-	- Scene itself joins these unique AssetDescs to build the scene itself.
-
-	Eg, ive loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
+	- Eg. load character.fbx which contain meshes, materials and textures.
+	- Each unique Mesh/Texture GPU resource is has a exactly 1 AssetDesc entry.
+	- A scene is a DAG of Models (comprised of Mesh Resources) and Materials (comprised of Textures Resources and properties).
+	- Model and Material are scene constructs.
+	- Mesh and Texture are GPU Resources.
+	
+	Eg, ive seperately loaded .../mesh.fbx and .../diffuse.png and applied one to the other. It has no knowledge of renderer constructs.
 
 	SceneAssets:
-		Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
+		- Owns individual meshes/textures/ibls/etc descriptions. Doesn't care about how/if they're used.
+
+		Eg, the editor could have an asset viewer with a filter on type. Type=Texture would show all textures in the scene regardless of how/if they're used.
 
 		struct AssetDesc
 			GUID Id
