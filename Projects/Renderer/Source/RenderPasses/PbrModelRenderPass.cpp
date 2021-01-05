@@ -308,11 +308,18 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkUnmapMemory(_vk.LogicalDevice(), _lightBuffersMemory[frameIndex]);
 		}
 
-		// Renderable UBOs
-		for (const auto& object : objects)
+	}
+
+	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
+	std::vector<RenderableResourceId> opaqueObjects = {};
+	std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
+
+	for (const auto& object : objects)
+	{
+		const auto& renderable = *_renderables[object.RenderableId.Id];
+		
+		// Update UBOs
 		{
-			const auto& renderable = *_renderables[object.RenderableId.Id];
-			
 			PbrUboCreateInfo info = {};
 			info.Model = object.Transform;
 			info.View = view;
@@ -351,39 +358,35 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 				vkUnmapMemory(_vk.LogicalDevice(), bufferMemory);
 			}
 		}
-	}
 
-	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
-	std::vector<RenderableResourceId> opaqueObjects = {};
-	std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
-
-	for (const auto& object : objects)
-	{
-		const auto& id = object.RenderableId;
-		const auto& mat = _renderables[id.Id]->Mat;
-		
-		if (mat.UsingTransparencyMap())
+		// Depth sort objects
 		{
-			// Depth sort transparent object
-			
-			// Calc depth of from camera to object transform - this isn't fullproof!
-			const auto& tf = object.Transform;
-			auto objPos = glm::vec3(tf[3]);
-			glm::vec3 diff = objPos-camPos;
-			float dist2 = glm::dot(diff,diff);
+			const auto& id = object.RenderableId;
+			const auto& mat = _renderables[id.Id]->Mat;
 
-			auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
-			while (!success)
+			if (mat.UsingTransparencyMap())
 			{
-				// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
-				dist2 += 0.001f * (float(rand())/RAND_MAX);
-				std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
-				//std::cerr << "Failed to depth sort object\n";
+				// Depth sort transparent object
+
+				// Calc depth of from camera to object transform - this isn't fullproof!
+				const auto& tf = object.Transform;
+				auto objPos = glm::vec3(tf[3]);
+				glm::vec3 diff = objPos - camPos;
+				float dist2 = glm::dot(diff, diff);
+
+				auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
+				while (!success)
+				{
+					// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+					dist2 += 0.001f * (float(rand()) / RAND_MAX);
+					std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
+					//std::cerr << "Failed to depth sort object\n";
+				}
 			}
-		}
-		else // Opaque
-		{
-			opaqueObjects.emplace_back(id);
+			else // Opaque
+			{
+				opaqueObjects.emplace_back(id);
+			}
 		}
 	}
 
