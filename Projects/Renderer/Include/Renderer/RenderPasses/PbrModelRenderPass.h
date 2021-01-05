@@ -73,8 +73,7 @@ public: // Members
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		const RenderOptions& options,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
+		const std::vector<SceneRendererPrimitives::RenderableObject>& objects,
 		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
 

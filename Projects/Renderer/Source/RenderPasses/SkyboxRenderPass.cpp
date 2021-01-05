@@ -253,11 +253,8 @@ bool SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
 
 void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
 	const glm::mat4& view, const glm::mat4& projection)
 {
-	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
 	
 	const Skybox* skybox = GetCurrentSkyboxOrNull();

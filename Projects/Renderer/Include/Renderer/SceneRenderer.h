@@ -171,9 +171,9 @@ public: // Methods
 				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
-				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.ViewMatrix, projection);
+				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.ViewMatrix, projection);
 				
-				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.Objects, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}

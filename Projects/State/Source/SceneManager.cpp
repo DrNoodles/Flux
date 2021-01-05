@@ -8,8 +8,6 @@
 #include <unordered_map>
 #include <iostream>
 
-
-
 std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
 	auto modelDefinition = _modelLoaderService.LoadModel(path);
@@ -78,6 +76,7 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 				mat.EmissiveMap = std::move(map);
 				break;
 
+			case TextureType::Transparency: // fallthrough
 			case TextureType::Undefined:
 			default:
 				std::cerr << "Discarding unknown texture type" << std::endl;

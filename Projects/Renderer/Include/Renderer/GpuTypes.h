@@ -133,8 +133,14 @@ struct QueueFamilyIndices
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SceneRendererPrimitives
 {
-	std::vector<RenderableResourceId> RenderableIds;
-	std::vector<glm::mat4> RenderableTransforms;
+	struct RenderableObject
+	{
+		// TODO Material and MeshAsset here in place of RenderableId
+		RenderableResourceId RenderableId;
+		glm::mat4 Transform;
+	};
+	
+	std::vector<RenderableObject> Objects;
 	std::vector<Light> Lights;
 	glm::vec3 ViewPosition;
 	glm::mat4 ViewMatrix;

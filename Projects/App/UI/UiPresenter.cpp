@@ -270,8 +270,8 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			{
 				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
 				{
-					scene.RenderableIds.emplace_back(componentSubmesh.Id);
-					scene.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
+					SceneRendererPrimitives::RenderableObject object = {componentSubmesh.Id, entity->Transform.GetMatrix()};
+					scene.Objects.emplace_back(object);
 				}
 			}
 

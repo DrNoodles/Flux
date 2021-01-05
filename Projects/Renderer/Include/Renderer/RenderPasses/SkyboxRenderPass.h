@@ -58,11 +58,7 @@ public: // Members
 	
 	bool UpdateDescriptors(const RenderOptions& options);
 	
-	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
-		const RenderOptions& options,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
-		const glm::mat4& view, const glm::mat4& projection);
+	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, const RenderOptions& options, const glm::mat4& view, const glm::mat4& projection);
 
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);

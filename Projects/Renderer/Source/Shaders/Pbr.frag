@@ -20,7 +20,7 @@ layout(std140, binding = 0) uniform PbrMaterialUbo
 	layout(offset=64) vec3 camPos;
 
 	layout(offset=80) vec3 basecolor;
-	layout(offset=96) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
+	layout(offset=96) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel. Used to invert channels.
 
 	layout(offset=112) 
 	bool  useBasecolorMap;   

@@ -289,12 +289,10 @@ bool PbrModelRenderPass::UpdateDescriptors(const RenderOptions& options, bool sk
 
 void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
+	const std::vector<SceneRendererPrimitives::RenderableObject>& objects,
 	const std::vector<Light>& lights,
 	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix)
 {
-	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
 
 	// Update UBOs
@@ -311,12 +309,12 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		}
 
 		// Renderable UBOs
-		for (size_t i = 0; i < renderableIds.size(); i++)
+		for (const auto& object : objects)
 		{
-			const auto& renderable = *_renderables[renderableIds[i].Id];
+			const auto& renderable = *_renderables[object.RenderableId.Id];
 			
 			PbrUboCreateInfo info = {};
-			info.Model = transforms[i];
+			info.Model = object.Transform;
 			info.View = view;
 			info.Projection = projection;
 			info.LightSpaceMatrix = lightSpaceMatrix;
@@ -359,9 +357,9 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	std::vector<RenderableResourceId> opaqueObjects = {};
 	std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
 
-	for (size_t i = 0; i < renderableIds.size(); i++)
+	for (const auto& object : objects)
 	{
-		const auto& id = renderableIds[i];
+		const auto& id = object.RenderableId;
 		const auto& mat = _renderables[id.Id]->Mat;
 		
 		if (mat.UsingTransparencyMap())
@@ -369,7 +367,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			// Depth sort transparent object
 			
 			// Calc depth of from camera to object transform - this isn't fullproof!
-			const auto& tf = transforms[i];
+			const auto& tf = object.Transform;
 			auto objPos = glm::vec3(tf[3]);
 			glm::vec3 diff = objPos-camPos;
 			float dist2 = glm::dot(diff,diff);

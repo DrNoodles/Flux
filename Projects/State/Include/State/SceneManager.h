@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "Camera.h"
 #include "Entity/Entity.h"
 
@@ -8,8 +7,6 @@
 #include <Framework/CommonRenderer.h>
 
 #include <unordered_map>
-
-
 
 struct Material;
 class RenderableComponent;
