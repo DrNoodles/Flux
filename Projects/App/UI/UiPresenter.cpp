@@ -242,8 +242,12 @@ void UiPresenter::BuildImGui()
 				// Same selection as last frame
 			}
 
-			if (_selectedMaterial > _materials.size())
-				_selectedMaterial =  (int)_materials.size() - 1;
+			
+			if (_selectedMaterialIndex >= (int)_materials.size())
+			{
+				assert(false); // selected material is out of scope. 
+				_selectedMaterialIndex =  (int)_materials.size() - 1;
+			}
 
 			_propsView.BuildUI(selectionCount, _tvm, _lvm);
 		}
@@ -420,6 +424,7 @@ void UiPresenter::CreatePointLight()
 
 	auto entity = std::make_unique<Entity>();
 	entity->Name = "PointLight" + std::to_string(entity->Id);
+	entity->Transform.SetPos({5, 5, 5});
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::point;
 	entity->Light->Intensity = 250;
@@ -495,7 +500,7 @@ void UiPresenter::SelectSubMesh(int index)
 	
 	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
 
-	_selectedMaterial = [&]() -> int
+	_selectedMaterialIndex = [&]() -> int
 	{
 		for (size_t m = 0; m < _materials.size(); m++)
 		{
@@ -555,7 +560,10 @@ std::vector<std::string> UiPresenter::GetMaterials()
 
 void UiPresenter::SelectMaterial(int i)
 {
-	_selectedMaterial = i;
+	_selectedMaterialIndex = i;
+
+	if (_selectedMaterialIndex < 0)
+		return; // deselected material
 	
 	// Apply to current submesh selection
 	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
@@ -568,15 +576,17 @@ void UiPresenter::SelectMaterial(int i)
 		return;
 
 	auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto materialId = _materials[_selectedMaterial].second;
-	//const Material& mat = _scene.GetMaterial(materialId);
+	const auto materialId = _materials[_selectedMaterialIndex].second;
 
 	_scene.AssignMaterial(targetSubmesh, materialId);
 }
 
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 {
-	const auto& [_, matId] = _materials[_selectedMaterial];
+	if (_selectedMaterialIndex < 0)
+		return std::nullopt; // no material selection
+	
+	const auto& [_, matId] = _materials[_selectedMaterialIndex];
 
 	Material* mat = _scene.GetMaterial(matId);
 	return MaterialViewState::CreateFrom(*mat);

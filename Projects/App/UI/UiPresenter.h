@@ -54,7 +54,7 @@ private: // DATA
 	f64 _lastCursorX{}, _lastCursorY{};
 
 	// PropsView helpers
-	int _selectedMaterial = 0;
+	int _selectedMaterialIndex = -1;
 	std::vector<std::pair<std::string, MaterialId>> _materials{};
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
@@ -193,7 +193,7 @@ private: // METHODS
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }*/
 
 	std::vector<std::string> GetMaterials() override;
-	int GetSelectedMaterial() const override { return _selectedMaterial; }
+	int GetSelectedMaterial() const override { return _selectedMaterialIndex; }
 	void SelectMaterial(int i) override;
 
 	std::optional<MaterialViewState> GetMaterialState() override;
