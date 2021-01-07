@@ -562,31 +562,31 @@ public:
 	}*/
 
 
-	/*static Material CreateRandomDielectricMaterial()
+	MaterialId CreateRandomDielectricMaterial() const
 	{
-		Material m{};
+		Material& m = *_scene.CreateMaterial();
 		m.Name = "RandomDielectricMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 0;
 		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
-		return m;
+		return m.Id;
 	}
 	
-	static Material CreateRandomMetalMaterial()
+	MaterialId CreateRandomMetalMaterial() const
 	{
-		Material m{};
+		Material& m = *_scene.CreateMaterial();
 		m.Name = "CreateRandomMetalMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 1;
 		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
-		return m;
+		return m.Id;
 	}
 	
-	static Material CreateRandomMaterial()
+	MaterialId CreateRandomMaterial() const
 	{
 		const auto isMetallic = bool(rand() % 2);
 		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
-	}*/
+	}
 
 	
 private:

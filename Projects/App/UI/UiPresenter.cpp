@@ -437,10 +437,10 @@ void UiPresenter::CreateSphere()
 {
 	printf("CreateSphere()\n");
 
-	Material* material = _scene.CreateMaterial();
-	auto entity = _library.CreateSphere(material->Id);
+	auto matId = _library.CreateRandomMaterial();
+	auto entity = _library.CreateSphere(matId);
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -450,10 +450,10 @@ void UiPresenter::CreateBlob()
 {
 	printf("CreateBlob()\n");
 
-	Material* material = _scene.CreateMaterial();
-	auto entity = _library.CreateBlob(material->Id);
+	auto matId = _library.CreateRandomMaterial();
+	auto entity = _library.CreateBlob(matId);
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -463,10 +463,10 @@ void UiPresenter::CreateCube()
 {
 	printf("CreateCube()\n");
 
-	Material* material = _scene.CreateMaterial();
-	auto entity = _library.CreateCube(material->Id);
+	auto matId = _library.CreateRandomMetalMaterial();
+	auto entity = _library.CreateCube(matId);
 	entity->Transform.SetScale(glm::vec3{0.9f});
-	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMetalMaterial());
+
 
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
