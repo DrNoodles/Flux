@@ -147,7 +147,7 @@ public:
 	{
 		std::cout << "Loading scene\n";
 
-		//LoadMaterialExamples();
+		LoadMaterialExamples();
 		//LoadGrapple();
 		
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
@@ -218,18 +218,18 @@ public:
 		std::cout << "Material array obj count: " << count << std::endl; 
 	}
 
-	/*void LoadMaterialExamples()
+	void LoadMaterialExamples()
 	{
-		std::cout << "Loading axis" << std::endl;
+		std::cout << "Loading material example" << std::endl;
 
 		std::string name;
 		std::string basecolorPath;
 		std::string normalPath;
 		std::string ormPath;
 
-		auto ApplyMat = [&](RenderableComponent& renComp)
+		auto CreateMaterial = [&]() -> MaterialId
 		{
-			Material mat;
+			Material& mat = *_scene.CreateMaterial();
 			mat.Name = name;
 			
 			// Load basecolor map
@@ -253,95 +253,89 @@ public:
 			mat.UseMetalnessMap = true;
 			mat.MetalnessMapChannel = Material::Channel::Blue;
 
-			_scene.AssignMaterial(renComp, mat);
+			return mat.Id;
 		};
-
 		
 		{
 			name = "Sphere";
-			
-			auto entity = CreateSphere();
-			entity->Name = name;
-			entity->Transform.SetScale(glm::vec3(1));
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 			basecolorPath = _libraryDir + "Materials/ScuffedAluminum/BaseColor.png";
 			ormPath = _libraryDir + "Materials/ScuffedAluminum/ORM.png";
 			normalPath = _libraryDir + "Materials/ScuffedAluminum/Normal.png";
-			ApplyMat(*entity->Renderable);
+			auto matId = CreateMaterial();
 			
+			auto entity = CreateSphere(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(1));
+			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 		
 		{
 			name = "GreasyPan";
-			
-			auto entity = CreateBlob();
-			entity->Name = name;
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 			basecolorPath = _libraryDir + "Materials/GreasyPan/BaseColor.png";
 			ormPath = _libraryDir + "Materials/GreasyPan/ORM.png";
 			normalPath = _libraryDir + "Materials/GreasyPan/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
+			auto matId = CreateMaterial();
+		
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 
 		{
 			name = "Gold";
-			
-			auto entity = CreateBlob();
-			entity->Name = name;
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
 			basecolorPath = _libraryDir + "Materials/GoldScuffed/BaseColor.png";
 			ormPath = _libraryDir + "Materials/GoldScuffed/ORM.png";
 			normalPath = _libraryDir + "Materials/GoldScuffed/Normal.png";
-			ApplyMat(*entity->Renderable);
+			auto matId = CreateMaterial();
 			
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 
 		{
 			name = "Rusted Metal";
 			
-			auto entity = CreateBlob();
+			basecolorPath = _libraryDir + "Materials/RustedMetal/BaseColor.png";
+			ormPath = _libraryDir + "Materials/RustedMetal/ORM.png";
+			normalPath = _libraryDir + "Materials/RustedMetal/Normal.png";
+			auto matId = CreateMaterial();
+
+			auto entity = CreateBlob(matId);
 			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _libraryDir + "Materials/RustedMetal/BaseColor.png";
-			ormPath = _libraryDir + "Materials/RustedMetal/ORM.png";
-			normalPath = _libraryDir + "Materials/RustedMetal/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
 			_scene.AddEntity(std::move(entity));
 		}
 
 		{
 			name = "Bumpy Plastic";
 			
-			auto entity = CreateBlob();
+			basecolorPath = _libraryDir + "Materials/BumpyPlastic/BaseColor.png";
+			ormPath = _libraryDir + "Materials/BumpyPlastic/ORM.png";
+			normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
+			auto matId = CreateMaterial();
+
+			auto entity = CreateBlob(matId);
 			entity->Name = name;
 			entity->Transform.SetScale(glm::vec3(.8f));
 			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
 			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
-			basecolorPath = _libraryDir + "Materials/BumpyPlastic/BaseColor.png";
-			ormPath = _libraryDir + "Materials/BumpyPlastic/ORM.png";
-			normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
 			_scene.AddEntity(std::move(entity));
 		}
-	}*/
+	}
 
 	/*void LoadGrapple()
 	{
