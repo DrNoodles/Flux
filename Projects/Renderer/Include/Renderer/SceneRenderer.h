@@ -128,7 +128,7 @@ public: // Methods
 	{
 		// Update all descriptors
 		const auto skyboxDescUpdated = _skyboxRenderPass->UpdateDescriptors(options);
-		_pbrRenderPass->UpdateDescriptors(options, skyboxDescUpdated); // also update other passes?
+		_pbrRenderPass->UpdateDescriptors(imageIndex, options, skyboxDescUpdated, scene); // also update other passes?
 
 
 		// Draw shadow pass
@@ -192,13 +192,7 @@ public: // PBR RenderPass routing methods
 	{
 		return _pbrRenderPass->CreateMeshResource(meshDefinition);
 	}
-
-	const Material& GetMaterial(const RenderableResourceId& id) const { return _pbrRenderPass->GetMaterial(id); }
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
-	{
-		_pbrRenderPass->SetMaterial(renderableResId, newMat);
-	}
-
+	
 	TextureResourceId CreateTextureResource(const std::string& path) const
 	{
 		return _pbrRenderPass->CreateTextureResource(path);

@@ -3,7 +3,7 @@
 #include <Framework/CommonRenderer.h>
 #include <glm/glm.hpp>
 #include <optional>
-
+#include <string>
 
 // TODO Move type to Renderer layer
 
@@ -31,9 +31,13 @@ enum class TextureType : char
 };
 
 
+struct MaterialIdType;
+typedef TypedId<MaterialIdType> MaterialId;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Material
 {
+public: // Types
 	struct Map
 	{
 		TextureResourceId Id = {};
@@ -49,7 +53,9 @@ struct Material
 		Alpha = 3,
 	};
 
-	std::string Name = "Default";
+public: // Data
+	const MaterialId Id;
+	std::string Name;
 	
 	glm::vec3 Basecolor = glm::vec3{ 1 };
 	float Metalness = 0.0f;
@@ -86,7 +92,23 @@ struct Material
 	TransparencyMode TransparencyMode = TransparencyMode::Additive;
 
 
+private:// Data
+	inline static int EntityCount = 0; // cuz i CBF importing a GUID lib
 
+public: // Methods
+
+	// TODO Think through a good lifecycle management for Material.
+	Material() :
+		Id(++EntityCount),
+		Name("Material" + std::to_string(Id.Id))
+	{
+	}
+	static Material Create()
+	{
+		return Material{};
+	}
+
+	
 	bool UsingBasecolorMap() const
 	{
 		return UseBasecolorMap && BasecolorMap.has_value() && 

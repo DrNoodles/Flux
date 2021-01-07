@@ -55,7 +55,7 @@ private: // DATA
 
 	// PropsView helpers
 	int _selectedMaterial = 0;
-	std::vector<std::pair<std::string, RenderableResourceId>> _materials{};
+	std::vector<std::pair<std::string, MaterialId>> _materials{};
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
 	std::vector<std::string> _submeshes{};

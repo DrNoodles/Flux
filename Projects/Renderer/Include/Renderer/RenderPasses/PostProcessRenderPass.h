@@ -361,7 +361,7 @@ private: // Methods
 				bufferUboInfo.offset = 0;
 				bufferUboInfo.range = uboSize;
 
-				vkh::UpdateDescriptorSets(device, {
+				vkh::UpdateDescriptorSet(device, {
 					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap),
 					vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
 					});

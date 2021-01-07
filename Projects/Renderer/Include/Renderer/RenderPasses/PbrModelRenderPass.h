@@ -69,7 +69,7 @@ public: // Members
 
 	void Destroy();
 	
-	bool UpdateDescriptors(const RenderOptions& options, bool skyboxUpdated);
+	bool UpdateDescriptors(u32 imageIndex, const RenderOptions& options, bool skyboxUpdated, const SceneRendererPrimitives& scene);
 
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		const RenderOptions& options,
@@ -82,12 +82,9 @@ public: // Members
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
-	const Material& GetMaterial(const RenderableResourceId& id) const { return _renderables[id.Id]->Mat; }
-
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat);
+	
 	void SetSkyboxDirty() { _refreshRenderableDescriptorSets = true; }
 
-	
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 
 private:
@@ -107,14 +104,13 @@ private:
 
 #pragma region Pbr
 
-	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight,
-		const RenderableMesh& renderable) const;
+	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Material& material) const;
 
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
 	static void WritePbrDescriptorSets(
-		uint32_t count,
+		u32 swapImageIndex,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& meshUbos,
 		const std::vector<VkBuffer>& materialUbos,

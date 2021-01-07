@@ -3,6 +3,7 @@
 
 #include <State/LibraryManager.h> //SkyboxInfo
 #include <Framework/FileService.h>
+#include <Framework/CommonRenderer.h>
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h> // for ImGui::PushItemFlag() to enable disabling of widgets https://github.com/ocornut/imgui/issues/211

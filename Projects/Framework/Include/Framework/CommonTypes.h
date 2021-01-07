@@ -39,9 +39,13 @@ struct TypedId
 {
 	u32 Id = u32_max;
 	TypedId() = default;
-	TypedId(u32 id) : Id{ id } {}
+	explicit TypedId(u32 id) : Id{ id } {}
 	//bool IsValid() const { return Id != u32_max; }
-	// TODO equality checks
+
+	bool operator==(const TypedId& other) const
+	{
+		return Id == other.Id;
+	}
 };
 
 

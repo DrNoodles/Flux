@@ -19,8 +19,6 @@ public:
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
 	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& mat) = 0;
 	virtual TextureResourceId CreateTextureResource(const std::string& path) = 0;
-	virtual const Material& GetMaterial(const RenderableResourceId& id) = 0;
-	virtual void SetMaterial(const RenderableResourceId& id, const Material& newMat) = 0;
 	virtual IblTextureResourceIds CreateIblTextureResources(const std::string& path) = 0;
 	virtual SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) = 0;
 	virtual void SetSkybox(const SkyboxResourceId& resourceId) = 0;
@@ -33,19 +31,17 @@ public:
 	explicit SceneManager(ISceneManagerDelegate& delegate, IModelLoaderService& mls)
 		: _delegate(delegate), _modelLoaderService(mls)
 	{}
-
 	
-	//std::vector<std::unique_ptr<Entity>>& GetEntities() { return _entities; }
 	Camera& GetCamera() { return _camera; }
-
 	
 	std::optional<RenderableComponent> LoadRenderableComponentFromFile(const std::string& path);
 	std::optional<TextureResourceId> LoadTexture(const std::string& path);
 
-	//std::vector<Material> GatherAllMaterials() const;
-	const Material& GetMaterial(const RenderableResourceId& resourceId) const;
-	void SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const;
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const;
+	Material* CreateMaterial();
+	Material* GetMaterial(MaterialId id) const;
+	std::vector<Material*> GetMaterials() const;
+	void AssignMaterial(RenderableComponent& target, MaterialId id) const;
+	void AssignMaterial(RenderableComponentSubmesh& target, MaterialId id) const;
 
 	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
 	{
@@ -99,6 +95,7 @@ private:
 	std::vector<std::unique_ptr<Entity>> _entities{};
 	SkyboxResourceId _skybox;
 	RenderOptions _renderOptions;
+	std::unordered_map<u32, std::unique_ptr<Material>> _materials{}; //TODO Make type id usable as hash key (convertable to u32?)
 
 	// Cache
 	std::unordered_map<std::string, SkyboxResourceId> _loadedSkyboxesCache = {};

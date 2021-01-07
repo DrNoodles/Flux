@@ -1,8 +1,9 @@
 #pragma once
 
-#include <Framework/Vertex.h>
-#include <Framework/CommonTypes.h>
 #include <Framework/CommonRenderer.h>
+#include <Framework/CommonTypes.h>
+#include <Framework/Material.h>
+#include <Framework/Vertex.h>
 
 #include <vulkan/vulkan.h>
 
@@ -135,9 +136,9 @@ struct SceneRendererPrimitives
 {
 	struct RenderableObject
 	{
-		// TODO Material and MeshAsset here in place of RenderableId
-		RenderableResourceId RenderableId;
+		RenderableResourceId RenderableId; // TODO Material and MeshAsset here in place of RenderableId
 		glm::mat4 Transform;
+		const Material* Material;
 	};
 	
 	std::vector<RenderableObject> Objects;

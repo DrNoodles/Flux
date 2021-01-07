@@ -118,35 +118,35 @@ public:
 	void LoadDefaultScene()
 	{
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		LoadObjectArray();
+		//LoadObjectArray();
 
 		// TEMP: Add directional light to help test shadowmaps
-		{
-			auto entity = std::make_unique<Entity>();
-			entity->Name = "DirectionalLight" + std::to_string(entity->Id);
-			entity->Light = LightComponent{};
-			entity->Light->Type = LightComponent::Types::directional;
-			entity->Light->Intensity = 5;
-			entity->Transform.SetPos({10, 10, 10});
-			_scene.AddEntity(std::move(entity));
-		}
-		
+		//{
+		//	auto entity = std::make_unique<Entity>();
+		//	entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+		//	entity->Light = LightComponent{};
+		//	entity->Light->Type = LightComponent::Types::directional;
+		//	entity->Light->Intensity = 5;
+		//	entity->Transform.SetPos({10, 10, 10});
+		//	_scene.AddEntity(std::move(entity));
+		//}
+		//
 
-		// TEMP: Add a ground plane to catch shadows
-		{
-			auto x = CreateCube();
-			x->Transform.SetScale({7.5, 2, 7.5});
-			x->Transform.SetPos({0,-4,0});
-			_scene.AddEntity(std::move(x));
-		}
+		//// TEMP: Add a ground plane to catch shadows
+		//{
+		//	auto x = CreateCube();
+		//	x->Transform.SetScale({7.5, 2, 7.5});
+		//	x->Transform.SetPos({0,-4,0});
+		//	_scene.AddEntity(std::move(x));
+		//}
 	}
 
 	void LoadDemoScene()
 	{
 		std::cout << "Loading scene\n";
 
-		LoadMaterialExamples();
-		LoadGrapple();
+		//LoadMaterialExamples();
+		//LoadGrapple();
 		
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
 		
@@ -161,11 +161,11 @@ public:
 	{
 		std::cout << "Loading scene\n";
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		LoadAxis();
-		LoadObjectArray({ 0,0,0 }, 30, 30);
+		//LoadAxis();
+		//LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
-	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
+	/*void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
 		std::cout << "Loading material array" << std::endl;
 
@@ -206,7 +206,7 @@ public:
 				mat.Roughness = roughness;
 				mat.Metalness = metalness;
 
-				_scene.SetMaterial(*entity->Renderable, mat);
+				_scene.AssignMaterial(*entity->Renderable, mat);
 
 				_scene.AddEntity(std::move(entity));
 
@@ -215,9 +215,9 @@ public:
 		}
 
 		std::cout << "Material array obj count: " << count << std::endl; 
-	}
+	}*/
 
-	void LoadMaterialExamples()
+	/*void LoadMaterialExamples()
 	{
 		std::cout << "Loading axis" << std::endl;
 
@@ -252,7 +252,7 @@ public:
 			mat.UseMetalnessMap = true;
 			mat.MetalnessMapChannel = Material::Channel::Blue;
 
-			_scene.SetMaterial(renComp, mat);
+			_scene.AssignMaterial(renComp, mat);
 		};
 
 		
@@ -340,9 +340,9 @@ public:
 			
 			_scene.AddEntity(std::move(entity));
 		}
-	}
+	}*/
 
-	void LoadGrapple()
+	/*void LoadGrapple()
 	{
 		const auto path = _libraryDir + "Models/" + "grapple/export/grapple.gltf";
 		std::cout << "Loading model:" << path << std::endl;
@@ -403,7 +403,7 @@ public:
 			matCopy.EmissiveMap = GetOptionalRes(emissivePath);
 			matCopy.EmissiveIntensity = 5;
 
-			_scene.SetMaterial(resourceId, matCopy);
+			_scene.AssignMaterial(resourceId, matCopy);
 		};
 
 		
@@ -440,9 +440,9 @@ public:
 
 		
 		_scene.AddEntity(std::move(entity));
-	}
+	}*/
 
-	void LoadAxis()
+	/*void LoadAxis()
 	{
 		std::cout << "Loading axis" << std::endl;
 
@@ -482,7 +482,7 @@ public:
 				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 
-				_scene.SetMaterial(*entity->Renderable, mat);
+				_scene.AssignMaterial(*entity->Renderable, mat);
 			}
 
 			_scene.AddEntity(std::move(entity));
@@ -520,7 +520,7 @@ public:
 				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
 				mat.MetalnessMapChannel = Material::Channel::Blue;
 			}
-			_scene.SetMaterial(*entity->Renderable, mat);
+			_scene.AssignMaterial(*entity->Renderable, mat);
 
 			_scene.AddEntity(std::move(entity));
 		}
@@ -537,7 +537,7 @@ public:
 			mat.Name = name;
 			mat.Basecolor = { 0,1,0 };
 			mat.Roughness = 0;
-			_scene.SetMaterial(*entity->Renderable, mat);
+			_scene.AssignMaterial(*entity->Renderable, mat);
 			
 			_scene.AddEntity(std::move(entity));
 		}
@@ -554,14 +554,14 @@ public:
 			mat.Name = name;
 			mat.Basecolor = { 0,0,1 };
 			mat.Roughness = 0;
-			_scene.SetMaterial(*entity->Renderable, mat);
+			_scene.AssignMaterial(*entity->Renderable, mat);
 			
 			_scene.AddEntity(std::move(entity));
 		}
-	}
+	}*/
 
 
-	static Material CreateRandomDielectricMaterial()
+	/*static Material CreateRandomDielectricMaterial()
 	{
 		Material m{};
 		m.Name = "RandomDielectricMaterial_" + std::to_string(RandF(0,1));
@@ -585,7 +585,7 @@ public:
 	{
 		const auto isMetallic = bool(rand() % 2);
 		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
-	}
+	}*/
 
 	
 private:
@@ -617,10 +617,15 @@ private:
 
 	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
 	{
-		const auto renderableResId = _delegate.CreateRenderable(meshId, Material{});
+		Material* material = _scene.CreateMaterial();
+		
+		//Material material{};
+		const auto renderableResId = _delegate.CreateRenderable(meshId, *material);
 
+		
+		
 		// Create renderable component
-		const RenderableComponentSubmesh submesh = { renderableResId, name };
+		const RenderableComponentSubmesh submesh = { renderableResId, name, material->Id };
 		RenderableComponent comp{ submesh, bounds };
 
 		// Create entity

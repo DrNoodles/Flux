@@ -92,7 +92,7 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		auto meshId = _delegate.CreateMeshResource(meshDef);
 		auto& mat = materials[meshDef.MaterialIndex];
 
-		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name };
+		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name, mat.Id };
 		submeshes.emplace_back(submesh);
 
 		
@@ -142,41 +142,52 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	return resId;
 }
 
-//std::vector<Material> SceneManager::GatherAllMaterials() const
-//{
-//	std::vector<Material> mats{};
-//
-//	// TODO HACK. This is disgusting. Scene should own the materials.
-//	for (auto&& entity : _entities)
-//	{
-//		if (entity->Renderable.has_value())
-//		{
-//			for (const auto& componentSubmesh : entity->Renderable->GetSubmeshes())
-//			{
-//				mats.push_back(_delegate.GetMaterial(componentSubmesh.Id));
-//			}
-//		}
-//	}
-//
-//	return mats;
-//}
-
-const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
+Material* SceneManager::CreateMaterial()
 {
-	return _delegate.GetMaterial(resourceId);
+	auto mat = std::make_unique<Material>(Material::Create());
+	
+	Material* rawpMat = mat.get();
+	
+	_materials.emplace(mat->Id.Id, std::move(mat));
+
+	return rawpMat;
 }
 
-void SceneManager::SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const
+Material* SceneManager::GetMaterial(const MaterialId id) const
 {
-	for (const auto& submesh : renderableComp.GetSubmeshes())
+	const auto it = _materials.find(id.Id);
+
+	if (it == _materials.end())
+		throw std::invalid_argument("material id does not exist in materials collection");
+
+	return it->second.get();
+}
+
+std::vector<Material*> SceneManager::GetMaterials() const
+{
+	std::vector<Material*> mats{};
+
+	for (auto&& [id, mat] : _materials)
 	{
-		_delegate.SetMaterial(submesh.Id, newMat);
+		mats.emplace_back(mat.get());
+	}
+
+	return mats;
+}
+
+//TODO Move this out of scene manager? RenderableComponent could do this as SceneManager doesn't own the relationship anyways
+void SceneManager::AssignMaterial(RenderableComponent& target, const MaterialId id) const
+{
+	for (auto&& submesh : target.GetSubmeshes())
+	{
+		AssignMaterial(submesh, id);
 	}
 }
 
-void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
+//TODO Move this out of scene manager? RenderableComponent could do this as SceneManager doesn't own the relationship anyways
+void SceneManager::AssignMaterial(RenderableComponentSubmesh& target, const MaterialId id) const
 {
-	_delegate.SetMaterial(renderableResId, newMat);
+	target.MatId = id;
 }
 
 SkyboxResourceId SceneManager::LoadAndSetSkybox(const std::string& path)

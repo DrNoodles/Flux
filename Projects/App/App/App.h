@@ -415,14 +415,7 @@ private: // METHODS
 	{
 		return _ui->HACK_GetSceneRendererRef().CreateTextureResource(path);
 	}
-	const Material& GetMaterial(const RenderableResourceId& id) override
-	{
-		return _ui->HACK_GetSceneRendererRef().GetMaterial(id);
-	}
-	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
-	{
-		return _ui->HACK_GetSceneRendererRef().SetMaterial(id, newMat);
-	}
+
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
 		return _ui->HACK_GetSceneRendererRef().CreateIblTextureResources(path);

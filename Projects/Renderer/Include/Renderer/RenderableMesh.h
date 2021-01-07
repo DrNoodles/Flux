@@ -20,7 +20,7 @@ struct Skybox
 struct RenderableMesh
 {
 	MeshResourceId MeshId;
-	Material Mat;
+	//Material Mat;
 
 	// TODO Eventually auto generate Infos stored in an unordered map key would be the unique combination of mesh and texture resources
 

@@ -171,6 +171,29 @@ void UiPresenter::BuildImGui()
 		}
 
 
+		// Collect materials - Must be done below scene. See below for details.
+
+		// TODO CAUTION! While building Scene View above it can break GUI. Example below.
+
+		/*
+		 * Creating a new object (eg sphere) will create a new material. The resources are created during that code block.
+		 * Properties View below will SelectSubMesh(0) on a new selection.
+		 * The materials list would be out of date if it was not updated right here, between Scene and Props views.
+		 * This isn't scalable as it adds a hidden dependency!
+		 * 
+		 * The solution is to queue a state change command, and do it outside of the GUI refresh.
+		 * This solution is a good first step towards undo/redo functionality.
+		 */
+		const auto materials = _scene.GetMaterials();
+		const auto count = materials.size();
+		
+		_materials.resize(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			_materials[i] = std::make_pair(_scene.GetMaterial(materials[i]->Id)->Name, materials[i]->Id);
+		}
+		
+
 		// Properties View
 		{
 			const auto rect = PropsRect();
@@ -219,24 +242,6 @@ void UiPresenter::BuildImGui()
 				// Same selection as last frame
 			}
 
-			// Collect materials - TODO This is disgusting.
-			//_selectedMaterial = 0;
-			_materials.clear();
-			for (auto&& entity : _scene.EntitiesView())
-			{
-				if (entity->Renderable.has_value())
-				{
-					for (const auto& componentSubmesh : entity->Renderable->GetSubmeshes())
-					{
-						std::pair<std::string, RenderableResourceId> pair = std::make_pair(
-							_scene.GetMaterial(componentSubmesh.Id).Name, 
-							componentSubmesh.Id);
-						
-						_materials.emplace_back(std::move(pair));
-					}
-				}
-			}
-
 			if (_selectedMaterial > _materials.size())
 				_selectedMaterial =  (int)_materials.size() - 1;
 
@@ -268,9 +273,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			if (entity->Renderable.has_value())
 			{
-				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+				for (auto&& submesh : entity->Renderable->GetSubmeshes())
 				{
-					SceneRendererPrimitives::RenderableObject object = {componentSubmesh.Id, entity->Transform.GetMatrix()};
+					SceneRendererPrimitives::RenderableObject object = {
+						submesh.Id,
+						entity->Transform.GetMatrix(),
+						_scene.GetMaterial(submesh.MatId)
+					};
 					scene.Objects.emplace_back(object);
 				}
 			}
@@ -425,7 +434,7 @@ void UiPresenter::CreateSphere()
 
 	auto entity = _library.CreateSphere();
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -437,7 +446,7 @@ void UiPresenter::CreateBlob()
 
 	auto entity = _library.CreateBlob();
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -449,7 +458,7 @@ void UiPresenter::CreateCube()
 
 	auto entity = _library.CreateCube();
 	entity->Transform.SetScale(glm::vec3{0.9f});
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMetalMaterial());
+	//_scene.AssignMaterial(*entity->Renderable, LibraryManager::CreateRandomMetalMaterial());
 
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
@@ -490,7 +499,7 @@ void UiPresenter::SelectSubMesh(int index)
 	{
 		for (size_t m = 0; m < _materials.size(); m++)
 		{
-			if (_materials[m].second.Id == targetSubmesh.Id.Id)
+			if (_materials[m].second == targetSubmesh.MatId)
 				return (int)m;
 		}
 
@@ -555,46 +564,28 @@ void UiPresenter::SelectMaterial(int i)
 		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
 	}
 
-	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const Material mat = _scene.GetMaterial(_materials[_selectedMaterial].second);
+	if (!selection->Renderable.has_value())
+		return;
 
-	_scene.SetMaterial(targetSubmesh.Id, mat);
+	auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+	const auto materialId = _materials[_selectedMaterial].second;
+	//const Material& mat = _scene.GetMaterial(materialId);
+
+	_scene.AssignMaterial(targetSubmesh, materialId);
 }
 
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 {
-	const auto& [name, id] = _materials[_selectedMaterial];
-	const auto& mat = _scene.GetMaterial(id);
-	
-	/*Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	const auto& [_, matId] = _materials[_selectedMaterial];
 
-	if (!selection || !selection->Renderable.has_value())
-		return std::nullopt;
-
-	const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto& mat = _scene.GetMaterial(componentSubmesh.Id);*/
-
-	return MaterialViewState::CreateFrom(mat);
+	Material* mat = _scene.GetMaterial(matId);
+	return MaterialViewState::CreateFrom(*mat);
 }
 
 void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 {
-	const auto newMat = MaterialViewState::ToMaterial(state, _scene);
-
-	//const auto renderableResId = _materials[_selectedMaterial].second;
-	//_scene.SetMaterial(renderableResId, newMat);
-	
-	
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-	if (!selection) {
-		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
-	}
-
-	assert(selection->Renderable.has_value()); // TODO This should simply edit the current material reference and nothing more.
-	
-	const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-
-	_scene.SetMaterial(componentSubmesh.Id, newMat);
+	auto* mat = _scene.GetMaterial(state.MaterialId);
+	MaterialViewState::ToMaterial(state, mat, _scene);
 }
 
 

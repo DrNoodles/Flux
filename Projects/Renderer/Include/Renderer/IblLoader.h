@@ -173,8 +173,8 @@ private:
 
 
 		// Allocate and Update Descriptor Sets
-		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
-		vkh::UpdateDescriptorSets(device, {
+		VkDescriptorSet descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
+		vkh::UpdateDescriptorSet(device, {
 			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.ImageInfo())
 			});
 
@@ -381,7 +381,7 @@ private:
 
 		// Allocate and Update Descriptor Sets
 		auto descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
-		vkh::UpdateDescriptorSets(device, {
+		vkh::UpdateDescriptorSet(device, {
 			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.ImageInfo())
 			});
 
@@ -636,7 +636,7 @@ private:
 
 		// Allocate and Update Descriptor Sets
 		auto* descSet = vkh::AllocateDescriptorSets(1, descSetLayout, descPool, device)[0]; // Note [0]
-		vkh::UpdateDescriptorSets(device, {
+		vkh::UpdateDescriptorSet(device, {
 			vki::WriteDescriptorSet(descSet, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &envMap.ImageInfo())
 			});
 
