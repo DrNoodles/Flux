@@ -58,7 +58,7 @@ public:
 	}
 
 
-	std::unique_ptr<Entity> CreateSphere()
+	std::unique_ptr<Entity> CreateSphere(MaterialId matId)
 	{
 		if (!_sphere.has_value())
 		{
@@ -72,10 +72,10 @@ public:
 			_sphere = prim;
 		}
 
-		return CreateEntity(_sphere->Id, _sphere->Bounds, "Sphere");
+		return CreateEntity(_sphere->Id, matId, _sphere->Bounds, "Sphere");
 	}
 
-	std::unique_ptr<Entity> CreateCube()
+	std::unique_ptr<Entity> CreateCube(MaterialId matId)
 	{
 		if (!_cube.has_value())
 		{
@@ -89,10 +89,10 @@ public:
 			_cube = prim;
 		}
 
-		return CreateEntity(_cube->Id, _cube->Bounds, "Cube");
+		return CreateEntity(_cube->Id, matId, _cube->Bounds, "Cube");
 	}
 
-	std::unique_ptr<Entity> CreateBlob()
+	std::unique_ptr<Entity> CreateBlob(MaterialId matId)
 	{
 		if (!_blob.has_value())
 		{
@@ -106,7 +106,7 @@ public:
 			_blob = prim;
 		}
 
-		return CreateEntity(_blob->Id, _blob->Bounds, "Blob");
+		return CreateEntity(_blob->Id, matId, _blob->Bounds, "Blob");
 	}
 
 	
@@ -118,27 +118,29 @@ public:
 	void LoadDefaultScene()
 	{
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		//LoadObjectArray();
+		LoadObjectArray();
 
 		// TEMP: Add directional light to help test shadowmaps
-		//{
-		//	auto entity = std::make_unique<Entity>();
-		//	entity->Name = "DirectionalLight" + std::to_string(entity->Id);
-		//	entity->Light = LightComponent{};
-		//	entity->Light->Type = LightComponent::Types::directional;
-		//	entity->Light->Intensity = 5;
-		//	entity->Transform.SetPos({10, 10, 10});
-		//	_scene.AddEntity(std::move(entity));
-		//}
-		//
+		{
+			auto entity = std::make_unique<Entity>();
+			entity->Name = "DirectionalLight" + std::to_string(entity->Id);
+			entity->Light = LightComponent{};
+			entity->Light->Type = LightComponent::Types::directional;
+			entity->Light->Intensity = 5;
+			entity->Transform.SetPos({10, 10, 10});
+			_scene.AddEntity(std::move(entity));
+		}
+		
 
-		//// TEMP: Add a ground plane to catch shadows
-		//{
-		//	auto x = CreateCube();
-		//	x->Transform.SetScale({7.5, 2, 7.5});
-		//	x->Transform.SetPos({0,-4,0});
-		//	_scene.AddEntity(std::move(x));
-		//}
+		// TEMP: Add a ground plane to catch shadows
+		{
+			Material* mat = _scene.CreateMaterial();
+			
+			auto x = CreateCube(mat->Id);
+			x->Transform.SetScale({7.5, 2, 7.5});
+			x->Transform.SetPos({0,-4,0});
+			_scene.AddEntity(std::move(x));
+		}
 	}
 
 	void LoadDemoScene()
@@ -165,7 +167,7 @@ public:
 		//LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
-	/*void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
+	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
 		std::cout << "Loading material array" << std::endl;
 
@@ -193,21 +195,20 @@ public:
 
 				char name[256];
 				sprintf_s(name, 256, "Obj M:%.2f R:%.2f", metalness, roughness);
-				
-				auto entity = CreateBlob();
-				entity->Name = name;
-				entity->Transform.SetPos({ x,y,0.f });
-				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-				
-				// config mat
-				Material mat = {};
+
+				// Config Material
+				Material& mat = *_scene.CreateMaterial();
 				mat.Name = name;
 				mat.Basecolor = glm::vec3{ 1 };
 				mat.Roughness = roughness;
 				mat.Metalness = metalness;
 
-				_scene.AssignMaterial(*entity->Renderable, mat);
-
+				// Create Entity
+				auto entity = CreateBlob(mat.Id);
+				entity->Name = name;
+				entity->Transform.SetPos({ x,y,0.f });
+				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+				
 				_scene.AddEntity(std::move(entity));
 
 				++count;
@@ -215,7 +216,7 @@ public:
 		}
 
 		std::cout << "Material array obj count: " << count << std::endl; 
-	}*/
+	}
 
 	/*void LoadMaterialExamples()
 	{
@@ -615,14 +616,10 @@ private:
 		"debug/equirectangular.hdr",
 	};
 
-	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
+	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, MaterialId matId, const AABB& bounds, const std::string& name) const
 	{
-		Material* material = _scene.CreateMaterial();
-		
-		//Material material{};
+		Material* material = _scene.GetMaterial(matId);
 		const auto renderableResId = _delegate.CreateRenderable(meshId, *material);
-
-		
 		
 		// Create renderable component
 		const RenderableComponentSubmesh submesh = { renderableResId, name, material->Id };

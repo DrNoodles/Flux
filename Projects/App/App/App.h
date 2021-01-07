@@ -102,7 +102,7 @@ public: // METHODS
 	App(App&& other) = delete;
 	App& operator=(const App& other) = delete;
 	App& operator=(App&& other) = delete;
-	~App()
+	~App() override
 	{
 		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
 		
@@ -150,7 +150,7 @@ private: // METHODS
 			}
 
 			Update(dt);
-			Draw(dt);
+			Draw();
 
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
 			if (!_defaultSceneLoaded)
@@ -195,7 +195,7 @@ private: // METHODS
 		}
 	}
 
-	void Draw(const float dt) const
+	void Draw() const
 	{
 		const auto frameInfo = _vulkanService->StartFrame();
 		if (!frameInfo.has_value())
