@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "SceneManager.h"
 #include "Entity/Entity.h"
 #include "Entity/Actions/TurntableActionComponent.h"
@@ -12,7 +11,6 @@
 #include <memory>
 #include <utility>
 #include <vector>
-
 
 
 struct SkyboxInfo
@@ -33,7 +31,6 @@ public:
 class LibraryManager final
 {
 public:
-	
 	
 	LibraryManager(ILibraryManagerDelegate& del, SceneManager& scene, IModelLoaderService& mls, std::string assetsDir)
 		: _delegate{del}, _scene{scene}, _modelLoaderService{mls}, _libraryDir{std::move(assetsDir)}
@@ -163,35 +160,34 @@ public:
 	{
 		std::cout << "Loading scene\n";
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		//LoadAxis();
-		//LoadObjectArray({ 0,0,0 }, 30, 30);
+		LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
 	void LoadObjectArray(const glm::vec3& offset = glm::vec3{ 0,0,0 }, u32 numRows = 2, u32 numColumns = 5)
 	{
 		std::cout << "Loading material array" << std::endl;
 
-		glm::vec3 center = offset;
-		auto rowSpacing = 2.1f;
-		auto colSpacing = 2.1f;
+		const glm::vec3 center = offset;
+		const auto rowSpacing = 2.1f;
+		const auto colSpacing = 2.1f;
 
 		u32 count = 0;
 		
 		for (u32 row = 0; row < numRows; row++)
 		{
-			f32 metalness = row / f32(numRows - 1);
+			const f32 metalness = row / f32(numRows - 1);
 
-			f32 height = f32(numRows - 1) * rowSpacing;
-			f32 hStart = height / 2.f;
-			f32 y = center.y + hStart + -rowSpacing * row;
+			const f32 height = f32(numRows - 1) * rowSpacing;
+			const f32 hStart = height / 2.f;
+			const f32 y = center.y + hStart + -rowSpacing * row;
 
 			for (u32 col = 0; col < numColumns; col++)
 			{
-				f32 roughness = col / f32(numColumns - 1);
+				const f32 roughness = col / f32(numColumns - 1);
 
-				f32 width = f32(numColumns - 1) * colSpacing;
-				f32 wStart = -width / 2.f;
-				f32 x = center.x + wStart + colSpacing * col;
+				const f32 width = f32(numColumns - 1) * colSpacing;
+				const f32 wStart = -width / 2.f;
+				const f32 x = center.x + wStart + colSpacing * col;
 
 				char name[256];
 				sprintf_s(name, 256, "Obj M:%.2f R:%.2f", metalness, roughness);
@@ -440,125 +436,6 @@ public:
 		_scene.AddEntity(std::move(entity));
 	}
 
-	/*void LoadAxis()
-	{
-		std::cout << "Loading axis" << std::endl;
-
-		auto scale = glm::vec3{ 0.5f };
-		f32 dist = 1;
-
-		// Pivot
-		{
-			auto entity = CreateSphere();
-			entity->Name = "Axis-Pivot";
-			entity->Transform.SetScale(scale*0.5f);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-
-
-			{
-				Material mat;
-
-				auto basePath = _libraryDir + "Materials/ScuffedAluminum/BaseColor.png";
-				auto ormPath = _libraryDir + "Materials/ScuffedAluminum/ORM.png";
-				auto normalPath = _libraryDir + "Materials/ScuffedAluminum/Normal.png";
-				
-				mat.UseBasecolorMap = true;
-				mat.BasecolorMap = { *_scene.LoadTexture(basePath), basePath };
-
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
-				
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-				
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-
-				_scene.AssignMaterial(*entity->Renderable, mat);
-			}
-
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// X
-		{
-			auto entity = CreateSphere();
-			auto name = "Axis-X";
-			entity->Name = name;
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
-
-			Material mat{};
-			{
-				mat.Name = name;
-
-				mat.Basecolor = { 1,0,0 };
-
-				const auto normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
-				const auto ormPath = _libraryDir + "Materials/BumpyPlastic/ORM.png";
-				
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
-
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-			}
-			_scene.AssignMaterial(*entity->Renderable, mat);
-
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// Y
-		{
-			auto entity = CreateSphere();
-			auto name = "Axis-Y";
-			entity->Name = name;
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
-			
-			Material mat{};
-			mat.Name = name;
-			mat.Basecolor = { 0,1,0 };
-			mat.Roughness = 0;
-			_scene.AssignMaterial(*entity->Renderable, mat);
-			
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// Z
-		{
-			auto entity = CreateSphere();
-			auto name = "Axis-Z";
-			entity->Name = name;
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
-			
-			Material mat{};
-			mat.Name = name;
-			mat.Basecolor = { 0,0,1 };
-			mat.Roughness = 0;
-			_scene.AssignMaterial(*entity->Renderable, mat);
-			
-			_scene.AddEntity(std::move(entity));
-		}
-	}*/
-
-
 	MaterialId CreateRandomDielectricMaterial() const
 	{
 		Material& m = *_scene.CreateMaterial();
@@ -635,5 +512,5 @@ private:
 		const float r = float(rand()) / float(RAND_MAX);
 		const float range = max - min;
 		return min + r * range;
-	};
+	}
 };
