@@ -395,7 +395,7 @@ public:
 			mat.EmissiveMap = GetOptionalTexture(emissivePath);
 			mat.EmissiveIntensity = 5;
 
-			_scene.AssignMaterial(*pSubmesh, mat.Id);
+			pSubmesh->AssignMaterial(mat.Id);
 		};
 
 		

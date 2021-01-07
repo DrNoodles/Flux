@@ -175,21 +175,6 @@ std::vector<Material*> SceneManager::GetMaterials() const
 	return mats;
 }
 
-//TODO Move this out of scene manager? RenderableComponent could do this as SceneManager doesn't own the relationship anyways
-void SceneManager::AssignMaterial(RenderableComponent& target, const MaterialId id) const
-{
-	for (auto&& submesh : target.GetSubmeshes())
-	{
-		AssignMaterial(submesh, id);
-	}
-}
-
-//TODO Move this out of scene manager? RenderableComponent could do this as SceneManager doesn't own the relationship anyways
-void SceneManager::AssignMaterial(RenderableComponentSubmesh& target, const MaterialId id) const
-{
-	target.MatId = id;
-}
-
 SkyboxResourceId SceneManager::LoadAndSetSkybox(const std::string& path)
 {
 	SkyboxResourceId id;

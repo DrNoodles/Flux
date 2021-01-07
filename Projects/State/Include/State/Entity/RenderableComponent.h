@@ -19,6 +19,11 @@ struct RenderableComponentSubmesh
 		: Id(id), Name(std::move(name)), MatId(mat)
 	{
 	}
+
+	void AssignMaterial(MaterialId id)
+	{
+		MatId = id;
+	}
 };
 
 
@@ -41,7 +46,15 @@ public:
 
 	AABB GetBounds() const { return _bounds; }
 	std::vector<RenderableComponentSubmesh>& GetSubmeshes() { return _submeshes; }
-	
+
+	void AssignMaterial(MaterialId id)
+	{
+		for (auto&& submesh : _submeshes)
+		{
+			submesh.AssignMaterial(id);
+		}
+	}
+
 private:
 	AABB _bounds;
 	std::vector<RenderableComponentSubmesh> _submeshes;

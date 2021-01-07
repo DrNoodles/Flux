@@ -575,10 +575,10 @@ void UiPresenter::SelectMaterial(int i)
 	if (!selection->Renderable.has_value())
 		return;
 
-	auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto materialId = _materials[_selectedMaterialIndex].second;
+	auto& submesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+	const auto matId = _materials[_selectedMaterialIndex].second;
 
-	_scene.AssignMaterial(targetSubmesh, materialId);
+	submesh.AssignMaterial(matId);
 }
 
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()

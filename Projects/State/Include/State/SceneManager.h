@@ -40,8 +40,6 @@ public:
 	Material* CreateMaterial();
 	Material* GetMaterial(MaterialId id) const;
 	std::vector<Material*> GetMaterials() const;
-	void AssignMaterial(RenderableComponent& target, MaterialId id) const;
-	void AssignMaterial(RenderableComponentSubmesh& target, MaterialId id) const;
 
 	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
 	{
