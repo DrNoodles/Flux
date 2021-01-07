@@ -378,7 +378,6 @@ void UiPresenter::LoadModel(const std::string& path)
 	// Split path into a dir and filename so we can name the entity
 	auto [dir, filename] = FileService::SplitPathAsDirAndFilename(path);
 
-
 	// Load asset
 	auto renderableComponent = _scene.LoadRenderableComponentFromFile(path);
 	if (!renderableComponent.has_value())
@@ -392,8 +391,6 @@ void UiPresenter::LoadModel(const std::string& path)
 	entity->Name = filename;
 	entity->Transform.SetPos(glm::vec3{0, 0, 0});
 	entity->Renderable = std::move(renderableComponent);
-
-	//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 

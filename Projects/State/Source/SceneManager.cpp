@@ -18,18 +18,15 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		//throw std::invalid_argument("Couldn't load model");
 	}
 
-	bool first = true;
-	AABB renderableBounds;
-	std::vector<RenderableComponentSubmesh> submeshes;
-
-
 	
 	// Load Materials
-	std::vector<Material> materials(modelDefinition->Materials.size());
+	std::vector<Material*> materials(modelDefinition->Materials.size());
 	for (size_t i = 0; i < modelDefinition->Materials.size(); i++)
 	{
-		const auto& matDef = modelDefinition->Materials[i];
-		auto& mat = materials[i];
+		materials[i] = CreateMaterial();
+		
+		auto& mat = *materials[i];
+		auto& matDef = modelDefinition->Materials[i];
 		
 		// Create Texture resources and config Material
 		mat.Name = matDef.Name;
@@ -86,11 +83,14 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 
 
 	// Load Meshes
+	bool first = true;
+	AABB renderableBounds;
+	std::vector<RenderableComponentSubmesh> submeshes;
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
 		// Create the Mesh resource
 		auto meshId = _delegate.CreateMeshResource(meshDef);
-		auto& mat = materials[meshDef.MaterialIndex];
+		auto& mat = *materials[meshDef.MaterialIndex];
 
 		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name, mat.Id };
 		submeshes.emplace_back(submesh);

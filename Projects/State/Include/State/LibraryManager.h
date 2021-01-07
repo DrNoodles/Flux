@@ -148,7 +148,7 @@ public:
 		std::cout << "Loading scene\n";
 
 		LoadMaterialExamples();
-		//LoadGrapple();
+		LoadGrapple();
 		
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
 		
@@ -337,7 +337,7 @@ public:
 		}
 	}
 
-	/*void LoadGrapple()
+	void LoadGrapple()
 	{
 		const auto path = _libraryDir + "Models/" + "grapple/export/grapple.gltf";
 		std::cout << "Loading model:" << path << std::endl;
@@ -357,7 +357,8 @@ public:
 		entity->Renderable = std::move(renderableComponent);
 		//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
-		RenderableResourceId resourceId;
+		RenderableComponentSubmesh* pSubmesh = nullptr;
+		MaterialId matId;
 		std::string basecolorPath;
 		std::string normalPath;
 		std::string ormPath;
@@ -365,40 +366,40 @@ public:
 
 		auto ApplyMat = [&]()
 		{
-			auto GetOptionalRes = [&](const std::string& texturePath)
+			auto GetOptionalTexture = [&](const std::string& texturePath) -> std::optional<Material::Map>
 			{
 				auto optRes = _scene.LoadTexture(texturePath);
 				return optRes ? std::optional(Material::Map{optRes.value(), texturePath}) : std::nullopt;
 			};
 
-			auto matCopy = _scene.GetMaterial(resourceId);
+			Material& mat = *_scene.GetMaterial(matId);
 			
 			// Load basecolor map
-			matCopy.BasecolorMap = GetOptionalRes(basecolorPath);
-			matCopy.UseBasecolorMap = matCopy.BasecolorMap.has_value();
+			mat.BasecolorMap = GetOptionalTexture(basecolorPath);
+			mat.UseBasecolorMap = mat.BasecolorMap.has_value();
 
 			// Load normal map
-			matCopy.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
+			mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
 
 			// Load occlusion map
-			matCopy.AoMap = GetOptionalRes(ormPath);
-			matCopy.AoMapChannel = Material::Channel::Red;
+			mat.AoMap = GetOptionalTexture(ormPath);
+			mat.AoMapChannel = Material::Channel::Red;
 			
 			// Load roughness map
-			matCopy.RoughnessMap = GetOptionalRes(ormPath);
-			matCopy.UseRoughnessMap = matCopy.RoughnessMap.has_value();
-			matCopy.RoughnessMapChannel = Material::Channel::Green;
+			mat.RoughnessMap = GetOptionalTexture(ormPath);
+			mat.UseRoughnessMap = mat.RoughnessMap.has_value();
+			mat.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMap = GetOptionalRes(ormPath);
-			matCopy.UseMetalnessMap = matCopy.MetalnessMap.has_value();
-			matCopy.MetalnessMapChannel = Material::Channel::Blue;
+			mat.MetalnessMap = GetOptionalTexture(ormPath);
+			mat.UseMetalnessMap = mat.MetalnessMap.has_value();
+			mat.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Load emissive map
-			matCopy.EmissiveMap = GetOptionalRes(emissivePath);
-			matCopy.EmissiveIntensity = 5;
+			mat.EmissiveMap = GetOptionalTexture(emissivePath);
+			mat.EmissiveIntensity = 5;
 
-			_scene.AssignMaterial(resourceId, matCopy);
+			_scene.AssignMaterial(*pSubmesh, mat.Id);
 		};
 
 		
@@ -406,7 +407,8 @@ public:
 		{
 			// Barrel
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[0].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[0];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Barrel_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Barrel_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Barrel_ORM.png";
@@ -415,7 +417,8 @@ public:
 			}
 			// Hook
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[1].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[1];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Hook_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Hook_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Hook_ORM.png";
@@ -424,7 +427,8 @@ public:
 			}
 			// Stock
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[2].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[2];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Stock_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Stock_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Stock_ORM.png";
@@ -433,9 +437,8 @@ public:
 			}
 		}
 
-		
 		_scene.AddEntity(std::move(entity));
-	}*/
+	}
 
 	/*void LoadAxis()
 	{
