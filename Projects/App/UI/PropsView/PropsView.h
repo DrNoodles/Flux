@@ -47,7 +47,7 @@ public:
 private:
 	void DrawTransformPanel(TransformVm& tvm) const;
 	void DrawLightPanel(LightVm& lvm) const;
-	void DrawMaterialPanel(MaterialViewState& mvm) const;
+	void DrawMaterialPanel(std::optional<MaterialViewState>& mvm) const;
 	
 	void Basecolor(MaterialViewState& rvm) const;
 	void Normals(MaterialViewState& rvm) const;

@@ -32,31 +32,24 @@ void PropsView::BuildUI(int selectionCount,
 	
 	if (ImGui::Begin("RightPanel", nullptr, paneFlags))
 	{
-		// Empty state
-		if (selectionCount != 1)
+		// Transform & Lighting Panels
+		if (selectionCount == 1)
 		{
-			ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
-			ImGui::Text(selectionCount == 0 ? "No Selection" : "Multi-Selection");
-			ImGui::End();
-			return;
-		}
-
-		DrawTransformPanel(tvm);
+			DrawTransformPanel(tvm);
 		
-		if (lvm.has_value())
-		{
-			ImGui::Spacing();
-			ImGui::Spacing();
-			DrawLightPanel(lvm.value());
+			if (lvm.has_value())
+			{
+				ImGui::Spacing();
+				ImGui::Spacing();
+				DrawLightPanel(lvm.value());
+			}
 		}
-		
+	
+		// Material Panel
+		ImGui::Spacing();
+		ImGui::Spacing();
 		auto mvm = _delegate->GetMaterialState();
-		if (mvm.has_value())
-		{
-			ImGui::Spacing();
-			ImGui::Spacing();
-			DrawMaterialPanel(mvm.value());
-		}
+		DrawMaterialPanel(mvm);
 	}
 	ImGui::End();
 }
@@ -108,27 +101,27 @@ void SubSectionSpacing()
 float modeStart = 78;
 float buttonRight = 35;
 
-void PropsView::DrawMaterialPanel(MaterialViewState& mvm) const
+void PropsView::DrawMaterialPanel(std::optional<MaterialViewState>& mvm) const
 {
 	if (ImGui::CollapsingHeader("Material", headerFlags))
 	{
 		ImGui::Spacing();
 		
-		const auto& submeshes = _delegate->GetMaterials();
 
 		ImGui::Text("Materials");
-		const auto height = glm::min<int>(5, int(submeshes.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
+		const auto& materials = _delegate->GetMaterials();
+		const auto height = glm::min<f32>(5.f, f32(materials.size()) + 1) * ImGui::GetFrameHeightWithSpacing();
 		if (ImGui::BeginChild("Materials", ImVec2{ 0,height }, true))
 		{
-			for (int i = 0; i < submeshes.size(); ++i)
+			for (i32 i = 0; i < materials.size(); ++i)
 			{
-				const auto& mesh = submeshes[i];
+				const auto& name = materials[i];
 
-				if (ImGui::Selectable((mesh + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedMaterial()))
+				if (ImGui::Selectable((name + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedMaterial()))
 				{
 					_delegate->SelectMaterial(i);
 				}
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip(mesh.c_str());
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip(name.c_str());
 			}
 		}
 		ImGui::EndChild();
@@ -138,44 +131,47 @@ void PropsView::DrawMaterialPanel(MaterialViewState& mvm) const
 		ImGui::Spacing();
 
 
-		ImGui::Text("Material");
+		if (mvm.has_value())
+		{
+			ImGui::Text("Material");
 		
-		int soloSelection = (int)mvm.ActiveSolo;
-		// NOTE: The order must match TextureType
-		ImGui::SameLine(ImGui::GetContentRegionAvail().x-130);
-		ImGui::SetNextItemWidth(100);
-		if (ImGui::Combo("Solo Texture", &soloSelection, 
-			"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency\0"))
-		{
-			mvm.ActiveSolo = soloSelection;
-			_delegate->CommitMaterialChanges(mvm);
+			int soloSelection = (int)mvm->ActiveSolo;
+			// NOTE: The order must match TextureType
+			ImGui::SameLine(ImGui::GetContentRegionAvail().x - 130);
+			ImGui::SetNextItemWidth(100);
+			if (ImGui::Combo("Solo Texture", &soloSelection,
+				"All\0Base Color\0Normals\0Metalness\0Roughness\0AO\0Emissive\0Transparency\0"))
+			{
+				mvm->ActiveSolo = soloSelection;
+				_delegate->CommitMaterialChanges(*mvm);
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Display only the selected texture.");
+
+			if (ImGui::BeginChild("Material Panel", ImVec2{ 0,0 }, true))
+			{
+				ImGui::Spacing();
+				Basecolor(*mvm);
+				SubSectionSpacing();
+
+				Normals(*mvm);
+				SubSectionSpacing();
+
+				Metalness(*mvm);
+				SubSectionSpacing();
+
+				Roughness(*mvm);
+				SubSectionSpacing();
+
+				AmbientOcclusion(*mvm);
+				SubSectionSpacing();
+
+				Emissive(*mvm);
+				SubSectionSpacing();
+
+				Transparency(*mvm);
+			}
+			ImGui::EndChild();
 		}
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Display only the selected texture.");
-
-		if (ImGui::BeginChild("Material Panel", ImVec2{ 0,0 }, true))
-		{
-			ImGui::Spacing();
-			Basecolor(mvm);
-			SubSectionSpacing();
-
-			Normals(mvm);
-			SubSectionSpacing();
-
-			Metalness(mvm);
-			SubSectionSpacing();
-
-			Roughness(mvm);
-			SubSectionSpacing();
-
-			AmbientOcclusion(mvm);
-			SubSectionSpacing();
-
-			Emissive(mvm);
-			SubSectionSpacing();
-
-			Transparency(mvm);
-		}
-		ImGui::EndChild();
 	}
 }
 

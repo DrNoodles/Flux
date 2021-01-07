@@ -564,21 +564,20 @@ void UiPresenter::SelectMaterial(int i)
 
 	if (_selectedMaterialIndex < 0)
 		return; // deselected material
-	
+
 	// Apply to current submesh selection
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-	if (!selection)
 	{
-		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+		Entity* selectedEntity = _selection.size() == 1 ? *_selection.begin() : nullptr;
+		if (!selectedEntity || !selectedEntity->Renderable.has_value())
+		{
+			return; // No selection to apply the material to
+		}
+
+		auto& selectedSubmesh = selectedEntity->Renderable->GetSubmeshes()[_selectedSubMesh];
+		const auto matId = _materials[_selectedMaterialIndex].second;
+
+		selectedSubmesh.AssignMaterial(matId);
 	}
-
-	if (!selection->Renderable.has_value())
-		return;
-
-	auto& submesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto matId = _materials[_selectedMaterialIndex].second;
-
-	submesh.AssignMaterial(matId);
 }
 
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
