@@ -22,8 +22,8 @@ struct Skybox
 //TODO Think about this in some depth...
 /*
 - To make instance rendering possible the frame resources likely need to be decoupled from from RenderableMesh.
-- ?? Make the PbrModelResourceFrame descriptor set only have info that pertains to this unique MeshAsset?
-- ?? Create a unique PbrModelResourceFrame for each unique MeshAsset / Material combo and move transform into a diff per-renderable UBO. info.Some ofther abstractionConsidering MeshAsset will be unique for each MeshA
+- ?? Make the PbrCommonResourceFrame descriptor set only have info that pertains to this unique MeshAsset?
+- ?? Create a unique PbrCommonResourceFrame for each unique MeshAsset / Material combo and move transform into a diff per-renderable UBO. info.Some ofther abstractionConsidering MeshAsset will be unique for each MeshA
 	Necessary to make instance rendering possible. The
 
 - look at PbrModelRenderPass::CreatePbrDescriptorSetLayout()
@@ -44,5 +44,6 @@ struct Skybox
 struct RenderableMesh
 {
 	MeshResourceId MeshId;
-	std::vector<PbrModelResourceFrame> FrameResources{}; // Array containing one per frame in flight
+	std::vector<PbrCommonResourceFrame> CommonFrameResources{}; // Array containing one per frame in flight
+	std::vector<PbrMaterialResourceFrame> MaterialFrameResources{}; // Array containing one per frame in flight
 };

@@ -105,7 +105,8 @@ private:
 
 #pragma region Pbr
 
-	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Material& material) const;
+	std::vector<PbrMaterialResourceFrame> CreateMaterialFrameResources(u32 numImagesInFlight, const Material& material) const;
+	std::vector<PbrCommonResourceFrame> CreateCommonFrameResources(u32 numImagesInFlight) const;
 
 	// Defines the layout of the data bound to the shaders
 	static VkDescriptorSetLayout CreateMaterialDescriptorSetLayout(VkDevice device);
@@ -124,7 +125,7 @@ private:
 		const TextureResource& transparencyMap,
 		VkDevice device);
 
-	static void WritePbrDescriptorSets(
+	static void WriteCommonDescriptorSets(
 		u32 swapImageIndex,
 		const std::vector<VkDescriptorSet>& descriptorSets,
 		const std::vector<VkBuffer>& meshUbos,

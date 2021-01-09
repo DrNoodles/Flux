@@ -92,20 +92,24 @@ void PbrModelRenderPass::InitRendererResourcesDependentOnSwapchain(u32 numImages
 	const auto empty = Material::Create();
 	for (auto& renderable : _renderables)
 	{
-		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight, empty);
+		renderable->CommonFrameResources = CreateCommonFrameResources(numImagesInFlight);
+		renderable->MaterialFrameResources = CreateMaterialFrameResources(numImagesInFlight, empty);
 	}
 }
 void PbrModelRenderPass::DestroyRenderResourcesDependentOnSwapchain()
 {
 	for (auto& renderable : _renderables)
 	{
-		for (auto& info : renderable->FrameResources)
+		for (auto& info : renderable->CommonFrameResources)
 		{
 			vkDestroyBuffer(_vk.LogicalDevice(), info.MeshUniformBuffer, nullptr);
 			vkFreeMemory(_vk.LogicalDevice(), info.MeshUniformBufferMemory, nullptr);
+		}
+
+		for (auto& info : renderable->MaterialFrameResources)
+		{
 			vkDestroyBuffer(_vk.LogicalDevice(), info.MaterialUniformBuffer, nullptr);
 			vkFreeMemory(_vk.LogicalDevice(), info.MaterialUniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
 
@@ -260,7 +264,7 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 		auto& renderable = _renderables[object.RenderableId.Id];
 
 		// Gather descriptor sets and uniform buffers
-		const auto count = renderable->FrameResources.size();
+		const auto count = renderable->CommonFrameResources.size();
 		std::vector<VkDescriptorSet> matDescSets{};
 		std::vector<VkDescriptorSet> pbrDescSets{};
 		std::vector<VkBuffer> meshBuffers{};
@@ -271,10 +275,10 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 		materialBuffers.resize(count);
 		for (size_t i = 0; i < count; i++)
 		{
-			matDescSets[i] = renderable->FrameResources[i].MaterialDescriptorSet;
-			pbrDescSets[i] = renderable->FrameResources[i].PbrDescriptorSet;
-			meshBuffers[i] = renderable->FrameResources[i].MeshUniformBuffer;
-			materialBuffers[i] = renderable->FrameResources[i].MaterialUniformBuffer;
+			matDescSets[i] = renderable->MaterialFrameResources[i].MaterialDescriptorSet;
+			pbrDescSets[i] = renderable->CommonFrameResources[i].PbrDescriptorSet;
+			meshBuffers[i] = renderable->CommonFrameResources[i].MeshUniformBuffer;
+			materialBuffers[i] = renderable->MaterialFrameResources[i].MaterialUniformBuffer;
 		}
 
 		// Get the id of an existing texture, fallback to placeholder if necessary.
@@ -294,7 +298,7 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 			*_textures[GetId(object.Material->TransparencyMap)],
 			_vk.LogicalDevice());
 
-		WritePbrDescriptorSets(imageIndex,
+		WriteCommonDescriptorSets(imageIndex,
 			pbrDescSets,
 			meshBuffers,
 			_lightBuffers,
@@ -355,7 +359,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 			// Update Pbr Mesh ubos
 			{
-				const auto& bufferMemory = renderable.FrameResources[frameIndex].MeshUniformBufferMemory;
+				const auto& bufferMemory = renderable.CommonFrameResources[frameIndex].MeshUniformBufferMemory;
 				const auto ubo = PbrMeshVsUbo::Create(info);
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
@@ -368,7 +372,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 			// Update Pbr Material ubos
 			{
-				const auto& bufferMemory = renderable.FrameResources[frameIndex].MaterialUniformBufferMemory;
+				const auto& bufferMemory = renderable.MaterialFrameResources[frameIndex].MaterialUniformBufferMemory;
 				const auto ubo = PbrMaterialUbo::Create(info, *object.Material);
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
@@ -422,8 +426,8 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
 			std::array<VkDescriptorSet, 2> descSets = {
-				renderable->FrameResources[frameIndex].MaterialDescriptorSet,
-				renderable->FrameResources[frameIndex].PbrDescriptorSet
+				renderable->MaterialFrameResources[frameIndex].MaterialDescriptorSet,
+				renderable->CommonFrameResources[frameIndex].PbrDescriptorSet
 			};
 			
 			// Draw mesh
@@ -494,8 +498,8 @@ RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& 
 {
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
-	//model->Mat = material;
-	model->FrameResources = CreatePbrModelFrameResources(_vk.GetSwapchain().GetImageCount(), material); 
+	model->CommonFrameResources = CreateCommonFrameResources(_vk.GetSwapchain().GetImageCount()); 
+	model->MaterialFrameResources = CreateMaterialFrameResources(_vk.GetSwapchain().GetImageCount(), material); 
 
 	const auto id = static_cast<RenderableResourceId>(_renderables.size());
 	_renderables.emplace_back(std::move(model));
@@ -576,13 +580,9 @@ VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight,
 
 #pragma region Pbr
 
-// TODO Separate out material from here
-std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResources(u32 numImagesInFlight, const Material& material) const
+std::vector<PbrMaterialResourceFrame> PbrModelRenderPass::CreateMaterialFrameResources(u32 numImagesInFlight, const Material& material) const
 {
 	// Create uniform buffers
-	auto [meshBuffers, meshBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMeshVsUbo), 
-		_vk.LogicalDevice(), _vk.PhysicalDevice());
-
 	auto [materialBuffers, materialBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMaterialUbo), 
 		_vk.LogicalDevice(), _vk.PhysicalDevice());
 
@@ -590,8 +590,6 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 	// Create descriptor sets
 	const auto materialDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _materialDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
 	
-	const auto pbrDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
-
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
 	const auto pid = _placeholderTexture.Id;
@@ -612,8 +610,35 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 			*_textures[GetId(material.EmissiveMap)],
 			*_textures[GetId(material.TransparencyMap)],
 			_vk.LogicalDevice());
+	}
 
-		WritePbrDescriptorSets(i,
+	// Group data for return
+	std::vector<PbrMaterialResourceFrame> ret;
+	ret.resize(numImagesInFlight);
+
+	for (size_t i = 0; i < numImagesInFlight; i++)
+	{
+		ret[i].MaterialUniformBuffer = materialBuffers[i];
+		ret[i].MaterialUniformBufferMemory = materialBuffersMemory[i];
+		ret[i].MaterialDescriptorSet = materialDescSets[i];
+	}
+
+	return ret;
+}
+
+std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResources(u32 numImagesInFlight) const
+{
+	// Create uniform buffers
+	auto [meshBuffers, meshBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMeshVsUbo), 
+		_vk.LogicalDevice(), _vk.PhysicalDevice());
+
+	// Create descriptor sets
+	const auto pbrDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
+
+
+	for (u32 i = 0; i < numImagesInFlight; i++)
+	{
+		WriteCommonDescriptorSets(i,
 			pbrDescSets,
 			meshBuffers,
 			_lightBuffers,
@@ -625,20 +650,17 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 	}
 
 	// Group data for return
-	std::vector<PbrModelResourceFrame> modelInfos;
-	modelInfos.resize(numImagesInFlight);
+	std::vector<PbrCommonResourceFrame> ret;
+	ret.resize(numImagesInFlight);
 
 	for (size_t i = 0; i < numImagesInFlight; i++)
 	{
-		modelInfos[i].MeshUniformBuffer = meshBuffers[i];
-		modelInfos[i].MeshUniformBufferMemory = meshBuffersMemory[i];
-		modelInfos[i].MaterialUniformBuffer = materialBuffers[i];
-		modelInfos[i].MaterialUniformBufferMemory = materialBuffersMemory[i];
-		modelInfos[i].PbrDescriptorSet = pbrDescSets[i];
-		modelInfos[i].MaterialDescriptorSet = materialDescSets[i];
+		ret[i].MeshUniformBuffer = meshBuffers[i];
+		ret[i].MeshUniformBufferMemory = meshBuffersMemory[i];
+		ret[i].PbrDescriptorSet = pbrDescSets[i];
 	}
 
-	return modelInfos;
+	return ret;
 }
 
 VkDescriptorSetLayout PbrModelRenderPass::CreateMaterialDescriptorSetLayout(VkDevice device)
@@ -714,7 +736,7 @@ void PbrModelRenderPass::WriteMaterialDescriptorSet(u32 swapImageIndex,
 		});
 }
 
-void PbrModelRenderPass::WritePbrDescriptorSets(
+void PbrModelRenderPass::WriteCommonDescriptorSets(
 	u32 swapImageIndex,
 	const std::vector<VkDescriptorSet>& descriptorSets,
 	const std::vector<VkBuffer>& meshUbos,
