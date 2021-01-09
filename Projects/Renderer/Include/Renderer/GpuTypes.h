@@ -104,7 +104,8 @@ struct SkyboxResourceFrame // for lack of a better name...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PbrModelResourceFrame // for lack of a better name...
 {
-	VkDescriptorSet DescriptorSet;
+	VkDescriptorSet PbrDescriptorSet;
+	VkDescriptorSet MaterialDescriptorSet;
 	VkBuffer MeshUniformBuffer;
 	VkDeviceMemory MeshUniformBufferMemory;
 	VkBuffer MaterialUniformBuffer;

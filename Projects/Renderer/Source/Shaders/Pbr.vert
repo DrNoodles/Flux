@@ -1,6 +1,6 @@
 #version 450
 
-layout(std140, binding = 13) uniform PbrModelVsUbo
+layout(std140, set = 1, binding = 0) uniform PbrModelVsUbo
 {
 	mat4 model;
 	mat4 view;

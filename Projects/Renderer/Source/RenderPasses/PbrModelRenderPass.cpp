@@ -46,8 +46,12 @@ void PbrModelRenderPass::InitRenderer()
 	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
 	
 	// PBR pipe
+	_materialDescriptorSetLayout = CreateMaterialDescriptorSetLayout(_vk.LogicalDevice());
 	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk.LogicalDevice());
-	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _pbrDescriptorSetLayout });
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { 
+		_materialDescriptorSetLayout,
+		_pbrDescriptorSetLayout,
+	});
 }
 void PbrModelRenderPass::DestroyRenderer()
 {
@@ -68,6 +72,7 @@ void PbrModelRenderPass::DestroyRenderer()
 	// PbrModelRenderPass
 	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _materialDescriptorSetLayout, nullptr);
 
 	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
 }
@@ -256,15 +261,18 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 
 		// Gather descriptor sets and uniform buffers
 		const auto count = renderable->FrameResources.size();
-		std::vector<VkDescriptorSet> descriptorSets{};
+		std::vector<VkDescriptorSet> matDescSets{};
+		std::vector<VkDescriptorSet> pbrDescSets{};
 		std::vector<VkBuffer> meshBuffers{};
 		std::vector<VkBuffer> materialBuffers{};
-		descriptorSets.resize(count);
+		matDescSets.resize(count);
+		pbrDescSets.resize(count);
 		meshBuffers.resize(count);
 		materialBuffers.resize(count);
 		for (size_t i = 0; i < count; i++)
 		{
-			descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
+			matDescSets[i] = renderable->FrameResources[i].MaterialDescriptorSet;
+			pbrDescSets[i] = renderable->FrameResources[i].PbrDescriptorSet;
 			meshBuffers[i] = renderable->FrameResources[i].MeshUniformBuffer;
 			materialBuffers[i] = renderable->FrameResources[i].MaterialUniformBuffer;
 		}
@@ -274,11 +282,9 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
 
 		// Write updated descriptor sets
-		WritePbrDescriptorSets(imageIndex,
-			descriptorSets,
-			meshBuffers,
+		WriteMaterialDescriptorSet(imageIndex,
+			matDescSets,
 			materialBuffers,
-			_lightBuffers,
 			*_textures[GetId(object.Material->BasecolorMap)],
 			*_textures[GetId(object.Material->NormalMap)],
 			*_textures[GetId(object.Material->RoughnessMap)],
@@ -286,6 +292,12 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 			*_textures[GetId(object.Material->AoMap)],
 			*_textures[GetId(object.Material->EmissiveMap)],
 			*_textures[GetId(object.Material->TransparencyMap)],
+			_vk.LogicalDevice());
+
+		WritePbrDescriptorSets(imageIndex,
+			pbrDescSets,
+			meshBuffers,
+			_lightBuffers,
 			_delegate.GetIrradianceTextureResource(),
 			_delegate.GetPrefilterTextureResource(),
 			_delegate.GetBrdfTextureResource(),
@@ -407,9 +419,15 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		// Draw Opaque objects
 		for (const auto& opaqueObj : opaqueObjects)
 		{
+			// TODO Write a lambda to do the work here and below for transparent objects (it's the same code)
 			const auto& renderable = _renderables[opaqueObj.Id].get();
 			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
+			std::array<VkDescriptorSet, 2> descSets = {
+				renderable->FrameResources[frameIndex].MaterialDescriptorSet,
+				renderable->FrameResources[frameIndex].PbrDescriptorSet
+			};
+			
 			// Draw mesh
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -417,7 +435,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
-				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				0, descSets.size(), descSets.data(), 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 
@@ -429,6 +447,11 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			const auto& renderable = _renderables[renderableId.Id].get();
 			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
+			std::array<VkDescriptorSet, 2> descSets = {
+				renderable->FrameResources[frameIndex].MaterialDescriptorSet,
+				renderable->FrameResources[frameIndex].PbrDescriptorSet
+			};
+			
 			// Draw mesh
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -436,7 +459,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
-				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
+				0, descSets.size(), descSets.data(), 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
 		}
 	}
@@ -577,7 +600,9 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 
 
 	// Create descriptor sets
-	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
+	const auto materialDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _materialDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
+	
+	const auto pbrDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
 
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
@@ -587,12 +612,10 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 
 	for (u32 i = 0; i < numImagesInFlight; i++)
 	{
-		WritePbrDescriptorSets(
-			i,
-			descriptorSets,
-			meshBuffers,
+		// Write updated descriptor sets
+		WriteMaterialDescriptorSet(i,
+			materialDescSets,
 			materialBuffers,
-			_lightBuffers,
 			*_textures[GetId(material.BasecolorMap)],
 			*_textures[GetId(material.NormalMap)],
 			*_textures[GetId(material.RoughnessMap)],
@@ -600,12 +623,17 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 			*_textures[GetId(material.AoMap)],
 			*_textures[GetId(material.EmissiveMap)],
 			*_textures[GetId(material.TransparencyMap)],
+			_vk.LogicalDevice());
+
+		WritePbrDescriptorSets(i,
+			pbrDescSets,
+			meshBuffers,
+			_lightBuffers,
 			_delegate.GetIrradianceTextureResource(),
 			_delegate.GetPrefilterTextureResource(),
 			_delegate.GetBrdfTextureResource(),
 			_delegate.GetShadowmapDescriptor(),
-			_vk.LogicalDevice()
-		);
+			_vk.LogicalDevice());
 	}
 
 	// Group data for return
@@ -618,59 +646,91 @@ std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResour
 		modelInfos[i].MeshUniformBufferMemory = meshBuffersMemory[i];
 		modelInfos[i].MaterialUniformBuffer = materialBuffers[i];
 		modelInfos[i].MaterialUniformBufferMemory = materialBuffersMemory[i];
-		modelInfos[i].DescriptorSet = descriptorSets[i];
+		modelInfos[i].PbrDescriptorSet = pbrDescSets[i];
+		modelInfos[i].MaterialDescriptorSet = materialDescSets[i];
 	}
 
 	return modelInfos;
 }
 
-VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice device)
+VkDescriptorSetLayout PbrModelRenderPass::CreateMaterialDescriptorSetLayout(VkDevice device)
 {
 	return vkh::CreateDescriptorSetLayout(device, {
 		// pbr material ubo
 		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// basecolor
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// normalMap
+		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// roughnessMap
+		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// metalnessMap
+		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// aoMap
+		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// emissiveMap
+		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// transparencyMap
+		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+	});
+}
+
+VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice device)
+{
+	return vkh::CreateDescriptorSetLayout(device, {
+		// pbr model ubo
+		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+
 		// irradiance map
 		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// prefilter map
 		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// brdf map
 		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+
 		// light ubo
 		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// basecolor
-		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// normalMap
-		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// roughnessMap
-		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// metalnessMap
-		vki::DescriptorSetLayoutBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// aoMap
-		vki::DescriptorSetLayoutBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// emissiveMap
-		vki::DescriptorSetLayoutBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// transparencyMap
-		vki::DescriptorSetLayoutBinding(11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 		// shadowMap
-		vki::DescriptorSetLayoutBinding(12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// pbr model ubo
-		vki::DescriptorSetLayoutBinding(13, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
 	});
+}
+
+void PbrModelRenderPass::WriteMaterialDescriptorSet(u32 swapImageIndex,
+	const std::vector<VkDescriptorSet>& descriptorSets, const std::vector<VkBuffer>& materialUbos,
+	const TextureResource& basecolorMap, const TextureResource& normalMap, const TextureResource& roughnessMap,
+	const TextureResource& metalnessMap, const TextureResource& aoMap, const TextureResource& emissiveMap,
+	const TextureResource& transparencyMap, VkDevice device)
+{
+	assert(swapImageIndex < materialUbos.size());
+
+	// Configure our new descriptor sets to point to our buffer/image data
+
+	VkDescriptorBufferInfo materialUboInfo = {};
+	{
+		materialUboInfo.buffer = materialUbos[swapImageIndex];
+		materialUboInfo.offset = 0;
+		materialUboInfo.range = sizeof(PbrMaterialUbo);
+	}
+
+	const auto& s = descriptorSets[swapImageIndex];
+
+	vkh::UpdateDescriptorSet(device, {
+		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &materialUboInfo),
+		vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &basecolorMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &normalMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.ImageInfo()),
+		});
 }
 
 void PbrModelRenderPass::WritePbrDescriptorSets(
 	u32 swapImageIndex,
 	const std::vector<VkDescriptorSet>& descriptorSets,
 	const std::vector<VkBuffer>& meshUbos,
-	const std::vector<VkBuffer>& materialUbos,
 	const std::vector<VkBuffer>& lightUbos,
-	const TextureResource& basecolorMap,
-	const TextureResource& normalMap,
-	const TextureResource& roughnessMap,
-	const TextureResource& metalnessMap,
-	const TextureResource& aoMap,
-	const TextureResource& emissiveMap,
-	const TextureResource& transparencyMap,
 	const TextureResource& irradianceMap,
 	const TextureResource& prefilterMap,
 	const TextureResource& brdfMap,
@@ -678,7 +738,6 @@ void PbrModelRenderPass::WritePbrDescriptorSets(
 	VkDevice device)
 {
 	assert(swapImageIndex < meshUbos.size());
-	assert(swapImageIndex < materialUbos.size());
 	assert(swapImageIndex < lightUbos.size());
 
 	// Configure our new descriptor sets to point to our buffer/image data
@@ -687,13 +746,6 @@ void PbrModelRenderPass::WritePbrDescriptorSets(
 		meshUboInfo.buffer = meshUbos[swapImageIndex];
 		meshUboInfo.offset = 0;
 		meshUboInfo.range = sizeof(PbrMeshVsUbo);
-	}
-
-	VkDescriptorBufferInfo materialUboInfo = {};
-	{
-		materialUboInfo.buffer = materialUbos[swapImageIndex];
-		materialUboInfo.offset = 0;
-		materialUboInfo.range = sizeof(PbrMaterialUbo);
 	}
 
 	VkDescriptorBufferInfo lightUboInfo = {};
@@ -706,20 +758,15 @@ void PbrModelRenderPass::WritePbrDescriptorSets(
 	const auto& s = descriptorSets[swapImageIndex];
 
 	vkh::UpdateDescriptorSet(device, {
-		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &materialUboInfo),
+		// Mesh
+		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &meshUboInfo),
+		// IBL
 		vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.ImageInfo()),
 		vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.ImageInfo()),
 		vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.ImageInfo()),
+		// Discrete lighting
 		vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
-		vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &basecolorMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &normalMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.ImageInfo()),
-		vki::WriteDescriptorSet(s, 12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
-		vki::WriteDescriptorSet(s, 13, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &meshUboInfo),
+		vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
 		});
 }
 

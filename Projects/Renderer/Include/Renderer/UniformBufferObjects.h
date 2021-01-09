@@ -29,23 +29,23 @@ struct SkyboxFragUbo
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct LightPacked
-{
-	alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
-	alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
-};
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct LightUbo
 {
+	struct LightPacked
+	{
+		alignas(16) glm::vec4 LightColorIntensity;// floats [R,G,B,Intensity]
+		alignas(16) glm::vec4 LightPosType;       // floats [X,Y,Z], int [Type]
+	};
+
 	alignas(16)	LightPacked Lights[8];
 
 	static LightUbo Create(const std::vector<Light>& lights)
 	{
 		const u32 maxLights = 8;
 		assert(lights.size() <= maxLights);
-		
+
 		LightUbo ubo{};
-		
+
 		for (size_t i = 0; i < lights.size(); i++)
 		{
 			const auto& l = lights[i];

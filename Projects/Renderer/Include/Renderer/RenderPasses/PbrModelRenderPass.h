@@ -42,6 +42,7 @@ private:// Data
 	// PBR
 	VkPipeline _pbrPipeline = nullptr;
 	VkPipelineLayout _pbrPipelineLayout = nullptr;
+	VkDescriptorSetLayout _materialDescriptorSetLayout = nullptr;
 	VkDescriptorSetLayout _pbrDescriptorSetLayout = nullptr;
 
 	// Resources
@@ -107,14 +108,13 @@ private:
 	std::vector<PbrModelResourceFrame> CreatePbrModelFrameResources(u32 numImagesInFlight, const Material& material) const;
 
 	// Defines the layout of the data bound to the shaders
+	static VkDescriptorSetLayout CreateMaterialDescriptorSetLayout(VkDevice device);
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
-	static void WritePbrDescriptorSets(
+	static void WriteMaterialDescriptorSet(
 		u32 swapImageIndex,
 		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& meshUbos,
 		const std::vector<VkBuffer>& materialUbos,
-		const std::vector<VkBuffer>& lightUbos,
 		const TextureResource& basecolorMap,
 		const TextureResource& normalMap,
 		const TextureResource& roughnessMap,
@@ -122,6 +122,13 @@ private:
 		const TextureResource& aoMap,
 		const TextureResource& emissiveMap,
 		const TextureResource& transparencyMap,
+		VkDevice device);
+
+	static void WritePbrDescriptorSets(
+		u32 swapImageIndex,
+		const std::vector<VkDescriptorSet>& descriptorSets,
+		const std::vector<VkBuffer>& meshUbos,
+		const std::vector<VkBuffer>& lightUbos,
 		const TextureResource& irradianceMap,
 		const TextureResource& prefilterMap,
 		const TextureResource& brdfMap,
