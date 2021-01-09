@@ -416,11 +416,9 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
 
-		// Draw Opaque objects
-		for (const auto& opaqueObj : opaqueObjects)
+		auto DrawMesh = [&](RenderableResourceId rrid)
 		{
-			// TODO Write a lambda to do the work here and below for transparent objects (it's the same code)
-			const auto& renderable = _renderables[opaqueObj.Id].get();
+			const auto& renderable = _renderables[rrid.Id].get();
 			const auto& mesh = *_meshes[renderable->MeshId.Id];
 
 			std::array<VkDescriptorSet, 2> descSets = {
@@ -437,30 +435,20 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
 				0, descSets.size(), descSets.data(), 0, nullptr);
 			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+		};
+
+		
+		// Draw Opaque objects
+		for (auto&& opaqueObj : opaqueObjects)
+		{
+			DrawMesh(opaqueObj);
 		}
 
 		// Draw transparent objects (reverse iterated)
 		for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
 		{
-			auto [dist2, renderableId] = *it;
-			
-			const auto& renderable = _renderables[renderableId.Id].get();
-			const auto& mesh = *_meshes[renderable->MeshId.Id];
-
-			std::array<VkDescriptorSet, 2> descSets = {
-				renderable->FrameResources[frameIndex].MaterialDescriptorSet,
-				renderable->FrameResources[frameIndex].PbrDescriptorSet
-			};
-			
-			// Draw mesh
-			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
-				0, descSets.size(), descSets.data(), 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			auto [_, transparentObj] = *it;
+			DrawMesh(transparentObj);
 		}
 	}
 
