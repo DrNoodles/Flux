@@ -248,59 +248,41 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 	// HACK HACK HACK TODO Optimise this so we only update descriptor sets when needed :)
 	_refreshRenderableDescriptorSets = true;
 	// HACK HACK HACK
-	
+
 	const bool updateDescriptors = skyboxUpdated || _refreshRenderableDescriptorSets;
-	
+
 	_lastOptions = options;
 	_refreshRenderableDescriptorSets = false;
 
 	// Rebuild descriptor sets if needed
 	if (!updateDescriptors)
 		return updateDescriptors;
-	
-	
+
+
+	// Get the id of an existing texture, fallback to placeholder if necessary.
+	const auto pid = _placeholderTexture.Id;
+	auto GetTextureId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+
 	for (auto&& object : scene.Objects)
 	{
-		auto& renderable = _renderables[object.RenderableId.Id];
+		const auto& matResources = _renderables[object.RenderableId.Id]->MaterialFrameResources[imageIndex];
+		const auto& commonResources = _renderables[object.RenderableId.Id]->CommonFrameResources[imageIndex];
 
-		// Gather descriptor sets and uniform buffers
-		const auto count = renderable->CommonFrameResources.size();
-		std::vector<VkDescriptorSet> matDescSets{};
-		std::vector<VkDescriptorSet> pbrDescSets{};
-		std::vector<VkBuffer> meshBuffers{};
-		std::vector<VkBuffer> materialBuffers{};
-		matDescSets.resize(count);
-		pbrDescSets.resize(count);
-		meshBuffers.resize(count);
-		materialBuffers.resize(count);
-		for (size_t i = 0; i < count; i++)
-		{
-			matDescSets[i] = renderable->MaterialFrameResources[i].MaterialDescriptorSet;
-			pbrDescSets[i] = renderable->CommonFrameResources[i].PbrDescriptorSet;
-			meshBuffers[i] = renderable->CommonFrameResources[i].MeshUniformBuffer;
-			materialBuffers[i] = renderable->MaterialFrameResources[i].MaterialUniformBuffer;
-		}
-
-		// Get the id of an existing texture, fallback to placeholder if necessary.
-		const auto pid = _placeholderTexture.Id;
-		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
-
-		// Write updated descriptor sets
 		WriteMaterialDescriptorSet(
-			matDescSets[imageIndex],
-			materialBuffers[imageIndex],
-			*_textures[GetId(object.Material->BasecolorMap)],
-			*_textures[GetId(object.Material->NormalMap)],
-			*_textures[GetId(object.Material->RoughnessMap)],
-			*_textures[GetId(object.Material->MetalnessMap)],
-			*_textures[GetId(object.Material->AoMap)],
-			*_textures[GetId(object.Material->EmissiveMap)],
-			*_textures[GetId(object.Material->TransparencyMap)],
+			matResources.MaterialDescriptorSet,
+			matResources.MaterialUniformBuffer,
+			*_textures[GetTextureId(object.Material->BasecolorMap)],
+			*_textures[GetTextureId(object.Material->NormalMap)],
+			*_textures[GetTextureId(object.Material->RoughnessMap)],
+			*_textures[GetTextureId(object.Material->MetalnessMap)],
+			*_textures[GetTextureId(object.Material->AoMap)],
+			*_textures[GetTextureId(object.Material->EmissiveMap)],
+			*_textures[GetTextureId(object.Material->TransparencyMap)],
 			_vk.LogicalDevice());
 
 		WriteCommonDescriptorSet(
-			pbrDescSets[imageIndex],
-			meshBuffers[imageIndex],
+			commonResources.PbrDescriptorSet,
+			commonResources.MeshUniformBuffer,
 			_lightBuffers[imageIndex],
 			_delegate.GetIrradianceTextureResource(),
 			_delegate.GetPrefilterTextureResource(),
@@ -308,7 +290,7 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 			_delegate.GetShadowmapDescriptor(),
 			_vk.LogicalDevice());
 	}
-	
+
 	return updateDescriptors;
 }
 
