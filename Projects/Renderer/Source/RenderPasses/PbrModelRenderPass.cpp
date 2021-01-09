@@ -286,9 +286,9 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
 
 		// Write updated descriptor sets
-		WriteMaterialDescriptorSet(imageIndex,
-			matDescSets,
-			materialBuffers,
+		WriteMaterialDescriptorSet(
+			matDescSets[imageIndex],
+			materialBuffers[imageIndex],
 			*_textures[GetId(object.Material->BasecolorMap)],
 			*_textures[GetId(object.Material->NormalMap)],
 			*_textures[GetId(object.Material->RoughnessMap)],
@@ -298,10 +298,10 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 			*_textures[GetId(object.Material->TransparencyMap)],
 			_vk.LogicalDevice());
 
-		WriteCommonDescriptorSets(imageIndex,
-			pbrDescSets,
-			meshBuffers,
-			_lightBuffers,
+		WriteCommonDescriptorSet(
+			pbrDescSets[imageIndex],
+			meshBuffers[imageIndex],
+			_lightBuffers[imageIndex],
 			_delegate.GetIrradianceTextureResource(),
 			_delegate.GetPrefilterTextureResource(),
 			_delegate.GetBrdfTextureResource(),
@@ -599,9 +599,9 @@ std::vector<PbrMaterialResourceFrame> PbrModelRenderPass::CreateMaterialFrameRes
 	for (u32 i = 0; i < numImagesInFlight; i++)
 	{
 		// Write updated descriptor sets
-		WriteMaterialDescriptorSet(i,
-			materialDescSets,
-			materialBuffers,
+		WriteMaterialDescriptorSet(
+			materialDescSets[i],
+			materialBuffers[i],
 			*_textures[GetId(material.BasecolorMap)],
 			*_textures[GetId(material.NormalMap)],
 			*_textures[GetId(material.RoughnessMap)],
@@ -638,10 +638,10 @@ std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResourc
 
 	for (u32 i = 0; i < numImagesInFlight; i++)
 	{
-		WriteCommonDescriptorSets(i,
-			pbrDescSets,
-			meshBuffers,
-			_lightBuffers,
+		WriteCommonDescriptorSet(
+			pbrDescSets[i],
+			meshBuffers[i],
+			_lightBuffers[i],
 			_delegate.GetIrradianceTextureResource(),
 			_delegate.GetPrefilterTextureResource(),
 			_delegate.GetBrdfTextureResource(),
@@ -705,24 +705,22 @@ VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice 
 	});
 }
 
-void PbrModelRenderPass::WriteMaterialDescriptorSet(u32 swapImageIndex,
-	const std::vector<VkDescriptorSet>& descriptorSets, const std::vector<VkBuffer>& materialUbos,
+void PbrModelRenderPass::WriteMaterialDescriptorSet(
+	VkDescriptorSet descriptorSet,
+	VkBuffer materialUbo,
 	const TextureResource& basecolorMap, const TextureResource& normalMap, const TextureResource& roughnessMap,
 	const TextureResource& metalnessMap, const TextureResource& aoMap, const TextureResource& emissiveMap,
 	const TextureResource& transparencyMap, VkDevice device)
 {
-	assert(swapImageIndex < materialUbos.size());
-
 	// Configure our new descriptor sets to point to our buffer/image data
-
 	VkDescriptorBufferInfo materialUboInfo = {};
 	{
-		materialUboInfo.buffer = materialUbos[swapImageIndex];
+		materialUboInfo.buffer = materialUbo;
 		materialUboInfo.offset = 0;
 		materialUboInfo.range = sizeof(PbrMaterialUbo);
 	}
 
-	const auto& s = descriptorSets[swapImageIndex];
+	const auto& s = descriptorSet;
 
 	vkh::UpdateDescriptorSet(device, {
 		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &materialUboInfo),
@@ -736,36 +734,33 @@ void PbrModelRenderPass::WriteMaterialDescriptorSet(u32 swapImageIndex,
 		});
 }
 
-void PbrModelRenderPass::WriteCommonDescriptorSets(
-	u32 swapImageIndex,
-	const std::vector<VkDescriptorSet>& descriptorSets,
-	const std::vector<VkBuffer>& meshUbos,
-	const std::vector<VkBuffer>& lightUbos,
+void PbrModelRenderPass::WriteCommonDescriptorSet(
+	VkDescriptorSet descriptorSet,
+	VkBuffer meshUbo,
+	VkBuffer lightUbo,
 	const TextureResource& irradianceMap,
 	const TextureResource& prefilterMap,
 	const TextureResource& brdfMap,
 	VkDescriptorImageInfo shadowmapDescriptor,
 	VkDevice device)
 {
-	assert(swapImageIndex < meshUbos.size());
-	assert(swapImageIndex < lightUbos.size());
 
 	// Configure our new descriptor sets to point to our buffer/image data
 	VkDescriptorBufferInfo meshUboInfo = {};
 	{
-		meshUboInfo.buffer = meshUbos[swapImageIndex];
+		meshUboInfo.buffer = meshUbo;
 		meshUboInfo.offset = 0;
 		meshUboInfo.range = sizeof(PbrMeshVsUbo);
 	}
 
 	VkDescriptorBufferInfo lightUboInfo = {};
 	{
-		lightUboInfo.buffer = lightUbos[swapImageIndex];
+		lightUboInfo.buffer = lightUbo;
 		lightUboInfo.offset = 0;
 		lightUboInfo.range = sizeof(LightUbo);
 	}
 
-	const auto& s = descriptorSets[swapImageIndex];
+	const auto& s = descriptorSet;
 
 	vkh::UpdateDescriptorSet(device, {
 		// Mesh

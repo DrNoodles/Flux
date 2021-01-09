@@ -113,9 +113,8 @@ private:
 	static VkDescriptorSetLayout CreatePbrDescriptorSetLayout(VkDevice device);
 
 	static void WriteMaterialDescriptorSet(
-		u32 swapImageIndex,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& materialUbos,
+		VkDescriptorSet descriptorSet,
+		VkBuffer materialUbo,
 		const TextureResource& basecolorMap,
 		const TextureResource& normalMap,
 		const TextureResource& roughnessMap,
@@ -125,11 +124,10 @@ private:
 		const TextureResource& transparencyMap,
 		VkDevice device);
 
-	static void WriteCommonDescriptorSets(
-		u32 swapImageIndex,
-		const std::vector<VkDescriptorSet>& descriptorSets,
-		const std::vector<VkBuffer>& meshUbos,
-		const std::vector<VkBuffer>& lightUbos,
+	static void WriteCommonDescriptorSet(
+		VkDescriptorSet descriptorSet,
+		VkBuffer meshUbo,
+		VkBuffer lightUbo,
 		const TextureResource& irradianceMap,
 		const TextureResource& prefilterMap,
 		const TextureResource& brdfMap,
