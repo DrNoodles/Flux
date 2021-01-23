@@ -5,7 +5,7 @@ workspace "Flux"
 	--prebuildcommands { 'path "($SolutionDir)../compile-shaders.bat"' }
 	architecture "x86_64"
 	location "Build"
-	cppdialect "C++17"
+	cppdialect "c++latest"
 	startproject "App"
 
 
