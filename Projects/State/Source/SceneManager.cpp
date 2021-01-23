@@ -131,7 +131,7 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	{
 		resId = _delegate.CreateTextureResource(path);
 	}
-	catch (const std::exception& e)
+	catch (const std::exception&)
 	{
 		std::cerr << "Failed to load texture \"" << path << "\"" << std::endl;
 		return std::nullopt;
@@ -148,14 +148,14 @@ Material* SceneManager::CreateMaterial()
 	
 	Material* rawpMat = mat.get();
 	
-	_materials.emplace(mat->Id.Id, std::move(mat));
+	_materials.emplace(mat->Id.Value(), std::move(mat));
 
 	return rawpMat;
 }
 
 Material* SceneManager::GetMaterial(const MaterialId id) const
 {
-	const auto it = _materials.find(id.Id);
+	const auto it = _materials.find(id.Value());
 
 	if (it == _materials.end())
 		throw std::invalid_argument("material id does not exist in materials collection");

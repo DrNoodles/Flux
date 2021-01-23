@@ -9,6 +9,7 @@
 
 #include <array>
 #include <optional>
+#include <set>
 #include <vector>
 
 
@@ -110,14 +111,6 @@ struct PbrCommonResourceFrame // for lack of a better name...
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct PbrMaterialResourceFrame // for lack of a better name...
-{
-	VkDescriptorSet MaterialDescriptorSet;
-	VkBuffer MaterialUniformBuffer;
-	VkDeviceMemory MaterialUniformBufferMemory;
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SwapChainSupportDetails
 {
 	VkSurfaceCapabilitiesKHR Capabilities{};
@@ -144,9 +137,12 @@ struct SceneRendererPrimitives
 	{
 		RenderableResourceId RenderableId; // TODO Material and MeshAsset here in place of RenderableId
 		glm::mat4 Transform;
-		const Material* Material;
+
+		// TODO maybe use an index into the materials to show intent that this isn't the mat owner for now this is easier to get it working
+		const Material& Material;  // i32 MaterialIndex = -1
 	};
-	
+
+	std::set<const Material*> Materials{};
 	std::vector<RenderableObject> Objects;
 	std::vector<Light> Lights;
 	glm::vec3 ViewPosition;

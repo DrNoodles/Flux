@@ -93,25 +93,25 @@ public:
 	const TextureResource& GetIrradianceTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Value() : _placeholderTexture.Value()];
 	}
 
 	const TextureResource& GetPrefilterTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Value() : _placeholderTexture.Value()];
 	}
 
 	const TextureResource& GetBrdfTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Value() : _placeholderTexture.Value()];
 	}
 
 private:
 	const Skybox* GetCurrentSkyboxOrNull() const
 	{
-		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Id].get();
+		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Value()].get();
 	}
 
 	/*const TextureResource& GetSkyboxTextureResource() const

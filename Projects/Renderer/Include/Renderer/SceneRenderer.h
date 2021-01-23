@@ -108,7 +108,7 @@ public: // Lifetime
 		_dirShadowRenderPass = nullptr;
 		
 		_pbrRenderPass->Destroy();
-		_pbrRenderPass = nullptr;
+		_pbrRenderPass = nullptr;  // TODO Make this RAII
 		
 		_skyboxRenderPass->Destroy();
 		_skyboxRenderPass = nullptr;

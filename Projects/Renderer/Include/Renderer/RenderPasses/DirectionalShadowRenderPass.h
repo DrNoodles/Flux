@@ -64,8 +64,8 @@ public:
 
 		for (const auto& object : scene.Objects)
 		{
-			const auto& renderable = *renderables[object.RenderableId.Id];
-			const auto& mesh = *meshes[renderable.MeshId.Id];
+			const auto& renderable = *renderables[object.RenderableId.Value()];
+			const auto& mesh = *meshes[renderable.MeshId.Value()];
 
 			PushConstants pushConstants{};
 			pushConstants.ShadowMatrix = lightSpaceMatrix * object.Transform;

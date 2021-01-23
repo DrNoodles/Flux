@@ -100,7 +100,7 @@ public: // Methods
 	// TODO Think through a good lifecycle management for Material.
 	Material() :
 		Id(++EntityCount),
-		Name("Material" + std::to_string(Id.Id))
+		Name("Material" + std::to_string(Id.Value()))
 	{
 	}
 	static Material Create()

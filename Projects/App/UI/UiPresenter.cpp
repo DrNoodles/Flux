@@ -279,10 +279,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			{
 				for (auto&& submesh : entity->Renderable->GetSubmeshes())
 				{
+					Material* mat = _scene.GetMaterial(submesh.MatId);
+					scene.Materials.emplace(mat);
+					
 					SceneRendererPrimitives::RenderableObject object = {
 						submesh.Id,
 						entity->Transform.GetMatrix(),
-						_scene.GetMaterial(submesh.MatId)
+						*mat
 					};
 					scene.Objects.emplace_back(object);
 				}
