@@ -192,8 +192,8 @@ private: // METHODS
 	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
 	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }*/
 
-	std::vector<std::string> GetMaterials() override;
-	int GetSelectedMaterial() const override { return _selectedMaterialIndex; }
+	inline const std::vector<std::pair<std::string, MaterialId>>& GetMaterials() override { return _materials; }
+	inline int GetSelectedMaterial() const override { return _selectedMaterialIndex; }
 	void SelectMaterial(int i) override;
 
 	std::optional<MaterialViewState> GetMaterialState() override;

@@ -190,7 +190,7 @@ void UiPresenter::BuildImGui()
 		_materials.resize(count);
 		for (size_t i = 0; i < count; i++)
 		{
-			_materials[i] = std::make_pair(_scene.GetMaterial(materials[i]->Id)->Name, materials[i]->Id);
+			_materials[i] = std::make_pair(materials[i]->Name, materials[i]->Id);
 		}
 		
 
@@ -503,16 +503,14 @@ void UiPresenter::SelectSubMesh(int index)
 	
 	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
 
-	_selectedMaterialIndex = [&]() -> int
+	const auto it = std::find_if(_materials.begin(), _materials.end(), [&](const std::pair<std::string, MaterialId>& pair)
 	{
-		for (size_t m = 0; m < _materials.size(); m++)
-		{
-			if (_materials[m].second == targetSubmesh.MatId)
-				return (int)m;
-		}
+		return pair.second == targetSubmesh.MatId;
+	});
 
-		throw std::runtime_error("Couldn't find the material for the given submesh");
-	}();
+	if (it == _materials.end()) { throw std::runtime_error("Couldn't find the material for the given submesh"); }
+
+	_selectedMaterialIndex = (int)(it - _materials.begin());
 }
 
 RenderOptions UiPresenter::GetRenderOptions()
@@ -547,18 +545,6 @@ void UiPresenter::SetActiveSkybox(u32 idx)
 	const auto& skyboxInfo = _library.GetSkyboxes()[idx];
 	_scene.LoadAndSetSkybox(skyboxInfo.Path);
 	_activeSkybox = idx;
-}
-
-std::vector<std::string> UiPresenter::GetMaterials()
-{	
-	std::vector<std::string> matNames(_materials.size());
-	
-	for (size_t i = 0; i < _materials.size(); i++)
-	{
-		matNames[i] = _materials[i].first;
-	}
-	
-	return matNames;
 }
 
 void UiPresenter::SelectMaterial(int i)

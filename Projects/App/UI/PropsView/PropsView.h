@@ -1,10 +1,13 @@
 #pragma once
 
+#include <Framework/Material.h>
+
 #include <imgui/imgui.h>
 
 #include <optional>
 #include <string>
 #include <vector>
+
 
 
 struct MaterialViewState;
@@ -19,7 +22,7 @@ public:
 	// Transform?
 	
 	// Materials list
-	virtual std::vector<std::string> GetMaterials() = 0;
+	virtual const std::vector<std::pair<std::string, MaterialId>>& GetMaterials() = 0;
 	virtual int GetSelectedMaterial() const = 0;
 	virtual void SelectMaterial(int i) = 0;
 

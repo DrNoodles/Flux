@@ -115,7 +115,7 @@ void PropsView::DrawMaterialPanel(std::optional<MaterialViewState>& mvm) const
 		{
 			for (i32 i = 0; i < materials.size(); ++i)
 			{
-				const auto& name = materials[i];
+				const auto& [name,_] = materials[i];
 
 				if (ImGui::Selectable((name + "##" + std::to_string(i)).c_str(), i == _delegate->GetSelectedMaterial()))
 				{

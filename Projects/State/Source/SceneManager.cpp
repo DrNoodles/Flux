@@ -165,12 +165,11 @@ Material* SceneManager::GetMaterial(const MaterialId id) const
 
 std::vector<Material*> SceneManager::GetMaterials() const
 {
+	// TODO Cache result as  reads will be vastly more common (many times per frame) vs writes (basically never)
 	std::vector<Material*> mats{};
-
-	for (auto&& [id, mat] : _materials)
-	{
+	
+	for (auto&& [_, mat] : _materials)
 		mats.emplace_back(mat.get());
-	}
 
 	return mats;
 }
