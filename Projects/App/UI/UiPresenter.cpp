@@ -36,7 +36,7 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_viewportView = ViewportView{this, _sceneRenderer.get()};
 }
 
-void UiPresenter::Shutdown()
+UiPresenter::~UiPresenter()
 {
 	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
 	_window->PointerMoved.Detach(_pointerMovedHandler);

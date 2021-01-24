@@ -87,11 +87,7 @@ private: // DATA
 public: // METHODS
 	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService);
-	~UiPresenter() override = default;
-	
-	void Shutdown();
-	void Update();
-
+	~UiPresenter() override;
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -108,6 +104,7 @@ public: // METHODS
 
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 	
+	void Update();
 	void SetUpdateRate(int updatesPerSecond)
 	{
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
