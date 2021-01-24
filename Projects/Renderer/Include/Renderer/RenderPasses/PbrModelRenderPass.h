@@ -221,7 +221,6 @@ private:// Data
 
 public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
-	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _resourceRegistry->Hack_GetMeshes(); }
 
 	PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
 
@@ -235,8 +234,8 @@ public: // Members
 		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
 
-	TextureResourceId CreateTextureResource(const std::string& path);
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
+	TextureResourceId Hack_CreateTextureResource(const std::string& path);
+	MeshResourceId Hack_CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }

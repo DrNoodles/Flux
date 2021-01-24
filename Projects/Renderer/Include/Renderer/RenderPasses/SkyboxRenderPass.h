@@ -11,6 +11,7 @@
 
 #include <vector>
 
+class ResourceRegistry;
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
@@ -24,6 +25,7 @@ private:// Data
 	
 	// Dependencies
 	VulkanService& _vk;
+	ResourceRegistry* _registry = nullptr;
 
 	std::string _shaderDir{};
 
@@ -52,17 +54,15 @@ private:// Data
 
 public: // Members
 
-	explicit SkyboxRenderPass(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	SkyboxRenderPass() = delete;
+	SkyboxRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Destroy();
 	
 	bool UpdateDescriptors(const RenderOptions& options);
 	
 	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, const RenderOptions& options, const glm::mat4& view, const glm::mat4& projection);
-
-	TextureResourceId CreateTextureResource(const std::string& path);
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-
+	
 	// Generate Image Based Lighting resources from 6 textures representing the sides of a cubemap. 32b/channel. Ordered +X -X +Y -Y +Z -Z
 	[[deprecated]] // the cubemaps will appear mirrored (text is backwards)
 	IblTextureResourceIds CreateIblTextureResources(const std::array<std::string, 6>& sidePaths);

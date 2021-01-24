@@ -88,7 +88,7 @@ public: // Lifetime
 	{
 		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk);
 		
-		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _shaderDir, _assetsDir, _modelLoaderService);
+		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
 		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
 		
@@ -149,7 +149,7 @@ public: // Methods
 				_dirShadowRenderPass->Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
 					_pbrRenderPass->Hack_GetRenderables(),// TODO extract resources from PbrModelRenderPass into SceneRenderer
-					_pbrRenderPass->Hack_GetMeshes());    // TODO extract resources from PbrModelRenderPass into SceneRenderer
+					_resourceRegistry->Hack_GetMeshes()); // TODO pass resRegistry into shadow pass so it can get meshes it needs
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
@@ -196,12 +196,12 @@ public: // PBR RenderPass routing methods
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) const
 	{
-		return _pbrRenderPass->CreateMeshResource(meshDefinition);
+		return _pbrRenderPass->Hack_CreateMeshResource(meshDefinition);
 	}
 	
 	TextureResourceId CreateTextureResource(const std::string& path) const
 	{
-		return _pbrRenderPass->CreateTextureResource(path);
+		return _pbrRenderPass->Hack_CreateTextureResource(path);
 	}
 
 public: // Skybox RenderPass routing methods

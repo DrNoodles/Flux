@@ -9,6 +9,7 @@
 #include "CubemapTextureLoader.h"
 #include "IblLoader.h"
 #include "VulkanService.h"
+#include "ResourceRegistry.h"
 
 #include <Framework/FileService.h>
 
@@ -25,18 +26,18 @@
 
 using vkh = VulkanHelpers;
 
-SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, std::string shaderDir, const std::string& assetsDir,
-	IModelLoaderService& modelLoaderService) : _vk(vulkanService), _shaderDir(std::move(shaderDir))
+SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService)
+	: _vk(vulkanService), _registry(registry), _shaderDir(std::move(shaderDir))
 {
 	InitResources();
 	InitResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
 	
-	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png");  // TODO Move this to some common resources code
+	_placeholderTexture = _registry->CreateTextureResource(assetsDir + "placeholder.png");  // TODO Move this to some common resources code
 
 	// Load a cube
 	auto model = modelLoaderService.LoadModel(assetsDir + "skybox.obj");  // TODO Move this to some common resources code
 	auto& meshDefinition = model.value().Meshes[0];
-	_skyboxMesh = CreateMeshResource(meshDefinition);
+	_skyboxMesh = _registry->CreateMeshResource(meshDefinition);
 }
 
 void SkyboxRenderPass::Destroy()
@@ -374,36 +375,6 @@ TextureResourceId SkyboxRenderPass::CreateCubemapTextureResource(const std::arra
 		CubemapTextureLoader::LoadFromFacePaths(
 			sidePaths, format, _vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice())));
 	
-	return id;
-}
-
-TextureResourceId SkyboxRenderPass::CreateTextureResource(const std::string& path)
-{
-	const auto id = TextureResourceId(static_cast<u32>(_textures.size()));
-	auto texRes = TextureResourceHelpers::LoadTexture(path, _vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
-	return id;
-}
-
-MeshResourceId SkyboxRenderPass::CreateMeshResource(const MeshDefinition& meshDefinition)
-{
-	// Load mesh resource
-	auto mesh = std::make_unique<MeshResource>();
-	
-	mesh->IndexCount = meshDefinition.Indices.size();
-	mesh->VertexCount = meshDefinition.Vertices.size();
-	//mesh->Bounds = meshDefinition.Bounds;
-
-	std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
-		= vkh::CreateVertexBuffer(meshDefinition.Vertices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-
-	std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
-		= vkh::CreateIndexBuffer(meshDefinition.Indices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-
-
-	const auto id = MeshResourceId(static_cast<u32>(_meshes.size()));
-	_meshes.emplace_back(std::move(mesh));
-
 	return id;
 }
 

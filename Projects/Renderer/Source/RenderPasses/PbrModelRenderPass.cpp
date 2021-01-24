@@ -509,13 +509,13 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 
 [[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
-TextureResourceId PbrModelRenderPass::CreateTextureResource(const std::string& path)
+TextureResourceId PbrModelRenderPass::Hack_CreateTextureResource(const std::string& path)
 {
 	return _resourceRegistry->CreateTextureResource(path);
 }
 
 [[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
-MeshResourceId PbrModelRenderPass::CreateMeshResource(const MeshDefinition& meshDefinition)
+MeshResourceId PbrModelRenderPass::Hack_CreateMeshResource(const MeshDefinition& meshDefinition)
 {
 	return _resourceRegistry->CreateMeshResource(meshDefinition);
 }
