@@ -21,12 +21,51 @@
 #include <chrono>
 #include <map>
 
+
 using vkh = VulkanHelpers;
 
-PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
-	: _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
+PbrMaterialResource MaterialResourceManager::CreateMaterialFrameResources(const Material& material) const
 {
-	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
+	const auto numImagesInFlight = 1;
+		
+	// Create uniform buffers
+	auto [materialBuffers, materialBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMaterialUbo),
+		_vk->LogicalDevice(), _vk->PhysicalDevice());
+
+
+	// Create descriptor sets
+	const auto materialDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _descSetLayout, _pool, _vk->LogicalDevice());
+
+
+	// Get the id of an existing texture, fallback to placeholder if necessary.
+	auto GetTexture = [&](const std::optional<Material::Map>& map) -> const TextureResource&
+	{
+		const auto id =  map.has_value() ? map->Id : _placeholderTexture;
+		return _resourceRegistry->GetTexture(id);
+	};
+	for (u32 i = 0; i < numImagesInFlight; i++)
+	{
+		// Write updated descriptor sets
+		WriteMaterialDescriptorSet(
+			materialDescSets[i],
+			materialBuffers[i],
+			GetTexture(material.BasecolorMap),
+			GetTexture(material.NormalMap),
+			GetTexture(material.RoughnessMap),
+			GetTexture(material.MetalnessMap),
+			GetTexture(material.AoMap),
+			GetTexture(material.EmissiveMap),
+			GetTexture(material.TransparencyMap),
+			_vk->LogicalDevice());
+	}
+
+	return PbrMaterialResource{_vk, materialDescSets[0], materialBuffers[0], materialBuffersMemory[0] };
+}
+
+PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
+	: _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir)), _resourceRegistry(registry)
+{
+	_placeholderTexture = _resourceRegistry->CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
 
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
@@ -55,25 +94,9 @@ void PbrModelRenderPass::InitRenderer()
 }
 void PbrModelRenderPass::DestroyRenderer()
 {
-	// Resources
-	for (auto& mesh : _meshes)
-	{
-		//mesh.Vertices.clear();
-		//mesh.Indices.clear();
-		vkDestroyBuffer(_vk.LogicalDevice(), mesh->IndexBuffer, nullptr);
-		vkFreeMemory(_vk.LogicalDevice(), mesh->IndexBufferMemory, nullptr);
-		vkDestroyBuffer(_vk.LogicalDevice(), mesh->VertexBuffer, nullptr);
-		vkFreeMemory(_vk.LogicalDevice(), mesh->VertexBufferMemory, nullptr);
-	}
-
-	_textures.clear(); // RAII will cleanup
-
-
-	// PbrModelRenderPass
 	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _materialDescriptorSetLayout, nullptr);
-
 	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
 }
 
@@ -94,7 +117,7 @@ void PbrModelRenderPass::InitRendererResourcesDependentOnSwapchain(u32 numImages
 		renderable->CommonFrameResources = CreateCommonFrameResources(numImagesInFlight);
 	}
 
-	_materialFrameResources = std::make_unique<MaterialResourceManager>(_vk, _rendererDescriptorPool, _materialDescriptorSetLayout, _textures, _placeholderTexture);
+	_materialFrameResources = std::make_unique<MaterialResourceManager>(_vk, _rendererDescriptorPool, _materialDescriptorSetLayout, _resourceRegistry, _placeholderTexture);
 }
 void PbrModelRenderPass::DestroyRenderResourcesDependentOnSwapchain()
 {
@@ -256,10 +279,11 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 
 
 	// Get the id of an existing texture, fallback to placeholder if necessary.
-	const auto pid = _placeholderTexture.Value();
-	auto GetTextureId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Value() : pid; };
-
-
+	auto GetTexture = [&](const std::optional<Material::Map>& map) -> const TextureResource&
+	{
+		const auto id =  map.has_value() ? map->Id : _placeholderTexture;
+		return _resourceRegistry->GetTexture(id);
+	};
 
 	// TODO
 	
@@ -296,13 +320,13 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 		_materialFrameResources->WriteMaterialDescriptorSet(
 			matResources.GetMaterialDescriptorSet(),
 			matResources.GetMaterialUniformBuffer(),
-			*_textures[GetTextureId(mat->BasecolorMap)],
-			*_textures[GetTextureId(mat->NormalMap)],
-			*_textures[GetTextureId(mat->RoughnessMap)],
-			*_textures[GetTextureId(mat->MetalnessMap)],
-			*_textures[GetTextureId(mat->AoMap)],
-			*_textures[GetTextureId(mat->EmissiveMap)],
-			*_textures[GetTextureId(mat->TransparencyMap)],
+			GetTexture(mat->BasecolorMap),
+			GetTexture(mat->NormalMap),
+			GetTexture(mat->RoughnessMap),
+			GetTexture(mat->MetalnessMap),
+			GetTexture(mat->AoMap),
+			GetTexture(mat->EmissiveMap),
+			GetTexture(mat->TransparencyMap),
 			_vk.LogicalDevice());
 	}
 
@@ -443,7 +467,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 		auto DrawMesh = [&](const SceneRendererPrimitives::RenderableObject& obj)
 		{
 			const auto& renderable = _renderables[obj.RenderableId.Value()].get();
-			const auto& mesh = *_meshes[renderable->MeshId.Value()];
+			const auto& mesh = _resourceRegistry->GetMesh(renderable->MeshId);
 			const auto& materialResource = _materialFrameResources->GetOrCreate(obj.Material, frameIndex);
 			
 			std::array<VkDescriptorSet, 2> descSets = {
@@ -484,34 +508,16 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 }
 
 
+[[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
 TextureResourceId PbrModelRenderPass::CreateTextureResource(const std::string& path)
 {
-	const auto id = TextureResourceId((u32)_textures.size());
-	auto texRes = TextureResourceHelpers::LoadTexture(path, _vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
-	return id;
+	return _resourceRegistry->CreateTextureResource(path);
 }
 
+[[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
 MeshResourceId PbrModelRenderPass::CreateMeshResource(const MeshDefinition& meshDefinition)
 {
-	// Load mesh resource
-	auto mesh = std::make_unique<MeshResource>();
-	
-	mesh->IndexCount = meshDefinition.Indices.size();
-	mesh->VertexCount = meshDefinition.Vertices.size();
-	//mesh->Bounds = meshDefinition.Bounds;
-
-	std::tie(mesh->VertexBuffer, mesh->VertexBufferMemory)
-		= vkh::CreateVertexBuffer(meshDefinition.Vertices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-
-	std::tie(mesh->IndexBuffer, mesh->IndexBufferMemory)
-		= vkh::CreateIndexBuffer(meshDefinition.Indices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
-
-
-	const auto id = MeshResourceId((u32)_meshes.size());
-	_meshes.emplace_back(std::move(mesh));
-
-	return id;
+	return _resourceRegistry->CreateMeshResource(meshDefinition);
 }
 
 RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId)

@@ -4,6 +4,7 @@
 #include "UniformBufferObjects.h"
 #include "RenderPasses/DirectionalShadowRenderPass.h"
 #include "RenderPasses/SkyboxRenderPass.h"
+#include "ResourceRegistry.h"
 
 #include "Framebuffer.h"
 #include "VulkanService.h"
@@ -65,6 +66,8 @@ private:// Data
 	std::string _assetsDir;
 	IModelLoaderService& _modelLoaderService;
 
+	std::unique_ptr<ResourceRegistry> _resourceRegistry = nullptr;;
+	
 	// Framebuffers
 	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
@@ -76,14 +79,17 @@ private:// Data
 
 
 public: // Lifetime
+
 	SceneRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
 		_vk(vulkanService),
 		_shaderDir(std::move(shaderDir)),
 		_assetsDir(std::move(assetsDir)),
 		_modelLoaderService(modelLoaderService)
 	{
+		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk);
+		
 		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _shaderDir, _assetsDir, _modelLoaderService);
-		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, *this, _shaderDir, _assetsDir);
+		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
 		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
 		
 		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowRenderPass->GetRenderPass());
