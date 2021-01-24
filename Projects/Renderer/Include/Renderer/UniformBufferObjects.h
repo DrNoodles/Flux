@@ -84,8 +84,7 @@ struct PbrUboCreateInfo
 struct PbrMeshVsUbo
 {
 	alignas(16) glm::mat4 Model;         
-	alignas(16) glm::mat4 View;          
-	alignas(16) glm::mat4 Projection;
+	alignas(16) glm::mat4 ViewProjection;          
 	alignas(16) glm::mat4 LightSpaceMatrix;
 
 	static PbrMeshVsUbo Create(const PbrUboCreateInfo& info)
@@ -93,8 +92,7 @@ struct PbrMeshVsUbo
 		PbrMeshVsUbo ubo{};
 		
 		ubo.Model = info.Model;
-		ubo.View = info.View;
-		ubo.Projection = info.Projection;
+		ubo.ViewProjection = info.Projection * info.View;
 		ubo.LightSpaceMatrix = info.LightSpaceMatrix;
 		
 		return ubo;

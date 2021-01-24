@@ -925,11 +925,13 @@ void PbrModelRenderPass::WriteCommonDescriptorSet(
 	vkh::UpdateDescriptorSet(device, {
 		// Mesh
 		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &meshUboInfo),
-		// IBL
+		
+		// IBL - TODO Move to a Frame scope descriptorSet as they're the same for every material and mesh in a frame
 		vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.ImageInfo()),
 		vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.ImageInfo()),
 		vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.ImageInfo()),
-		// Discrete lighting
+		
+		// Discrete lighting - TODO Move to a Frame scope descriptorSet as they're the same for every material and mesh in a frame
 		vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
 		vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
 		});
