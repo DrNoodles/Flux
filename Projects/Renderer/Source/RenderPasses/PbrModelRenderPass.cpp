@@ -507,19 +507,6 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 }
 
-
-[[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
-TextureResourceId PbrModelRenderPass::Hack_CreateTextureResource(const std::string& path)
-{
-	return _resourceRegistry->CreateTextureResource(path);
-}
-
-[[deprecated("use ResourceRegistry directly and not through PbrModelRenderPass")]] // TODO Remove this method
-MeshResourceId PbrModelRenderPass::Hack_CreateMeshResource(const MeshDefinition& meshDefinition)
-{
-	return _resourceRegistry->CreateMeshResource(meshDefinition);
-}
-
 RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId)
 {
 	auto model = std::make_unique<RenderableMesh>();

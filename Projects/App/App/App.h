@@ -260,7 +260,7 @@ private: // METHODS
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateMeshResource(meshDefinition);
+		return _ui->HACK_GetSceneRendererRef().Hack_CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion
@@ -271,7 +271,7 @@ private: // METHODS
 	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateTextureResource(path);
+		return _ui->HACK_GetSceneRendererRef().Hack_CreateTextureResource(path);
 	}
 
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override

@@ -86,7 +86,7 @@ public: // Lifetime
 		_assetsDir(std::move(assetsDir)),
 		_modelLoaderService(modelLoaderService)
 	{
-		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk);
+		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk, &modelLoaderService, _shaderDir, _assetsDir);
 		
 		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
@@ -194,14 +194,16 @@ public: // PBR RenderPass routing methods
 		return _pbrRenderPass->CreateRenderable(meshId);
 	}
 
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) const
+	[[deprecated("MeshResourceId is becoming internal to Renderer")]]
+	MeshResourceId Hack_CreateMeshResource(const MeshDefinition& meshDefinition) const
 	{
-		return _pbrRenderPass->Hack_CreateMeshResource(meshDefinition);
+		return _resourceRegistry->CreateMeshResource(meshDefinition);
 	}
 	
-	TextureResourceId CreateTextureResource(const std::string& path) const
+	[[deprecated("TextureResourceId is becoming internal to Renderer")]]
+	TextureResourceId Hack_CreateTextureResource(const std::string& path) const
 	{
-		return _pbrRenderPass->Hack_CreateTextureResource(path);
+		return _resourceRegistry->CreateTextureResource(path);
 	}
 
 public: // Skybox RenderPass routing methods

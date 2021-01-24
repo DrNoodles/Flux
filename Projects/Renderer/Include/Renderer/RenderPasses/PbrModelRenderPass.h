@@ -234,8 +234,6 @@ public: // Members
 		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
 
-	TextureResourceId Hack_CreateTextureResource(const std::string& path);
-	MeshResourceId Hack_CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
