@@ -494,7 +494,7 @@ public:
 		VkDebugUtilsMessengerEXT messenger,
 		const VkAllocationCallbacks* pAllocator);
 
-	inline static void UpdateDescriptorSets(VkDevice device, 
+	inline static void UpdateDescriptorSet(VkDevice device, 
 		const std::vector<VkWriteDescriptorSet>& descriptorWrites, 
 		i32 descriptorCopyCount = 0, 
 		VkCopyDescriptorSet* pCopyDescriptorSet = nullptr)

@@ -15,18 +15,27 @@ struct TextureDefinition
 	std::string Path{};
 };
 
+struct MaterialDefinition
+{
+	std::string Name{};
+	std::vector<TextureDefinition> Textures{};
+};
+
 struct MeshDefinition
 {
+	static const u32 InvalidMaterialIndex = 0xFFFFFFFF;
+	
 	std::string Name{};
 	std::vector<Vertex> Vertices{};
 	std::vector<u32> Indices{};
-	std::vector<TextureDefinition> Textures{};
 	AABB Bounds{};
+	u32 MaterialIndex = InvalidMaterialIndex;
 };
 
 struct ModelDefinition
 {
 	std::vector<MeshDefinition> Meshes{};
+	std::vector<MaterialDefinition> Materials{};
 };
 
 class IModelLoaderService

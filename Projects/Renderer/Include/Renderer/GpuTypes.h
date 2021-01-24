@@ -1,13 +1,15 @@
 #pragma once
 
-#include <Framework/Vertex.h>
-#include <Framework/CommonTypes.h>
 #include <Framework/CommonRenderer.h>
+#include <Framework/CommonTypes.h>
+#include <Framework/Material.h>
+#include <Framework/Vertex.h>
 
 #include <vulkan/vulkan.h>
 
 #include <array>
 #include <optional>
+#include <set>
 #include <vector>
 
 
@@ -101,13 +103,11 @@ struct SkyboxResourceFrame // for lack of a better name...
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct PbrModelResourceFrame // for lack of a better name...
+struct PbrCommonResourceFrame // for lack of a better name...
 {
-	VkDescriptorSet DescriptorSet;
+	VkDescriptorSet PbrDescriptorSet;
 	VkBuffer MeshUniformBuffer;
 	VkDeviceMemory MeshUniformBufferMemory;
-	VkBuffer MaterialUniformBuffer;
-	VkDeviceMemory MaterialUniformBufferMemory;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,8 +133,17 @@ struct QueueFamilyIndices
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct SceneRendererPrimitives
 {
-	std::vector<RenderableResourceId> RenderableIds;
-	std::vector<glm::mat4> RenderableTransforms;
+	struct RenderableObject
+	{
+		RenderableResourceId RenderableId; // TODO Material and MeshAsset here in place of RenderableId
+		glm::mat4 Transform;
+
+		// TODO maybe use an index into the materials to show intent that this isn't the mat owner for now this is easier to get it working
+		const Material& Material;  // i32 MaterialIndex = -1
+	};
+
+	std::set<const Material*> Materials{};
+	std::vector<RenderableObject> Objects;
 	std::vector<Light> Lights;
 	glm::vec3 ViewPosition;
 	glm::mat4 ViewMatrix;

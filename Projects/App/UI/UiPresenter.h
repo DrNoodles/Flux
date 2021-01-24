@@ -54,6 +54,8 @@ private: // DATA
 	f64 _lastCursorX{}, _lastCursorY{};
 
 	// PropsView helpers
+	int _selectedMaterialIndex = -1;
+	std::vector<std::pair<std::string, MaterialId>> _materials{};
 	int _selectionId = -1;
 	int _selectedSubMesh = 0;
 	std::vector<std::string> _submeshes{};
@@ -88,6 +90,7 @@ public: // METHODS
 	~UiPresenter() override = default;
 	
 	void Shutdown();
+	void Update();
 
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
@@ -170,6 +173,10 @@ private: // METHODS
 
 	void DeleteAll() override;
 
+	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
+	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
+	void SelectSubMesh(int index) override;
+
 	RenderOptions GetRenderOptions() override;
 	void SetRenderOptions(const RenderOptions& ro) override;
 	void LoadAndSetSkybox() override;
@@ -182,11 +189,12 @@ private: // METHODS
 
 #pragma region IPropsViewDelegate
 
+	inline const std::vector<std::pair<std::string, MaterialId>>& GetMaterials() override { return _materials; }
+	inline int GetSelectedMaterial() const override { return _selectedMaterialIndex; }
+	void SelectMaterial(int i) override;
+
 	std::optional<MaterialViewState> GetMaterialState() override;
 	void CommitMaterialChanges(const MaterialViewState& state) override;
-	int GetSelectedSubMesh() const override { return _selectedSubMesh; }
-	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
-	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }
-
+	
 #pragma endregion
 };

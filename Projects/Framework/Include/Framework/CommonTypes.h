@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -37,11 +38,22 @@ constexpr u64 u64_max = UINT64_MAX;
 template <typename T>
 struct TypedId
 {
-	u32 Id = u32_max;
 	TypedId() = default;
-	TypedId(u32 id) : Id{ id } {}
-	//bool IsValid() const { return Id != u32_max; }
-	// TODO equality checks
+	explicit TypedId(u32 id) : _id{ id } {}
+	bool IsValid() const { return _id != u32_max; }
+
+	u32 Value() const
+	{
+		assert(IsValid());
+		return _id;
+	}
+	bool operator==(const TypedId& other) const
+	{
+		return _id == other._id;
+	}
+
+private:
+	u32 _id = u32_max;
 };
 
 

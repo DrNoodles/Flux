@@ -62,13 +62,13 @@ public:
 		vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
 
-		for (size_t i = 0; i < scene.RenderableIds.size(); i++)
+		for (const auto& object : scene.Objects)
 		{
-			const auto& renderable = *renderables[scene.RenderableIds[i].Id];
-			const auto& mesh = *meshes[renderable.MeshId.Id];
+			const auto& renderable = *renderables[object.RenderableId.Value()];
+			const auto& mesh = *meshes[renderable.MeshId.Value()];
 
 			PushConstants pushConstants{};
-			pushConstants.ShadowMatrix = lightSpaceMatrix * scene.RenderableTransforms[i];
+			pushConstants.ShadowMatrix = lightSpaceMatrix * object.Transform;
 
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };

@@ -1,6 +1,6 @@
 #pragma once
-#include <State/Entity/IActionComponent.h>
-#include <State/Entity/TransformComponent.h>
+#include "State/Entity/IActionComponent.h"
+#include "State/Entity/TransformComponent.h"
 
 class TurntableAction final : public IActionComponent
 {

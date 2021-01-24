@@ -1,17 +1,29 @@
 #pragma once
 
-#include <Framework/CommonRenderer.h>
 #include <Framework/AABB.h>
+#include <Framework/CommonRenderer.h>
+#include <Framework/Material.h>
 
 #include <string>
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct RenderableComponentSubmesh
 {
-	const RenderableResourceId Id;
-	const std::string Name;
+	const RenderableResourceId Id; // TODO change to a MeshAssetId when that's a thing
+	std::string Name;
+	MaterialId MatId;
+
 	RenderableComponentSubmesh() = delete;
-	RenderableComponentSubmesh(RenderableResourceId id, std::string name) : Id(id), Name(std::move(name)) {}
+	RenderableComponentSubmesh(RenderableResourceId id, std::string name, MaterialId mat)
+		: Id(id), Name(std::move(name)), MatId(mat)
+	{
+	}
+
+	void AssignMaterial(MaterialId id)
+	{
+		MatId = id;
+	}
 };
 
 
@@ -23,7 +35,7 @@ public:
 
 	explicit RenderableComponent(std::vector<RenderableComponentSubmesh> submeshes, AABB bounds)
 	{
-		_renderableIds = std::move(submeshes);
+		_submeshes = std::move(submeshes);
 		_bounds = bounds;
 	}
 	
@@ -33,11 +45,19 @@ public:
 	}
 
 	AABB GetBounds() const { return _bounds; }
-	const std::vector<RenderableComponentSubmesh>& GetSubmeshes() const { return _renderableIds; }
-	
+	std::vector<RenderableComponentSubmesh>& GetSubmeshes() { return _submeshes; }
+
+	void AssignMaterial(MaterialId id)
+	{
+		for (auto&& submesh : _submeshes)
+		{
+			submesh.AssignMaterial(id);
+		}
+	}
+
 private:
 	AABB _bounds;
-	std::vector<RenderableComponentSubmesh> _renderableIds;
+	std::vector<RenderableComponentSubmesh> _submeshes;
 
 	// TODO Use this space to add additional data used for the App/Ui layer
 };

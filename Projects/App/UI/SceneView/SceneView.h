@@ -25,8 +25,15 @@ public:
 	virtual void CreateSphere() = 0;
 	virtual void CreateBlob() = 0;
 	virtual void CreateCube() = 0;
+
+	// Scene
 	virtual void DeleteSelected() = 0;
 	virtual void DeleteAll() = 0;
+
+	// Submeshes
+	virtual int GetSelectedSubMesh() const = 0;
+	virtual void SelectSubMesh(int i) = 0;
+	virtual const std::vector<std::string>& GetSubmeshes() = 0;
 	
 	virtual RenderOptions GetRenderOptions() = 0;
 	virtual void SetRenderOptions(const RenderOptions& ro) = 0;

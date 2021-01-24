@@ -26,13 +26,13 @@ using vkh = VulkanHelpers;
 PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
 	: _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir))
 {
+	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
+
 	InitRenderer();
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
-	
-	_placeholderTexture = CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
 }
 
-void PbrModelRenderPass::Destroy()
+void PbrModelRenderPass::Destroy() // TODO Make this RAII
 {
 	vkDeviceWaitIdle(_vk.LogicalDevice());
 	
@@ -46,8 +46,12 @@ void PbrModelRenderPass::InitRenderer()
 	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
 	
 	// PBR pipe
+	_materialDescriptorSetLayout = CreateMaterialDescriptorSetLayout(_vk.LogicalDevice());
 	_pbrDescriptorSetLayout = CreatePbrDescriptorSetLayout(_vk.LogicalDevice());
-	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _pbrDescriptorSetLayout });
+	_pbrPipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { 
+		_materialDescriptorSetLayout,
+		_pbrDescriptorSetLayout,
+	});
 }
 void PbrModelRenderPass::DestroyRenderer()
 {
@@ -68,6 +72,7 @@ void PbrModelRenderPass::DestroyRenderer()
 	// PbrModelRenderPass
 	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _materialDescriptorSetLayout, nullptr);
 
 	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
 }
@@ -86,20 +91,21 @@ void PbrModelRenderPass::InitRendererResourcesDependentOnSwapchain(u32 numImages
 	// Create model uniform buffers and descriptor sets per swapchain image
 	for (auto& renderable : _renderables)
 	{
-		renderable->FrameResources = CreatePbrModelFrameResources(numImagesInFlight, *renderable);
+		renderable->CommonFrameResources = CreateCommonFrameResources(numImagesInFlight);
 	}
+
+	_materialFrameResources = std::make_unique<MaterialResourceManager>(_vk, _rendererDescriptorPool, _materialDescriptorSetLayout, _textures, _placeholderTexture);
 }
 void PbrModelRenderPass::DestroyRenderResourcesDependentOnSwapchain()
 {
+	_materialFrameResources = nullptr; // RAII
+	
 	for (auto& renderable : _renderables)
 	{
-		for (auto& info : renderable->FrameResources)
+		for (auto& info : renderable->CommonFrameResources)
 		{
 			vkDestroyBuffer(_vk.LogicalDevice(), info.MeshUniformBuffer, nullptr);
 			vkFreeMemory(_vk.LogicalDevice(), info.MeshUniformBufferMemory, nullptr);
-			vkDestroyBuffer(_vk.LogicalDevice(), info.MaterialUniformBuffer, nullptr);
-			vkFreeMemory(_vk.LogicalDevice(), info.MaterialUniformBufferMemory, nullptr);
-			//vkFreeDescriptorSets(_vk->LogicalDevice(), _descriptorPool, (uint32_t)mesh.DescriptorSets.size(), mesh.DescriptorSets.data());
 		}
 	}
 
@@ -233,55 +239,87 @@ VkRenderPass PbrModelRenderPass::CreateRenderPass(VkFormat format, VulkanService
 	return renderPass;
 }
 
-bool PbrModelRenderPass::UpdateDescriptors(const RenderOptions& options, bool skyboxUpdated)
+bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& options, bool skyboxUpdated, const SceneRendererPrimitives& scene)
 {
+	// HACK HACK HACK TODO Optimise this so we only update descriptor sets when needed :)
+	_refreshRenderableDescriptorSets = true;
+	// HACK HACK HACK
+
 	const bool updateDescriptors = skyboxUpdated || _refreshRenderableDescriptorSets;
-	
+
 	_lastOptions = options;
 	_refreshRenderableDescriptorSets = false;
 
-	// Rebuild descriptor sets as needed
-	if (updateDescriptors)
+	// Rebuild descriptor sets if needed
+	if (!updateDescriptors)
+		return updateDescriptors;
+
+
+	// Get the id of an existing texture, fallback to placeholder if necessary.
+	const auto pid = _placeholderTexture.Value();
+	auto GetTextureId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Value() : pid; };
+
+
+
+	// TODO
+	
+	/*
+	 * DONE! [x] v1  -  unique descset per mat, updated every frame
+	 * 
+	 * 1. Add scene.Materials of each unique mat.
+	 * 2. scene.Objects should have an index ref into scene.Materials
+	 * 3. add unordered_map of <matId, matDescSet>
+	 * 4. each mat.id has a desc set that's updated every frame
+	 */
+	
+	/*
+	 * [ ] v2  -  only update when changed
+	 * 
+	 * 1. add code in this layer that gens a hash id for material desc set
+	 * 2. add unordered_map of <matId, pair<matHash, matDescSet>>
+	 */
+
+	for (auto&& mat : scene.Materials)
 	{
-		for (auto& renderable : _renderables)
-		{
-			// Gather descriptor sets and uniform buffers
-			const auto count = renderable->FrameResources.size();
-			std::vector<VkDescriptorSet> descriptorSets{};
-			std::vector<VkBuffer> meshBuffers{};
-			std::vector<VkBuffer> materialBuffers{};
-			descriptorSets.resize(count);
-			meshBuffers.resize(count);
-			materialBuffers.resize(count);
-			for (size_t i = 0; i < count; i++)
-			{
-				descriptorSets[i] = renderable->FrameResources[i].DescriptorSet;
-				meshBuffers[i] = renderable->FrameResources[i].MeshUniformBuffer;
-				materialBuffers[i] = renderable->FrameResources[i].MaterialUniformBuffer;
-			}
+		/*
+		THIS REALLY DOES JUST NEED TO BE ABOUT FREQUENCY OF UPDATE
+		SPLITTING THEM UP IS PURELY TO MINIMISE UPDATES IN GENERAL
 
-			// Get the id of an existing texture, fallback to placeholder if necessary.
-			const auto pid = _placeholderTexture.Id;
-			auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
+		PER FRAME: time, ibl, punctual lightingS
+			PER MATERIAL: material textures and ubo
+				PER MESH: transform
+		*/
+		
+		const PbrMaterialResource& matResources = _materialFrameResources->GetOrCreate(*mat, imageIndex);
+		//matResources->UpdateDescriptorSet(mat);
+		
+		_materialFrameResources->WriteMaterialDescriptorSet(
+			matResources.GetMaterialDescriptorSet(),
+			matResources.GetMaterialUniformBuffer(),
+			*_textures[GetTextureId(mat->BasecolorMap)],
+			*_textures[GetTextureId(mat->NormalMap)],
+			*_textures[GetTextureId(mat->RoughnessMap)],
+			*_textures[GetTextureId(mat->MetalnessMap)],
+			*_textures[GetTextureId(mat->AoMap)],
+			*_textures[GetTextureId(mat->EmissiveMap)],
+			*_textures[GetTextureId(mat->TransparencyMap)],
+			_vk.LogicalDevice());
+	}
 
-			// Write updated descriptor sets
-			WritePbrDescriptorSets((u32)count, descriptorSets,
-				meshBuffers,
-				materialBuffers,
-				_lightBuffers,
-				*_textures[GetId(renderable->Mat.BasecolorMap)],
-				*_textures[GetId(renderable->Mat.NormalMap)],
-				*_textures[GetId(renderable->Mat.RoughnessMap)],
-				*_textures[GetId(renderable->Mat.MetalnessMap)],
-				*_textures[GetId(renderable->Mat.AoMap)],
-				*_textures[GetId(renderable->Mat.EmissiveMap)],
-				*_textures[GetId(renderable->Mat.TransparencyMap)],
-				_delegate.GetIrradianceTextureResource(),
-				_delegate.GetPrefilterTextureResource(),
-				_delegate.GetBrdfTextureResource(),
-				_delegate.GetShadowmapDescriptor(),
-				_vk.LogicalDevice());
-		}
+	
+	for (auto&& object : scene.Objects)
+	{
+		const auto& commonResources = _renderables[object.RenderableId.Value()]->CommonFrameResources[imageIndex];
+
+		WriteCommonDescriptorSet(
+			commonResources.PbrDescriptorSet,
+			commonResources.MeshUniformBuffer,
+			_lightBuffers[imageIndex],
+			_delegate.GetIrradianceTextureResource(),
+			_delegate.GetPrefilterTextureResource(),
+			_delegate.GetBrdfTextureResource(),
+			_delegate.GetShadowmapDescriptor(),
+			_vk.LogicalDevice());
 	}
 
 	return updateDescriptors;
@@ -289,12 +327,10 @@ bool PbrModelRenderPass::UpdateDescriptors(const RenderOptions& options, bool sk
 
 void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
+	const std::vector<SceneRendererPrimitives::RenderableObject>& objects,
 	const std::vector<Light>& lights,
 	const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix)
 {
-	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
 
 	// Update UBOs
@@ -310,13 +346,29 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkUnmapMemory(_vk.LogicalDevice(), _lightBuffersMemory[frameIndex]);
 		}
 
-		// Renderable UBOs
-		for (size_t i = 0; i < renderableIds.size(); i++)
+	}
+
+
+
+
+	// Update material UBOs
+	for (auto&& object : objects)
+	{
+		
+	}
+
+
+	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
+	std::vector<SceneRendererPrimitives::RenderableObject> opaqueObjects = {};
+	std::map<f32, SceneRendererPrimitives::RenderableObject> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
+	for (const auto& object : objects)
+	{
+		const auto& renderable = *_renderables[object.RenderableId.Value()];
+		
+		// Update UBOs
 		{
-			const auto& renderable = *_renderables[renderableIds[i].Id];
-			
 			PbrUboCreateInfo info = {};
-			info.Model = transforms[i];
+			info.Model = object.Transform;
 			info.View = view;
 			info.Projection = projection;
 			info.LightSpaceMatrix = lightSpaceMatrix;
@@ -327,9 +379,10 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
 
+			
 			// Update Pbr Mesh ubos
 			{
-				const auto& bufferMemory = renderable.FrameResources[frameIndex].MeshUniformBufferMemory;
+				const auto& bufferMemory = renderable.CommonFrameResources[frameIndex].MeshUniformBufferMemory;
 				const auto ubo = PbrMeshVsUbo::Create(info);
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
@@ -340,10 +393,12 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 				vkUnmapMemory(_vk.LogicalDevice(), bufferMemory);
 			}
 
+			
 			// Update Pbr Material ubos
 			{
-				const auto& bufferMemory = renderable.FrameResources[frameIndex].MaterialUniformBufferMemory;
-				const auto ubo = PbrMaterialUbo::Create(info, renderable.Mat);
+				const auto& matResources = _materialFrameResources->GetOrCreate(object.Material, frameIndex);
+				auto* bufferMemory = matResources.GetMaterialUniformBufferMemory();
+				const auto ubo = PbrMaterialUbo::Create(info, object.Material);
 
 				// Copy to gpu - TODO PERF Keep mem mapped 
 				void* data;
@@ -353,39 +408,30 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 				vkUnmapMemory(_vk.LogicalDevice(), bufferMemory);
 			}
 		}
-	}
 
-	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
-	std::vector<RenderableResourceId> opaqueObjects = {};
-	std::map<f32, RenderableResourceId> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
-
-	for (size_t i = 0; i < renderableIds.size(); i++)
-	{
-		const auto& id = renderableIds[i];
-		const auto& mat = _renderables[id.Id]->Mat;
 		
-		if (mat.UsingTransparencyMap())
+		// Depth sort transparent object
+		if (object.Material.UsingTransparencyMap())
 		{
-			// Depth sort transparent object
-			
-			// Calc depth of from camera to object transform - this isn't fullproof!
-			const auto& tf = transforms[i];
-			auto objPos = glm::vec3(tf[3]);
-			glm::vec3 diff = objPos-camPos;
-			float dist2 = glm::dot(diff,diff);
 
-			auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, id);
+			// Calc depth of from camera to object transform - this isn't fullproof!
+			const auto& tf = object.Transform;
+			const auto objPos = glm::vec3(tf[3]);
+			const glm::vec3 displacement = objPos - camPos;
+			float distSquared = glm::dot(displacement, displacement);
+
+			auto [it, success] = depthSortedTransparentObjects.try_emplace(distSquared, object);
 			while (!success)
 			{
 				// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
-				dist2 += 0.001f * (float(rand())/RAND_MAX);
-				std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, id);
+				distSquared += 0.001f * (float(rand()) / RAND_MAX);
+				std::tie(it, success) = depthSortedTransparentObjects.try_emplace(distSquared, object);
 				//std::cerr << "Failed to depth sort object\n";
 			}
 		}
 		else // Opaque
 		{
-			opaqueObjects.emplace_back(id);
+			opaqueObjects.emplace_back(object);
 		}
 	}
 
@@ -394,12 +440,17 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipeline);
 
-		// Draw Opaque objects
-		for (const auto& opaqueObj : opaqueObjects)
+		auto DrawMesh = [&](const SceneRendererPrimitives::RenderableObject& obj)
 		{
-			const auto& renderable = _renderables[opaqueObj.Id].get();
-			const auto& mesh = *_meshes[renderable->MeshId.Id];
-
+			const auto& renderable = _renderables[obj.RenderableId.Value()].get();
+			const auto& mesh = *_meshes[renderable->MeshId.Value()];
+			const auto& materialResource = _materialFrameResources->GetOrCreate(obj.Material, frameIndex);
+			
+			std::array<VkDescriptorSet, 2> descSets = {
+				materialResource.GetMaterialDescriptorSet(),
+				renderable->CommonFrameResources[frameIndex].PbrDescriptorSet
+			};
+			
 			// Draw mesh
 			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 			VkDeviceSize offsets[] = { 0 };
@@ -407,27 +458,22 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout, // TODO Use diff pipeline with blending disabled?
-				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+				0, (u32)descSets.size(), descSets.data(), 0, nullptr);
+			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
+		};
+
+		
+		// Draw Opaque objects
+		for (auto&& opaqueObj : opaqueObjects)
+		{
+			DrawMesh(opaqueObj);
 		}
 
 		// Draw transparent objects (reverse iterated)
 		for (auto it = depthSortedTransparentObjects.rbegin(); it != depthSortedTransparentObjects.rend(); ++it)
 		{
-			auto [dist2, renderableId] = *it;
-			
-			const auto& renderable = _renderables[renderableId.Id].get();
-			const auto& mesh = *_meshes[renderable->MeshId.Id];
-
-			// Draw mesh
-			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS, _pbrPipelineLayout,
-				0, 1, &renderable->FrameResources[frameIndex].DescriptorSet, 0, nullptr);
-			vkCmdDrawIndexed(commandBuffer, (uint32_t)mesh.IndexCount, 1, 0, 0, 0);
+			auto [_, transparentObj] = *it;
+			DrawMesh(transparentObj);
 		}
 	}
 
@@ -440,7 +486,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 TextureResourceId PbrModelRenderPass::CreateTextureResource(const std::string& path)
 {
-	const TextureResourceId id = (u32)_textures.size();
+	const auto id = TextureResourceId((u32)_textures.size());
 	auto texRes = TextureResourceHelpers::LoadTexture(path, _vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
 	return id;
@@ -462,28 +508,30 @@ MeshResourceId PbrModelRenderPass::CreateMeshResource(const MeshDefinition& mesh
 		= vkh::CreateIndexBuffer(meshDefinition.Indices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 
 
-	const MeshResourceId id = (u32)_meshes.size();
+	const auto id = MeshResourceId((u32)_meshes.size());
 	_meshes.emplace_back(std::move(mesh));
 
 	return id;
 }
 
-
-RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId, const Material& material)
+RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId)
 {
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
-	model->Mat = material;
-	model->FrameResources = CreatePbrModelFrameResources(_vk.GetSwapchain().GetImageCount(), *model);
+	model->CommonFrameResources = CreateCommonFrameResources(_vk.GetSwapchain().GetImageCount()); 
 
-	const RenderableResourceId id = (u32)_renderables.size();
+	const auto id = RenderableResourceId((u32)_renderables.size());
 	_renderables.emplace_back(std::move(model));
 
 	return id;
 }
 
+/*
+// TODO - KEEP THIS CODE-  The comparison below could be used to determine whether a mat descriptor needs to be written
+
 void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
 {
+		
 	auto& renderable = *_renderables[renderableResId.Id];
 	auto& oldMat = renderable.Mat;
 
@@ -511,9 +559,8 @@ void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId
 		_refreshRenderableDescriptorSets = true;
 	}
 }
+*/
 
-
-#pragma region Shared
 
 VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
@@ -545,170 +592,6 @@ VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight,
 	return vkh::CreateDescriptorPool(poolSizes, totalDescSets, device);
 }
 
-#pragma endregion Shared
-
-
-#pragma region Pbr
-
-std::vector<PbrModelResourceFrame> PbrModelRenderPass::CreatePbrModelFrameResources(u32 numImagesInFlight,
-	const RenderableMesh& renderable) const
-{
-	// Create uniform buffers
-	auto [meshBuffers, meshBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMeshVsUbo), 
-		_vk.LogicalDevice(), _vk.PhysicalDevice());
-
-	auto [materialBuffers, materialBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMaterialUbo), 
-		_vk.LogicalDevice(), _vk.PhysicalDevice());
-
-
-	// Create descriptor sets
-	auto descriptorSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
-
-
-	// Get the id of an existing texture, fallback to placeholder if necessary.
-	const auto pid = _placeholderTexture.Id;
-	auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Id : pid; };
-
-
-	
-	WritePbrDescriptorSets(
-		numImagesInFlight,
-		descriptorSets,
-		meshBuffers,
-		materialBuffers,
-		_lightBuffers,
-		*_textures[GetId(renderable.Mat.BasecolorMap)],
-		*_textures[GetId(renderable.Mat.NormalMap)],
-		*_textures[GetId(renderable.Mat.RoughnessMap)],
-		*_textures[GetId(renderable.Mat.MetalnessMap)],
-		*_textures[GetId(renderable.Mat.AoMap)],
-		*_textures[GetId(renderable.Mat.EmissiveMap)],
-		*_textures[GetId(renderable.Mat.TransparencyMap)],
-		_delegate.GetIrradianceTextureResource(),
-		_delegate.GetPrefilterTextureResource(),
-		_delegate.GetBrdfTextureResource(),
-		_delegate.GetShadowmapDescriptor(),
-		_vk.LogicalDevice()
-	);
-
-
-	// Group data for return
-	std::vector<PbrModelResourceFrame> modelInfos;
-	modelInfos.resize(numImagesInFlight);
-
-	for (size_t i = 0; i < numImagesInFlight; i++)
-	{
-		modelInfos[i].MeshUniformBuffer = meshBuffers[i];
-		modelInfos[i].MeshUniformBufferMemory = meshBuffersMemory[i];
-		modelInfos[i].MaterialUniformBuffer = materialBuffers[i];
-		modelInfos[i].MaterialUniformBufferMemory = materialBuffersMemory[i];
-		modelInfos[i].DescriptorSet = descriptorSets[i];
-	}
-
-	return modelInfos;
-}
-
-VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice device)
-{
-	return vkh::CreateDescriptorSetLayout(device, {
-		// pbr material ubo
-		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// irradiance map
-		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// prefilter map
-		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// brdf map
-		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// light ubo
-		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// basecolor
-		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// normalMap
-		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// roughnessMap
-		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// metalnessMap
-		vki::DescriptorSetLayoutBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// aoMap
-		vki::DescriptorSetLayoutBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// emissiveMap
-		vki::DescriptorSetLayoutBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// transparencyMap
-		vki::DescriptorSetLayoutBinding(11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// shadowMap
-		vki::DescriptorSetLayoutBinding(12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-		// pbr model ubo
-		vki::DescriptorSetLayoutBinding(13, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
-	});
-}
-
-void PbrModelRenderPass::WritePbrDescriptorSets(
-	uint32_t count,
-	const std::vector<VkDescriptorSet>& descriptorSets,
-	const std::vector<VkBuffer>& meshUbos,
-	const std::vector<VkBuffer>& materialUbos,
-	const std::vector<VkBuffer>& lightUbos,
-	const TextureResource& basecolorMap,
-	const TextureResource& normalMap,
-	const TextureResource& roughnessMap,
-	const TextureResource& metalnessMap,
-	const TextureResource& aoMap,
-	const TextureResource& emissiveMap,
-	const TextureResource& transparencyMap,
-	const TextureResource& irradianceMap,
-	const TextureResource& prefilterMap,
-	const TextureResource& brdfMap,
-	VkDescriptorImageInfo shadowmapDescriptor,
-	VkDevice device)
-{
-	assert(count == meshUbos.size());// 1 per image in swapchain
-	assert(count == materialUbos.size());// 1 per image in swapchain
-	assert(count == lightUbos.size());
-	
-	// Configure our new descriptor sets to point to our buffer/image data
-	for (size_t i = 0; i < count; ++i)
-	{
-		VkDescriptorBufferInfo meshUboInfo = {};
-		{
-			meshUboInfo.buffer = meshUbos[i];
-			meshUboInfo.offset = 0;
-			meshUboInfo.range = sizeof(PbrMeshVsUbo);
-		}
-		
-		VkDescriptorBufferInfo materialUboInfo = {};
-		{
-			materialUboInfo.buffer = materialUbos[i];
-			materialUboInfo.offset = 0;
-			materialUboInfo.range = sizeof(PbrMaterialUbo);
-		}
-		
-		VkDescriptorBufferInfo lightUboInfo = {};
-		{
-			lightUboInfo.buffer = lightUbos[i];
-			lightUboInfo.offset = 0;
-			lightUboInfo.range = sizeof(LightUbo);
-		}
-
-		const auto& s = descriptorSets[i];
-		
-		vkh::UpdateDescriptorSets(device, {
-			vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &materialUboInfo),
-			vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
-			vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &basecolorMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &normalMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &roughnessMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &metalnessMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &aoMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &emissiveMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 11, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &transparencyMap.ImageInfo()),
-			vki::WriteDescriptorSet(s, 12, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
-			vki::WriteDescriptorSet(s, 13, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &meshUboInfo),
-			});
-	}
-}
 
 VkPipeline PbrModelRenderPass::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	VkPipelineLayout pipelineLayout,
@@ -933,5 +816,132 @@ VkPipeline PbrModelRenderPass::CreatePbrGraphicsPipeline(const std::string& shad
 	return pipeline;
 }
 
-#pragma endregion Pbr
+
+#pragma region Material Descriptor Sets
+
+VkDescriptorSetLayout PbrModelRenderPass::CreateMaterialDescriptorSetLayout(VkDevice device)
+{
+	return vkh::CreateDescriptorSetLayout(device, {
+		// pbr material ubo
+		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// basecolor
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// normalMap
+		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// roughnessMap
+		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// metalnessMap
+		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// aoMap
+		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// emissiveMap
+		vki::DescriptorSetLayoutBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// transparencyMap
+		vki::DescriptorSetLayoutBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+	});
+}
+
+#pragma endregion Material Descriptor Sets
+
+
+#pragma region Common Descriptor Sets
+
+std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResources(u32 numImagesInFlight) const
+{
+	// Create uniform buffers
+	auto [meshBuffers, meshBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMeshVsUbo), 
+		_vk.LogicalDevice(), _vk.PhysicalDevice());
+
+	// Create descriptor sets
+	const auto pbrDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _pbrDescriptorSetLayout, _rendererDescriptorPool, _vk.LogicalDevice());
+
+
+	for (u32 i = 0; i < numImagesInFlight; i++)
+	{
+		WriteCommonDescriptorSet(
+			pbrDescSets[i],
+			meshBuffers[i],
+			_lightBuffers[i],
+			_delegate.GetIrradianceTextureResource(),
+			_delegate.GetPrefilterTextureResource(),
+			_delegate.GetBrdfTextureResource(),
+			_delegate.GetShadowmapDescriptor(),
+			_vk.LogicalDevice());
+	}
+
+	// Group data for return
+	std::vector<PbrCommonResourceFrame> ret(numImagesInFlight);
+	for (size_t i = 0; i < numImagesInFlight; i++)
+	{
+		ret[i].MeshUniformBuffer = meshBuffers[i];
+		ret[i].MeshUniformBufferMemory = meshBuffersMemory[i];
+		ret[i].PbrDescriptorSet = pbrDescSets[i];
+	}
+
+	return ret;
+}
+
+VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice device)
+{
+	return vkh::CreateDescriptorSetLayout(device, {
+		// pbr model ubo
+		vki::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
+
+		// irradiance map
+		vki::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// prefilter map
+		vki::DescriptorSetLayoutBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// brdf map
+		vki::DescriptorSetLayoutBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+
+		// light ubo
+		vki::DescriptorSetLayoutBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT),
+		// shadowMap
+		vki::DescriptorSetLayoutBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+	});
+}
+
+void PbrModelRenderPass::WriteCommonDescriptorSet(
+	VkDescriptorSet descriptorSet,
+	VkBuffer meshUbo,
+	VkBuffer lightUbo,
+	const TextureResource& irradianceMap,
+	const TextureResource& prefilterMap,
+	const TextureResource& brdfMap,
+	VkDescriptorImageInfo shadowmapDescriptor,
+	VkDevice device)
+{
+
+	// Configure our new descriptor sets to point to our buffer/image data
+	VkDescriptorBufferInfo meshUboInfo = {};
+	{
+		meshUboInfo.buffer = meshUbo;
+		meshUboInfo.offset = 0;
+		meshUboInfo.range = sizeof(PbrMeshVsUbo);
+	}
+
+	VkDescriptorBufferInfo lightUboInfo = {};
+	{
+		lightUboInfo.buffer = lightUbo;
+		lightUboInfo.offset = 0;
+		lightUboInfo.range = sizeof(LightUbo);
+	}
+
+	const auto& s = descriptorSet;
+
+	vkh::UpdateDescriptorSet(device, {
+		// Mesh
+		vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &meshUboInfo),
+		// IBL
+		vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &irradianceMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &prefilterMap.ImageInfo()),
+		vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &brdfMap.ImageInfo()),
+		// Discrete lighting
+		vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &lightUboInfo),
+		vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &shadowmapDescriptor),
+		});
+}
+
+
+#pragma endregion Common Descriptor Sets
 

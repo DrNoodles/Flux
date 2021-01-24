@@ -93,8 +93,8 @@ public: // Lifetime
 	SceneRenderer(const SceneRenderer&) = delete;
 	SceneRenderer& operator=(const SceneRenderer&) = delete;
 
-	SceneRenderer(SceneRenderer&& other) = default;
-	SceneRenderer& operator=(SceneRenderer&& other) = default;
+	SceneRenderer(SceneRenderer&& other) = delete;
+	SceneRenderer& operator=(SceneRenderer&& other) = delete;
 
 	~SceneRenderer() override
 	{
@@ -108,7 +108,7 @@ public: // Lifetime
 		_dirShadowRenderPass = nullptr;
 		
 		_pbrRenderPass->Destroy();
-		_pbrRenderPass = nullptr;
+		_pbrRenderPass = nullptr;  // TODO Make this RAII
 		
 		_skyboxRenderPass->Destroy();
 		_skyboxRenderPass = nullptr;
@@ -128,7 +128,7 @@ public: // Methods
 	{
 		// Update all descriptors
 		const auto skyboxDescUpdated = _skyboxRenderPass->UpdateDescriptors(options);
-		_pbrRenderPass->UpdateDescriptors(options, skyboxDescUpdated); // also update other passes?
+		_pbrRenderPass->UpdateDescriptors(imageIndex, options, skyboxDescUpdated, scene); // also update other passes?
 
 
 		// Draw shadow pass
@@ -171,9 +171,9 @@ public: // Methods
 				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
-				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.ViewMatrix, projection);
+				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.ViewMatrix, projection);
 				
-				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.RenderableIds, scene.RenderableTransforms, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.Objects, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
@@ -183,22 +183,16 @@ public: // Methods
 public: // PBR RenderPass routing methods
 	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
 
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) const
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) const
 	{
-		return _pbrRenderPass->CreateRenderable(meshId, material);
+		return _pbrRenderPass->CreateRenderable(meshId);
 	}
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) const
 	{
 		return _pbrRenderPass->CreateMeshResource(meshDefinition);
 	}
-
-	const Material& GetMaterial(const RenderableResourceId& id) const { return _pbrRenderPass->GetMaterial(id); }
-	void SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
-	{
-		_pbrRenderPass->SetMaterial(renderableResId, newMat);
-	}
-
+	
 	TextureResourceId CreateTextureResource(const std::string& path) const
 	{
 		return _pbrRenderPass->CreateTextureResource(path);

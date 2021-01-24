@@ -58,11 +58,7 @@ public: // Members
 	
 	bool UpdateDescriptors(const RenderOptions& options);
 	
-	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
-		const RenderOptions& options,
-		const std::vector<RenderableResourceId>& renderableIds,
-		const std::vector<glm::mat4>& transforms,
-		const glm::mat4& view, const glm::mat4& projection);
+	void Draw(VkCommandBuffer commandBuffer, u32 frameIndex, const RenderOptions& options, const glm::mat4& view, const glm::mat4& projection);
 
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
@@ -97,25 +93,25 @@ public:
 	const TextureResource& GetIrradianceTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.IrradianceCubemapId.Value() : _placeholderTexture.Value()];
 	}
 
 	const TextureResource& GetPrefilterTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.PrefilterCubemapId.Value() : _placeholderTexture.Value()];
 	}
 
 	const TextureResource& GetBrdfTextureResource() const
 	{
 		const auto* skybox = GetCurrentSkyboxOrNull();
-		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Id : _placeholderTexture.Id];
+		return *_textures[skybox ? skybox->IblTextureIds.BrdfLutId.Value() : _placeholderTexture.Value()];
 	}
 
 private:
 	const Skybox* GetCurrentSkyboxOrNull() const
 	{
-		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Id].get();
+		return _skyboxes.empty() ? nullptr : _skyboxes[_activeSkybox.Value()].get();
 	}
 
 	/*const TextureResource& GetSkyboxTextureResource() const

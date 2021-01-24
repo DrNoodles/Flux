@@ -10,6 +10,9 @@
 
 struct MaterialViewState
 {
+	MaterialId MaterialId;
+	std::string Name;
+	
 	bool UseBasecolorMap = false;
 	//bool UseNormalMap = false;
 	bool UseMetalnessMap = false;
@@ -46,11 +49,15 @@ struct MaterialViewState
 	int ActiveAoChannel = 0;
 	int ActiveTransparencyChannel = 0;
 
-	
+
 	static MaterialViewState CreateFrom(const Material& mat)
 	{
 		MaterialViewState state = {};
 
+		state.MaterialId = mat.Id;
+
+		state.Name = mat.Name;
+		
 		state.UseBasecolorMap = mat.UseBasecolorMap;
 		state.UseMetalnessMap = mat.UseMetalnessMap;
 		state.UseRoughnessMap = mat.UseRoughnessMap;
@@ -108,9 +115,14 @@ struct MaterialViewState
 		return state;
 	}
 
-	static Material ToMaterial(const MaterialViewState& state, SceneManager& sm)
+
+	static void ToMaterial(const MaterialViewState& state, Material* target, SceneManager& sm)
 	{
-		Material mat;
+		assert(target);
+		
+		Material& mat = *target;
+
+		mat.Name = state.Name;
 		
 		mat.UseBasecolorMap = state.UseBasecolorMap;
 		mat.UseMetalnessMap = state.UseMetalnessMap;
@@ -202,8 +214,6 @@ struct MaterialViewState
 		UpdateMap(state.EmissiveMapPath, mat, TextureType::Emissive);
 		UpdateMap(state.TransparencyMapPath, mat, TextureType::Transparency);
 
-
-		return mat;
 	}
 };
 

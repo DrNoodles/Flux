@@ -14,13 +14,13 @@ struct LightPacked
 	vec4 PosType;       // floats [X,Y,Z], int [Type:Point=0,Directional=1]
 };
 
-layout(std140, binding = 0) uniform PbrMaterialUbo
+layout(std140, set = 0, binding = 0) uniform PbrMaterialUbo
 {
 	layout(offset=0) mat4 cubemapRotation;
 	layout(offset=64) vec3 camPos;
 
 	layout(offset=80) vec3 basecolor;
-	layout(offset=96) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel.
+	layout(offset=96) vec3 scaleNormalMap; // Scales the normals after the map has been transformed to [-1,1] per channel. Used to invert channels.
 
 	layout(offset=112) 
 	bool  useBasecolorMap;   
@@ -55,23 +55,26 @@ layout(std140, binding = 0) uniform PbrMaterialUbo
 	float iblStrength;    
 } ubo;
 
-layout(binding = 1) uniform samplerCube IrradianceMap; // diffuse
-layout(binding = 2) uniform samplerCube PrefilterMap; // spec
-layout(binding = 3) uniform sampler2D BrdfLUT; // spec
-layout(std140, binding = 4) uniform LightUbo
+layout(set = 0, binding = 1)  uniform sampler2D BasecolorMap;
+layout(set = 0, binding = 2)  uniform sampler2D NormalMap;
+layout(set = 0, binding = 3)  uniform sampler2D RoughnessMap;
+layout(set = 0, binding = 4)  uniform sampler2D MetalnessMap;
+layout(set = 0, binding = 5)  uniform sampler2D AmbientOcclusionMap;
+layout(set = 0, binding = 6) uniform sampler2D EmissiveMap;
+layout(set = 0, binding = 7) uniform sampler2D TransparencyMap;
+
+
+layout(set = 1, binding = 1) uniform samplerCube IrradianceMap; // diffuse
+layout(set = 1, binding = 2) uniform samplerCube PrefilterMap; // spec
+layout(set = 1, binding = 3) uniform sampler2D BrdfLUT; // spec
+layout(std140, set = 1, binding = 4) uniform LightUbo
 {
 	LightPacked[MAX_LIGHT_COUNT] lights;
 	// TODO see this post about dealing with N number of lights OR just pass in N via a specialization constant?
 	//  https://www.reddit.com/r/vulkan/comments/8vzpir/whats_the_best_practice_for_dealing_with/
 } lightUbo;
-layout(binding = 5)  uniform sampler2D BasecolorMap;
-layout(binding = 6)  uniform sampler2D NormalMap;
-layout(binding = 7)  uniform sampler2D RoughnessMap;
-layout(binding = 8)  uniform sampler2D MetalnessMap;
-layout(binding = 9)  uniform sampler2D AmbientOcclusionMap;
-layout(binding = 10) uniform sampler2D EmissiveMap;
-layout(binding = 11) uniform sampler2D TransparencyMap;
-layout(binding = 12) uniform sampler2D ShadowMap;
+layout(set = 1, binding = 5) uniform sampler2D ShadowMap;
+
 
 layout(location = 0) in vec4 fragPosLightSpace;
 layout(location = 1) in vec3 fragPos; // in world space

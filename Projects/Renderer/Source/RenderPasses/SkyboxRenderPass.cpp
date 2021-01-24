@@ -253,11 +253,8 @@ bool SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
 
 void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
-	const std::vector<RenderableResourceId>& renderableIds,
-	const std::vector<glm::mat4>& transforms,
 	const glm::mat4& view, const glm::mat4& projection)
 {
-	assert(renderableIds.size() == transforms.size());
 	const auto startBench = std::chrono::steady_clock::now();
 	
 	const Skybox* skybox = GetCurrentSkyboxOrNull();
@@ -303,7 +300,7 @@ void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
 
-		const auto& mesh = *_meshes[skybox->MeshId.Id];
+		const auto& mesh = *_meshes[skybox->MeshId.Value()];
 
 		// Draw mesh
 		VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
@@ -325,21 +322,21 @@ void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 IblTextureResourceIds
 SkyboxRenderPass::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths)
 {
-	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, *_meshes[_skyboxMesh.Id], _shaderDir, 
+	IblTextureResources iblRes = IblLoader::LoadIblFromCubemapPath(sidePaths, *_meshes[_skyboxMesh.Value()], _shaderDir, 
 		_vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 
 	IblTextureResourceIds ids = {};
 
-	ids.EnvironmentCubemapId = (u32)_textures.size();
+	ids.EnvironmentCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.EnvironmentCubemap)));
 		
-	ids.IrradianceCubemapId = (u32)_textures.size();
+	ids.IrradianceCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.IrradianceCubemap)));
 
-	ids.PrefilterCubemapId = (u32)_textures.size();
+	ids.PrefilterCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
 
-	ids.BrdfLutId = (u32)_textures.size();
+	ids.BrdfLutId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
 
 	return ids;
@@ -348,21 +345,21 @@ SkyboxRenderPass::CreateIblTextureResources(const std::array<std::string, 6>& si
 IblTextureResourceIds
 SkyboxRenderPass::CreateIblTextureResources(const std::string& path)
 {
-	IblTextureResources iblRes = IblLoader::LoadIblFromEquirectangularPath(path, *_meshes[_skyboxMesh.Id], _shaderDir,
+	IblTextureResources iblRes = IblLoader::LoadIblFromEquirectangularPath(path, *_meshes[_skyboxMesh.Value()], _shaderDir,
 		_vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 
 	IblTextureResourceIds ids = {};
 
-	ids.EnvironmentCubemapId = (u32)_textures.size();
+	ids.EnvironmentCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.EnvironmentCubemap)));
 
-	ids.IrradianceCubemapId = (u32)_textures.size();
+	ids.IrradianceCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.IrradianceCubemap)));
 
-	ids.PrefilterCubemapId = (u32)_textures.size();
+	ids.PrefilterCubemapId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.PrefilterCubemap)));
 
-	ids.BrdfLutId = (u32)_textures.size();
+	ids.BrdfLutId = TextureResourceId(static_cast<u32>(_textures.size()));
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(iblRes.BrdfLut)));
 
 	return ids;
@@ -371,7 +368,7 @@ SkyboxRenderPass::CreateIblTextureResources(const std::string& path)
 TextureResourceId SkyboxRenderPass::CreateCubemapTextureResource(const std::array<std::string, 6>& sidePaths, 
 	CubemapFormat format)
 {
-	const TextureResourceId id = (u32)_textures.size();
+	const auto id = TextureResourceId(static_cast<u32>(_textures.size()));
 
 	_textures.emplace_back(std::make_unique<TextureResource>(
 		CubemapTextureLoader::LoadFromFacePaths(
@@ -382,7 +379,7 @@ TextureResourceId SkyboxRenderPass::CreateCubemapTextureResource(const std::arra
 
 TextureResourceId SkyboxRenderPass::CreateTextureResource(const std::string& path)
 {
-	const TextureResourceId id = (u32)_textures.size();
+	const auto id = TextureResourceId(static_cast<u32>(_textures.size()));
 	auto texRes = TextureResourceHelpers::LoadTexture(path, _vk.CommandPool(), _vk.GraphicsQueue(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 	_textures.emplace_back(std::make_unique<TextureResource>(std::move(texRes)));
 	return id;
@@ -404,7 +401,7 @@ MeshResourceId SkyboxRenderPass::CreateMeshResource(const MeshDefinition& meshDe
 		= vkh::CreateIndexBuffer(meshDefinition.Indices, _vk.GraphicsQueue(), _vk.CommandPool(), _vk.PhysicalDevice(), _vk.LogicalDevice());
 
 
-	const MeshResourceId id = (u32)_meshes.size();
+	const auto id = MeshResourceId(static_cast<u32>(_meshes.size()));
 	_meshes.emplace_back(std::move(mesh));
 
 	return id;
@@ -417,7 +414,7 @@ SkyboxResourceId SkyboxRenderPass::CreateSkybox(const SkyboxCreateInfo& createIn
 	skybox->IblTextureIds = createInfo.IblTextureIds;
 	skybox->FrameResources = CreateModelFrameResources(_vk.GetSwapchain().GetImageCount(), *skybox);
 
-	const SkyboxResourceId id = (u32)_skyboxes.size();
+	const auto id = SkyboxResourceId(static_cast<u32>(_skyboxes.size()));
 	_skyboxes.emplace_back(std::move(skybox));
 
 	return id;
@@ -477,8 +474,8 @@ SkyboxRenderPass::CreateModelFrameResources(u32 numImagesInFlight, const Skybox&
 
 
 	const auto textureId = _lastOptions.ShowIrradiance
-		? skybox.IblTextureIds.IrradianceCubemapId.Id
-		: skybox.IblTextureIds.EnvironmentCubemapId.Id;
+		? skybox.IblTextureIds.IrradianceCubemapId.Value()
+		: skybox.IblTextureIds.EnvironmentCubemapId.Value();
 	
 	WriteDescSets(
 		numImagesInFlight, descriptorSets, skyboxVertBuffers, skyboxFragBuffers, *_textures[textureId], _vk.LogicalDevice());
@@ -538,7 +535,7 @@ void SkyboxRenderPass::WriteDescSets(
 
 		const auto& set = descriptorSets[i];
 		
-		vkh::UpdateDescriptorSets(device, {
+		vkh::UpdateDescriptorSet(device, {
 			vki::WriteDescriptorSet(set, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &vertBufferUboInfo),
 			vki::WriteDescriptorSet(set, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &fragBufferUboInfo),
 			vki::WriteDescriptorSet(set, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &skyboxMap.ImageInfo()),
@@ -796,8 +793,8 @@ void SkyboxRenderPass::UpdateDescSets()
 		}
 
 		const auto textureId = _lastOptions.ShowIrradiance
-			? skybox->IblTextureIds.IrradianceCubemapId.Id
-			: skybox->IblTextureIds.EnvironmentCubemapId.Id;
+			? skybox->IblTextureIds.IrradianceCubemapId.Value()
+			: skybox->IblTextureIds.EnvironmentCubemapId.Value();
 
 		WriteDescSets((u32)count, descriptorSets, vertUbos, fragUbos, *_textures[textureId], _vk.LogicalDevice());
 	}

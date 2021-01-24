@@ -102,7 +102,7 @@ public: // METHODS
 	App(App&& other) = delete;
 	App& operator=(const App& other) = delete;
 	App& operator=(App&& other) = delete;
-	~App()
+	~App() override
 	{
 		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
 		
@@ -150,7 +150,7 @@ private: // METHODS
 			}
 
 			Update(dt);
-			Draw(dt);
+			Draw();
 
 			// Loading after first frame drawn to make app load feel more responsive - TEMP This is just while the demo scene default loads
 			if (!_defaultSceneLoaded)
@@ -193,9 +193,11 @@ private: // METHODS
 				}
 			}
 		}
+
+		_ui->Update();
 	}
 
-	void Draw(const float dt) const
+	void Draw() const
 	{
 		const auto frameInfo = _vulkanService->StartFrame();
 		if (!frameInfo.has_value())
@@ -396,9 +398,9 @@ private: // METHODS
 	
 	#pragma region ILibraryManagerDelegate
 
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId, material);
+		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
@@ -415,14 +417,7 @@ private: // METHODS
 	{
 		return _ui->HACK_GetSceneRendererRef().CreateTextureResource(path);
 	}
-	const Material& GetMaterial(const RenderableResourceId& id) override
-	{
-		return _ui->HACK_GetSceneRendererRef().GetMaterial(id);
-	}
-	void SetMaterial(const RenderableResourceId& id, const Material& newMat) override
-	{
-		return _ui->HACK_GetSceneRendererRef().SetMaterial(id, newMat);
-	}
+
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
 		return _ui->HACK_GetSceneRendererRef().CreateIblTextureResources(path);

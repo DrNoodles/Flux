@@ -49,6 +49,18 @@ void UiPresenter::Shutdown()
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
+void UiPresenter::Update()
+{
+	const auto currentTime = std::chrono::high_resolution_clock::now();
+	if (currentTime - _lastUiUpdate < _uiUpdateRate)
+	{
+		return;
+	}
+
+	_lastUiUpdate = currentTime;
+	BuildImGui();
+}
+
 void UiPresenter::NextSkybox()
 {
 	_activeSkybox = ++_activeSkybox % _library.GetSkyboxes().size();
@@ -171,6 +183,29 @@ void UiPresenter::BuildImGui()
 		}
 
 
+		// Collect materials - Must be done below scene. See below for details.
+
+		// TODO CAUTION! While building Scene View above it can break GUI. Example below.
+
+		/*
+		 * Creating a new object (eg sphere) will create a new material. The resources are created during that code block.
+		 * Properties View below will SelectSubMesh(0) on a new selection.
+		 * The materials list would be out of date if it was not updated right here, between Scene and Props views.
+		 * This isn't scalable as it adds a hidden dependency!
+		 * 
+		 * The solution is to queue a state change command, and do it outside of the GUI refresh.
+		 * This solution is a good first step towards undo/redo functionality.
+		 */
+		const auto materials = _scene.GetMaterials();
+		const auto count = materials.size();
+		
+		_materials.resize(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			_materials[i] = std::make_pair(materials[i]->Name, materials[i]->Id);
+		}
+		
+
 		// Properties View
 		{
 			const auto rect = PropsRect();
@@ -203,7 +238,6 @@ void UiPresenter::BuildImGui()
 
 
 				// Collect submeshes
-				_selectedSubMesh = 0;
 				_submeshes.clear();
 				if (selection->Renderable.has_value())
 				{
@@ -212,10 +246,19 @@ void UiPresenter::BuildImGui()
 						_submeshes.emplace_back(componentSubmesh.Name);
 					}
 				}
+
+				SelectSubMesh(0);
 			}
 			else
 			{
 				// Same selection as last frame
+			}
+
+			
+			if (_selectedMaterialIndex >= (int)_materials.size())
+			{
+				assert(false); // selected material is out of scope. 
+				_selectedMaterialIndex =  (int)_materials.size() - 1;
 			}
 
 			_propsView.BuildUI(selectionCount, _tvm, _lvm);
@@ -246,10 +289,17 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			if (entity->Renderable.has_value())
 			{
-				for (auto&& componentSubmesh : entity->Renderable->GetSubmeshes())
+				for (auto&& submesh : entity->Renderable->GetSubmeshes())
 				{
-					scene.RenderableIds.emplace_back(componentSubmesh.Id);
-					scene.RenderableTransforms.emplace_back(entity->Transform.GetMatrix());
+					Material* mat = _scene.GetMaterial(submesh.MatId);
+					scene.Materials.emplace(mat);
+					
+					SceneRendererPrimitives::RenderableObject object = {
+						submesh.Id,
+						entity->Transform.GetMatrix(),
+						*mat
+					};
+					scene.Objects.emplace_back(object);
 				}
 			}
 
@@ -279,15 +329,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		// Whole screen framebuffer dimensions
 		const auto& swap = _vk.GetSwapchain();
 		const auto framebufferRect = vki::Rect2D({ 0, 0 }, swap.GetExtent());
-		const auto framebufferViewport = vki::Viewport(framebufferRect);
-
-		const auto sceneRectShared = ViewportRect();
-		const auto sceneRect = vki::Rect2D(
-			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
-			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
-		
-		const auto sceneViewport = vki::Viewport(sceneRect);
-		
 		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
 			framebufferRect, clearColors);
 
@@ -295,6 +336,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			// Post Processing - TODO This should be in SceneRenderer.
 			{
+				const auto sceneRectShared = ViewportRect();
+				const auto sceneRect = vki::Rect2D(
+					{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
+					{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+				
+				const auto sceneViewport = vki::Viewport(sceneRect);
+					
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
 				_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
@@ -302,17 +350,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 			// UI
 			{
-				vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-
-				// Update Ui
-				const auto currentTime = std::chrono::high_resolution_clock::now();
-				if (currentTime - _lastUiUpdate > _uiUpdateRate)
-				{
-					_lastUiUpdate = currentTime;
-					BuildImGui();
-				}
-
-				// Draw
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 			}
 		}
@@ -343,7 +380,6 @@ void UiPresenter::LoadModel(const std::string& path)
 	// Split path into a dir and filename so we can name the entity
 	auto [dir, filename] = FileService::SplitPathAsDirAndFilename(path);
 
-
 	// Load asset
 	auto renderableComponent = _scene.LoadRenderableComponentFromFile(path);
 	if (!renderableComponent.has_value())
@@ -357,8 +393,6 @@ void UiPresenter::LoadModel(const std::string& path)
 	entity->Name = filename;
 	entity->Transform.SetPos(glm::vec3{0, 0, 0});
 	entity->Renderable = std::move(renderableComponent);
-
-	//_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
 
 	ReplaceSelection(entity.get());
 
@@ -389,6 +423,7 @@ void UiPresenter::CreatePointLight()
 
 	auto entity = std::make_unique<Entity>();
 	entity->Name = "PointLight" + std::to_string(entity->Id);
+	entity->Transform.SetPos({5, 5, 5});
 	entity->Light = LightComponent{};
 	entity->Light->Type = LightComponent::Types::point;
 	entity->Light->Intensity = 250;
@@ -401,9 +436,10 @@ void UiPresenter::CreateSphere()
 {
 	printf("CreateSphere()\n");
 
-	auto entity = _library.CreateSphere();
+	auto matId = _library.CreateRandomMaterial();
+	auto entity = _library.CreateSphere(matId);
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -413,9 +449,10 @@ void UiPresenter::CreateBlob()
 {
 	printf("CreateBlob()\n");
 
-	auto entity = _library.CreateBlob();
+	auto matId = _library.CreateRandomMaterial();
+	auto entity = _library.CreateBlob(matId);
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMaterial());
+
 
 	ReplaceSelection(entity.get());
 	_scene.AddEntity(std::move(entity));
@@ -425,9 +462,10 @@ void UiPresenter::CreateCube()
 {
 	printf("CreateCube()\n");
 
-	auto entity = _library.CreateCube();
+	auto matId = _library.CreateRandomMetalMaterial();
+	auto entity = _library.CreateCube(matId);
 	entity->Transform.SetScale(glm::vec3{0.9f});
-	_scene.SetMaterial(*entity->Renderable, LibraryManager::CreateRandomMetalMaterial());
+
 
 	//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
@@ -444,6 +482,34 @@ void UiPresenter::DeleteAll()
 	              [&ids](const std::unique_ptr<Entity>& e) { ids.emplace_back(e->Id); });
 
 	_delegate.Delete(ids);
+}
+
+void UiPresenter::SelectSubMesh(int index)
+{
+	_selectedSubMesh = index;
+
+	// TODO Find and select the material associated with this submesh
+	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	if (!selection)
+	{
+		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
+	}
+
+	if (!selection->Renderable.has_value())
+	{
+		return; // There is no submesh to select
+	}
+	
+	const auto& targetSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
+
+	const auto it = std::find_if(_materials.begin(), _materials.end(), [&](const std::pair<std::string, MaterialId>& pair)
+	{
+		return pair.second == targetSubmesh.MatId;
+	});
+
+	if (it == _materials.end()) { throw std::runtime_error("Couldn't find the material for the given submesh"); }
+
+	_selectedMaterialIndex = (int)(it - _materials.begin());
 }
 
 RenderOptions UiPresenter::GetRenderOptions()
@@ -480,32 +546,43 @@ void UiPresenter::SetActiveSkybox(u32 idx)
 	_activeSkybox = idx;
 }
 
+void UiPresenter::SelectMaterial(int i)
+{
+	_selectedMaterialIndex = i;
+
+	if (_selectedMaterialIndex < 0)
+		return; // deselected material
+
+	// Apply to current submesh selection
+	{
+		Entity* selectedEntity = _selection.size() == 1 ? *_selection.begin() : nullptr;
+		if (!selectedEntity || !selectedEntity->Renderable.has_value())
+		{
+			return; // No selection to apply the material to
+		}
+
+		auto& selectedSubmesh = selectedEntity->Renderable->GetSubmeshes()[_selectedSubMesh];
+		const auto matId = _materials[_selectedMaterialIndex].second;
+
+		selectedSubmesh.AssignMaterial(matId);
+	}
+}
+
 std::optional<MaterialViewState> UiPresenter::GetMaterialState()
 {
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
+	if (_selectedMaterialIndex < 0)
+		return std::nullopt; // no material selection
+	
+	const auto& [_, matId] = _materials[_selectedMaterialIndex];
 
-	if (!selection || !selection->Renderable.has_value())
-		return std::nullopt;
-
-	const auto& componentSubmesh = selection->Renderable->GetSubmeshes()[_selectedSubMesh];
-	const auto& mat = _scene.GetMaterial(componentSubmesh.Id);
-
-	return MaterialViewState::CreateFrom(mat);
+	Material* mat = _scene.GetMaterial(matId);
+	return MaterialViewState::CreateFrom(*mat);
 }
 
 void UiPresenter::CommitMaterialChanges(const MaterialViewState& state)
 {
-	Entity* selection = _selection.size() == 1 ? *_selection.begin() : nullptr;
-	if (!selection) {
-		throw std::runtime_error("How are we commiting a material change when there's no valid selection?");
-	}
-	
-	const auto newMat = MaterialViewState::ToMaterial(state, _scene);
-
-	const auto& renComp = *selection->Renderable;
-	const auto& componentSubmesh = renComp.GetSubmeshes()[_selectedSubMesh];
-
-	_scene.SetMaterial(componentSubmesh.Id, newMat);
+	auto* mat = _scene.GetMaterial(state.MaterialId);
+	MaterialViewState::ToMaterial(state, mat, _scene);
 }
 
 

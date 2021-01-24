@@ -8,8 +8,6 @@
 #include <unordered_map>
 #include <iostream>
 
-
-
 std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile(const std::string& path)
 {
 	auto modelDefinition = _modelLoaderService.LoadModel(path);
@@ -20,19 +18,20 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 		//throw std::invalid_argument("Couldn't load model");
 	}
 
-	bool first = true;
-	AABB renderableBounds;
-	std::vector<RenderableComponentSubmesh> submeshes;
-
-	for (const auto& meshDef : modelDefinition->Meshes)
+	
+	// Load Materials
+	std::vector<Material*> materials(modelDefinition->Materials.size());
+	for (size_t i = 0; i < modelDefinition->Materials.size(); i++)
 	{
-		// Create the Mesh resource
-		auto meshId = _delegate.CreateMeshResource(meshDef); 
-
-
+		materials[i] = CreateMaterial();
+		
+		auto& mat = *materials[i];
+		auto& matDef = modelDefinition->Materials[i];
+		
 		// Create Texture resources and config Material
-		Material mat = {};
-		for (const auto& texDef : meshDef.Textures)
+		mat.Name = matDef.Name;
+		
+		for (const auto& texDef : matDef.Textures)
 		{
 			const auto texResId = LoadTexture(texDef.Path);
 			if (!texResId.has_value())
@@ -74,14 +73,26 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 				mat.EmissiveMap = std::move(map);
 				break;
 
+			case TextureType::Transparency: // fallthrough
 			case TextureType::Undefined:
 			default:
 				std::cerr << "Discarding unknown texture type" << std::endl;
 			}
 		}
+	}
 
 
-		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name };
+	// Load Meshes
+	bool first = true;
+	AABB renderableBounds;
+	std::vector<RenderableComponentSubmesh> submeshes;
+	for (const auto& meshDef : modelDefinition->Meshes)
+	{
+		// Create the Mesh resource
+		const MeshResourceId meshId = _delegate.CreateMeshResource(meshDef);
+		const MaterialId matId = materials[meshDef.MaterialIndex]->Id;
+
+		const RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId), meshDef.Name, matId };
 		submeshes.emplace_back(submesh);
 
 		
@@ -120,7 +131,7 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	{
 		resId = _delegate.CreateTextureResource(path);
 	}
-	catch (const std::exception& e)
+	catch (const std::exception&)
 	{
 		std::cerr << "Failed to load texture \"" << path << "\"" << std::endl;
 		return std::nullopt;
@@ -131,22 +142,63 @@ std::optional<TextureResourceId> SceneManager::LoadTexture(const std::string& pa
 	return resId;
 }
 
-const Material& SceneManager::GetMaterial(const RenderableResourceId& resourceId) const
+Material* SceneManager::CreateMaterial()
 {
-	return _delegate.GetMaterial(resourceId);
+	auto mat = std::make_unique<Material>(Material::Create());
+	
+	Material* rawpMat = mat.get();
+	
+	_materials.emplace(mat->Id.Value(), std::move(mat));
+
+	return rawpMat;
 }
 
-void SceneManager::SetMaterial(const RenderableComponent& renderableComp, const Material& newMat) const
+Material* SceneManager::GetMaterial(const MaterialId id) const
 {
-	for (const auto& submesh : renderableComp.GetSubmeshes())
+	const auto it = _materials.find(id.Value());
+
+	if (it == _materials.end())
+		throw std::invalid_argument("material id does not exist in materials collection");
+
+	return it->second.get();
+}
+
+std::vector<Material*> SceneManager::GetMaterials() const
+{
+	// TODO Cache result as  reads will be vastly more common (many times per frame) vs writes (basically never)
+	std::vector<Material*> mats{};
+	
+	for (auto&& [_, mat] : _materials)
+		mats.emplace_back(mat.get());
+
+	return mats;
+}
+
+void SceneManager::RemoveEntity(int entId)
+{
+	// Find item
+	const auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
 	{
-		_delegate.SetMaterial(submesh.Id, newMat);
-	}
-}
+		return entId == e->Id;
+	});
 
-void SceneManager::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat) const
-{
-	_delegate.SetMaterial(renderableResId, newMat);
+	if (iterator == _entities.end())
+	{
+		assert(false); // trying to erase bogus entId
+		return;
+	}
+
+
+	// Cleanup entity references in app
+	Entity* e = iterator->get();
+	if (e->Renderable.has_value())
+	{
+		auto& r = e->Renderable.value();
+		// TODO Clean up rendereable shit
+	}
+
+
+	_entities.erase(iterator);
 }
 
 SkyboxResourceId SceneManager::LoadAndSetSkybox(const std::string& path)

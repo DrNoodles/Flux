@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommonTypes.h"
+#include <glm/vec3.hpp>
 
 
 // TODO Move these back to the Renderer layer

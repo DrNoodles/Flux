@@ -1,10 +1,13 @@
 #pragma once
 
+#include <Framework/Material.h>
+
 #include <imgui/imgui.h>
 
 #include <optional>
 #include <string>
 #include <vector>
+
 
 
 struct MaterialViewState;
@@ -18,12 +21,12 @@ public:
 
 	// Transform?
 	
-	// Submeshes
-	virtual int GetSelectedSubMesh() const = 0;
-	virtual void SelectSubMesh(int i) = 0;
-	virtual const std::vector<std::string>& GetSubmeshes() = 0;
+	// Materials list
+	virtual const std::vector<std::pair<std::string, MaterialId>>& GetMaterials() = 0;
+	virtual int GetSelectedMaterial() const = 0;
+	virtual void SelectMaterial(int i) = 0;
 
-	// Material
+	// Material editing
 	virtual std::optional<MaterialViewState> GetMaterialState() = 0;
 	virtual void CommitMaterialChanges(const MaterialViewState& state) = 0;
 
@@ -47,7 +50,7 @@ public:
 private:
 	void DrawTransformPanel(TransformVm& tvm) const;
 	void DrawLightPanel(LightVm& lvm) const;
-	void DrawRenderablePanel(MaterialViewState& rvm) const;
+	void DrawMaterialPanel(std::optional<MaterialViewState>& mvm) const;
 	
 	void Basecolor(MaterialViewState& rvm) const;
 	void Normals(MaterialViewState& rvm) const;

@@ -18,6 +18,7 @@
 class AssimpModelLoaderService final : public IModelLoaderService
 {
 public:
+
 	std::optional<ModelDefinition> LoadModel(const std::string& path) override
 	{
 		ModelDefinition modelDefinition{};
@@ -38,34 +39,57 @@ public:
 		DumpMaterialsToConsole(*scene);
 
 		const auto directory = path.substr(0, path.find_last_of("/\\") + 1); // TODO Use FileService to split path
-		ProcessNode(modelDefinition, scene->mRootNode, scene, directory);
-
+		
+		ProcessMaterials(modelDefinition, scene, directory);
+		ProcessNode(modelDefinition, scene->mRootNode, scene);
+		
 		return modelDefinition;
 	}
 
 private:
+	static void ProcessMaterials(ModelDefinition& outModel, const aiScene* scene, const std::string& directory)
+	{
+		outModel.Materials.resize(scene->mNumMaterials);
+
+		for (u32 i = 0; i < scene->mNumMaterials; i++)
+		{
+			auto* aiMat = scene->mMaterials[i];
+			auto basecolor = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
+			auto normals = LoadMaterialTextures(aiMat, aiTextureType_NORMALS, directory);
+			auto ao = LoadMaterialTextures(aiMat, aiTextureType_LIGHTMAP, directory);
+			auto emissive = LoadMaterialTextures(aiMat, aiTextureType_EMISSIVE, directory);
+
+			auto& matDef = outModel.Materials[i];
+			matDef.Name = aiMat->GetName().C_Str();
+			matDef.Textures.insert(matDef.Textures.end(), basecolor.begin(), basecolor.end());
+			matDef.Textures.insert(matDef.Textures.end(), normals.begin(), normals.end());
+			matDef.Textures.insert(matDef.Textures.end(), ao.begin(), ao.end());
+			matDef.Textures.insert(matDef.Textures.end(), emissive.begin(), emissive.end());
+		}
+	}
+
+	
 	static void ProcessNode(ModelDefinition& outModel, aiNode *node,
-		const aiScene *aiScene, const std::string& directory)
+		const aiScene *aiScene)
 	{
 		// Process all the meshes in this node
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
 			const u32 mId = node->mMeshes[i];
 			aiMesh* aiMesh = aiScene->mMeshes[mId];
-			MeshDefinition md = ProcessMesh(aiMesh, aiScene, directory);
-			outModel.Meshes.emplace_back(std::move(md));
+			MeshDefinition meshDef = ProcessMesh(aiMesh, aiScene);
+			outModel.Meshes.emplace_back(std::move(meshDef));
 		}
 
 		// Process all child nodes
 		for (unsigned int i = 0; i < node->mNumChildren; ++i)
 		{
 			aiNode* child = node->mChildren[i];
-			ProcessNode(outModel, child, aiScene, directory);
+			ProcessNode(outModel, child, aiScene);
 		}
 	}
 	
-	static MeshDefinition ProcessMesh(aiMesh* mesh, const aiScene* aiScene,
-		const std::string& directory)
+	static MeshDefinition ProcessMesh(aiMesh* mesh, const aiScene* aiScene)
 	{
 		MeshDefinition meshDefinition{};
 
@@ -135,21 +159,9 @@ private:
 			}
 		}
 
-		// Get materials
-		if (mesh->mMaterialIndex >= 0)
-		{
-			aiMaterial* aiMat = aiScene->mMaterials[mesh->mMaterialIndex];
-			
-			auto basecolor = LoadMaterialTextures(aiMat, aiTextureType_DIFFUSE, directory);
-			auto normals = LoadMaterialTextures(aiMat, aiTextureType_NORMALS, directory);
-			auto ao = LoadMaterialTextures(aiMat, aiTextureType_LIGHTMAP, directory);
-			auto emissive = LoadMaterialTextures(aiMat, aiTextureType_EMISSIVE, directory);
-
-			meshDefinition.Textures.insert(meshDefinition.Textures.end(), basecolor.begin(), basecolor.end());
-			meshDefinition.Textures.insert(meshDefinition.Textures.end(), normals.begin(), normals.end());
-			meshDefinition.Textures.insert(meshDefinition.Textures.end(), ao.begin(), ao.end());
-			meshDefinition.Textures.insert(meshDefinition.Textures.end(), emissive.begin(), emissive.end());
-		}
+		// Get material
+		meshDefinition.MaterialIndex = mesh->mMaterialIndex;
+		
 
 		// Compute AABB
 		meshDefinition.Bounds = AABB{ positions };
@@ -242,8 +254,8 @@ private:
 			if (count == 0) 
 				return;
 
-			const auto texStr = count > 1 ? " textures:" : " texture:";
-			std::cout << "  " /*<< count << "x "*/ << toString(type) << ":" << std::endl;
+			const auto* const texStr = count > 1 ? " textures:" : " texture:";
+			std::cout << "  "/* << count << "x "*/ << toString(type) << ":" << std::endl;
 			for (unsigned i = 0; i < count; ++i)
 			{
 				aiString path;

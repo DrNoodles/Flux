@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "SceneManager.h"
 #include "Entity/Entity.h"
 #include "Entity/Actions/TurntableActionComponent.h"
@@ -14,7 +13,6 @@
 #include <vector>
 
 
-
 struct SkyboxInfo
 {
 	std::string Path;
@@ -26,14 +24,13 @@ class ILibraryManagerDelegate
 {
 public:
 	virtual ~ILibraryManagerDelegate() = default;
-	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) = 0;
+	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId) = 0;
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
 };
 
 class LibraryManager final
 {
 public:
-	
 	
 	LibraryManager(ILibraryManagerDelegate& del, SceneManager& scene, IModelLoaderService& mls, std::string assetsDir)
 		: _delegate{del}, _scene{scene}, _modelLoaderService{mls}, _libraryDir{std::move(assetsDir)}
@@ -58,7 +55,7 @@ public:
 	}
 
 
-	std::unique_ptr<Entity> CreateSphere()
+	std::unique_ptr<Entity> CreateSphere(MaterialId matId)
 	{
 		if (!_sphere.has_value())
 		{
@@ -72,10 +69,10 @@ public:
 			_sphere = prim;
 		}
 
-		return CreateEntity(_sphere->Id, _sphere->Bounds, "Sphere");
+		return CreateEntity(_sphere->Id, matId, _sphere->Bounds, "Sphere");
 	}
 
-	std::unique_ptr<Entity> CreateCube()
+	std::unique_ptr<Entity> CreateCube(MaterialId matId)
 	{
 		if (!_cube.has_value())
 		{
@@ -89,10 +86,10 @@ public:
 			_cube = prim;
 		}
 
-		return CreateEntity(_cube->Id, _cube->Bounds, "Cube");
+		return CreateEntity(_cube->Id, matId, _cube->Bounds, "Cube");
 	}
 
-	std::unique_ptr<Entity> CreateBlob()
+	std::unique_ptr<Entity> CreateBlob(MaterialId matId)
 	{
 		if (!_blob.has_value())
 		{
@@ -106,7 +103,7 @@ public:
 			_blob = prim;
 		}
 
-		return CreateEntity(_blob->Id, _blob->Bounds, "Blob");
+		return CreateEntity(_blob->Id, matId, _blob->Bounds, "Blob");
 	}
 
 	
@@ -134,7 +131,9 @@ public:
 
 		// TEMP: Add a ground plane to catch shadows
 		{
-			auto x = CreateCube();
+			Material* mat = _scene.CreateMaterial();
+			
+			auto x = CreateCube(mat->Id);
 			x->Transform.SetScale({7.5, 2, 7.5});
 			x->Transform.SetPos({0,-4,0});
 			_scene.AddEntity(std::move(x));
@@ -161,7 +160,6 @@ public:
 	{
 		std::cout << "Loading scene\n";
 		_scene.LoadAndSetSkybox(GetSkyboxes()[0].Path);
-		LoadAxis();
 		LoadObjectArray({ 0,0,0 }, 30, 30);
 	}
 
@@ -169,44 +167,44 @@ public:
 	{
 		std::cout << "Loading material array" << std::endl;
 
-		glm::vec3 center = offset;
-		auto rowSpacing = 2.1f;
-		auto colSpacing = 2.1f;
+		const glm::vec3 center = offset;
+		const auto rowSpacing = 2.1f;
+		const auto colSpacing = 2.1f;
 
 		u32 count = 0;
 		
 		for (u32 row = 0; row < numRows; row++)
 		{
-			f32 metalness = row / f32(numRows - 1);
+			const f32 metalness = row / f32(numRows - 1);
 
-			f32 height = f32(numRows - 1) * rowSpacing;
-			f32 hStart = height / 2.f;
-			f32 y = center.y + hStart + -rowSpacing * row;
+			const f32 height = f32(numRows - 1) * rowSpacing;
+			const f32 hStart = height / 2.f;
+			const f32 y = center.y + hStart + -rowSpacing * row;
 
 			for (u32 col = 0; col < numColumns; col++)
 			{
-				f32 roughness = col / f32(numColumns - 1);
+				const f32 roughness = col / f32(numColumns - 1);
 
-				f32 width = f32(numColumns - 1) * colSpacing;
-				f32 wStart = -width / 2.f;
-				f32 x = center.x + wStart + colSpacing * col;
+				const f32 width = f32(numColumns - 1) * colSpacing;
+				const f32 wStart = -width / 2.f;
+				const f32 x = center.x + wStart + colSpacing * col;
 
 				char name[256];
 				sprintf_s(name, 256, "Obj M:%.2f R:%.2f", metalness, roughness);
-				
-				auto entity = CreateBlob();
-				entity->Name = name;
-				entity->Transform.SetPos({ x,y,0.f });
-				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-				
-				// config mat
-				Material mat = {};
+
+				// Config Material
+				Material& mat = *_scene.CreateMaterial();
+				mat.Name = name;
 				mat.Basecolor = glm::vec3{ 1 };
 				mat.Roughness = roughness;
 				mat.Metalness = metalness;
 
-				_scene.SetMaterial(*entity->Renderable, mat);
-
+				// Create Entity
+				auto entity = CreateBlob(mat.Id);
+				entity->Name = name;
+				entity->Transform.SetPos({ x,y,0.f });
+				entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+				
 				_scene.AddEntity(std::move(entity));
 
 				++count;
@@ -218,15 +216,17 @@ public:
 
 	void LoadMaterialExamples()
 	{
-		std::cout << "Loading axis" << std::endl;
+		std::cout << "Loading material example" << std::endl;
 
+		std::string name;
 		std::string basecolorPath;
 		std::string normalPath;
 		std::string ormPath;
 
-		auto ApplyMat = [&](RenderableComponent& renComp)
+		auto CreateMaterial = [&]() -> MaterialId
 		{
-			Material mat;
+			Material& mat = *_scene.CreateMaterial();
+			mat.Name = name;
 			
 			// Load basecolor map
 			mat.BasecolorMap = { *_scene.LoadTexture(basecolorPath), basecolorPath };
@@ -249,82 +249,86 @@ public:
 			mat.UseMetalnessMap = true;
 			mat.MetalnessMapChannel = Material::Channel::Blue;
 
-			_scene.SetMaterial(renComp, mat);
+			return mat.Id;
 		};
-
 		
-		{  // Sphere
-			auto entity = CreateSphere();
-			entity->Name = "Sphere";
-			entity->Transform.SetScale(glm::vec3(1));
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+		{
+			name = "Sphere";
 
 			basecolorPath = _libraryDir + "Materials/ScuffedAluminum/BaseColor.png";
 			ormPath = _libraryDir + "Materials/ScuffedAluminum/ORM.png";
 			normalPath = _libraryDir + "Materials/ScuffedAluminum/Normal.png";
-			ApplyMat(*entity->Renderable);
+			auto matId = CreateMaterial();
 			
+			auto entity = CreateSphere(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(1));
+			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 		
-		{  // GreasyPan
-			auto entity = CreateBlob();
-			entity->Name = "GreasyPan";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+		{
+			name = "GreasyPan";
 
 			basecolorPath = _libraryDir + "Materials/GreasyPan/BaseColor.png";
 			ormPath = _libraryDir + "Materials/GreasyPan/ORM.png";
 			normalPath = _libraryDir + "Materials/GreasyPan/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
+			auto matId = CreateMaterial();
+		
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 2, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Gold
-			auto entity = CreateBlob();
-			entity->Name = "Gold";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
+		{
+			name = "Gold";
 
 			basecolorPath = _libraryDir + "Materials/GoldScuffed/BaseColor.png";
 			ormPath = _libraryDir + "Materials/GoldScuffed/ORM.png";
 			normalPath = _libraryDir + "Materials/GoldScuffed/Normal.png";
-			ApplyMat(*entity->Renderable);
+			auto matId = CreateMaterial();
 			
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ 4, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Rusted Metal
-			auto entity = CreateBlob();
-			entity->Name = "RustedMetal";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
+		{
+			name = "Rusted Metal";
+			
 			basecolorPath = _libraryDir + "Materials/RustedMetal/BaseColor.png";
 			ormPath = _libraryDir + "Materials/RustedMetal/ORM.png";
 			normalPath = _libraryDir + "Materials/RustedMetal/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
+			auto matId = CreateMaterial();
+
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ -2, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 
-		{  // Bumpy Plastic
-			auto entity = CreateBlob();
-			entity->Name = "BumpyPlastic";
-			entity->Transform.SetScale(glm::vec3(.8f));
-			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
-			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
-
+		{
+			name = "Bumpy Plastic";
+			
 			basecolorPath = _libraryDir + "Materials/BumpyPlastic/BaseColor.png";
 			ormPath = _libraryDir + "Materials/BumpyPlastic/ORM.png";
 			normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
-			ApplyMat(*entity->Renderable);
-			
+			auto matId = CreateMaterial();
+
+			auto entity = CreateBlob(matId);
+			entity->Name = name;
+			entity->Transform.SetScale(glm::vec3(.8f));
+			entity->Transform.SetPos(glm::vec3{ -4, 0, 0 });
+			entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 			_scene.AddEntity(std::move(entity));
 		}
 	}
@@ -349,7 +353,8 @@ public:
 		entity->Renderable = std::move(renderableComponent);
 		//entity->Action = std::make_unique<TurntableAction>(entity->Transform);
 
-		RenderableResourceId resourceId;
+		RenderableComponentSubmesh* pSubmesh = nullptr;
+		MaterialId matId;
 		std::string basecolorPath;
 		std::string normalPath;
 		std::string ormPath;
@@ -357,40 +362,40 @@ public:
 
 		auto ApplyMat = [&]()
 		{
-			auto GetOptionalRes = [&](const std::string& texturePath)
+			auto GetOptionalTexture = [&](const std::string& texturePath) -> std::optional<Material::Map>
 			{
 				auto optRes = _scene.LoadTexture(texturePath);
 				return optRes ? std::optional(Material::Map{optRes.value(), texturePath}) : std::nullopt;
 			};
 
-			auto matCopy = _scene.GetMaterial(resourceId);
+			Material& mat = *_scene.GetMaterial(matId);
 			
 			// Load basecolor map
-			matCopy.BasecolorMap = GetOptionalRes(basecolorPath);
-			matCopy.UseBasecolorMap = matCopy.BasecolorMap.has_value();
+			mat.BasecolorMap = GetOptionalTexture(basecolorPath);
+			mat.UseBasecolorMap = mat.BasecolorMap.has_value();
 
 			// Load normal map
-			matCopy.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
+			mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
 
 			// Load occlusion map
-			matCopy.AoMap = GetOptionalRes(ormPath);
-			matCopy.AoMapChannel = Material::Channel::Red;
+			mat.AoMap = GetOptionalTexture(ormPath);
+			mat.AoMapChannel = Material::Channel::Red;
 			
 			// Load roughness map
-			matCopy.RoughnessMap = GetOptionalRes(ormPath);
-			matCopy.UseRoughnessMap = matCopy.RoughnessMap.has_value();
-			matCopy.RoughnessMapChannel = Material::Channel::Green;
+			mat.RoughnessMap = GetOptionalTexture(ormPath);
+			mat.UseRoughnessMap = mat.RoughnessMap.has_value();
+			mat.RoughnessMapChannel = Material::Channel::Green;
 
 			// Load metalness map
-			matCopy.MetalnessMap = GetOptionalRes(ormPath);
-			matCopy.UseMetalnessMap = matCopy.MetalnessMap.has_value();
-			matCopy.MetalnessMapChannel = Material::Channel::Blue;
+			mat.MetalnessMap = GetOptionalTexture(ormPath);
+			mat.UseMetalnessMap = mat.MetalnessMap.has_value();
+			mat.MetalnessMapChannel = Material::Channel::Blue;
 
 			// Load emissive map
-			matCopy.EmissiveMap = GetOptionalRes(emissivePath);
-			matCopy.EmissiveIntensity = 5;
+			mat.EmissiveMap = GetOptionalTexture(emissivePath);
+			mat.EmissiveIntensity = 5;
 
-			_scene.SetMaterial(resourceId, matCopy);
+			pSubmesh->AssignMaterial(mat.Id);
 		};
 
 		
@@ -398,7 +403,8 @@ public:
 		{
 			// Barrel
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[0].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[0];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Barrel_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Barrel_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Barrel_ORM.png";
@@ -407,7 +413,8 @@ public:
 			}
 			// Hook
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[1].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[1];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Hook_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Hook_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Hook_ORM.png";
@@ -416,7 +423,8 @@ public:
 			}
 			// Stock
 			{
-				resourceId = entity->Renderable->GetSubmeshes()[2].Id;
+				pSubmesh = &entity->Renderable->GetSubmeshes()[2];
+				matId = pSubmesh->MatId;
 				basecolorPath = _libraryDir + "Models/" + "grapple/export/Stock_Basecolor.png";
 				normalPath = _libraryDir + "Models/" + "grapple/export/Stock_Normal.png";
 				ormPath = _libraryDir + "Models/" + "grapple/export/Stock_ORM.png";
@@ -425,141 +433,30 @@ public:
 			}
 		}
 
-		
 		_scene.AddEntity(std::move(entity));
 	}
 
-	void LoadAxis()
+	MaterialId CreateRandomDielectricMaterial() const
 	{
-		std::cout << "Loading axis" << std::endl;
-
-		auto scale = glm::vec3{ 0.5f };
-		f32 dist = 1;
-
-		// Pivot
-		{
-			auto entity = CreateSphere();
-			entity->Name = "Axis-Pivot";
-			entity->Transform.SetScale(scale*0.5f);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, 0 });
-
-
-			{
-				Material mat;
-
-				auto basePath = _libraryDir + "Materials/ScuffedAluminum/BaseColor.png";
-				auto ormPath = _libraryDir + "Materials/ScuffedAluminum/ORM.png";
-				auto normalPath = _libraryDir + "Materials/ScuffedAluminum/Normal.png";
-				
-				mat.UseBasecolorMap = true;
-				mat.BasecolorMap = { *_scene.LoadTexture(basePath), basePath };
-
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
-				
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-				
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-
-				_scene.SetMaterial(*entity->Renderable, mat);
-			}
-
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// X
-		{
-			auto entity = CreateSphere();
-			entity->Name = "Axis-X";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ dist, 0, 0 });
-
-			Material mat{};
-			{
-				mat.Basecolor = { 1,0,0 };
-
-				const auto normalPath = _libraryDir + "Materials/BumpyPlastic/Normal.png";
-				const auto ormPath = _libraryDir + "Materials/BumpyPlastic/ORM.png";
-				
-				//mat.UseNormalMap = true;
-				mat.NormalMap = { *_scene.LoadTexture(normalPath), normalPath };
-
-				//mat.UseAoMap = true;
-				mat.AoMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.AoMapChannel = Material::Channel::Red;
-
-				mat.UseRoughnessMap = true;
-				mat.RoughnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.RoughnessMapChannel = Material::Channel::Green;
-
-				mat.UseMetalnessMap = true;
-				mat.MetalnessMap = { *_scene.LoadTexture(ormPath), ormPath };
-				mat.MetalnessMapChannel = Material::Channel::Blue;
-			}
-			_scene.SetMaterial(*entity->Renderable, mat);
-
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// Y
-		{
-			auto entity = CreateSphere();
-			entity->Name = "Axis-Y";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, dist, 0 });
-			
-			Material mat{};
-			mat.Basecolor = { 0,1,0 };
-			mat.Roughness = 0;
-			_scene.SetMaterial(*entity->Renderable, mat);
-			
-			_scene.AddEntity(std::move(entity));
-		}
-		
-		// Z
-		{
-			auto entity = CreateSphere();
-			entity->Name = "Axis-Z";
-			entity->Transform.SetScale(scale);
-			entity->Transform.SetPos(glm::vec3{ 0, 0, dist });
-			
-			Material mat{};
-			mat.Basecolor = { 0,0,1 };
-			mat.Roughness = 0;
-			_scene.SetMaterial(*entity->Renderable, mat);
-			
-			_scene.AddEntity(std::move(entity));
-		}
-	}
-
-
-	static Material CreateRandomDielectricMaterial()
-	{
-		Material m{};
+		Material& m = *_scene.CreateMaterial();
+		m.Name = "RandomDielectricMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 0;
 		m.Basecolor = glm::vec3{ RandF(0.15f,0.95f),RandF(0.15f,0.95f),RandF(0.15f,0.95f) };
-		return m;
+		return m.Id;
 	}
 	
-	static Material CreateRandomMetalMaterial()
+	MaterialId CreateRandomMetalMaterial() const
 	{
-		Material m{};
+		Material& m = *_scene.CreateMaterial();
+		m.Name = "CreateRandomMetalMaterial_" + std::to_string(RandF(0,1));
 		m.Roughness = RandF(0.f, 0.7f);
 		m.Metalness = 1;
 		m.Basecolor = glm::vec3{ RandF(0.70f,1.f),RandF(0.70f,1.f),RandF(0.70f,1.f) };
-		return m;
+		return m.Id;
 	}
 	
-	static Material CreateRandomMaterial()
+	MaterialId CreateRandomMaterial() const
 	{
 		const auto isMetallic = bool(rand() % 2);
 		return isMetallic ? CreateRandomMetalMaterial() : CreateRandomDielectricMaterial();
@@ -593,12 +490,12 @@ private:
 		"debug/equirectangular.hdr",
 	};
 
-	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, const AABB& bounds, const std::string& name) const
+	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, MaterialId matId, const AABB& bounds, const std::string& name) const
 	{
-		const auto renderableResId = _delegate.CreateRenderable(meshId, Material{});
-
+		const auto renderableResId = _delegate.CreateRenderable(meshId);
+		
 		// Create renderable component
-		const RenderableComponentSubmesh submesh = { renderableResId, name };
+		const RenderableComponentSubmesh submesh = { renderableResId, name, _scene.GetMaterial(matId)->Id };
 		RenderableComponent comp{ submesh, bounds };
 
 		// Create entity
@@ -614,5 +511,5 @@ private:
 		const float r = float(rand()) / float(RAND_MAX);
 		const float range = max - min;
 		return min + r * range;
-	};
+	}
 };
