@@ -42,14 +42,7 @@ public:
 	{
 		Destroy();
 	}
-	void Destroy()
-	{
-		if (_vk)
-		{
-			vkDestroyBuffer(_vk->LogicalDevice(), _uniformBuffer, nullptr);
-			vkFreeMemory(_vk->LogicalDevice(), _uniformBufferMemory, nullptr);
-		}
-	}
+	
 	// Delete Copy
 	PbrMaterialResource(const PbrMaterialResource&) = delete;
 	PbrMaterialResource& operator=(const PbrMaterialResource&) = delete;
@@ -79,6 +72,16 @@ public:
 	VkDeviceMemory GetMaterialUniformBufferMemory() const { return _uniformBufferMemory; }
 	
 private:
+	void Destroy()
+	{
+		if (_vk)
+		{
+			vkDestroyBuffer(_vk->LogicalDevice(), _uniformBuffer, nullptr);
+			vkFreeMemory(_vk->LogicalDevice(), _uniformBufferMemory, nullptr);
+			_vk = nullptr;
+		}
+	}
+	
 	VulkanService* _vk = nullptr;
 	VkDescriptorSet _descSet = nullptr;
 	VkBuffer _uniformBuffer = nullptr;
@@ -99,7 +102,7 @@ public:
 	MaterialResourceManager& operator=(const MaterialResourceManager&) = delete;
 	// Move
 	MaterialResourceManager(MaterialResourceManager&&) = default;
-	MaterialResourceManager& operator=(MaterialResourceManager&&) = default;
+	MaterialResourceManager& operator=(MaterialResourceManager&&) = delete;
 
 	const PbrMaterialResource& GetOrCreate(const Material& material, u32 swapImageIndex)
 	{

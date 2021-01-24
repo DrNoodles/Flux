@@ -70,8 +70,8 @@ private: // Data
 	VulkanService* _vulkan = nullptr;
 
 public: // Methods
-	PostProcessRenderPass() = default;
-	PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+	PostProcessRenderPass() = delete;
+	explicit PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
@@ -79,11 +79,32 @@ public: // Methods
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
-	void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+	~PostProcessRenderPass()
 	{
-		DestroyDescriptorResources();
-		_screenQuadResources.Destroy(device, allocator);
+		Destroy();
 	}
+	// Copy
+	PostProcessRenderPass(const PostProcessRenderPass&) = delete;
+	PostProcessRenderPass& operator=(const PostProcessRenderPass&) = delete;
+	// Move
+	PostProcessRenderPass(PostProcessRenderPass&& other) noexcept { *this = std::move(other); }
+	PostProcessRenderPass& operator=(PostProcessRenderPass&& other) noexcept
+	{
+		if (this != &other)
+		{
+			Destroy();
+			_descriptorResources = other._descriptorResources;
+			_screenQuadResources = other._screenQuadResources;
+			_vulkan = other._vulkan;
+
+			other._vulkan = nullptr;
+		}
+		
+		return *this;
+	}
+
+
+	
 
 	void CreateDescriptorResources(TextureData input)
 	{
@@ -144,6 +165,15 @@ public: // Methods
 	}
 
 private: // Methods
+	void Destroy()
+	{
+		if (_vulkan)
+		{
+			DestroyDescriptorResources();
+			_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
+			_vulkan = nullptr;
+		}
+	}
 	static DrawResources CreateDrawResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
