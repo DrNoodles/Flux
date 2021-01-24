@@ -106,7 +106,7 @@ public: // METHODS
 	{
 		vkDeviceWaitIdle(_vulkanService->LogicalDevice());
 		
-		_ui->Shutdown();
+		_ui = nullptr; // RAII
 		DestroyImgui();
 		_vulkanService->Shutdown();
 	}

@@ -30,23 +30,19 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
 		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
 	
-	_postProcessPass = PostProcessRenderPass(shaderDir, &vulkan);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
+	_postProcessPass = std::make_unique<PostProcessRenderPass>(shaderDir, &vulkan);
+	_postProcessPass->CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
 
 	_viewportView = ViewportView{this, _sceneRenderer.get()};
 }
 
-void UiPresenter::Shutdown()
+UiPresenter::~UiPresenter()
 {
 	_window->WindowSizeChanged.Detach(_windowSizeChangedHandler);
 	_window->PointerMoved.Detach(_pointerMovedHandler);
 	_window->PointerWheelChanged.Detach(_pointerWheelChangedHandler);
 	_window->KeyDown.Detach(_keyDownHandler);
 	_window->KeyUp.Detach(_keyUpHandler);
-
-	// Cleanup renderpass resources
-	_sceneRenderer = nullptr; // RAII
-	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
 void UiPresenter::Update()
@@ -270,9 +266,9 @@ void UiPresenter::BuildImGui()
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_postProcessPass.DestroyDescriptorResources();
+	_postProcessPass->DestroyDescriptorResources();
 	_sceneRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
-	_postProcessPass.CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
+	_postProcessPass->CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
@@ -345,7 +341,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 					
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-				_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
+				_postProcessPass->Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
 			}
 
 			// UI

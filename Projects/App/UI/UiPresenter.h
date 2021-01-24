@@ -74,7 +74,7 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	PostProcessRenderPass _postProcessPass;
+	std::unique_ptr<PostProcessRenderPass> _postProcessPass = nullptr;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -87,11 +87,7 @@ private: // DATA
 public: // METHODS
 	
 	UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, SceneManager& scene, VulkanService& vulkan, IWindow* window, const std::string& shaderDir, const std::string& assetDir, IModelLoaderService& modelLoaderService);
-	~UiPresenter() override = default;
-	
-	void Shutdown();
-	void Update();
-
+	~UiPresenter() override;
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;
 	UiPresenter& operator=(const UiPresenter&) = delete;
@@ -108,6 +104,7 @@ public: // METHODS
 
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages);
 	
+	void Update();
 	void SetUpdateRate(int updatesPerSecond)
 	{
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
