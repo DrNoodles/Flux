@@ -3,8 +3,7 @@
 layout(std140, set = 1, binding = 0) uniform PbrModelVsUbo
 {
 	mat4 model;
-	mat4 view;
-	mat4 projection;
+	mat4 viewProjection;
 	mat4 lightSpaceMatrix;
 } ubo;
 
@@ -15,7 +14,7 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) in vec3 inTangent;
 
 layout(location = 0) out vec4 fragPosLightSpace;
-layout(location = 1) out vec3 fragPos; // in world space
+layout(location = 1) out vec3 fragPosWorldSpace; // in world space
 layout(location = 2) out vec3 fragColor;
 layout(location = 3) out vec2 fragTexCoord;
 layout(location = 4) out vec3 fragNormal;
@@ -36,12 +35,12 @@ void main()
 	mat3 normalMatrix = transpose(inverse(mat3(ubo.model)));
 
 	// Outputs
-	fragPos = vec3(ubo.model * vec4(inPosition, 1.0));
+	fragPosWorldSpace = vec3(ubo.model * vec4(inPosition, 1.0));
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
 	fragNormal = normalize(normalMatrix * inNormal);
 	fragTBN = mat3(T, B, N);
 	fragPosLightSpace = (biasMat * ubo.lightSpaceMatrix * ubo.model) * vec4(inPosition, 1);
 	//fragPosLightSpace = (ubo.lightSpaceMatrix * ubo.model) * vec4(inPosition, 1);
-	gl_Position = ubo.projection * ubo.view * vec4(fragPos, 1);
+	gl_Position = ubo.viewProjection * vec4(fragPosWorldSpace, 1);
 }

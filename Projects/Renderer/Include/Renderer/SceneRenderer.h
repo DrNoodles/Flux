@@ -4,6 +4,7 @@
 #include "UniformBufferObjects.h"
 #include "RenderPasses/DirectionalShadowRenderPass.h"
 #include "RenderPasses/SkyboxRenderPass.h"
+#include "ResourceRegistry.h"
 
 #include "Framebuffer.h"
 #include "VulkanService.h"
@@ -65,6 +66,8 @@ private:// Data
 	std::string _assetsDir;
 	IModelLoaderService& _modelLoaderService;
 
+	std::unique_ptr<ResourceRegistry> _resourceRegistry = nullptr;;
+	
 	// Framebuffers
 	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
@@ -76,14 +79,17 @@ private:// Data
 
 
 public: // Lifetime
+
 	SceneRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
 		_vk(vulkanService),
 		_shaderDir(std::move(shaderDir)),
 		_assetsDir(std::move(assetsDir)),
 		_modelLoaderService(modelLoaderService)
 	{
-		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _shaderDir, _assetsDir, _modelLoaderService);
-		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, *this, _shaderDir, _assetsDir);
+		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk, &modelLoaderService, _shaderDir, _assetsDir);
+		
+		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
+		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
 		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
 		
 		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowRenderPass->GetRenderPass());
@@ -143,7 +149,7 @@ public: // Methods
 				_dirShadowRenderPass->Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
 					_pbrRenderPass->Hack_GetRenderables(),// TODO extract resources from PbrModelRenderPass into SceneRenderer
-					_pbrRenderPass->Hack_GetMeshes());    // TODO extract resources from PbrModelRenderPass into SceneRenderer
+					_resourceRegistry->Hack_GetMeshes()); // TODO pass resRegistry into shadow pass so it can get meshes it needs
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
@@ -188,14 +194,16 @@ public: // PBR RenderPass routing methods
 		return _pbrRenderPass->CreateRenderable(meshId);
 	}
 
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) const
+	[[deprecated("MeshResourceId is becoming internal to Renderer")]]
+	MeshResourceId Hack_CreateMeshResource(const MeshDefinition& meshDefinition) const
 	{
-		return _pbrRenderPass->CreateMeshResource(meshDefinition);
+		return _resourceRegistry->CreateMeshResource(meshDefinition);
 	}
 	
-	TextureResourceId CreateTextureResource(const std::string& path) const
+	[[deprecated("TextureResourceId is becoming internal to Renderer")]]
+	TextureResourceId Hack_CreateTextureResource(const std::string& path) const
 	{
-		return _pbrRenderPass->CreateTextureResource(path);
+		return _resourceRegistry->CreateTextureResource(path);
 	}
 
 public: // Skybox RenderPass routing methods

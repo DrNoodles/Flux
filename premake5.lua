@@ -84,6 +84,7 @@ project "Renderer"
 	objdir "Build/Intermediate/Renderer/%{cfg.buildcfg}"
 
 	includedirs {
+		"Projects/Renderer/Source/",
 		"Projects/Renderer/Include/Renderer/",
 		"Projects/Framework/Include/",
 		"External/glfw/include",
@@ -101,6 +102,7 @@ project "Renderer"
 
 	files {
 		"Projects/Renderer/Include/Renderer/**.h",
+		"Projects/Renderer/Include/Renderer/**.cpp",
 		"Projects/Renderer/Source/**.h",
 		"Projects/Renderer/Source/**.cpp",
 		"Projects/Renderer/Source/**.frag",

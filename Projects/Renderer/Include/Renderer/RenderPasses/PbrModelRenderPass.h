@@ -6,6 +6,7 @@
 #include "TextureResource.h"
 #include "UniformBufferObjects.h"
 #include "CubemapTextureLoader.h"
+#include "ResourceRegistry.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
@@ -94,17 +95,18 @@ class MaterialResourceManager
 private:
 	// Dependencies
 	VulkanService* _vk = nullptr;
+	ResourceRegistry* _resourceRegistry = nullptr;
 	VkDescriptorPool _pool = nullptr;
 	VkDescriptorSetLayout _descSetLayout = nullptr;
-	TextureResourceId _placeholder{};
-	const std::vector<std::unique_ptr<TextureResource>>& _textures;
+	TextureResourceId _placeholderTexture{};
+
 	
 	std::unordered_map<u32, PbrMaterialResource> _materialFrameResources{};
 
 public:
 	MaterialResourceManager() = delete;
-	explicit MaterialResourceManager(VulkanService& vk, VkDescriptorPool pool, VkDescriptorSetLayout descSetLayout, const std::vector<std::unique_ptr<TextureResource>>& textures, TextureResourceId placeholder)
-		: _vk(&vk), _pool(pool), _descSetLayout(descSetLayout), _placeholder(placeholder), _textures(textures)
+	explicit MaterialResourceManager(VulkanService& vk, VkDescriptorPool pool, VkDescriptorSetLayout descSetLayout, ResourceRegistry* registry, TextureResourceId placeholder)
+		: _vk(&vk), _resourceRegistry(registry), _pool(pool), _descSetLayout(descSetLayout), _placeholderTexture(placeholder)
 	{}
 	~MaterialResourceManager() = default;
 	// Copy
@@ -134,42 +136,7 @@ public:
 		}
 	}
 
-	PbrMaterialResource CreateMaterialFrameResources(const Material& material) const
-	{
-		const auto numImagesInFlight = 1;
-		
-		// Create uniform buffers
-		auto [materialBuffers, materialBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMaterialUbo),
-			_vk->LogicalDevice(), _vk->PhysicalDevice());
-
-
-		// Create descriptor sets
-		const auto materialDescSets = vkh::AllocateDescriptorSets(numImagesInFlight, _descSetLayout, _pool, _vk->LogicalDevice());
-
-
-		// Get the id of an existing texture, fallback to placeholder if necessary.
-		const auto pid = _placeholder.Value();
-		auto GetId = [pid](const std::optional<Material::Map>& map) { return map.has_value() ? map->Id.Value() : pid; };
-
-
-		for (u32 i = 0; i < numImagesInFlight; i++)
-		{
-			// Write updated descriptor sets
-			WriteMaterialDescriptorSet(
-				materialDescSets[i],
-				materialBuffers[i],
-				*_textures[GetId(material.BasecolorMap)],
-				*_textures[GetId(material.NormalMap)],
-				*_textures[GetId(material.RoughnessMap)],
-				*_textures[GetId(material.MetalnessMap)],
-				*_textures[GetId(material.AoMap)],
-				*_textures[GetId(material.EmissiveMap)],
-				*_textures[GetId(material.TransparencyMap)],
-				_vk->LogicalDevice());
-		}
-
-		return PbrMaterialResource{_vk, materialDescSets[0], materialBuffers[0], materialBuffersMemory[0] };
-	}
+	PbrMaterialResource CreateMaterialFrameResources(const Material& material) const;
 
 
 	static void WriteMaterialDescriptorSet(
@@ -243,22 +210,19 @@ private:// Data
 	std::unique_ptr<MaterialResourceManager> _materialFrameResources = nullptr;
 	std::vector<std::unique_ptr<RenderableMesh>> _renderables{};
 
-	std::vector<std::unique_ptr<MeshResource>> _meshes{};      // TODO Move these to a resource registry
-	std::vector<std::unique_ptr<TextureResource>> _textures{}; // TODO Move these to a resource registry
-
 	bool _refreshRenderableDescriptorSets = false;
 
 	// Required resources
 	TextureResourceId _placeholderTexture;
 
 	RenderOptions _lastOptions;
+	ResourceRegistry* _resourceRegistry = nullptr;
 
 
 public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
-	const std::vector<std::unique_ptr<MeshResource>>& Hack_GetMeshes() const { return _meshes; }
 
-	explicit PbrModelRenderPass(VulkanService& vulkanService, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
+	PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
 
 	void Destroy();
 	
@@ -270,8 +234,6 @@ public: // Members
 		const std::vector<Light>& lights,
 		const glm::mat4& view, const glm::mat4& projection, const glm::vec3& camPos, const glm::mat4& lightSpaceMatrix);
 
-	TextureResourceId CreateTextureResource(const std::string& path);
-	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }

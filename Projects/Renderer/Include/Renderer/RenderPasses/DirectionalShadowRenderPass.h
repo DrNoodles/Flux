@@ -52,7 +52,7 @@ public:
 		const std::vector<std::unique_ptr<RenderableMesh>>& renderables,
 		const std::vector<std::unique_ptr<MeshResource>>& meshes) const
 	{
-		auto viewport = vki::Viewport(renderArea);
+		const auto viewport = vki::Viewport(renderArea);
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 		
@@ -62,20 +62,23 @@ public:
 		vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0, depthBiasSlope);
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
 
+		const VkDeviceSize offsets[] = { 0 };
+		const auto size = sizeof(PushConstants);
+		PushConstants pushConstants{};
+		
 		for (const auto& object : scene.Objects)
 		{
+			pushConstants.ShadowMatrix = lightSpaceMatrix * object.Transform;
+			
 			const auto& renderable = *renderables[object.RenderableId.Value()];
 			const auto& mesh = *meshes[renderable.MeshId.Value()];
 
-			PushConstants pushConstants{};
-			pushConstants.ShadowMatrix = lightSpaceMatrix * object.Transform;
 
-			VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
-			VkDeviceSize offsets[] = { 0 };
+			const VkBuffer vertexBuffers[] = { mesh.VertexBuffer };
 
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffer, mesh.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdPushConstants(commandBuffer, _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+			vkCmdPushConstants(commandBuffer, _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, size, &pushConstants);
 			vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 		}
 	}

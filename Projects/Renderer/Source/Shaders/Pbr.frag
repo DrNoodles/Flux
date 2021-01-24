@@ -77,7 +77,7 @@ layout(set = 1, binding = 5) uniform sampler2D ShadowMap;
 
 
 layout(location = 0) in vec4 fragPosLightSpace;
-layout(location = 1) in vec3 fragPos; // in world space
+layout(location = 1) in vec3 fragPosWorldSpace;
 layout(location = 2) in vec3 fragColor;
 layout(location = 3) in vec2 fragTexCoord;
 layout(location = 4) in vec3 fragNormal;
@@ -176,7 +176,7 @@ void main()
 	}
 
 
-	const vec3 V = normalize(ubo.camPos - fragPos); // View vector
+	const vec3 V = normalize(ubo.camPos - fragPosWorldSpace); // View vector
 	const float NdotV = max(dot(normal,V),0.0);
 
 	const vec3 F0Default = vec3(0.04); // Good average value for common dielectrics
@@ -196,7 +196,7 @@ void main()
 		if (lightIntensity < 0.01) continue; // pretty good optimisation
 
 		// Incoming light direction - point or directional
-		const vec3 pointDir = lightPos - fragPos;
+		const vec3 pointDir = lightPos - fragPosWorldSpace;
 		const vec3 directionalDir = lightPos;
 		const vec3 L = normalize(mix(pointDir, directionalDir, lightType));
 		const float NdotL = max(dot(normal,L), 0.0);
@@ -204,7 +204,7 @@ void main()
 		// Compute Radiance - Li
 		vec3 incomingRadiance;
 		{
-			const float dist = length(lightPos - fragPos);
+			const float dist = length(lightPos - fragPosWorldSpace);
 			const float attenuation = mix(1.0 / (dist * dist), 1, lightType); // no attenuation for directional lights
 			incomingRadiance = lightColor * lightIntensity * attenuation;
 		}
