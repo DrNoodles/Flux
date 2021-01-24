@@ -86,6 +86,84 @@ private: // DATA ///////////////////////////////////////////////////////////////
 
 	
 public: // METHODS ////////////////////////////////////////////////////////////////////////////////////////////////////
+	VulkanService() = delete;
+	VulkanService(bool enableValidationLayers, bool enableVsync, bool enableMsaa, IVulkanServiceDelegate* delegate,
+	              ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
+	{
+		assert(delegate);
+		assert(builder);
+		
+		_delegate = delegate;
+		_enableValidationLayers = enableValidationLayers;
+		_vsync = enableVsync;
+		_msaaEnabled = enableMsaa;
+
+		Init(builder, framebufferSize);
+
+		std::cout << (_msaaEnabled ? "MSAA Enabled" : "MSAA Disabled") << std::endl;
+		std::cout << (_vsync ? "VSync Enabled" : "VSync Disabled") << std::endl;
+	}
+	~VulkanService()
+	{
+		if (_device)
+			Destroy();
+	}
+	// Copy
+	VulkanService(const VulkanService&) = delete;
+	VulkanService& operator=(const VulkanService&) = delete;
+	// Move
+	VulkanService(VulkanService&& other) noexcept { *this = std::move(other); }
+	VulkanService& operator=(VulkanService&& other) noexcept
+	{
+		if (this != &other)
+		{
+			Destroy();
+
+			// Values
+			_enableValidationLayers = other._enableValidationLayers;
+			_vsync = other._vsync;
+			_msaaEnabled = other._msaaEnabled;
+			_msaaSamples = other._msaaSamples;
+			_currentFrame = other._currentFrame;
+			_swapchainInvalidated = other._swapchainInvalidated;
+			
+			// Pointers
+			_delegate = other._delegate;
+			_instance = other._instance;
+			_debugMessenger = other._debugMessenger;
+			_physicalDevice = other._physicalDevice;
+			_device = other._device;
+			_commandPool = other._commandPool;
+			_graphicsQueue = other._graphicsQueue;
+			_presentQueue = other._presentQueue;
+			_surface = other._surface;
+			
+			_swapchain = std::move(other._swapchain);
+
+			// Vectors
+			_commandBuffers = std::move(other._commandBuffers);
+			_renderFinishedSemaphores = std::move(other._renderFinishedSemaphores);
+			_imageAvailableSemaphores = std::move(other._imageAvailableSemaphores);
+			_inFlightFences = std::move(other._inFlightFences);
+			_imagesInFlight = std::move(other._imagesInFlight);
+
+			// Be sure to clear other so its destructor doesn't stomp our resources
+			other._delegate = nullptr;
+			other._instance = nullptr;
+			other._debugMessenger = nullptr;
+			other._physicalDevice = nullptr;
+			other._device  = nullptr;
+			other._commandPool  = nullptr;
+			other._graphicsQueue = nullptr;
+			other._presentQueue  = nullptr;
+			other._surface = nullptr;
+		}
+		
+		return *this;
+	}
+	
+
+
 	VkDevice LogicalDevice() const { return _device; }
 	VkInstance Instance() const { return _instance; }
 	VkSurfaceKHR Surface() const { return _surface; }
@@ -113,29 +191,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	void InvalidateSwapchain() { _swapchainInvalidated = true; }
 
 
-	VulkanService(bool enableValidationLayers, bool enableVsync, bool enableMsaa, IVulkanServiceDelegate* delegate,
-	              ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
-	{
-		assert(delegate);
-		assert(builder);
-		
-		_delegate = delegate;
-		_enableValidationLayers = enableValidationLayers;
-		_vsync = enableVsync;
-		_msaaEnabled = enableMsaa;
-
-		InitVulkan(builder);
-		InitVulkanSwapchainAndDependants(framebufferSize);
-
-		std::cout << (_msaaEnabled ? "MSAA Enabled" : "MSAA Disabled") << std::endl;
-		std::cout << (_vsync ? "VSync Enabled" : "VSync Disabled") << std::endl;
-	}
 	
-	void Shutdown()
-	{
-		DestroyVulkanSwapchain();
-		DestroyVulkan();
-	}
 	
 	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
 	{
@@ -248,7 +304,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 private: // METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-	void InitVulkan(ISurfaceBuilder* builder)
+	void Init(ISurfaceBuilder* builder, const VkExtent2D framebufferSize)
 	{
 		auto* instance = vkh::CreateInstance(_enableValidationLayers, _validationLayers);
 		
@@ -275,18 +331,36 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_graphicsQueue = graphicsQueue;
 		_presentQueue = presentQueue;
 		_commandPool = commandPool;
-	}
 
-	void DestroyVulkan() const
+		InitSwapchain(framebufferSize);
+	}
+	void Destroy()
 	{
-		vkDestroyCommandPool(_device, _commandPool, nullptr);
-		vkDestroyDevice(_device, nullptr);
-		if (_enableValidationLayers) { vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr); }
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-		vkDestroyInstance(_instance, nullptr);
+		if (!_device) // possible on move constructor
+			return;
+		
+		DestroySwapchain();
+		
+		// DestroyVulkan();
+		{
+			vkDestroyCommandPool(_device, _commandPool, nullptr);
+			vkDestroyDevice(_device, nullptr);
+			if (_enableValidationLayers)
+			{
+				vkh::DestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
+				_debugMessenger = nullptr;
+			}
+			vkDestroySurfaceKHR(_instance, _surface, nullptr);
+			vkDestroyInstance(_instance, nullptr);
+
+			_commandPool = nullptr;
+			_device = nullptr;
+			_surface = nullptr;
+			_instance = nullptr;
+		}
 	}
 
-	void InitVulkanSwapchainAndDependants(const VkExtent2D& framebufferSize)
+	void InitSwapchain(const VkExtent2D& framebufferSize)
 	{
 		_swapchain = std::make_unique<Swapchain>(_device, _physicalDevice, _surface, framebufferSize, _msaaSamples, _vsync);
 
@@ -301,9 +375,8 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_inFlightFences = inFlightFences;
 		_imagesInFlight = imagesInFlight;
 	}
-	void DestroyVulkanSwapchain()
+	void DestroySwapchain()
 	{
-
 		for (auto& x : _inFlightFences) { vkDestroyFence(_device, x, nullptr); }
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
@@ -321,8 +394,8 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		
 		vkDeviceWaitIdle(_device);
 		
-		DestroyVulkanSwapchain();
-		InitVulkanSwapchainAndDependants(size);
+		DestroySwapchain();
+		InitSwapchain(size);
 
 		_delegate->NotifySwapchainUpdated(size.width, size.height, _swapchain->GetImageCount());
 	}

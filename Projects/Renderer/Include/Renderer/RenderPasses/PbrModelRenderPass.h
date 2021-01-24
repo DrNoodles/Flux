@@ -91,10 +91,20 @@ private:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class MaterialResourceManager
 {
+private:
+	// Dependencies
+	VulkanService* _vk = nullptr;
+	VkDescriptorPool _pool = nullptr;
+	VkDescriptorSetLayout _descSetLayout = nullptr;
+	TextureResourceId _placeholder{};
+	const std::vector<std::unique_ptr<TextureResource>>& _textures;
+	
+	std::unordered_map<u32, PbrMaterialResource> _materialFrameResources{};
+
 public:
 	MaterialResourceManager() = delete;
 	explicit MaterialResourceManager(VulkanService& vk, VkDescriptorPool pool, VkDescriptorSetLayout descSetLayout, const std::vector<std::unique_ptr<TextureResource>>& textures, TextureResourceId placeholder)
-		: _vk(&vk), _pool(pool), _descSetLayout(descSetLayout), _textures(textures), _placeholder(placeholder)
+		: _vk(&vk), _pool(pool), _descSetLayout(descSetLayout), _placeholder(placeholder), _textures(textures)
 	{}
 	~MaterialResourceManager() = default;
 	// Copy
@@ -203,13 +213,6 @@ private:
 		return hash;
 	}
 
-private:
-	std::unordered_map<u32, PbrMaterialResource> _materialFrameResources{};
-	VulkanService* _vk = nullptr;
-	VkDescriptorPool _pool = nullptr;
-	VkDescriptorSetLayout _descSetLayout = nullptr;
-	const std::vector<std::unique_ptr<TextureResource>>& _textures;
-	TextureResourceId _placeholder{};
 
 };
 

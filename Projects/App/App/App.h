@@ -108,7 +108,7 @@ public: // METHODS
 		
 		_ui = nullptr; // RAII
 		DestroyImgui();
-		_vulkanService->Shutdown();
+		_vulkanService = nullptr; // RAII
 	}
 
 	
