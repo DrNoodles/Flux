@@ -17,7 +17,7 @@ public:
 	virtual ~ISceneManagerDelegate() = default;
 		
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
-	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& mat) = 0;
+	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId) = 0;
 	virtual TextureResourceId CreateTextureResource(const std::string& path) = 0;
 	virtual IblTextureResourceIds CreateIblTextureResources(const std::string& path) = 0;
 	virtual SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) = 0;
@@ -41,40 +41,9 @@ public:
 	Material* GetMaterial(MaterialId id) const;
 	std::vector<Material*> GetMaterials() const;
 
-	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const
-	{
-		return _entities;
-	}
-	void AddEntity(std::unique_ptr<Entity> e)
-	{
-		_entities.emplace_back(std::move(e));
-	}
-	void RemoveEntity(int entId)
-	{
-		// Find item
-		const auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
-		{
-			return entId == e->Id;
-		});
-
-		if (iterator == _entities.end())
-		{
-			assert(false); // trying to erase bogus entId
-			return;
-		}
-
-		
-		// Cleanup entity references in app
-		Entity* e = iterator->get();
-		if (e->Renderable.has_value())
-		{
-			auto& r = e->Renderable.value();
-			// TODO Clean up rendereable shit
-		}
-
-		
-		_entities.erase(iterator);
-	}
+	const std::vector<std::unique_ptr<Entity>>& EntitiesView() const { return _entities; }
+	void AddEntity(std::unique_ptr<Entity> e) { _entities.emplace_back(std::move(e)); }
+	void RemoveEntity(int entId);
 
 	SkyboxResourceId LoadAndSetSkybox(const std::string& path);
 	void SetSkybox(const SkyboxResourceId& id);

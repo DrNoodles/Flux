@@ -93,8 +93,8 @@ public: // Lifetime
 	SceneRenderer(const SceneRenderer&) = delete;
 	SceneRenderer& operator=(const SceneRenderer&) = delete;
 
-	SceneRenderer(SceneRenderer&& other) = default;
-	SceneRenderer& operator=(SceneRenderer&& other) = default;
+	SceneRenderer(SceneRenderer&& other) = delete;
+	SceneRenderer& operator=(SceneRenderer&& other) = delete;
 
 	~SceneRenderer() override
 	{
@@ -183,9 +183,9 @@ public: // Methods
 public: // PBR RenderPass routing methods
 	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
 
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) const
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) const
 	{
-		return _pbrRenderPass->CreateRenderable(meshId, material);
+		return _pbrRenderPass->CreateRenderable(meshId);
 	}
 
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) const

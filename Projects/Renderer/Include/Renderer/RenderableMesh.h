@@ -10,8 +10,6 @@ struct Skybox
 {
 	MeshResourceId MeshId;
 	IblTextureResourceIds IblTextureIds;
-
-	//TODO Separate this from Skybox.
 	std::vector<SkyboxResourceFrame> FrameResources{}; // Array containing one per frame in flight
 };
 
@@ -41,8 +39,8 @@ struct Skybox
 		- Each usage of a given MeshAsset (1 mesh asset could be used with many transforms)
 		- Each unique Material should have a desc set.
 */
-struct RenderableMesh // todo just use a map for this map<MeshResourceId, PbrCommonResourceFrame>
+struct RenderableMesh
 {
 	MeshResourceId MeshId;
-	std::vector<PbrCommonResourceFrame> CommonFrameResources{}; // Array containing one per frame in flight
+	std::vector<PbrCommonResourceFrame> CommonFrameResources{}; // One per frame in flight
 };

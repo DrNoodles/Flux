@@ -261,10 +261,10 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 
 
 
-	//asdf // TODO
+	// TODO
 	
 	/*
-	 * [ ] v1  -  unique descset per mat, updated every frame
+	 * DONE! [x] v1  -  unique descset per mat, updated every frame
 	 * 
 	 * 1. Add scene.Materials of each unique mat.
 	 * 2. scene.Objects should have an index ref into scene.Materials
@@ -348,9 +348,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 
 	}
 
-	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
-	std::vector<SceneRendererPrimitives::RenderableObject> opaqueObjects = {};
-	std::map<f32, SceneRendererPrimitives::RenderableObject> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
+
 
 
 	// Update material UBOs
@@ -358,7 +356,11 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	{
 		
 	}
-	
+
+
+	// Determine draw order - Split renderables into an opaque and ordered transparent buckets.
+	std::vector<SceneRendererPrimitives::RenderableObject> opaqueObjects = {};
+	std::map<f32, SceneRendererPrimitives::RenderableObject> depthSortedTransparentObjects = {}; // map sorts by keys, so use dist as key
 	for (const auto& object : objects)
 	{
 		const auto& renderable = *_renderables[object.RenderableId.Value()];
@@ -377,6 +379,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			info.ShowNormalMap = false;
 			info.CubemapRotation = options.SkyboxRotation;
 
+			
 			// Update Pbr Mesh ubos
 			{
 				const auto& bufferMemory = renderable.CommonFrameResources[frameIndex].MeshUniformBufferMemory;
@@ -390,6 +393,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 				vkUnmapMemory(_vk.LogicalDevice(), bufferMemory);
 			}
 
+			
 			// Update Pbr Material ubos
 			{
 				const auto& matResources = _materialFrameResources->GetOrCreate(object.Material, frameIndex);
@@ -405,31 +409,29 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 			}
 		}
 
-		// Depth sort objects
+		
+		// Depth sort transparent object
+		if (object.Material.UsingTransparencyMap())
 		{
-			if (object.Material.UsingTransparencyMap())
-			{
-				// Depth sort transparent object
 
-				// Calc depth of from camera to object transform - this isn't fullproof!
-				const auto& tf = object.Transform;
-				auto objPos = glm::vec3(tf[3]);
-				glm::vec3 diff = objPos - camPos;
-				float dist2 = glm::dot(diff, diff);
+			// Calc depth of from camera to object transform - this isn't fullproof!
+			const auto& tf = object.Transform;
+			const auto objPos = glm::vec3(tf[3]);
+			const glm::vec3 displacement = objPos - camPos;
+			float distSquared = glm::dot(displacement, displacement);
 
-				auto [it, success] = depthSortedTransparentObjects.try_emplace(dist2, object);
-				while (!success)
-				{
-					// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
-					dist2 += 0.001f * (float(rand()) / RAND_MAX);
-					std::tie(it, success) = depthSortedTransparentObjects.try_emplace(dist2, object);
-					//std::cerr << "Failed to depth sort object\n";
-				}
-			}
-			else // Opaque
+			auto [it, success] = depthSortedTransparentObjects.try_emplace(distSquared, object);
+			while (!success)
 			{
-				opaqueObjects.emplace_back(object);
+				// HACK to nudge the dist a little. Doing this to avoid needing a more complicated sorted map
+				distSquared += 0.001f * (float(rand()) / RAND_MAX);
+				std::tie(it, success) = depthSortedTransparentObjects.try_emplace(distSquared, object);
+				//std::cerr << "Failed to depth sort object\n";
 			}
+		}
+		else // Opaque
+		{
+			opaqueObjects.emplace_back(object);
 		}
 	}
 
@@ -512,8 +514,7 @@ MeshResourceId PbrModelRenderPass::CreateMeshResource(const MeshDefinition& mesh
 	return id;
 }
 
-// TODO Decouple material from CreateRenderable entirely. This will require separating out material frame resources from models
-RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId, const Material& material)
+RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId)
 {
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
@@ -526,11 +527,11 @@ RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& 
 }
 
 /*
+// TODO - KEEP THIS CODE-  The comparison below could be used to determine whether a mat descriptor needs to be written
+
 void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
 {
-	// TODO FIXME - The renderer needs some way to determine whether
-
-	
+		
 	auto& renderable = *_renderables[renderableResId.Id];
 	auto& oldMat = renderable.Mat;
 
@@ -558,7 +559,7 @@ void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId
 		_refreshRenderableDescriptorSets = true;
 	}
 }
-	*/
+*/
 
 
 VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
@@ -869,9 +870,7 @@ std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResourc
 	}
 
 	// Group data for return
-	std::vector<PbrCommonResourceFrame> ret;
-	ret.resize(numImagesInFlight);
-
+	std::vector<PbrCommonResourceFrame> ret(numImagesInFlight);
 	for (size_t i = 0; i < numImagesInFlight; i++)
 	{
 		ret[i].MeshUniformBuffer = meshBuffers[i];

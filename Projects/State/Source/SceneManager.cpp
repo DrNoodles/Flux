@@ -89,10 +89,10 @@ std::optional<RenderableComponent> SceneManager::LoadRenderableComponentFromFile
 	for (const auto& meshDef : modelDefinition->Meshes)
 	{
 		// Create the Mesh resource
-		auto meshId = _delegate.CreateMeshResource(meshDef);
-		auto& mat = *materials[meshDef.MaterialIndex];
+		const MeshResourceId meshId = _delegate.CreateMeshResource(meshDef);
+		const MaterialId matId = materials[meshDef.MaterialIndex]->Id;
 
-		RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId, mat), meshDef.Name, mat.Id };
+		const RenderableComponentSubmesh submesh = { _delegate.CreateRenderable(meshId), meshDef.Name, matId };
 		submeshes.emplace_back(submesh);
 
 		
@@ -172,6 +172,33 @@ std::vector<Material*> SceneManager::GetMaterials() const
 		mats.emplace_back(mat.get());
 
 	return mats;
+}
+
+void SceneManager::RemoveEntity(int entId)
+{
+	// Find item
+	const auto iterator = std::find_if(_entities.begin(), _entities.end(), [entId](std::unique_ptr<Entity>& e)
+	{
+		return entId == e->Id;
+	});
+
+	if (iterator == _entities.end())
+	{
+		assert(false); // trying to erase bogus entId
+		return;
+	}
+
+
+	// Cleanup entity references in app
+	Entity* e = iterator->get();
+	if (e->Renderable.has_value())
+	{
+		auto& r = e->Renderable.value();
+		// TODO Clean up rendereable shit
+	}
+
+
+	_entities.erase(iterator);
 }
 
 SkyboxResourceId SceneManager::LoadAndSetSkybox(const std::string& path)

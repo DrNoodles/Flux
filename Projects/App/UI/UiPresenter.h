@@ -188,10 +188,6 @@ private: // METHODS
 
 #pragma region IPropsViewDelegate
 
-	/*int GetSelectedSubMesh() const override { return _selectedSubMesh; }
-	void SelectSubMesh(int index) override { _selectedSubMesh = index; }
-	const std::vector<std::string>& GetSubmeshes() override { return _submeshes; }*/
-
 	inline const std::vector<std::pair<std::string, MaterialId>>& GetMaterials() override { return _materials; }
 	inline int GetSelectedMaterial() const override { return _selectedMaterialIndex; }
 	void SelectMaterial(int i) override;
@@ -199,7 +195,5 @@ private: // METHODS
 	std::optional<MaterialViewState> GetMaterialState() override;
 	void CommitMaterialChanges(const MaterialViewState& state) override;
 	
-	
-
 #pragma endregion
 };

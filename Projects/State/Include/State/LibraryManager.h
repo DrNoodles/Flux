@@ -24,7 +24,7 @@ class ILibraryManagerDelegate
 {
 public:
 	virtual ~ILibraryManagerDelegate() = default;
-	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) = 0;
+	virtual RenderableResourceId CreateRenderable(const MeshResourceId& meshId) = 0;
 	virtual MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) = 0;
 };
 
@@ -492,11 +492,10 @@ private:
 
 	std::unique_ptr<Entity> CreateEntity(const MeshResourceId& meshId, MaterialId matId, const AABB& bounds, const std::string& name) const
 	{
-		Material* material = _scene.GetMaterial(matId);
-		const auto renderableResId = _delegate.CreateRenderable(meshId, *material);
+		const auto renderableResId = _delegate.CreateRenderable(meshId);
 		
 		// Create renderable component
-		const RenderableComponentSubmesh submesh = { renderableResId, name, material->Id };
+		const RenderableComponentSubmesh submesh = { renderableResId, name, _scene.GetMaterial(matId)->Id };
 		RenderableComponent comp{ submesh, bounds };
 
 		// Create entity

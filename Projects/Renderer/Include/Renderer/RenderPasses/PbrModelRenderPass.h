@@ -36,6 +36,7 @@ public:
 	PbrMaterialResource(VulkanService* vk, VkDescriptorSet descSet, VkBuffer buffer, VkDeviceMemory memory)
 		: _vk(vk), _descSet(descSet), _uniformBuffer(buffer), _uniformBufferMemory(memory)
 	{
+		// TODO Create the resource here so it's symmetrical with Destroy()
 	}
 	~PbrMaterialResource()
 	{
@@ -89,7 +90,8 @@ class MaterialResourceManager
 {
 public:
 	MaterialResourceManager() = delete;
-	explicit MaterialResourceManager(VulkanService& vk, VkDescriptorPool pool, VkDescriptorSetLayout descSetLayout, const std::vector<std::unique_ptr<TextureResource>>& textures, TextureResourceId placeholder) : _vk(&vk), _pool(pool), _descSetLayout(descSetLayout), _textures(textures), _placeholder(placeholder)
+	explicit MaterialResourceManager(VulkanService& vk, VkDescriptorPool pool, VkDescriptorSetLayout descSetLayout, const std::vector<std::unique_ptr<TextureResource>>& textures, TextureResourceId placeholder)
+		: _vk(&vk), _pool(pool), _descSetLayout(descSetLayout), _textures(textures), _placeholder(placeholder)
 	{}
 	~MaterialResourceManager() = default;
 	// Copy
@@ -264,7 +266,7 @@ public: // Members
 
 	TextureResourceId CreateTextureResource(const std::string& path);
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition);
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material);
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId);
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
 	

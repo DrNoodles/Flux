@@ -396,9 +396,9 @@ private: // METHODS
 	
 	#pragma region ILibraryManagerDelegate
 
-	RenderableResourceId CreateRenderable(const MeshResourceId& meshId, const Material& material) override
+	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId, material);
+		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
