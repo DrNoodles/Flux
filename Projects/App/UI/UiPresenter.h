@@ -90,6 +90,7 @@ public: // METHODS
 	~UiPresenter() override = default;
 	
 	void Shutdown();
+	void Update();
 
 	// Disable copy
 	UiPresenter(const UiPresenter&) = delete;

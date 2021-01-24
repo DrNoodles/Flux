@@ -193,6 +193,8 @@ private: // METHODS
 				}
 			}
 		}
+
+		_ui->Update();
 	}
 
 	void Draw() const

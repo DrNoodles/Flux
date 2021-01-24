@@ -49,6 +49,18 @@ void UiPresenter::Shutdown()
 	_postProcessPass.Destroy(_vk.LogicalDevice(), _vk.Allocator());
 }
 
+void UiPresenter::Update()
+{
+	const auto currentTime = std::chrono::high_resolution_clock::now();
+	if (currentTime - _lastUiUpdate < _uiUpdateRate)
+	{
+		return;
+	}
+
+	_lastUiUpdate = currentTime;
+	BuildImGui();
+}
+
 void UiPresenter::NextSkybox()
 {
 	_activeSkybox = ++_activeSkybox % _library.GetSkyboxes().size();
@@ -317,15 +329,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		// Whole screen framebuffer dimensions
 		const auto& swap = _vk.GetSwapchain();
 		const auto framebufferRect = vki::Rect2D({ 0, 0 }, swap.GetExtent());
-		const auto framebufferViewport = vki::Viewport(framebufferRect);
-
-		const auto sceneRectShared = ViewportRect();
-		const auto sceneRect = vki::Rect2D(
-			{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
-			{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
-		
-		const auto sceneViewport = vki::Viewport(sceneRect);
-		
 		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
 			framebufferRect, clearColors);
 
@@ -333,6 +336,13 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		{
 			// Post Processing - TODO This should be in SceneRenderer.
 			{
+				const auto sceneRectShared = ViewportRect();
+				const auto sceneRect = vki::Rect2D(
+					{ sceneRectShared.Offset.X,     sceneRectShared.Offset.Y },
+					{ sceneRectShared.Extent.Width, sceneRectShared.Extent.Height });
+				
+				const auto sceneViewport = vki::Viewport(sceneRect);
+					
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
 				_postProcessPass.Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
@@ -340,17 +350,6 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 			// UI
 			{
-				vkCmdSetViewport(commandBuffer, 0, 1, &framebufferViewport);
-
-				// Update Ui
-				const auto currentTime = std::chrono::high_resolution_clock::now();
-				if (currentTime - _lastUiUpdate > _uiUpdateRate)
-				{
-					_lastUiUpdate = currentTime;
-					BuildImGui();
-				}
-
-				// Draw
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 			}
 		}
