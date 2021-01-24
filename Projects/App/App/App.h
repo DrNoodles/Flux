@@ -5,7 +5,7 @@
 #include "AssImpModelLoaderService.h"
 #include "FpsCounter.h"
 #include "UI/UiPresenter.h"
-#include "ImGui.h"
+#include "ImGuiVulkanGlfw.h"
 
 #include <Renderer/SceneRenderer.h>
 #include <State/LibraryManager.h>
@@ -37,7 +37,7 @@ private: // DATA
 	std::unique_ptr<LibraryManager>      _library            = nullptr;
 	std::unique_ptr<UiPresenter>         _ui                 = nullptr;
 	std::unique_ptr<IWindow>             _window             = nullptr;
-	std::unique_ptr<ImGuiVulkanGlfw>     _imgui              = nullptr;;
+	std::unique_ptr<ImGuiVulkanGlfw>     _imgui              = nullptr;
 
 	// Window
 	AppOptions _appOptions;
