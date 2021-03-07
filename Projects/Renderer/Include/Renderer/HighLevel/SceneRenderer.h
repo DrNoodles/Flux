@@ -1,14 +1,14 @@
 #pragma once
 
-#include "RenderPasses/PbrModelRenderPass.h"
-#include "UniformBufferObjects.h"
-#include "RenderPasses/DirectionalShadowRenderPass.h"
-#include "RenderPasses/SkyboxRenderPass.h"
-#include "ResourceRegistry.h"
+#include "Renderer/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/UniformBufferObjects.h"
+#include "Renderer/RenderPasses/DirectionalShadowRenderPass.h"
+#include "Renderer/RenderPasses/SkyboxRenderPass.h"
+#include "Renderer/ResourceRegistry.h"
 
-#include "Framebuffer.h"
-#include "VulkanService.h"
-#include "CubemapTextureLoader.h"
+#include "Renderer/Framebuffer.h"
+#include "Renderer/VulkanService.h"
+#include "Renderer/CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>

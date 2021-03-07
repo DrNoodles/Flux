@@ -1,12 +1,12 @@
 #pragma once
 
-#include "VulkanService.h"
-#include "GpuTypes.h"
-#include "RenderableMesh.h"
-#include "TextureResource.h"
-#include "UniformBufferObjects.h"
-#include "CubemapTextureLoader.h"
-#include "ResourceRegistry.h"
+#include "Renderer/VulkanService.h"
+#include "Renderer/GpuTypes.h"
+#include "Renderer/RenderableMesh.h"
+#include "Renderer/TextureResource.h"
+#include "Renderer/UniformBufferObjects.h"
+#include "Renderer/CubemapTextureLoader.h"
+#include "Renderer/ResourceRegistry.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>

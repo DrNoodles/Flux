@@ -1,12 +1,12 @@
 
-#include "RenderPasses/PbrModelRenderPass.h"
-#include "GpuTypes.h"
-#include "VulkanHelpers.h"
-#include "VulkanInitializers.h"
-#include "UniformBufferObjects.h"
-#include "RenderableMesh.h"
-#include "IblLoader.h"
-#include "VulkanService.h"
+#include "Renderer/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/GpuTypes.h"
+#include "Renderer/VulkanHelpers.h"
+#include "Renderer/VulkanInitializers.h"
+#include "Renderer/UniformBufferObjects.h"
+#include "Renderer/RenderableMesh.h"
+#include "Renderer/IblLoader.h"
+#include "Renderer/VulkanService.h"
 
 #include <Framework/FileService.h>
 
