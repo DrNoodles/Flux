@@ -1,28 +1,18 @@
 
-#include "RenderPasses/SkyboxRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 
-#include "GpuTypes.h"
-#include "VulkanHelpers.h"
-#include "VulkanInitializers.h"
-#include "UniformBufferObjects.h"
-#include "RenderableMesh.h"
-#include "CubemapTextureLoader.h"
-#include "IblLoader.h"
-#include "VulkanService.h"
-#include "ResourceRegistry.h"
+#include "Renderer/HighLevel/IblLoader.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
 
 #include <Framework/FileService.h>
+#include <Framework/IModelLoaderService.h> 
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
-
-#include <utility>
-#include <vector>
-#include <string>
-#include <chrono>
-#include <map>
 
 using vkh = VulkanHelpers;
 

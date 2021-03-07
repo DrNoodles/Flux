@@ -4,8 +4,8 @@
 
 
 #include "IblLoader.h"
-#include "TextureResource.h"
-#include "VulkanService.h"
+#include "Renderer/LowLevel/TextureResource.h"
+#include "Renderer/LowLevel/VulkanService.h"
 
 // The purpose of this class is to create/manage/destroy GPU textures and buffers resources.
 class ResourceRegistry

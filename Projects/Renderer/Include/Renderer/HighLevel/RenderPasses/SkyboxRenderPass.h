@@ -1,21 +1,12 @@
 #pragma once
 
-#include "VulkanService.h"
-#include "GpuTypes.h"
-#include "RenderableMesh.h"
-#include "TextureResource.h"
-#include "CubemapTextureLoader.h"
-
-#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
-#include <Framework/CommonTypes.h>
-
-#include <vector>
+#include "Renderer/LowLevel/VulkanService.h"
 
 class ResourceRegistry;
+class IModelLoaderService;
 class VulkanService;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class SkyboxRenderPass

@@ -1,12 +1,14 @@
 
-#include "RenderPasses/PbrModelRenderPass.h"
-#include "GpuTypes.h"
-#include "VulkanHelpers.h"
-#include "VulkanInitializers.h"
-#include "UniformBufferObjects.h"
-#include "RenderableMesh.h"
-#include "IblLoader.h"
-#include "VulkanService.h"
+#include "Renderer/HighLevel/RenderPasses/PbrModelRenderPass.h"
+
+#include "Renderer/HighLevel/IblLoader.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
+#include "Renderer/LowLevel/GpuTypes.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
+#include "Renderer/LowLevel/VulkanHelpers.h"
+#include "Renderer/LowLevel/VulkanInitializers.h"
+#include "Renderer/LowLevel/VulkanService.h"
 
 #include <Framework/FileService.h>
 
@@ -15,14 +17,44 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 
-#include <utility>
-#include <vector>
-#include <string>
 #include <chrono>
 #include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 
 using vkh = VulkanHelpers;
+
+void PbrMaterialResource::Destroy()
+{
+	if (_vk)
+	{
+		vkDestroyBuffer(_vk->LogicalDevice(), _uniformBuffer, nullptr);
+		vkFreeMemory(_vk->LogicalDevice(), _uniformBufferMemory, nullptr);
+		_vk = nullptr;
+	}
+}
+
+const PbrMaterialResource& MaterialResourceManager::GetOrCreate(const Material& material, u32 swapImageIndex)
+{
+	const auto key = CreateKey(material.Id.Value(), swapImageIndex);
+
+	if (const auto it = _materialFrameResources.find(key);
+		it == _materialFrameResources.end())
+	{
+		// No match, create an store a new one
+		auto res = CreateMaterialFrameResources(material);
+		auto res2 = std::move(res);
+		auto [it2, success] = _materialFrameResources.emplace(key, std::move(res2));
+		assert(success);
+		return it2->second;
+	}
+	else
+	{
+		return it->second;
+	}
+}
 
 PbrMaterialResource MaterialResourceManager::CreateMaterialFrameResources(const Material& material) const
 {
@@ -60,6 +92,45 @@ PbrMaterialResource MaterialResourceManager::CreateMaterialFrameResources(const 
 	}
 
 	return PbrMaterialResource{_vk, materialDescSets[0], materialBuffers[0], materialBuffersMemory[0] };
+}
+
+void MaterialResourceManager::WriteMaterialDescriptorSet(VkDescriptorSet descriptorSet, VkBuffer materialUbo,
+                                                         const TextureResource& basecolorMap,
+                                                         const TextureResource& normalMap,
+                                                         const TextureResource& roughnessMap,
+                                                         const TextureResource& metalnessMap,
+                                                         const TextureResource& aoMap,
+                                                         const TextureResource& emissiveMap,
+                                                         const TextureResource& transparencyMap, VkDevice device)
+{
+	// Configure our new descriptor sets to point to our buffer/image data
+	VkDescriptorBufferInfo materialUboInfo = {};
+	{
+		materialUboInfo.buffer = materialUbo;
+		materialUboInfo.offset = 0;
+		materialUboInfo.range = sizeof(PbrMaterialUbo);
+	}
+
+	const auto& s = descriptorSet;
+
+	vkh::UpdateDescriptorSet(device, {
+		                         vki::WriteDescriptorSet(s, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr,
+		                                                 &materialUboInfo),
+		                         vki::WriteDescriptorSet(s, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &basecolorMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &normalMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &roughnessMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &metalnessMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &aoMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &emissiveMap.ImageInfo()),
+		                         vki::WriteDescriptorSet(s, 7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0,
+		                                                 &transparencyMap.ImageInfo()),
+	                         });
 }
 
 PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)

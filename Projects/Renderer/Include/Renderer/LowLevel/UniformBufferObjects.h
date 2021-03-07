@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GpuTypes.h"
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
 #include <Framework/CommonTypes.h>
 #include <Framework/Material.h>
 

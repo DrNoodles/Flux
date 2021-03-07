@@ -2,9 +2,6 @@
 
 #include "IWindow.h"
 
-#include <Renderer/SceneRenderer.h>
-#include <Renderer/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpass from this class
-
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"
 #include "PropsView/TransformVm.h"
@@ -12,13 +9,16 @@
 #include "ViewportView/IViewportViewDelegate.h"
 #include "ViewportView/ViewportView.h"
 
+#include <Renderer/LowLevel/VulkanService.h>
+
 #include <chrono>
-
-
 
 class LibraryManager;
 class SceneManager;
 class PbrModelRenderPass;
+class PostProcessRenderPass;
+class SceneRenderer;
+class IModelLoaderService;
 
 class IUiPresenterDelegate
 {

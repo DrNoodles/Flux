@@ -1,7 +1,9 @@
 #pragma once
 
 #include "IViewportViewDelegate.h"
-#include <Renderer/SceneRenderer.h>
+//#include <Renderer/HighLevel/SceneRenderer.h>
+
+class SceneRenderer;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ViewportView

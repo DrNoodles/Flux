@@ -1,12 +1,11 @@
 #pragma once
 
-#include <Renderer/GpuTypes.h>
-#include <Renderer/VulkanService.h>
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
+#include "Renderer/LowLevel/GpuTypes.h"
+#include "Renderer/LowLevel/VulkanService.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
 
 #include <Framework/FileService.h>
-
-
-
 
 class DirectionalShadowRenderPass
 {
