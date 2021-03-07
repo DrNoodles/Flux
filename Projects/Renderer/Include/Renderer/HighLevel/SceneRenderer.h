@@ -5,15 +5,16 @@
 #include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 #include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "ResourceRegistry.h"
+#include "CommonRendererHighLevel.h"
 
 #include "Renderer/LowLevel/Framebuffer.h"
 #include "Renderer/LowLevel/VulkanService.h"
-#include "CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
 
 #include <vector>
+
 
 
 /* TODO TODO TODO TODO TODO

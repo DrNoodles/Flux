@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
 #include "Renderer/LowLevel/VulkanService.h"
 
 class VulkanService;
