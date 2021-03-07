@@ -1,14 +1,14 @@
 
 #include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 
-#include "Renderer/GpuTypes.h"
-#include "Renderer/VulkanHelpers.h"
-#include "Renderer/VulkanInitializers.h"
-#include "Renderer/UniformBufferObjects.h"
-#include "Renderer/RenderableMesh.h"
+#include "Renderer/LowLevel/GpuTypes.h"
+#include "Renderer/LowLevel/VulkanHelpers.h"
+#include "Renderer/LowLevel/VulkanInitializers.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
 #include "Renderer/HighLevel/CubemapTextureLoader.h"
 #include "Renderer/HighLevel/IblLoader.h"
-#include "Renderer/VulkanService.h"
+#include "Renderer/LowLevel/VulkanService.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"
 
 #include <Framework/FileService.h>

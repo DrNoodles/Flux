@@ -3,9 +3,9 @@
 #include <vulkan/vulkan.h>
 
 #include "Framework/FileService.h"
-#include "Renderer/GpuTypes.h"
-#include "Renderer/UniformBufferObjects.h"
-#include "Renderer/VulkanService.h"
+#include "Renderer/LowLevel/GpuTypes.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
+#include "Renderer/LowLevel/VulkanService.h"
 
 
 struct TextureData

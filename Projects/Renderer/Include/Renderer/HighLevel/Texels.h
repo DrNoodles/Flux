@@ -1,5 +1,5 @@
 #pragma once
-#include "Renderer/VulkanHelpers.h"
+#include "Renderer/LowLevel/VulkanHelpers.h"
 
 #include <Framework/CommonTypes.h>
 

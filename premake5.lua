@@ -84,7 +84,6 @@ project "Renderer"
 	objdir "Build/Intermediate/Renderer/%{cfg.buildcfg}"
 
 	includedirs {
-		--"Projects/Renderer/Source/",
 		"Projects/Renderer/Include/",
 		"Projects/Framework/Include/",
 		"External/glfw/include",

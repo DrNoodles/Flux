@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Renderer/GpuTypes.h>
-#include <Renderer/VulkanService.h>
+#include <Renderer/LowLevel/GpuTypes.h>
+#include <Renderer/LowLevel/VulkanService.h>
 
 #include <Framework/FileService.h>
 

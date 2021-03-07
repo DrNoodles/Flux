@@ -1,7 +1,7 @@
-#include "Renderer/VulkanHelpers.h"
-#include "Renderer/VulkanInitializers.h"
-#include "Renderer/UniformBufferObjects.h"
-#include "Renderer/RenderableMesh.h"
+#include "Renderer/LowLevel/VulkanHelpers.h"
+#include "Renderer/LowLevel/VulkanInitializers.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
 
 #include <Framework/FileService.h>
 

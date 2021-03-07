@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Renderer/GpuTypes.h>
+#include <Renderer/LowLevel/GpuTypes.h>
 
 #include <State/Entity/LightComponent.h>
 

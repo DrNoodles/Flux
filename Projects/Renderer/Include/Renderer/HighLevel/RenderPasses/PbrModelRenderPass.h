@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Renderer/VulkanService.h"
-#include "Renderer/GpuTypes.h"
-#include "Renderer/RenderableMesh.h"
-#include "Renderer/TextureResource.h"
-#include "Renderer/UniformBufferObjects.h"
+#include "Renderer/LowLevel/VulkanService.h"
+#include "Renderer/LowLevel/GpuTypes.h"
+#include "Renderer/LowLevel/RenderableMesh.h"
+#include "Renderer/LowLevel/TextureResource.h"
+#include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "Renderer/HighLevel/CubemapTextureLoader.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"
 
