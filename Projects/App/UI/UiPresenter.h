@@ -3,7 +3,7 @@
 #include "IWindow.h"
 
 #include <Renderer/HighLevel/SceneRenderer.h>
-#include <Renderer/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpass from this class
+#include <Renderer/HighLevel/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpass from this class
 
 #include "PropsView/LightVm.h"
 #include "PropsView/PropsView.h"

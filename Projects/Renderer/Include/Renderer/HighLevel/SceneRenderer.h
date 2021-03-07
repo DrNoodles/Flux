@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Renderer/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/DirectionalShadowRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 #include "Renderer/UniformBufferObjects.h"
-#include "Renderer/RenderPasses/DirectionalShadowRenderPass.h"
-#include "Renderer/RenderPasses/SkyboxRenderPass.h"
 #include "Renderer/ResourceRegistry.h"
 
 #include "Renderer/Framebuffer.h"

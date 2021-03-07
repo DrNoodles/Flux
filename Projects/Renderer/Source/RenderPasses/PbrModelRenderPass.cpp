@@ -1,5 +1,5 @@
 
-#include "Renderer/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/PbrModelRenderPass.h"
 #include "Renderer/GpuTypes.h"
 #include "Renderer/VulkanHelpers.h"
 #include "Renderer/VulkanInitializers.h"

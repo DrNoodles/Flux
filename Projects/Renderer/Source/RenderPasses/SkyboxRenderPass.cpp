@@ -1,5 +1,5 @@
 
-#include "Renderer/RenderPasses/SkyboxRenderPass.h"
+#include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 
 #include "Renderer/GpuTypes.h"
 #include "Renderer/VulkanHelpers.h"
