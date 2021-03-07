@@ -7,7 +7,7 @@
 #include "UI/UiPresenter.h"
 #include "ImGuiVulkanGlfw.h"
 
-#include <Renderer/HighLevel/SceneRenderer.h> // HACK Remove this when the routing hacks below are gone.
+#include <Renderer/HighLevel/GraphicsPipelines/ForwardGraphicsPipeline.h> // HACK Remove this when the routing hacks below are gone.
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 

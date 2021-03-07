@@ -1,5 +1,5 @@
 
-#include "Renderer/HighLevel/RenderPasses/PbrModelRenderPass.h"
+#include "Renderer/HighLevel/GraphicsPipelineStages/PbrModelGraphicsPipelineStage.h"
 
 #include "Renderer/HighLevel/IblLoader.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"

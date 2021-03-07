@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Renderer/HighLevel/RenderPasses/PbrModelRenderPass.h"
-#include "Renderer/HighLevel/RenderPasses/DirectionalShadowRenderPass.h"
+#include "Renderer/HighLevel/GraphicsPipelineStages/PbrModelGraphicsPipelineStage.h"
+#include "Renderer/HighLevel/GraphicsPipelineStages/ShadowMapGraphicsPipelineStage.h"
 #include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 #include "Renderer/LowLevel/UniformBufferObjects.h"
-#include "ResourceRegistry.h"
-#include "CommonRendererHighLevel.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
 
 #include "Renderer/LowLevel/Framebuffer.h"
 #include "Renderer/LowLevel/VulkanService.h"

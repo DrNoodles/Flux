@@ -3,7 +3,7 @@
 #include "PropsView/PropsView.h"
 #include "RendererConverters.h"
 
-#include <Renderer/HighLevel/SceneRenderer.h>
+#include <Renderer/HighLevel/GraphicsPipelines/ForwardGraphicsPipeline.h>
 #include <Renderer/HighLevel/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpasses from this class!!
 #include <Framework/FileService.h>
 #include <Framework/IModelLoaderService.h>
