@@ -5,8 +5,8 @@
 #include "Renderer/RenderableMesh.h"
 #include "Renderer/TextureResource.h"
 #include "Renderer/UniformBufferObjects.h"
-#include "Renderer/CubemapTextureLoader.h"
-#include "Renderer/ResourceRegistry.h"
+#include "Renderer/HighLevel/CubemapTextureLoader.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>

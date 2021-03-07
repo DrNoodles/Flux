@@ -6,10 +6,10 @@
 #include "Renderer/VulkanInitializers.h"
 #include "Renderer/UniformBufferObjects.h"
 #include "Renderer/RenderableMesh.h"
-#include "Renderer/CubemapTextureLoader.h"
-#include "Renderer/IblLoader.h"
+#include "Renderer/HighLevel/CubemapTextureLoader.h"
+#include "Renderer/HighLevel/IblLoader.h"
 #include "Renderer/VulkanService.h"
-#include "Renderer/ResourceRegistry.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
 
 #include <Framework/FileService.h>
 

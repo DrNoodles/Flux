@@ -1,8 +1,8 @@
 #pragma once 
 
-#include "VulkanHelpers.h"
-#include "VulkanInitializers.h"
-#include "TextureResource.h"
+#include "Renderer/VulkanHelpers.h"
+#include "Renderer/VulkanInitializers.h"
+#include "Renderer/TextureResource.h"
 #include "Texels.h"
 
 #include <Framework/CommonTypes.h>

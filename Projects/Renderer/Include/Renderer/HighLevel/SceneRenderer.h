@@ -4,11 +4,11 @@
 #include "Renderer/HighLevel/RenderPasses/DirectionalShadowRenderPass.h"
 #include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
 #include "Renderer/UniformBufferObjects.h"
-#include "Renderer/ResourceRegistry.h"
+#include "ResourceRegistry.h"
 
 #include "Renderer/Framebuffer.h"
 #include "Renderer/VulkanService.h"
-#include "Renderer/CubemapTextureLoader.h"
+#include "CubemapTextureLoader.h"
 
 #include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>

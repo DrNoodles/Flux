@@ -5,7 +5,7 @@
 #include "Renderer/VulkanInitializers.h"
 #include "Renderer/UniformBufferObjects.h"
 #include "Renderer/RenderableMesh.h"
-#include "Renderer/IblLoader.h"
+#include "Renderer/HighLevel/IblLoader.h"
 #include "Renderer/VulkanService.h"
 
 #include <Framework/FileService.h>
