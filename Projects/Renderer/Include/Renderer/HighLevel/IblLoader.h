@@ -6,6 +6,7 @@
 #include "CubemapTextureLoader.h"
 #include "EquirectangularCubemapLoader.h"
 
+#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
 #include <Framework/FileService.h>
 
