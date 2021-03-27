@@ -15,9 +15,9 @@
 
 class LibraryManager;
 class SceneManager;
-class PbrModelRenderPass;
-class PostProcessRenderPass;
-class SceneRenderer;
+class PbrRenderStage;
+class PostEffectsRenderStage;
+class ForwardRenderer;
 class IModelLoaderService;
 
 class IUiPresenterDelegate
@@ -43,7 +43,7 @@ private: // DATA
 	VulkanService& _vk; // temp, remove
 	IWindow* _window = nullptr;
 
-	std::unique_ptr<SceneRenderer> _sceneRenderer;
+	std::unique_ptr<ForwardRenderer> _forwardRenderer;
 	
 	// Views
 	SceneView _sceneView;
@@ -74,7 +74,7 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
-	std::unique_ptr<PostProcessRenderPass> _postProcessPass = nullptr;
+	std::unique_ptr<PostEffectsRenderStage> _postEffectsRenderStage = nullptr;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
 	PointerMovedDelegate _pointerMovedHandler = [this](auto* s, auto a) { OnPointerMoved(s, a); };
@@ -112,11 +112,11 @@ public: // METHODS
 
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
 
-	SceneRenderer& HACK_GetSceneRendererRef() const { return *_sceneRenderer; }
+	ForwardRenderer& HACK_GetForwardRendererRef() const { return *_forwardRenderer; }
 
 private: // METHODS
 
-
+	
 	// Anchor Scene-view to left
 	Rect2D SceneRect() const
 	{

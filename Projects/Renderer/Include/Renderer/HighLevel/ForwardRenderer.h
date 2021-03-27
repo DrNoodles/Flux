@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Renderer/HighLevel/GraphicsPipelineStages/PbrModelGraphicsPipelineStage.h"
-#include "Renderer/HighLevel/GraphicsPipelineStages/ShadowMapGraphicsPipelineStage.h"
-#include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
+#include "Renderer/HighLevel/RenderStages/PbrRenderStage.h"
+#include "Renderer/HighLevel/RenderStages/ShadowMapRenderStage.h"
+#include "Renderer/HighLevel/RenderStages/SkyboxRenderStage.h"
 #include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"
 #include "Renderer/HighLevel/CommonRendererHighLevel.h"
@@ -56,7 +56,7 @@ Renderer:
 
 */
 
-class SceneRenderer final : public IPbrModelRenderPassDelegate
+class ForwardRenderer final : public IPbrRenderStageDelegate
 {
 public: // Data
 private:// Data
@@ -73,15 +73,14 @@ private:// Data
 	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
 
-	// Renderpasses
-	std::unique_ptr<PbrModelRenderPass>          _pbrRenderPass = nullptr;
-	std::unique_ptr<SkyboxRenderPass>            _skyboxRenderPass   = nullptr;
-	std::unique_ptr<DirectionalShadowRenderPass> _dirShadowRenderPass = nullptr;
-
+	// RenderStages
+	std::unique_ptr<PbrRenderStage>       _pbrRenderStage = nullptr;
+	std::unique_ptr<SkyboxRenderStage>    _skyboxRenderStage   = nullptr;
+	std::unique_ptr<ShadowMapRenderStage> _shadowMapRenderStage = nullptr;
 
 public: // Lifetime
 
-	SceneRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
+	ForwardRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
 		_vk(vulkanService),
 		_shaderDir(std::move(shaderDir)),
 		_assetsDir(std::move(assetsDir)),
@@ -89,21 +88,21 @@ public: // Lifetime
 	{
 		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk, &modelLoaderService, _shaderDir, _assetsDir);
 		
-		_skyboxRenderPass = std::make_unique<SkyboxRenderPass>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
-		_pbrRenderPass = std::make_unique<PbrModelRenderPass>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
-		_dirShadowRenderPass = std::make_unique<DirectionalShadowRenderPass>( _shaderDir, _vk );
+		_skyboxRenderStage = std::make_unique<SkyboxRenderStage>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
+		_pbrRenderStage = std::make_unique<PbrRenderStage>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
+		_shadowMapRenderStage = std::make_unique<ShadowMapRenderStage>( _shaderDir, _vk );
 		
-		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _dirShadowRenderPass->GetRenderPass());
-		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderPass->GetRenderPass());
+		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _shadowMapRenderStage->GetRenderPass());
+		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderStage->GetRenderPass());
 	}
 
-	SceneRenderer(const SceneRenderer&) = delete;
-	SceneRenderer& operator=(const SceneRenderer&) = delete;
+	ForwardRenderer(const ForwardRenderer&) = delete;
+	ForwardRenderer& operator=(const ForwardRenderer&) = delete;
 
-	SceneRenderer(SceneRenderer&& other) = delete;
-	SceneRenderer& operator=(SceneRenderer&& other) = delete;
+	ForwardRenderer(ForwardRenderer&& other) = delete;
+	ForwardRenderer& operator=(ForwardRenderer&& other) = delete;
 
-	~SceneRenderer() override
+	~ForwardRenderer() override
 	{
 		_sceneFramebuffer->Destroy();
 		_sceneFramebuffer = nullptr;
@@ -111,31 +110,31 @@ public: // Lifetime
 		_shadowmapFramebuffer->Destroy();
 		_shadowmapFramebuffer = nullptr;
 		
-		_dirShadowRenderPass->Destroy(_vk.LogicalDevice(), _vk.Allocator());
-		_dirShadowRenderPass = nullptr;
+		_shadowMapRenderStage->Destroy(_vk.LogicalDevice(), _vk.Allocator());
+		_shadowMapRenderStage = nullptr;
 		
-		_pbrRenderPass->Destroy();
-		_pbrRenderPass = nullptr;  // TODO Make this RAII
+		_pbrRenderStage->Destroy();
+		_pbrRenderStage = nullptr;  // TODO Make this RAII
 		
-		_skyboxRenderPass->Destroy();
-		_skyboxRenderPass = nullptr;
+		_skyboxRenderStage->Destroy();
+		_skyboxRenderStage = nullptr;
 	}
 
 public: // Methods
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 	{
-		_skyboxRenderPass->HandleSwapchainRecreated(width, height, numSwapchainImages);
-		_pbrRenderPass->HandleSwapchainRecreated(width, height, numSwapchainImages);
+		_skyboxRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
+		_pbrRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		
 		_sceneFramebuffer->Destroy();
-		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderPass->GetRenderPass());
+		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderStage->GetRenderPass());
 	}
 	
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options) const
 	{
 		// Update all descriptors
-		const auto skyboxDescUpdated = _skyboxRenderPass->UpdateDescriptors(options);
-		_pbrRenderPass->UpdateDescriptors(imageIndex, options, skyboxDescUpdated, scene); // also update other passes?
+		const auto skyboxDescUpdated = _skyboxRenderStage->UpdateDescriptors(options);
+		_pbrRenderStage->UpdateDescriptors(imageIndex, options, skyboxDescUpdated, scene); // also update other passes?
 
 
 		// Draw shadow pass
@@ -147,14 +146,13 @@ public: // Methods
 			auto beginInfo = vki::RenderPassBeginInfo(*_shadowmapFramebuffer, shadowRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				_dirShadowRenderPass->Draw(commandBuffer, shadowRenderArea, 
+				_shadowMapRenderStage->Draw(commandBuffer, shadowRenderArea, 
 					scene, lightSpaceMatrix, 
-					_pbrRenderPass->Hack_GetRenderables(),// TODO extract resources from PbrModelRenderPass into SceneRenderer
+					_pbrRenderStage->Hack_GetRenderables(),// TODO extract resources from PbrRenderStage into ForwardRenderer
 					_resourceRegistry->Hack_GetMeshes()); // TODO pass resRegistry into shadow pass so it can get meshes it needs
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
-
 
 		// Draw scene (skybox and pbr) to gbuffer
 		{
@@ -162,28 +160,28 @@ public: // Methods
 			auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
 			auto sceneViewport = vki::Viewport(sceneRenderArea);
 
-			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_pbrRenderPass->GetRenderPass(),
+			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_pbrRenderStage->GetRenderPass(),
 				_sceneFramebuffer->Framebuffer,
 				sceneRenderArea,
 				_sceneFramebuffer->Desc.ClearValues);
 
+
+			// Calc Projection
+			const auto vfov = 45.f;
+			const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
+			auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
+			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
+			
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRenderArea);
-
-				// Calc Projection
-				const auto vfov = 45.f;
-				const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
-				auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
-				projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-
-				_skyboxRenderPass->Draw(commandBuffer, imageIndex, options, scene.ViewMatrix, projection);
-				
-				_pbrRenderPass->Draw(commandBuffer, imageIndex, options, scene.Objects, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+				_skyboxRenderStage->Draw(commandBuffer, imageIndex, options, scene.ViewMatrix, projection);
+				_pbrRenderStage->Draw(commandBuffer, imageIndex, options, scene.Objects, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
+
 	}
 
 
@@ -192,7 +190,7 @@ public: // PBR RenderPass routing methods
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) const
 	{
-		return _pbrRenderPass->CreateRenderable(meshId);
+		return _pbrRenderStage->CreateRenderable(meshId);
 	}
 
 	[[deprecated("MeshResourceId is becoming internal to Renderer")]]
@@ -209,23 +207,23 @@ public: // PBR RenderPass routing methods
 
 public: // Skybox RenderPass routing methods
 	VkDescriptorImageInfo GetShadowmapDescriptor() override { return _shadowmapFramebuffer->OutputDescriptor; }
-	const TextureResource& GetIrradianceTextureResource()  override { return _skyboxRenderPass->GetIrradianceTextureResource(); }
-	const TextureResource& GetPrefilterTextureResource() override { return _skyboxRenderPass->GetPrefilterTextureResource(); }
-	const TextureResource& GetBrdfTextureResource() override { return _skyboxRenderPass->GetBrdfTextureResource(); }
+	const TextureResource& GetIrradianceTextureResource()  override { return _skyboxRenderStage->GetIrradianceTextureResource(); }
+	const TextureResource& GetPrefilterTextureResource() override { return _skyboxRenderStage->GetPrefilterTextureResource(); }
+	const TextureResource& GetBrdfTextureResource() override { return _skyboxRenderStage->GetBrdfTextureResource(); }
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) const
 	{
-		return _skyboxRenderPass->CreateIblTextureResources(path);
+		return _skyboxRenderStage->CreateIblTextureResources(path);
 	}
 
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) const
 	{
-		return _skyboxRenderPass->CreateSkybox(createInfo);
+		return _skyboxRenderStage->CreateSkybox(createInfo);
 	}
 
 	void SetSkybox(const SkyboxResourceId& resourceId) const
 	{
-		_skyboxRenderPass->SetSkybox(resourceId);
-		_pbrRenderPass->SetSkyboxDirty();
+		_skyboxRenderStage->SetSkybox(resourceId);
+		_pbrRenderStage->SetSkyboxDirty();
 	}
 
 

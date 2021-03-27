@@ -13,7 +13,7 @@ struct TextureData
 	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
 };
 
-class PostProcessRenderPass
+class PostEffectsRenderStage
 {
 private: // Types
 	struct DescriptorResources
@@ -70,8 +70,8 @@ private: // Data
 	VulkanService* _vulkan = nullptr;
 
 public: // Methods
-	PostProcessRenderPass() = delete;
-	explicit PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+	PostEffectsRenderStage() = delete;
+	explicit PostEffectsRenderStage(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
@@ -79,16 +79,16 @@ public: // Methods
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
-	~PostProcessRenderPass()
+	~PostEffectsRenderStage()
 	{
 		Destroy();
 	}
 	// Copy
-	PostProcessRenderPass(const PostProcessRenderPass&) = delete;
-	PostProcessRenderPass& operator=(const PostProcessRenderPass&) = delete;
+	PostEffectsRenderStage(const PostEffectsRenderStage&) = delete;
+	PostEffectsRenderStage& operator=(const PostEffectsRenderStage&) = delete;
 	// Move
-	PostProcessRenderPass(PostProcessRenderPass&& other) noexcept { *this = std::move(other); }
-	PostProcessRenderPass& operator=(PostProcessRenderPass&& other) noexcept
+	PostEffectsRenderStage(PostEffectsRenderStage&& other) noexcept { *this = std::move(other); }
+	PostEffectsRenderStage& operator=(PostEffectsRenderStage&& other) noexcept
 	{
 		if (this != &other)
 		{

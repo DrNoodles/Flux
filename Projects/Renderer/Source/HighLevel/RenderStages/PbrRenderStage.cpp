@@ -1,5 +1,5 @@
 
-#include "Renderer/HighLevel/GraphicsPipelineStages/PbrModelGraphicsPipelineStage.h"
+#include "Renderer/HighLevel/RenderStages/PbrRenderStage.h"
 
 #include "Renderer/HighLevel/IblLoader.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"
@@ -133,7 +133,7 @@ void MaterialResourceManager::WriteMaterialDescriptorSet(VkDescriptorSet descrip
 	                         });
 }
 
-PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
+PbrRenderStage::PbrRenderStage(VulkanService& vulkanService, ResourceRegistry* registry, IPbrRenderStageDelegate& delegate, std::string shaderDir, const std::string& assetsDir)
 	: _vk(vulkanService), _delegate(delegate), _shaderDir(std::move(shaderDir)), _resourceRegistry(registry)
 {
 	_placeholderTexture = _resourceRegistry->CreateTextureResource(assetsDir + "placeholder.png"); // TODO Move this to some common resources code
@@ -142,7 +142,7 @@ PbrModelRenderPass::PbrModelRenderPass(VulkanService& vulkanService, ResourceReg
 	InitRendererResourcesDependentOnSwapchain(_vk.GetSwapchain().GetImageCount());
 }
 
-void PbrModelRenderPass::Destroy() // TODO Make this RAII
+void PbrRenderStage::Destroy() // TODO Make this RAII
 {
 	vkDeviceWaitIdle(_vk.LogicalDevice());
 	
@@ -151,7 +151,7 @@ void PbrModelRenderPass::Destroy() // TODO Make this RAII
 }
 
 
-void PbrModelRenderPass::InitRenderer()
+void PbrRenderStage::InitRenderer()
 {
 	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
 	
@@ -163,7 +163,7 @@ void PbrModelRenderPass::InitRenderer()
 		_pbrDescriptorSetLayout,
 	});
 }
-void PbrModelRenderPass::DestroyRenderer()
+void PbrRenderStage::DestroyRenderer()
 {
 	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pbrPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _pbrDescriptorSetLayout, nullptr);
@@ -171,7 +171,7 @@ void PbrModelRenderPass::DestroyRenderer()
 	vkDestroyRenderPass(_vk.LogicalDevice(), _renderPass, nullptr);
 }
 
-void PbrModelRenderPass::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
+void PbrRenderStage::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
 	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
 
@@ -190,7 +190,7 @@ void PbrModelRenderPass::InitRendererResourcesDependentOnSwapchain(u32 numImages
 
 	_materialFrameResources = std::make_unique<MaterialResourceManager>(_vk, _rendererDescriptorPool, _materialDescriptorSetLayout, _resourceRegistry, _placeholderTexture);
 }
-void PbrModelRenderPass::DestroyRenderResourcesDependentOnSwapchain()
+void PbrRenderStage::DestroyRenderResourcesDependentOnSwapchain()
 {
 	_materialFrameResources = nullptr; // RAII
 	
@@ -211,13 +211,13 @@ void PbrModelRenderPass::DestroyRenderResourcesDependentOnSwapchain()
 	vkDestroyPipeline(_vk.LogicalDevice(), _pbrPipeline, nullptr);
 }
 
-void PbrModelRenderPass::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+void PbrRenderStage::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	DestroyRenderResourcesDependentOnSwapchain();
 	InitRendererResourcesDependentOnSwapchain(numSwapchainImages);
 }
 
-VkRenderPass PbrModelRenderPass::CreateRenderPass(VkFormat format, VulkanService& vk)
+VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk)
 {
 	auto* physicalDevice = vk.PhysicalDevice();
 	auto* device = vk.LogicalDevice();
@@ -333,7 +333,7 @@ VkRenderPass PbrModelRenderPass::CreateRenderPass(VkFormat format, VulkanService
 	return renderPass;
 }
 
-bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& options, bool skyboxUpdated, const SceneRendererPrimitives& scene)
+bool PbrRenderStage::UpdateDescriptors(u32 imageIndex, const RenderOptions& options, bool skyboxUpdated, const SceneRendererPrimitives& scene)
 {
 	// HACK HACK HACK TODO Optimise this so we only update descriptor sets when needed :)
 	_refreshRenderableDescriptorSets = true;
@@ -420,7 +420,7 @@ bool PbrModelRenderPass::UpdateDescriptors(u32 imageIndex, const RenderOptions& 
 	return updateDescriptors;
 }
 
-void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
+void PbrRenderStage::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
 	const std::vector<SceneRendererPrimitives::RenderableObject>& objects,
 	const std::vector<Light>& lights,
@@ -578,7 +578,7 @@ void PbrModelRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 }
 
-RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& meshId)
+RenderableResourceId PbrRenderStage::CreateRenderable(const MeshResourceId& meshId)
 {
 	auto model = std::make_unique<RenderableMesh>();
 	model->MeshId = meshId;
@@ -593,7 +593,7 @@ RenderableResourceId PbrModelRenderPass::CreateRenderable(const MeshResourceId& 
 /*
 // TODO - KEEP THIS CODE-  The comparison below could be used to determine whether a mat descriptor needs to be written
 
-void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
+void PbrRenderStage::SetMaterial(const RenderableResourceId& renderableResId, const Material& newMat)
 {
 		
 	auto& renderable = *_renderables[renderableResId.Id];
@@ -626,7 +626,7 @@ void PbrModelRenderPass::SetMaterial(const RenderableResourceId& renderableResId
 */
 
 
-VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
+VkDescriptorPool PbrRenderStage::CreateDescriptorPool(u32 numImagesInFlight, VkDevice device)
 {
 	const u32 maxPbrObjects = 10000; // Max scene objects! This is gross, but it'll do for now.
 	//const u32 maxSkyboxObjects = 1;
@@ -657,7 +657,7 @@ VkDescriptorPool PbrModelRenderPass::CreateDescriptorPool(u32 numImagesInFlight,
 }
 
 
-VkPipeline PbrModelRenderPass::CreatePbrGraphicsPipeline(const std::string& shaderDir,
+VkPipeline PbrRenderStage::CreatePbrGraphicsPipeline(const std::string& shaderDir,
 	VkPipelineLayout pipelineLayout,
 	VkSampleCountFlagBits msaaSamples,
 	VkRenderPass renderPass,
@@ -883,7 +883,7 @@ VkPipeline PbrModelRenderPass::CreatePbrGraphicsPipeline(const std::string& shad
 
 #pragma region Material Descriptor Sets
 
-VkDescriptorSetLayout PbrModelRenderPass::CreateMaterialDescriptorSetLayout(VkDevice device)
+VkDescriptorSetLayout PbrRenderStage::CreateMaterialDescriptorSetLayout(VkDevice device)
 {
 	return vkh::CreateDescriptorSetLayout(device, {
 		// pbr material ubo
@@ -910,7 +910,7 @@ VkDescriptorSetLayout PbrModelRenderPass::CreateMaterialDescriptorSetLayout(VkDe
 
 #pragma region Common Descriptor Sets
 
-std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResources(u32 numImagesInFlight) const
+std::vector<PbrCommonResourceFrame> PbrRenderStage::CreateCommonFrameResources(u32 numImagesInFlight) const
 {
 	// Create uniform buffers
 	auto [meshBuffers, meshBuffersMemory] = vkh::CreateUniformBuffers(numImagesInFlight, sizeof(PbrMeshVsUbo), 
@@ -945,7 +945,7 @@ std::vector<PbrCommonResourceFrame> PbrModelRenderPass::CreateCommonFrameResourc
 	return ret;
 }
 
-VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice device)
+VkDescriptorSetLayout PbrRenderStage::CreatePbrDescriptorSetLayout(VkDevice device)
 {
 	return vkh::CreateDescriptorSetLayout(device, {
 		// pbr model ubo
@@ -965,7 +965,7 @@ VkDescriptorSetLayout PbrModelRenderPass::CreatePbrDescriptorSetLayout(VkDevice 
 	});
 }
 
-void PbrModelRenderPass::WriteCommonDescriptorSet(
+void PbrRenderStage::WriteCommonDescriptorSet(
 	VkDescriptorSet descriptorSet,
 	VkBuffer meshUbo,
 	VkBuffer lightUbo,

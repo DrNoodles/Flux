@@ -7,7 +7,7 @@
 
 #include <Framework/FileService.h>
 
-class DirectionalShadowRenderPass
+class ShadowMapRenderStage
 {
 public:
 	struct PushConstants
@@ -22,8 +22,8 @@ private:
 	VkRenderPass _renderPass = nullptr;
 
 public:
-	DirectionalShadowRenderPass() = default;
-	DirectionalShadowRenderPass(const std::string& shaderDir, VulkanService& vk)
+	ShadowMapRenderStage() = default;
+	ShadowMapRenderStage(const std::string& shaderDir, VulkanService& vk)
 	{
 		_renderPass = CreateRenderPass(vk);
 

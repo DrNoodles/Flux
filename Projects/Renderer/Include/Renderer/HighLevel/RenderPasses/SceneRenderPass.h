@@ -1,6 +1,6 @@
 #pragma once
 
-// TODO Refactor common code from PbrGraphicsPipelineStage and ShadowMapGraphicsPipelineStage here.
+// TODO Refactor common code from PbrRenderStage and ShadowMapGraphicsPipelineStage here.
 
 // GOAL: new class that efficiently draws huge amounts of render primitives
 
