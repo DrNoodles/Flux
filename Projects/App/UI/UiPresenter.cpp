@@ -5,6 +5,7 @@
 
 #include <Renderer/HighLevel/ForwardRenderer.h>
 #include <Renderer/HighLevel/RenderStages/PostEffectsRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
+#include <Renderer/HighLevel/RenderStages/ToneMappingRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
 #include <Framework/FileService.h>
 #include <Framework/IModelLoaderService.h>
 #include <State/LibraryManager.h>
@@ -32,6 +33,9 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	_forwardRenderer = std::make_unique<ForwardRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
 		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
+
+	_toneMappingRenderStage = std::make_unique<ToneMappingRenderStage>(shaderDir, &vulkan);
+	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
 	
 	_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(shaderDir, &vulkan);
 	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
@@ -269,9 +273,11 @@ void UiPresenter::BuildImGui()
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
+	_toneMappingRenderStage->DestroyDescriptorResources();
 	_postEffectsRenderStage->DestroyDescriptorResources();
 	_forwardRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
 	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
+	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)

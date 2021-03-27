@@ -17,6 +17,7 @@ class LibraryManager;
 class SceneManager;
 class PbrRenderStage;
 class PostEffectsRenderStage;
+class ToneMappingRenderStage;
 class ForwardRenderer;
 class IModelLoaderService;
 
@@ -74,6 +75,7 @@ private: // DATA
 	std::chrono::duration<float, std::chrono::seconds::period> _uiUpdateRate{ 1.f / 90 };
 
 	// Rendering shit - TODO Move these graphics impl deets out of this UI class somehow
+	std::unique_ptr<ToneMappingRenderStage> _toneMappingRenderStage = nullptr;
 	std::unique_ptr<PostEffectsRenderStage> _postEffectsRenderStage = nullptr;
 
 	WindowSizeChangedDelegate _windowSizeChangedHandler = [this](auto* s, auto a) { OnWindowSizeChanged(s, a); };
