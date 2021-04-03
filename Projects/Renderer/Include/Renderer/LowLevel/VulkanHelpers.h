@@ -106,14 +106,7 @@ public:
 		FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, VkPhysicalDevice physicalDevice);;
 
 
-	// deprecated: use version which uses a VkCommandBuffer param
-	[[deprecated]] static void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize,
-		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device);
-
-
-	// deprecated: use version which uses a VkCommandBuffer param
-	[[deprecated]] static void CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height,
-		VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device);
+	static void CopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize);
 
 	static void CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkImage dstImage, 
 		u32 width, u32 height);

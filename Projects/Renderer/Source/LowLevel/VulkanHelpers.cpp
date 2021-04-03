@@ -578,10 +578,9 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateVertexBuffer(const std
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
 		device, physicalDevice);
 
-
-	// Copy from staging buffer to vertex buffer
-	CopyBuffer(stagingBuffer, vertexBuffer, bufSize, transferCommandPool, transferQueue, device);
-
+	auto* const cmdBuf = BeginSingleTimeCommands(transferCommandPool, device);
+	CopyBuffer(cmdBuf, stagingBuffer, vertexBuffer, bufSize);
+	EndSingeTimeCommands(cmdBuf, transferCommandPool, transferQueue, device);
 
 	// Cleanup temp buffer
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -618,8 +617,9 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateIndexBuffer(const std:
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // property flags
 		device, physicalDevice);
 
-	// Copy from staging buffer to vertex buffer
-	CopyBuffer(stagingBuffer, indexBuffer, bufSize, transferCommandPool, transferQueue, device);
+	auto* const cmdBuf = BeginSingleTimeCommands(transferCommandPool, device);
+	CopyBuffer(cmdBuf, stagingBuffer, indexBuffer, bufSize);
+	EndSingeTimeCommands(cmdBuf, transferCommandPool, transferQueue, device);
 
 	// Cleanup temp buffer
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -695,51 +695,14 @@ uint32_t VulkanHelpers::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlag
 	throw std::runtime_error("Failed to find a suitable memory type");
 }
 
-void VulkanHelpers::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize,
-	VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
+void VulkanHelpers::CopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize)
 {
-	const auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
-
-	BeginSingleTimeCommands(transferCommandPool, device);
-
-	VkBufferCopy copyRegion = {};
-	{
-		copyRegion.size = bufferSize;
-		copyRegion.srcOffset = 0;
-		copyRegion.dstOffset = 0;
-	}
+	VkBufferCopy copyRegion = {
+		.srcOffset = 0,
+		.dstOffset = 0,
+		.size = bufferSize,
+	};
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-	EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
-}
-
-void VulkanHelpers::CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height,
-	VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
-{
-	auto* const commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
-
-	BeginSingleTimeCommands(transferCommandPool, device);
-
-	VkBufferImageCopy region = {};
-	{
-		// buffer params define any padding around the image. 0 is tightly packed.
-		region.bufferOffset = 0;
-		region.bufferRowLength = 0;
-		region.bufferImageHeight = 0;
-
-		// subresource, offset and extent indicate which part of the image we want to copy from
-		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = 0;
-		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = 1;
-		region.imageOffset = { 0, 0, 0 };
-		region.imageExtent = { width, height, 1 };
-	}
-	vkCmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // assuming pixels are already in optimal layout
-		1, &region);
-
-	EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
 }
 
 void VulkanHelpers::CopyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer srcBuffer, VkImage dstImage,
