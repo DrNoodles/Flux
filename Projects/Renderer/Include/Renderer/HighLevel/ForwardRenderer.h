@@ -236,7 +236,7 @@ private:// Methods
 			{ width, height },
 			VK_FORMAT_R16G16B16A16_SFLOAT,
 			renderPass,
-			_vk.MsaaSamples(),
+			_vk.GetSwapchain().GetMsaaSamples(),  // TODO This should query the render target - which shouldn't be the swap!
 			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 

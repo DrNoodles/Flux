@@ -57,7 +57,8 @@ void SkyboxRenderStage::DestroyResources()
 
 void SkyboxRenderStage::InitResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pipeline = CreateGraphicsPipeline(_shaderDir, _pipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
+	auto msaaSamples = _vk.GetSwapchain().GetMsaaSamples();  // TODO This should query the render target
+	_pipeline = CreateGraphicsPipeline(_shaderDir, _pipelineLayout, msaaSamples, _renderPass, _vk.LogicalDevice());
 
 	_descPool = CreateDescPool(numImagesInFlight, _vk.LogicalDevice());
 	
@@ -95,7 +96,7 @@ VkRenderPass SkyboxRenderStage::CreateRenderPass(VkFormat format, VulkanService&
 {
 	auto* physicalDevice = vk.PhysicalDevice();
 	auto* device = vk.LogicalDevice();
-	const auto msaaSamples = vk.MsaaSamples();
+	const auto msaaSamples = vk.GetSwapchain().GetMsaaSamples();  // TODO This should query the render target
 	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
 
 	// Color attachment

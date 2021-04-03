@@ -32,6 +32,7 @@ private:
 	VkImageView _depthImageView = nullptr;
 
 	VkRenderPass _renderPass = nullptr;
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	
 public:
 	inline VkSwapchainKHR GetSwapchain() const                       { return _swapchain; }
@@ -39,9 +40,11 @@ public:
 	inline const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
 	inline u32 GetImageCount() const                                 { return _imageCount; }
 	inline VkExtent2D GetExtent() const                              { return _extent; }
+	VkSampleCountFlagBits GetMsaaSamples() const                     { return _msaaSamples; }
+
 
 	Swapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, 
-	          VkSampleCountFlagBits msaa, bool vsync)
+	          VkSampleCountFlagBits msaaSamples, bool vsync)
 		: _device(device)
 	{
 		assert(_device);
@@ -53,15 +56,16 @@ public:
 			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, device);
 
 		auto [colorImage, colorImageMemory, colorImageView]
-			= vkh::CreateColorResources(swapchainImageFormat, swapchainExtent, msaa, device, physicalDevice);
+			= vkh::CreateColorResources(swapchainImageFormat, swapchainExtent, msaaSamples, device, physicalDevice);
 
 		auto [depthImage, depthImageMemory, depthImageView]
-			= vkh::CreateDepthResources(swapchainExtent, msaa, device, physicalDevice);
+			= vkh::CreateDepthResources(swapchainExtent, msaaSamples, device, physicalDevice);
 
 		auto* renderPass = CreateSwapchainRenderPass(swapchainImageFormat, device);
 
 		auto swapchainFramebuffers = CreateSwapchainFramebuffer(device, /*colorImageView, depthImageView,*/ swapchainImageViews, swapchainExtent, renderPass);
 
+		_msaaSamples = msaaSamples;
 		_imageCount = (u32)swapchainImages.size();
 		_swapchain = swapchain;
 		_images = std::move(swapchainImages);

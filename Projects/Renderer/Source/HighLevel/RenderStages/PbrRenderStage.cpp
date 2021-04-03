@@ -173,7 +173,8 @@ void PbrRenderStage::DestroyRenderer()
 
 void PbrRenderStage::InitRendererResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
+	auto msaaSamples = _vk.GetSwapchain().GetMsaaSamples(); // TODO This should query the render target
+	_pbrPipeline = CreatePbrGraphicsPipeline(_shaderDir, _pbrPipelineLayout, msaaSamples, _renderPass, _vk.LogicalDevice());
 
 	_rendererDescriptorPool = CreateDescriptorPool(numImagesInFlight, _vk.LogicalDevice());
 
@@ -221,7 +222,7 @@ VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk
 {
 	auto* physicalDevice = vk.PhysicalDevice();
 	auto* device = vk.LogicalDevice();
-	const auto msaaSamples = vk.MsaaSamples();
+	const auto msaaSamples = vk.GetSwapchain().GetMsaaSamples(); // TODO This should query the render target
 	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
 
 	// Color attachment
