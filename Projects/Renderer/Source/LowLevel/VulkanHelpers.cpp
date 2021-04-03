@@ -3,8 +3,6 @@
 #include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "Renderer/LowLevel/RenderableMesh.h"
 
-#include <Framework/FileService.h>
-
 #define GLFW_INCLUDE_VULKAN // glfw includes vulkan.h
 #include <GLFW/glfw3.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // to comply with vulkan
@@ -718,7 +716,7 @@ void VulkanHelpers::CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceS
 void VulkanHelpers::CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height,
 	VkCommandPool transferCommandPool, VkQueue transferQueue, VkDevice device)
 {
-	const auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
+	auto* const commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
 
 	BeginSingleTimeCommands(transferCommandPool, device);
 
@@ -896,92 +894,6 @@ void VulkanHelpers::TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage ima
 		0, nullptr,
 		0, nullptr,
 		1, &imageMemoryBarrier);
-}
-
-void VulkanHelpers::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout,
-                                          VkImageLayout newLayout, uint32_t mipLevels,
-                                          VkCommandPool transferCommandPool, VkQueue transferQueue,
-                                          VkDevice device)
-{
-	// Setup barrier before transitioning image layout
-	VkImageMemoryBarrier barrier = {};
-	{
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.oldLayout = oldLayout;
-		barrier.newLayout = newLayout;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // these are used when transferring queue families
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.image = image;
-		barrier.subresourceRange.aspectMask = // Defined below - subresource range defines which parts of..  
-		barrier.subresourceRange.baseMipLevel = 0; // ..the image are affected.
-		barrier.subresourceRange.levelCount = mipLevels;
-		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
-		barrier.srcAccessMask = 0; // Defined below - which operations to wait on before the barrier
-		barrier.dstAccessMask = 0; // Defined below - which operations will wait this the barrier
-
-		// Set aspectMask
-		if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-		{
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-			if (HasStencilComponent(format))
-			{
-				barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-			}
-		}
-		else
-		{
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		}
-	}
-
-
-	// Define barriers and pipeline stages for supported transitions - https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPipelineStageFlagBits.html
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = // read & write depth
-			VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-			VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	}
-	else
-	{
-		throw std::invalid_argument(
-			"Unsupported layout transition: " + std::to_string(oldLayout) + " > " + std::to_string(newLayout) + "\n");
-	}
-
-
-	// Execute transition
-	const auto commandBuffer = BeginSingleTimeCommands(transferCommandPool, device);
-
-	vkCmdPipelineBarrier(
-		commandBuffer,
-		sourceStage, destinationStage,
-		0,
-		0, nullptr, // mem barriers
-		0, nullptr, // buffer barriers
-		1, &barrier); // image barriers
-
-	EndSingeTimeCommands(commandBuffer, transferCommandPool, transferQueue, device);
 }
 
 VkCommandBuffer VulkanHelpers::BeginSingleTimeCommands(VkCommandPool transferCommandPool, VkDevice device)

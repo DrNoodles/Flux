@@ -129,11 +129,6 @@ public:
 		VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 		VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
-	// deprecated: use version which uses a VkCommandBuffer param
-	[[deprecated]] static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
-		uint32_t mipLevels, VkCommandPool transferCommandPool, VkQueue transferQueue,
-		VkDevice device);
-
 	static VkCommandBuffer BeginSingleTimeCommands(VkCommandPool transferCommandPool, VkDevice device);
 	static void EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool transferPool,
 		VkQueue transferQueue, VkDevice device);
