@@ -97,7 +97,7 @@ public:
 
 
 	[[nodiscard]] static std::tuple<VkBuffer, VkDeviceMemory>
-		CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
+		CreateBuffer(VkDeviceSize sizeBytes, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkDevice device, VkPhysicalDevice physicalDevice);
 
 
@@ -161,7 +161,7 @@ public:
 #pragma region Image, ImageView, ImageMemory, MipLevels, DepthImage, TextureImage, etc
 
 	[[nodiscard]] static std::tuple<VkImage, VkDeviceMemory>
-		CreateImage2D(u32 width, u32 height, u32 mipLevels, VkSampleCountFlagBits numSamples,
+		CreateImage2D(u32 width, u32 height, u32 mipLevels, VkSampleCountFlagBits multisampleSamples,
 			VkFormat format,
 			VkImageTiling tiling, VkImageUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags,
 			VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers = 1, VkImageCreateFlags flags = 0);
@@ -318,11 +318,11 @@ public:
 	}
 
 
-	// TODO Move this to VulkanHelpers and add support for n layers, and pass in a command buffer for external management
+	// TODO Add support for n layers
 	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
 	static void GenerateMipmaps(VkCommandBuffer commandBuffer, VkPhysicalDevice physicalDevice,
-		VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels = 1, u32 arrayLayers = 1)
+		VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels, u32 arrayLayers = 1)
 	{
 		assert(arrayLayers == 1); // TODO Support for arrayLayers != 1 has NOT been tested
 
@@ -334,18 +334,19 @@ public:
 			throw std::runtime_error("Texture image format does not support linear blitting!");
 		}
 
-		VkImageMemoryBarrier barrier = {};
-		{
-			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			barrier.image = image;
-			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			barrier.subresourceRange.baseMipLevel = 0; // Defined later
-			barrier.subresourceRange.levelCount = 1;
-			barrier.subresourceRange.baseArrayLayer = 0;
-			barrier.subresourceRange.layerCount = 1;
-		}
+		VkImageMemoryBarrier barrier = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = image,
+			.subresourceRange = VkImageSubresourceRange {
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel = 0, // Defined later
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1,
+			},
+		};
 
 		auto srcMipWidth = (i32)width;
 		auto srcMipHeight = (i32)height;

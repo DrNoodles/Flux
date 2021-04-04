@@ -161,12 +161,12 @@ private:
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
 
-		const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
+		const VkDeviceSize imageSizeBytes = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
 		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
 
 		// Create staging buffer
 		auto [stagingBuffer, stagingBufferMemory] = vkh::CreateBuffer(
-			imageSize,
+			imageSizeBytes,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
 			device, physicalDevice);
@@ -174,8 +174,8 @@ private:
 
 		// Copy texels from system mem to GPU staging buffer
 		void* data;
-		vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-		memcpy(data, texels, imageSize);
+		vkMapMemory(device, stagingBufferMemory, 0, imageSizeBytes, 0, &data);
+		memcpy(data, texels, imageSizeBytes);
 		vkUnmapMemory(device, stagingBufferMemory);
 
 
@@ -203,9 +203,9 @@ private:
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			0, mipLevels);
 
-		// Copy texels from staging buffer to image buffer
 		vkh::CopyBufferToImage(cmdBuf, stagingBuffer, textureImage, texWidth, texHeight);
 
+		// GenerateMipmaps has a precondition that all mip levels are VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL. Which we are from above.
 		vkh::GenerateMipmaps(cmdBuf, physicalDevice, textureImage, format, texWidth, texHeight, mipLevels);
 
 		vkh::EndSingeTimeCommands(cmdBuf, transferPool, transferQueue, device);

@@ -628,7 +628,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateIndexBuffer(const std:
 	return { indexBuffer, indexBufferMemory };
 }
 
-std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags,
+std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateBuffer(VkDeviceSize sizeBytes, VkBufferUsageFlags usageFlags,
 	VkMemoryPropertyFlags propertyFlags, VkDevice device,
 	VkPhysicalDevice physicalDevice)
 {
@@ -638,7 +638,7 @@ std::tuple<VkBuffer, VkDeviceMemory> VulkanHelpers::CreateBuffer(VkDeviceSize si
 	VkBufferCreateInfo bufferCI = {};
 	{
 		bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCI.size = size;
+		bufferCI.size = sizeBytes;
 		bufferCI.usage = usageFlags;
 		bufferCI.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
@@ -1093,7 +1093,7 @@ std::tuple<std::vector<VkBuffer>, std::vector<VkDeviceMemory>> VulkanHelpers::Cr
 
 
 std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(u32 width, u32 height, u32 mipLevels,
-	VkSampleCountFlagBits numSamples, VkFormat format,
+	VkSampleCountFlagBits multisampleSamples, VkFormat format,
 	VkImageTiling tiling, VkImageUsageFlags usageFlags,
 	VkMemoryPropertyFlags propertyFlags,
 	VkPhysicalDevice physicalDevice, VkDevice device, u32 arrayLayers, VkImageCreateFlags flags)
@@ -1116,7 +1116,7 @@ std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(u32 width, u32 
 		imageCI.format = format;
 		imageCI.tiling = tiling;
 		imageCI.usage = usageFlags;
-		imageCI.samples = numSamples; // the multisampling mode
+		imageCI.samples = multisampleSamples; // the multisampling mode
 		imageCI.flags = flags;
 	}
 
