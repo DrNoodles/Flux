@@ -104,6 +104,15 @@ namespace vki
 		return x;
 	}
 
+	inline VkOffset3D Offset3D(VkOffset2D offset, i32 z)
+	{
+		VkOffset3D o = {};
+		o.x = offset.x;
+		o.y = offset.y;
+		o.z = z;
+		return o;
+	}
+	
 	inline VkOffset3D Offset3D(i32 x, i32 y, i32 z)
 	{
 		VkOffset3D o = {};
@@ -113,6 +122,15 @@ namespace vki
 		return o;
 	}
 
+	inline VkExtent3D Extent3D(VkExtent2D extent, u32 depth)
+	{
+		VkExtent3D x = {};
+		x.width = extent.width;
+		x.height = extent.height;
+		x.depth = depth;
+		return x;
+	}
+	
 	inline VkExtent3D Extent3D(u32 width, u32 height, u32 depth)
 	{
 		VkExtent3D x = {};

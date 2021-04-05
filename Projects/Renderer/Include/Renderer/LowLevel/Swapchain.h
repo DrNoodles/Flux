@@ -38,6 +38,7 @@ public:
 	inline VkSwapchainKHR GetSwapchain() const                       { return _swapchain; }
 	inline VkRenderPass GetRenderPass() const                        { return _renderPass; }
 	inline const std::vector<VkFramebuffer>& GetFramebuffers() const { return _framebuffers; }
+	inline const std::vector<VkImage>& GetImages() const             { return _images; }
 	inline u32 GetImageCount() const                                 { return _imageCount; }
 	inline VkExtent2D GetExtent() const                              { return _extent; }
 	VkSampleCountFlagBits GetMsaaSamples() const                     { return _msaaSamples; }
@@ -140,7 +141,7 @@ private:
 		info.imageColorSpace = surfaceFormat.colorSpace;
 		info.imageExtent = extent;
 		info.imageArrayLayers = 1;
-		info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //VK_IMAGE_USAGE_TRANSFER_DST_BIT for post processing 
+		info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT; //xfer dst for post processing 
 		info.preTransform = deets.Capabilities.currentTransform; // transform image before showing it?
 		info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // Control alpha blending with other windows
 		info.presentMode = presentMode;

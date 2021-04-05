@@ -1,17 +1,18 @@
 #pragma once
 
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
 #include "Renderer/HighLevel/RenderStages/PbrRenderStage.h"
+#include "Renderer/HighLevel/RenderStages/PostEffectsRenderStage.h"
 #include "Renderer/HighLevel/RenderStages/ShadowMapRenderStage.h"
 #include "Renderer/HighLevel/RenderStages/SkyboxRenderStage.h"
 #include "Renderer/LowLevel/UniformBufferObjects.h"
-#include "Renderer/HighLevel/ResourceRegistry.h"
-#include "Renderer/HighLevel/CommonRendererHighLevel.h"
 
 #include "Renderer/LowLevel/Framebuffer.h"
 #include "Renderer/LowLevel/VulkanService.h"
 
-#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
+#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 
 #include <vector>
 

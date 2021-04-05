@@ -70,7 +70,10 @@ public:
 				desc.MsaaSamples,
 				desc.Format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // TODO change this when msaa on?
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // renderered to
+				VK_IMAGE_USAGE_SAMPLED_BIT |          // image used in other render passes
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT |      // image copied into swapchain for presentation
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				physicalDevice, device);
 
@@ -131,7 +134,10 @@ public:
 				VK_SAMPLE_COUNT_1_BIT,
 				desc.Format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // renderered to
+				VK_IMAGE_USAGE_SAMPLED_BIT |          // image used in other render passes
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT |      // image copied into swapchain for presentation
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				physicalDevice, device);
 
