@@ -201,7 +201,10 @@ private:
 			VK_IMAGE_LAYOUT_UNDEFINED, // from
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
 			VK_IMAGE_ASPECT_COLOR_BIT,
-			0, mipLevels);
+			0, mipLevels,
+			0, 1,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, // i'm not 100% if this is correct, but the synchronization warnings aren't yelling
+			VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 		vkh::CopyBufferToImage(cmdBuf, stagingBuffer, textureImage, texWidth, texHeight);
 
