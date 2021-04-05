@@ -235,7 +235,7 @@ VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk
 		colorAttachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // not using stencil
 		colorAttachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		colorAttachmentDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	}
 	VkAttachmentReference colorAttachmentRef = {};
 	{
@@ -272,7 +272,7 @@ VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk
 		resolveAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; 
 		resolveAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		resolveAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		resolveAttachDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		resolveAttachDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	}
 	VkAttachmentReference resolveAttachRef = {};
 	{
@@ -296,23 +296,28 @@ VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk
 	
 	
 	// Set subpass dependency for the implicit external subpass to wait for the swapchain to finish reading from it
-	VkSubpassDependency subpassDependency = {};
-	{
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass before render
-		subpassDependency.dstSubpass = 0; // this pass
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	}
-
-
+	std::vector<VkSubpassDependency> dependencies(0);
+	/*dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].srcAccessMask = 0;
+	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].srcAccessMask = 0;
+	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;*/
+	
 	// Create render pass
 	std::vector<VkAttachmentDescription> attachments = { colorAttachmentDesc, depthAttachmentDesc };
 	if (usingMsaa)	{
 		attachments.push_back(resolveAttachDesc);
 	}
-
 	
 	VkRenderPassCreateInfo renderPassCI = {};
 	{
@@ -321,8 +326,8 @@ VkRenderPass PbrRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk
 		renderPassCI.pAttachments = attachments.data();
 		renderPassCI.subpassCount = 1;
 		renderPassCI.pSubpasses = &subpassDesc;
-		renderPassCI.dependencyCount = 1;
-		renderPassCI.pDependencies = &subpassDependency;
+		renderPassCI.dependencyCount = (u32)dependencies.size();
+		renderPassCI.pDependencies = dependencies.data();
 	}
 
 	VkRenderPass renderPass;

@@ -156,22 +156,15 @@ public: // Methods
 
 		// Draw scene (skybox and pbr) to gbuffer
 		{
-			// Scene Viewport - Only the part of the screen showing the scene.
-			auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
-			auto sceneViewport = vki::Viewport(sceneRenderArea);
-
-			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(_pbrRenderStage->GetRenderPass(),
-				_sceneFramebuffer->Framebuffer,
-				sceneRenderArea,
-				_sceneFramebuffer->Desc.ClearValues);
-
-
 			// Calc Projection
 			const auto vfov = 45.f;
 			const auto aspect = _sceneFramebuffer->Desc.Extent.width / (f32)_sceneFramebuffer->Desc.Extent.height;
 			auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
-			
+
+			const auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
+			const auto sceneViewport = vki::Viewport(sceneRenderArea);
+			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(*_sceneFramebuffer, sceneRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
@@ -181,12 +174,12 @@ public: // Methods
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
-
 	}
 
 
 public: // PBR RenderPass routing methods
 	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
+	VkImage GetOutputImage() const { return _sceneFramebuffer->OutputImage; }
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) const
 	{

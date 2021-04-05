@@ -321,8 +321,15 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		
 		_forwardRenderer->Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
 	}
-	
 
+	// Ensure forward renderer has finished and ready for sampling
+	vkh::TransitionImageLayout(commandBuffer, _forwardRenderer->GetOutputImage(),
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // old
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // new
+		VK_IMAGE_ASPECT_COLOR_BIT, 
+		0, 1, 0, 1,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	// Draw Ui full screen
 	{
