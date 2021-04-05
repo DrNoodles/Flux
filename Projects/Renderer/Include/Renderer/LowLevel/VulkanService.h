@@ -161,36 +161,17 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		
 		return *this;
 	}
-	
 
-
+	const Swapchain& GetSwapchain() const { return *_swapchain; }
 	VkDevice LogicalDevice() const { return _device; }
 	VkInstance Instance() const { return _instance; }
 	VkSurfaceKHR Surface() const { return _surface; }
 	VkPhysicalDevice PhysicalDevice() const { return _physicalDevice; }
 	VkCommandPool CommandPool() const { return _commandPool; }
 	VkQueue GraphicsQueue() const { return _graphicsQueue; }
-	VkQueue PresentQueue() const { return _presentQueue; }
-
 	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
-	VkSampleCountFlagBits MsaaSamples() const { return _msaaSamples; }
-	size_t MaxFramesInFlight() const { return _maxFramesInFlight; }
-	
-	const Swapchain& GetSwapchain() const { return *_swapchain; }
-	
-	const std::vector<VkCommandBuffer>& CommandBuffers() const { return _commandBuffers; }
-
-	// Frame rendering
-	const std::vector<VkSemaphore>& RenderFinishedSemaphores() const { return _renderFinishedSemaphores; }
-	const std::vector<VkSemaphore>& ImageAvailableSemaphores() const { return _imageAvailableSemaphores; }
-	const std::vector<VkFence>& InFlightFences() const { return _inFlightFences; }
-	std::vector<VkFence>& ImagesInFlight() { return _imagesInFlight; }
-
-	
 	void InvalidateSwapchain() { _swapchainInvalidated = true; }
-
-
 	
 	
 	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
@@ -326,7 +307,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		_instance = instance;
 		_surface = surface;
 		_physicalDevice = physicalDevice;
-		_msaaSamples =  _msaaEnabled ? maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;;
+		_msaaSamples = _msaaEnabled ? maxMsaaSamples : VK_SAMPLE_COUNT_1_BIT;
 		_device = device;
 		_graphicsQueue = graphicsQueue;
 		_presentQueue = presentQueue;

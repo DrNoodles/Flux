@@ -1,5 +1,5 @@
 
-#include "Renderer/HighLevel/RenderPasses/SkyboxRenderPass.h"
+#include "Renderer/HighLevel/RenderStages/SkyboxRenderStage.h"
 
 #include "Renderer/HighLevel/IblLoader.h"
 #include "Renderer/HighLevel/ResourceRegistry.h"
@@ -16,7 +16,7 @@
 
 using vkh = VulkanHelpers;
 
-SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService)
+SkyboxRenderStage::SkyboxRenderStage(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService)
 	: _vk(vulkanService), _resources(registry), _shaderDir(std::move(shaderDir))
 {
 	InitResources();
@@ -30,7 +30,7 @@ SkyboxRenderPass::SkyboxRenderPass(VulkanService& vulkanService, ResourceRegistr
 	_skyboxMeshId = _resources->CreateMeshResource(meshDefinition);
 }
 
-void SkyboxRenderPass::Destroy()
+void SkyboxRenderStage::Destroy()
 {
 	vkDeviceWaitIdle(_vk.LogicalDevice());
 	
@@ -39,13 +39,13 @@ void SkyboxRenderPass::Destroy()
 }
 
 
-void SkyboxRenderPass::InitResources()
+void SkyboxRenderStage::InitResources()
 {
 	_renderPass = CreateRenderPass(VK_FORMAT_R16G16B16A16_SFLOAT, _vk);
 	_descSetLayout = CreateDescSetLayout(_vk.LogicalDevice());
 	_pipelineLayout = vkh::CreatePipelineLayout(_vk.LogicalDevice(), { _descSetLayout });
 }
-void SkyboxRenderPass::DestroyResources()
+void SkyboxRenderStage::DestroyResources()
 {
 	vkDestroyPipelineLayout(_vk.LogicalDevice(), _pipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_vk.LogicalDevice(), _descSetLayout, nullptr);
@@ -55,9 +55,10 @@ void SkyboxRenderPass::DestroyResources()
 	_renderPass = nullptr;
 }
 
-void SkyboxRenderPass::InitResourcesDependentOnSwapchain(u32 numImagesInFlight)
+void SkyboxRenderStage::InitResourcesDependentOnSwapchain(u32 numImagesInFlight)
 {
-	_pipeline = CreateGraphicsPipeline(_shaderDir, _pipelineLayout, _vk.MsaaSamples(), _renderPass, _vk.LogicalDevice());
+	auto msaaSamples = _vk.GetSwapchain().GetMsaaSamples();  // TODO This should query the render target
+	_pipeline = CreateGraphicsPipeline(_shaderDir, _pipelineLayout, msaaSamples, _renderPass, _vk.LogicalDevice());
 
 	_descPool = CreateDescPool(numImagesInFlight, _vk.LogicalDevice());
 	
@@ -67,7 +68,7 @@ void SkyboxRenderPass::InitResourcesDependentOnSwapchain(u32 numImagesInFlight)
 		skybox->FrameResources = CreateModelFrameResources(numImagesInFlight, *skybox);
 	}
 }
-void SkyboxRenderPass::DestroyResourcesDependentOnSwapchain()
+void SkyboxRenderStage::DestroyResourcesDependentOnSwapchain()
 {
 	for (auto& skybox : _skyboxes)
 	{
@@ -85,17 +86,17 @@ void SkyboxRenderPass::DestroyResourcesDependentOnSwapchain()
 	vkDestroyPipeline(_vk.LogicalDevice(), _pipeline, nullptr);
 }
 
-void SkyboxRenderPass::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
+void SkyboxRenderStage::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
 	DestroyResourcesDependentOnSwapchain();
 	InitResourcesDependentOnSwapchain(numSwapchainImages);
 }
 
-VkRenderPass SkyboxRenderPass::CreateRenderPass(VkFormat format, VulkanService& vk)
+VkRenderPass SkyboxRenderStage::CreateRenderPass(VkFormat format, VulkanService& vk)
 {
 	auto* physicalDevice = vk.PhysicalDevice();
 	auto* device = vk.LogicalDevice();
-	const auto msaaSamples = vk.MsaaSamples();
+	const auto msaaSamples = vk.GetSwapchain().GetMsaaSamples();  // TODO This should query the render target
 	auto usingMsaa = msaaSamples > VK_SAMPLE_COUNT_1_BIT;
 
 	// Color attachment
@@ -207,7 +208,7 @@ VkRenderPass SkyboxRenderPass::CreateRenderPass(VkFormat format, VulkanService& 
 	return renderPass;
 }
 
-bool SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
+bool SkyboxRenderStage::UpdateDescriptors(const RenderOptions& options)
 {
 	bool wasUpdated = false;
 	
@@ -229,7 +230,7 @@ bool SkyboxRenderPass::UpdateDescriptors(const RenderOptions& options)
 	return wasUpdated;
 }
 
-void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
+void SkyboxRenderStage::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	const RenderOptions& options,
 	const glm::mat4& view, const glm::mat4& projection) const
 {
@@ -297,17 +298,17 @@ void SkyboxRenderPass::Draw(VkCommandBuffer commandBuffer, u32 frameIndex,
 	//std::cout << "# Update loop took:  " << std::setprecision(3) << duration.count() << "ms.\n";
 }
 
-IblTextureResourceIds SkyboxRenderPass::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths) const
+IblTextureResourceIds SkyboxRenderStage::CreateIblTextureResources(const std::array<std::string, 6>& sidePaths) const
 {
 	return _resources->CreateIblTextureResources(sidePaths);
 }
 
-IblTextureResourceIds SkyboxRenderPass::CreateIblTextureResources(const std::string& path) const
+IblTextureResourceIds SkyboxRenderStage::CreateIblTextureResources(const std::string& path) const
 {
 	return _resources->CreateIblTextureResources(path);
 }
 
-SkyboxResourceId SkyboxRenderPass::CreateSkybox(const SkyboxCreateInfo& createInfo)
+SkyboxResourceId SkyboxRenderStage::CreateSkybox(const SkyboxCreateInfo& createInfo)
 {
 	auto skybox = std::make_unique<Skybox>();
 	skybox->MeshId = _skyboxMeshId;
@@ -320,7 +321,7 @@ SkyboxResourceId SkyboxRenderPass::CreateSkybox(const SkyboxCreateInfo& createIn
 	return id;
 }
 
-void SkyboxRenderPass::SetSkybox(const SkyboxResourceId& resourceId)
+void SkyboxRenderStage::SetSkybox(const SkyboxResourceId& resourceId)
 {
 	// Set skybox
 	_activeSkybox = resourceId;
@@ -328,7 +329,7 @@ void SkyboxRenderPass::SetSkybox(const SkyboxResourceId& resourceId)
 
 #pragma region Shared
 
-VkDescriptorPool SkyboxRenderPass::CreateDescPool(u32 numImagesInFlight, VkDevice device)
+VkDescriptorPool SkyboxRenderStage::CreateDescPool(u32 numImagesInFlight, VkDevice device)
 {
 	const u32 maxSkyboxObjects = 100; // User can load 100 skyboxes in 1 session
 
@@ -349,19 +350,19 @@ VkDescriptorPool SkyboxRenderPass::CreateDescPool(u32 numImagesInFlight, VkDevic
 	return vkh::CreateDescriptorPool(poolSizes, totalDescSets, device);
 }
 
-const TextureResource& SkyboxRenderPass::GetIrradianceTextureResource() const
+const TextureResource& SkyboxRenderStage::GetIrradianceTextureResource() const
 {
 	const auto* skybox = GetCurrentSkyboxOrNull();
 	return _resources->GetTexture(skybox ? skybox->IblTextureIds.IrradianceCubemapId : _placeholderTextureId);
 }
 
-const TextureResource& SkyboxRenderPass::GetPrefilterTextureResource() const
+const TextureResource& SkyboxRenderStage::GetPrefilterTextureResource() const
 {
 	const auto* skybox = GetCurrentSkyboxOrNull();
 	return _resources->GetTexture(skybox ? skybox->IblTextureIds.PrefilterCubemapId : _placeholderTextureId);
 }
 
-const TextureResource& SkyboxRenderPass::GetBrdfTextureResource() const
+const TextureResource& SkyboxRenderStage::GetBrdfTextureResource() const
 {
 	const auto* skybox = GetCurrentSkyboxOrNull();
 	return _resources->GetTexture(skybox ? skybox->IblTextureIds.BrdfLutId : _placeholderTextureId);
@@ -374,7 +375,7 @@ const TextureResource& SkyboxRenderPass::GetBrdfTextureResource() const
 #pragma region Skybox
 
 std::vector<SkyboxResourceFrame>
-SkyboxRenderPass::CreateModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const
+SkyboxRenderStage::CreateModelFrameResources(u32 numImagesInFlight, const Skybox& skybox) const
 {
 	// Allocate descriptor sets
 	std::vector<VkDescriptorSet> descriptorSets
@@ -415,7 +416,7 @@ SkyboxRenderPass::CreateModelFrameResources(u32 numImagesInFlight, const Skybox&
 	return modelInfos;
 }
 
-VkDescriptorSetLayout SkyboxRenderPass::CreateDescSetLayout(VkDevice device)
+VkDescriptorSetLayout SkyboxRenderStage::CreateDescSetLayout(VkDevice device)
 {
 	return vkh::CreateDescriptorSetLayout(device, {
 		// vert ubo
@@ -427,7 +428,7 @@ VkDescriptorSetLayout SkyboxRenderPass::CreateDescSetLayout(VkDevice device)
 	});
 }
 
-void SkyboxRenderPass::WriteDescSets(
+void SkyboxRenderStage::WriteDescSets(
 	u32 count,
 	const std::vector<VkDescriptorSet>& descriptorSets,
 	const std::vector<VkBuffer>& skyboxVertUbo,
@@ -461,7 +462,7 @@ void SkyboxRenderPass::WriteDescSets(
 	}
 }
 
-VkPipeline SkyboxRenderPass::CreateGraphicsPipeline(const std::string& shaderDir,
+VkPipeline SkyboxRenderStage::CreateGraphicsPipeline(const std::string& shaderDir,
 	VkPipelineLayout pipelineLayout,
 	VkSampleCountFlagBits msaaSamples,
 	VkRenderPass renderPass,
@@ -689,7 +690,7 @@ VkPipeline SkyboxRenderPass::CreateGraphicsPipeline(const std::string& shaderDir
 	return pipeline;
 }
 
-void SkyboxRenderPass::UpdateDescSets()
+void SkyboxRenderStage::UpdateDescSets()
 {
 	for (auto& skybox : _skyboxes)
 	{

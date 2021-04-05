@@ -7,13 +7,7 @@
 #include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "Renderer/LowLevel/VulkanService.h"
 
-
-struct TextureData
-{
-	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
-};
-
-class PostProcessRenderPass
+class ToneMappingRenderStage
 {
 private: // Types
 	struct DescriptorResources
@@ -63,6 +57,11 @@ private: // Types
 	};
 
 
+public:  // Types
+	struct TextureData
+	{
+		VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
+	};
 public:  // Data
 private: // Data
 	DrawResources _screenQuadResources;
@@ -70,8 +69,8 @@ private: // Data
 	VulkanService* _vulkan = nullptr;
 
 public: // Methods
-	PostProcessRenderPass() = delete;
-	explicit PostProcessRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+	ToneMappingRenderStage() = delete;
+	explicit ToneMappingRenderStage(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
@@ -79,16 +78,16 @@ public: // Methods
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
-	~PostProcessRenderPass()
+	~ToneMappingRenderStage()
 	{
 		Destroy();
 	}
 	// Copy
-	PostProcessRenderPass(const PostProcessRenderPass&) = delete;
-	PostProcessRenderPass& operator=(const PostProcessRenderPass&) = delete;
+	ToneMappingRenderStage(const ToneMappingRenderStage&) = delete;
+	ToneMappingRenderStage& operator=(const ToneMappingRenderStage&) = delete;
 	// Move
-	PostProcessRenderPass(PostProcessRenderPass&& other) noexcept { *this = std::move(other); }
-	PostProcessRenderPass& operator=(PostProcessRenderPass&& other) noexcept
+	ToneMappingRenderStage(ToneMappingRenderStage&& other) noexcept { *this = std::move(other); }
+	ToneMappingRenderStage& operator=(ToneMappingRenderStage&& other) noexcept
 	{
 		if (this != &other)
 		{
@@ -229,8 +228,8 @@ private: // Methods
 
 		VkPipeline pipeline;
 		{
-			const auto vertPath = shaderDir + "Post.vert.spv";
-			const auto fragPath = shaderDir + "Post.frag.spv";
+			const auto vertPath = shaderDir + "ToneMapping.vert.spv";
+			const auto fragPath = shaderDir + "ToneMapping.frag.spv";
 
 			VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
 			inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

@@ -8,10 +8,10 @@ class ResourceRegistry;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
 
-class IPbrModelRenderPassDelegate
+class IPbrRenderStageDelegate
 {
 public:
-	virtual ~IPbrModelRenderPassDelegate() = default;
+	virtual ~IPbrRenderStageDelegate() = default;
 	virtual VkDescriptorImageInfo GetShadowmapDescriptor() = 0;
 	virtual const TextureResource& GetIrradianceTextureResource() = 0;
 	virtual const TextureResource& GetPrefilterTextureResource() = 0;
@@ -126,14 +126,14 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class PbrModelRenderPass
+class PbrRenderStage
 {
 public: // Data
 private:// Data
 
 	// Dependencies
 	VulkanService& _vk;
-	IPbrModelRenderPassDelegate& _delegate;
+	IPbrRenderStageDelegate& _delegate;
 	std::string _shaderDir{};
 	
 	VkRenderPass _renderPass = nullptr;
@@ -164,7 +164,7 @@ private:// Data
 public: // Members
 	const std::vector<std::unique_ptr<RenderableMesh>>& Hack_GetRenderables() const { return _renderables; }
 
-	PbrModelRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, IPbrModelRenderPassDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
+	PbrRenderStage(VulkanService& vulkanService, ResourceRegistry* registry, IPbrRenderStageDelegate& delegate, std::string shaderDir, const std::string& assetsDir);
 
 	void Destroy();
 	

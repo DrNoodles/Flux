@@ -3,8 +3,9 @@
 #include "PropsView/PropsView.h"
 #include "RendererConverters.h"
 
-#include <Renderer/HighLevel/SceneRenderer.h>
-#include <Renderer/HighLevel/RenderPasses/PostProcessRenderPass.h> // TODO remove all renderpasses from this class!!
+#include <Renderer/HighLevel/ForwardRenderer.h>
+#include <Renderer/HighLevel/RenderStages/PostEffectsRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
+#include <Renderer/HighLevel/RenderStages/ToneMappingRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
 #include <Framework/FileService.h>
 #include <Framework/IModelLoaderService.h>
 #include <State/LibraryManager.h>
@@ -30,13 +31,16 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 	_window->KeyDown.Attach(_keyDownHandler);
 	_window->KeyUp.Attach(_keyUpHandler);
 
-	_sceneRenderer = std::make_unique<SceneRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
+	_forwardRenderer = std::make_unique<ForwardRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
 		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
-	
-	_postProcessPass = std::make_unique<PostProcessRenderPass>(shaderDir, &vulkan);
-	_postProcessPass->CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
 
-	_viewportView = ViewportView{this, _sceneRenderer.get()};
+	_toneMappingRenderStage = std::make_unique<ToneMappingRenderStage>(shaderDir, &vulkan);
+	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
+	
+	_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(shaderDir, &vulkan);
+	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
+
+	_viewportView = ViewportView{this, _forwardRenderer.get()};
 }
 
 UiPresenter::~UiPresenter()
@@ -269,15 +273,17 @@ void UiPresenter::BuildImGui()
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_postProcessPass->DestroyDescriptorResources();
-	_sceneRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
-	_postProcessPass->CreateDescriptorResources(TextureData{_sceneRenderer->GetOutputDescritpor()});
+	_toneMappingRenderStage->DestroyDescriptorResources();
+	_postEffectsRenderStage->DestroyDescriptorResources();
+	_forwardRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
+	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
+	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 {
 	// TODO Just update the descriptor for this imageIndex????
-	//_postProcessPass.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
+	//_postEffectsRenderStage.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 
 
 	// Draw Scene
@@ -313,10 +319,17 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		scene.ViewPosition = camera.Position;
 		scene.ViewMatrix = camera.GetViewMatrix();
 		
-		_sceneRenderer->Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
+		_forwardRenderer->Draw(imageIndex, commandBuffer, scene, GetRenderOptions());
 	}
-	
 
+	// Ensure forward renderer has finished and ready for sampling
+	vkh::TransitionImageLayout(commandBuffer, _forwardRenderer->GetOutputImage(),
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // old
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // new
+		VK_IMAGE_ASPECT_COLOR_BIT, 
+		0, 1, 0, 1,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	// Draw Ui full screen
 	{
@@ -333,7 +346,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 
 		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		{
-			// Post Processing - TODO This should be in SceneRenderer.
+			// Post Processing - TODO This should be in ForwardRenderer.
 			{
 				const auto sceneRectShared = ViewportRect();
 				const auto sceneRect = vki::Rect2D(
@@ -344,7 +357,7 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 					
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRect);
-				_postProcessPass->Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
+				_postEffectsRenderStage->Draw(commandBuffer, imageIndex, _scene.GetRenderOptions());
 			}
 
 			// UI

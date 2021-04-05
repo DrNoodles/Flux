@@ -46,8 +46,10 @@ public:
 	std::vector<Attachment> Attachments = {};
 	VkFramebuffer Framebuffer = nullptr;
 	
+	VkImage OutputImage = nullptr;
 	VkSampler OutputSampler = nullptr;
 	VkDescriptorImageInfo OutputDescriptor = {};
+
 
 	FramebufferResources(const FramebufferDesc& desc, VkDevice device, VkAllocationCallbacks* allocator, VkPhysicalDevice physicalDevice) :
 		Desc{desc}, _device{ device }, _allocator{ allocator }
@@ -168,6 +170,7 @@ public:
 
 		Framebuffer = framebuffer;
 		OutputSampler = sampler;
+		OutputImage = usingMsaa ? resolveAttachment.Image : colorAttachment.Image;
 		OutputDescriptor = usingMsaa
 			? VkDescriptorImageInfo{ sampler, resolveAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
 			: VkDescriptorImageInfo{ sampler, colorAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };

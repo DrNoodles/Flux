@@ -146,129 +146,12 @@ public:
 
 private:
 
-	// TODO Move this to VulkanHelpers and add support for n layers, and pass in a command buffer for external management
-	// Preconditions: image layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	// Postconditions: image layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
-	static void GenerateMipmaps(VkImage image, VkFormat format, uint32_t texWidth, uint32_t texHeight,
-	                            uint32_t mipLevels, VkCommandPool transferPool, VkQueue transferQueue,
-	                            VkDevice device, VkPhysicalDevice physicalDevice)
-	{
-		// Check if device supports linear blitting
-		VkFormatProperties formatProperties;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
-		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
-		{
-			throw std::runtime_error("Texture image format does not support linear blitting!");
-		}
-
-
-		auto* commandBuffer = vkh::BeginSingleTimeCommands(transferPool, device);
-
-		VkImageMemoryBarrier barrier = {};
-		{
-			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			barrier.image = image;
-			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			barrier.subresourceRange.baseMipLevel = 0; // Defined later
-			barrier.subresourceRange.levelCount = 1;
-			barrier.subresourceRange.baseArrayLayer = 0;
-			barrier.subresourceRange.layerCount = 1;
-		}
-
-		auto srcMipWidth = (int32_t)texWidth;
-		auto srcMipHeight = (int32_t)texHeight;
-
-		for (uint32_t i = 1; i < mipLevels; i++)
-		{
-			const uint32_t srcMipLevel = i - 1;
-			const uint32_t dstMipLevel = i;
-			const int32_t dstMipWidth = srcMipWidth > 1 ? srcMipWidth / 2 : 1;
-			const int32_t dstMipHeight = srcMipHeight > 1 ? srcMipHeight / 2 : 1;
-
-
-			// Transition layout of src mip to TRANSFER_SRC_OPTIMAL (Note: dst mip is already TRANSFER_DST_OPTIMAL)
-			barrier.subresourceRange.baseMipLevel = srcMipLevel;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-			vkCmdPipelineBarrier(commandBuffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT,
-				VK_PIPELINE_STAGE_TRANSFER_BIT,
-				0,
-				0, nullptr, // mem barriers
-				0, nullptr, // buffer barriers
-				1, &barrier); // image barriers
-
-
-			// Blit the smaller image to the dst 
-			VkImageBlit blit = {};
-			{
-				blit.srcOffsets[0] = { 0, 0, 0 };
-				blit.srcOffsets[1] = { srcMipWidth, srcMipHeight, 1 };
-				blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				blit.srcSubresource.mipLevel = srcMipLevel;
-				blit.srcSubresource.baseArrayLayer = 0;
-				blit.srcSubresource.layerCount = 1;
-
-				blit.dstOffsets[0] = { 0, 0, 0 };
-				blit.dstOffsets[1] = { dstMipWidth, dstMipHeight, 1 };
-				blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				blit.dstSubresource.mipLevel = dstMipLevel;
-				blit.dstSubresource.baseArrayLayer = 0;
-				blit.dstSubresource.layerCount = 1;
-			}
-			vkCmdBlitImage(commandBuffer,
-				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				1, &blit,
-				VK_FILTER_LINEAR);
-
-
-			// Transition layout of the src mip to optimal shader readible (we don't need to read it again)
-			barrier.subresourceRange.baseMipLevel = srcMipLevel;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			vkCmdPipelineBarrier(commandBuffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT,
-				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-				0,
-				0, nullptr, // mem barriers
-				0, nullptr, // buffer barriers
-				1, &barrier); // image barriers
-
-
-		// Halve mip dimensions in prep for next loop iteration 
-			if (srcMipWidth > 1) srcMipWidth /= 2;
-			if (srcMipHeight > 1) srcMipHeight /= 2;
-		}
-
-
-		// Transition the final mip to be optimal for reading by shader (wasn't processed in the loop)
-		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; // still dst from precondition
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-			0,
-			0, nullptr, // mem barriers
-			0, nullptr, // buffer barriers
-			1, &barrier); // image barriers
-
-		vkh::EndSingeTimeCommands(commandBuffer, transferPool, transferQueue, device);
-	}
-
 	static std::tuple<VkImage, VkDeviceMemory, uint32_t, uint32_t, uint32_t> CreateTextureImage(
 		const std::string& path, VkCommandPool transferPool, VkQueue transferQueue, VkPhysicalDevice physicalDevice,
 		VkDevice device)
 	{
+		const VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		
 		// Load texture from file into system mem
 		int texWidth, texHeight, texChannels;
 		unsigned char* texels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -278,12 +161,12 @@ private:
 			throw std::runtime_error("Failed to load texture image: " + path);
 		}
 
-		const VkDeviceSize imageSize = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
+		const VkDeviceSize imageSizeBytes = (uint64_t)texWidth * (uint64_t)texHeight * 4; // RGBA = 4bytes
 		const uint32_t mipLevels = (uint32_t)std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
 
 		// Create staging buffer
 		auto [stagingBuffer, stagingBufferMemory] = vkh::CreateBuffer(
-			imageSize,
+			imageSizeBytes,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, // usage flags
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // property flags
 			device, physicalDevice);
@@ -291,8 +174,8 @@ private:
 
 		// Copy texels from system mem to GPU staging buffer
 		void* data;
-		vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-		memcpy(data, texels, imageSize);
+		vkMapMemory(device, stagingBufferMemory, 0, imageSizeBytes, 0, &data);
+		memcpy(data, texels, imageSizeBytes);
 		vkUnmapMemory(device, stagingBufferMemory);
 
 
@@ -304,31 +187,31 @@ private:
 		auto [textureImage, textureImageMemory] = vkh::CreateImage2D(texWidth, texHeight,
 			mipLevels,
 			VK_SAMPLE_COUNT_1_BIT,
-			VK_FORMAT_R8G8B8A8_UNORM, // format
+			format, // format
 			VK_IMAGE_TILING_OPTIMAL, // tiling
-			VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-			VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-			VK_IMAGE_USAGE_SAMPLED_BIT, //usageflags
+			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // usageflags
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //propertyflags
 			physicalDevice, device);
 
 
+		auto* cmdBuf = vkh::BeginSingleTimeCommands(transferPool, device);
+		
 		// Transition image layout to optimal for copying to it from the staging buffer
-		vkh::TransitionImageLayout(textureImage,
-			VK_FORMAT_R8G8B8A8_UNORM,
+		vkh::TransitionImageLayout(cmdBuf, textureImage,
 			VK_IMAGE_LAYOUT_UNDEFINED, // from
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
-			mipLevels,
-			transferPool, transferQueue, device);
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			0, mipLevels,
+			0, 1,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, // i'm not 100% if this is correct, but the synchronization warnings aren't yelling
+			VK_PIPELINE_STAGE_TRANSFER_BIT);
 
+		vkh::CopyBufferToImage(cmdBuf, stagingBuffer, textureImage, texWidth, texHeight);
 
-		// Copy texels from staging buffer to image buffer
-		vkh::CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight, transferPool, transferQueue, device);
+		// GenerateMipmaps has a precondition that all mip levels are VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL. Which we are from above.
+		vkh::GenerateMipmaps(cmdBuf, physicalDevice, textureImage, format, texWidth, texHeight, mipLevels);
 
-
-		GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels,
-			transferPool, transferQueue, device, physicalDevice);
-
+		vkh::EndSingeTimeCommands(cmdBuf, transferPool, transferQueue, device);
 
 		// Destroy the staging buffer
 		vkFreeMemory(device, stagingBufferMemory, nullptr);

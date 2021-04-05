@@ -7,7 +7,7 @@
 #include "UI/UiPresenter.h"
 #include "ImGuiVulkanGlfw.h"
 
-#include <Renderer/HighLevel/SceneRenderer.h> // HACK Remove this when the routing hacks below are gone.
+#include <Renderer/HighLevel/ForwardRenderer.h> // HACK Remove this when the routing hacks below are gone.
 #include <State/LibraryManager.h>
 #include <State/SceneManager.h>
 
@@ -256,11 +256,11 @@ private: // METHODS
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateRenderable(meshId);
+		return _ui->HACK_GetForwardRendererRef().CreateRenderable(meshId);
 	}
 	MeshResourceId CreateMeshResource(const MeshDefinition& meshDefinition) override
 	{
-		return _ui->HACK_GetSceneRendererRef().Hack_CreateMeshResource(meshDefinition);
+		return _ui->HACK_GetForwardRendererRef().Hack_CreateMeshResource(meshDefinition);
 	}
 
 	#pragma endregion
@@ -271,20 +271,20 @@ private: // METHODS
 	
 	TextureResourceId CreateTextureResource(const std::string& path) override
 	{
-		return _ui->HACK_GetSceneRendererRef().Hack_CreateTextureResource(path);
+		return _ui->HACK_GetForwardRendererRef().Hack_CreateTextureResource(path);
 	}
 
 	IblTextureResourceIds CreateIblTextureResources(const std::string& path) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateIblTextureResources(path);
+		return _ui->HACK_GetForwardRendererRef().CreateIblTextureResources(path);
 	}
 	SkyboxResourceId CreateSkybox(const SkyboxCreateInfo& createInfo) override
 	{
-		return _ui->HACK_GetSceneRendererRef().CreateSkybox(createInfo);
+		return _ui->HACK_GetForwardRendererRef().CreateSkybox(createInfo);
 	}
 	void SetSkybox(const SkyboxResourceId& resourceId) override
 	{
-		_ui->HACK_GetSceneRendererRef().SetSkybox(resourceId);
+		_ui->HACK_GetForwardRendererRef().SetSkybox(resourceId);
 	}
 
 private:

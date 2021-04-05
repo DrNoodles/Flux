@@ -9,7 +9,7 @@ struct UniversalUbo;
 struct RenderableMeshCreateInfo;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class SkyboxRenderPass
+class SkyboxRenderStage
 {
 public: // Data
 private:// Data
@@ -42,8 +42,8 @@ private:// Data
 
 public: // Members
 
-	SkyboxRenderPass() = delete;
-	SkyboxRenderPass(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
+	SkyboxRenderStage() = delete;
+	SkyboxRenderStage(VulkanService& vulkanService, ResourceRegistry* registry, std::string shaderDir, const std::string& assetsDir, IModelLoaderService& modelLoaderService);
 
 	void Destroy();
 	

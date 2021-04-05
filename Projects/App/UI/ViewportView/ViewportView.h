@@ -1,9 +1,9 @@
 #pragma once
 
 #include "IViewportViewDelegate.h"
-//#include <Renderer/HighLevel/SceneRenderer.h>
+//#include <Renderer/HighLevel/ForwardRenderer.h>
 
-class SceneRenderer;
+class ForwardRenderer;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ViewportView
@@ -11,13 +11,13 @@ class ViewportView
 private:
 	// Dependencies
 	IViewportViewDelegate* _delegate = nullptr;
-	SceneRenderer* _sceneRenderer = nullptr;
+	ForwardRenderer* _renderer = nullptr;
 
 public:
 	ViewportView() = default;
-	ViewportView(IViewportViewDelegate* delegate, SceneRenderer* renderer) :
+	ViewportView(IViewportViewDelegate* delegate, ForwardRenderer* renderer) :
 		_delegate(delegate),
-		_sceneRenderer(renderer)
+		_renderer(renderer)
 	{
 	}
 	

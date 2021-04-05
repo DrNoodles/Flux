@@ -24,7 +24,7 @@ struct Skybox
 - ?? Create a unique PbrCommonResourceFrame for each unique MeshAsset / Material combo and move transform into a diff per-renderable UBO. info.Some ofther abstractionConsidering MeshAsset will be unique for each MeshA
 	Necessary to make instance rendering possible. The
 
-- look at PbrModelRenderPass::CreatePbrDescriptorSetLayout()
+- look at PbrRenderStage::CreatePbrDescriptorSetLayout()
 	- dependencies are
 		VS
 		- transform
