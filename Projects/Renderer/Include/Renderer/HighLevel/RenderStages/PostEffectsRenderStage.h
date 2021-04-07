@@ -68,26 +68,32 @@ private: // Data
 	DrawResources _screenQuadResources;
 	DescriptorResources _descriptorResources;
 	VulkanService* _vulkan = nullptr;
+	VkRenderPass _renderPass = nullptr;
 
 public: // Methods
 	PostEffectsRenderStage() = delete;
 	explicit PostEffectsRenderStage(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
+		_renderPass = CreatePostEffectsRenderPass(*_vulkan, VK_FORMAT_R16G16B16A16_SFLOAT);		
+		
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
-			_vulkan->GetSwapchain().GetRenderPass(),
+			_renderPass,
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
-	~PostEffectsRenderStage()
+	/*~PostEffectsRenderStage()
 	{
 		Destroy();
-	}
+	}*/
+
 	// Copy
-	PostEffectsRenderStage(const PostEffectsRenderStage&) = delete;
-	PostEffectsRenderStage& operator=(const PostEffectsRenderStage&) = delete;
+	//PostEffectsRenderStage(const PostEffectsRenderStage&) = delete;
+	//PostEffectsRenderStage& operator=(const PostEffectsRenderStage&) = delete;
 	// Move
-	PostEffectsRenderStage(PostEffectsRenderStage&& other) noexcept { *this = std::move(other); }
+	//PostEffectsRenderStage(PostEffectsRenderStage&& other) = default;
+	//PostEffectsRenderStage& operator=(PostEffectsRenderStage&& other) = default;
+	/*PostEffectsRenderStage(PostEffectsRenderStage&& other) noexcept { *this = std::move(other); }
 	PostEffectsRenderStage& operator=(PostEffectsRenderStage&& other) noexcept
 	{
 		if (this != &other)
@@ -101,10 +107,9 @@ public: // Methods
 		}
 		
 		return *this;
-	}
+	}*/
 
-
-	
+	VkRenderPass GetRenderPass() const { return _renderPass; }
 
 	void CreateDescriptorResources(TextureData input)
 	{
@@ -172,8 +177,39 @@ private: // Methods
 			DestroyDescriptorResources();
 			_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
 			_vulkan = nullptr;
+
+			vkDestroyRenderPass(_vulkan->LogicalDevice(), _renderPass, _vulkan->Allocator());
 		}
 	}
+
+	static VkRenderPass CreatePostEffectsRenderPass(VulkanService& vk, VkFormat format)
+	{
+		// Define attachments
+		VkAttachmentDescription colourAttachDesc = {};
+		{
+			colourAttachDesc.format = format;
+			colourAttachDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+			colourAttachDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colourAttachDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colourAttachDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colourAttachDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colourAttachDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colourAttachDesc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
+		// Define Subpass
+		VkAttachmentReference colourAttachRef = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+		VkSubpassDescription subpassDescription = {};
+		{
+			subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpassDescription.colorAttachmentCount = 1;
+			subpassDescription.pColorAttachments = &colourAttachRef;
+		}
+
+		// Define dependencies for layout transitions
+		return vkh::CreateRenderPass(vk.LogicalDevice(), { colourAttachDesc }, { subpassDescription }, {});
+	}
+	
 	static DrawResources CreateDrawResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
@@ -406,4 +442,6 @@ private: // Methods
 		res.DescriptorSets = descSets;
 		return res;
 	}
+
+	
 };

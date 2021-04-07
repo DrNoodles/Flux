@@ -23,8 +23,7 @@ struct FramebufferDesc
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class FramebufferResources // NOTE: Not sure if i'm keeping this class - just thrown together for quick renderpasses
 {
-public:
-	
+private: // Types
 	struct Attachment
 	{
 		VkImage Image;
@@ -42,14 +41,22 @@ public:
 		}
 	};
 
-	FramebufferDesc Desc = {};
-	std::vector<Attachment> Attachments = {};
-	VkFramebuffer Framebuffer = nullptr;
+private: // Data
+
+private: // Methods
+
 	
+public: // Data
+
+	// Todo make private and provide getters
+	FramebufferDesc Desc = {};
+	VkFramebuffer Framebuffer = nullptr;
+	std::vector<Attachment> Attachments = {};
 	VkImage OutputImage = nullptr;
-	VkSampler OutputSampler = nullptr;
 	VkDescriptorImageInfo OutputDescriptor = {};
 
+
+public: // Methods
 
 	FramebufferResources(const FramebufferDesc& desc, VkDevice device, VkAllocationCallbacks* allocator, VkPhysicalDevice physicalDevice) :
 		Desc{desc}, _device{ device }, _allocator{ allocator }
@@ -59,6 +66,7 @@ public:
 		const bool usingMsaa = desc.MsaaSamples > VK_SAMPLE_COUNT_1_BIT;
 
 		Attachments = {};
+
 		
 		// Create color attachment
 		Attachment colorAttachment = {};
@@ -70,7 +78,10 @@ public:
 				desc.MsaaSamples,
 				desc.Format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, // TODO change this when msaa on?
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // renderered to
+				VK_IMAGE_USAGE_SAMPLED_BIT |          // image used in other render passes
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT |      // image copied into swapchain for presentation
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				physicalDevice, device);
 
@@ -131,7 +142,10 @@ public:
 				VK_SAMPLE_COUNT_1_BIT,
 				desc.Format,
 				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // renderered to
+				VK_IMAGE_USAGE_SAMPLED_BIT |          // image used in other render passes
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT |      // image copied into swapchain for presentation
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				physicalDevice, device);
 
@@ -167,9 +181,7 @@ public:
 		// Color Sampler and co. so it can be sampled from a shader
 		auto* sampler = vkh::CreateSampler(device);
 
-
 		Framebuffer = framebuffer;
-		OutputSampler = sampler;
 		OutputImage = usingMsaa ? resolveAttachment.Image : colorAttachment.Image;
 		OutputDescriptor = usingMsaa
 			? VkDescriptorImageInfo{ sampler, resolveAttachment.ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
@@ -183,7 +195,7 @@ public:
 		}
 
 		vkDestroyFramebuffer(_device, Framebuffer, _allocator);
-		vkDestroySampler(_device, OutputSampler, _allocator);
+		vkDestroySampler(_device, OutputDescriptor.sampler, _allocator);
 	}
 
 	// TODO Make this less specific to the use case
@@ -252,7 +264,7 @@ public:
 
 		FramebufferDesc desc = {};
 		desc.Extent = extent;
-		desc.Format = vkh::FindDepthFormat(physicalDevice);
+		desc.Format = depthFormat;
 		desc.MsaaSamples = msaaSamples;
 		desc.RenderPass = renderPass;
 		
@@ -264,7 +276,7 @@ public:
 		res.Desc = desc;
 		res.Framebuffer = framebuffer;
 		res.Attachments = { depthAttachment };
-		res.OutputSampler = sampler;
+		res.OutputImage = depthAttachment.Image;
 		res.OutputDescriptor = VkDescriptorImageInfo{ sampler, depthAttachment.ImageView, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
 
 		res._device = device;
@@ -272,7 +284,77 @@ public:
 		
 		return res;
 	}
-	
+
+	// TODO Make this less specific to the use case
+	static FramebufferResources CreatePostFramebuffer(VkExtent2D extent, VkFormat format, VkRenderPass renderPass, VkDevice device, VkPhysicalDevice physicalDevice, VkAllocationCallbacks* allocator)
+	{		
+		const u32 mipLevels = 1;
+		const u32 layerCount = 1;
+		const auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
+
+		// Create color attachment
+		Attachment attachment = {};
+		{
+
+			// Create image and memory
+			std::tie(attachment.Image, attachment.ImageMemory) = vkh::CreateImage2D(
+            extent.width, extent.height,
+            mipLevels,
+            msaaSamples,
+            format,
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT |      // image copied into swapchain for presentation
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            physicalDevice, device);
+
+			// Create image view
+			attachment.ImageView = vkh::CreateImage2DView(
+            attachment.Image,
+            format,
+            VK_IMAGE_VIEW_TYPE_2D,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            mipLevels,
+            layerCount,
+            device);
+		}
+
+
+		// Create framebuffer
+		auto* framebuffer = vkh::CreateFramebuffer(device, extent.width, extent.height,
+         { attachment.ImageView }, renderPass);
+
+
+		// Sampler so it can be sampled from a shader
+		auto* sampler = vkh::CreateSampler(device,
+         VK_FILTER_LINEAR, VK_FILTER_LINEAR,
+         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+
+		FramebufferDesc desc = {};
+		desc.Extent = extent;
+		desc.Format = format;
+		desc.MsaaSamples = msaaSamples;
+		desc.RenderPass = renderPass;
+		
+		desc.ClearValues.resize(1);
+		desc.ClearValues[0].color = {{0, 1, 0, 1}};
+
+		
+		FramebufferResources res = {};
+		res.Desc = desc;
+		res.Framebuffer = framebuffer;
+		res.Attachments = { attachment };
+		res.OutputImage = attachment.Image;
+		res.OutputDescriptor = VkDescriptorImageInfo{ sampler, attachment.ImageView, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+
+		res._device = device;
+		res._allocator = allocator;
+		
+		return res;
+	}
+
 private:
 	VkDevice _device = nullptr;
 	VkAllocationCallbacks* _allocator = nullptr;

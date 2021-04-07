@@ -1,17 +1,19 @@
 #pragma once
 
+#include "Renderer/HighLevel/CommonRendererHighLevel.h"
+#include "Renderer/HighLevel/ResourceRegistry.h"
 #include "Renderer/HighLevel/RenderStages/PbrRenderStage.h"
+#include "Renderer/HighLevel/RenderStages/PostEffectsRenderStage.h"
 #include "Renderer/HighLevel/RenderStages/ShadowMapRenderStage.h"
 #include "Renderer/HighLevel/RenderStages/SkyboxRenderStage.h"
+//#include "Renderer/HighLevel/RenderStages/ToneMappingRenderStage.h"
 #include "Renderer/LowLevel/UniformBufferObjects.h"
-#include "Renderer/HighLevel/ResourceRegistry.h"
-#include "Renderer/HighLevel/CommonRendererHighLevel.h"
 
 #include "Renderer/LowLevel/Framebuffer.h"
 #include "Renderer/LowLevel/VulkanService.h"
 
-#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 #include <Framework/CommonTypes.h>
+#include <Framework/IModelLoaderService.h> // Used for mesh/model/texture definitions TODO remove dependency?
 
 #include <vector>
 
@@ -70,16 +72,19 @@ private:// Data
 	std::unique_ptr<ResourceRegistry> _resourceRegistry = nullptr;;
 	
 	// Framebuffers
-	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
+	std::unique_ptr<FramebufferResources> _sceneFramebuffer = nullptr;
+	std::unique_ptr<FramebufferResources> _postFramebuffer = nullptr;
 
 	// RenderStages
-	std::unique_ptr<PbrRenderStage>       _pbrRenderStage = nullptr;
-	std::unique_ptr<SkyboxRenderStage>    _skyboxRenderStage   = nullptr;
-	std::unique_ptr<ShadowMapRenderStage> _shadowMapRenderStage = nullptr;
+	std::unique_ptr<PbrRenderStage>         _pbrRenderStage = nullptr;
+	std::unique_ptr<SkyboxRenderStage>      _skyboxRenderStage   = nullptr;
+	std::unique_ptr<ShadowMapRenderStage>   _shadowMapRenderStage = nullptr;
+	//std::unique_ptr<ToneMappingRenderStage> _toneMappingRenderStage = nullptr;
+	std::unique_ptr<PostEffectsRenderStage> _postEffectsRenderStage = nullptr;
 
 public: // Lifetime
-
+	
 	ForwardRenderer(VulkanService& vulkanService, std::string shaderDir, std::string assetsDir, IModelLoaderService& modelLoaderService, Extent2D resolution) :
 		_vk(vulkanService),
 		_shaderDir(std::move(shaderDir)),
@@ -90,12 +95,20 @@ public: // Lifetime
 		
 		_skyboxRenderStage = std::make_unique<SkyboxRenderStage>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderStage = std::make_unique<PbrRenderStage>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
-		_shadowMapRenderStage = std::make_unique<ShadowMapRenderStage>( _shaderDir, _vk );
-		
-		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _shadowMapRenderStage->GetRenderPass());
 		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderStage->GetRenderPass());
-	}
+		
+		_shadowMapRenderStage = std::make_unique<ShadowMapRenderStage>( _shaderDir, _vk );
+		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _shadowMapRenderStage->GetRenderPass());
 
+		_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(_shaderDir, &_vk);
+		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+		
+		_postFramebuffer = CreatePostFramebuffer(resolution.Width, resolution.Height, _postEffectsRenderStage->GetRenderPass(), VK_FORMAT_R16G16B16A16_SFLOAT); // todo new renderpass.
+
+		//_toneMappingRenderStage = std::make_unique<ToneMappingRenderStage>(_shaderDir, &_vk);
+		//_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_sceneFramebuffer->OutputDescriptor});
+	}
+	
 	ForwardRenderer(const ForwardRenderer&) = delete;
 	ForwardRenderer& operator=(const ForwardRenderer&) = delete;
 
@@ -109,6 +122,9 @@ public: // Lifetime
 
 		_shadowmapFramebuffer->Destroy();
 		_shadowmapFramebuffer = nullptr;
+
+		_postFramebuffer->Destroy();
+		_postFramebuffer = nullptr;
 		
 		_shadowMapRenderStage->Destroy(_vk.LogicalDevice(), _vk.Allocator());
 		_shadowMapRenderStage = nullptr;
@@ -120,14 +136,21 @@ public: // Lifetime
 		_skyboxRenderStage = nullptr;
 	}
 
+
 public: // Methods
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 	{
+		//_toneMappingRenderStage->DestroyDescriptorResources();
+		_postEffectsRenderStage->DestroyDescriptorResources();
+		
 		_skyboxRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		_pbrRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
 		
 		_sceneFramebuffer->Destroy();
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderStage->GetRenderPass());
+		
+		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+		//_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_sceneFramebuffer->OutputDescriptor});
 	}
 	
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options) const
@@ -136,8 +159,10 @@ public: // Methods
 		const auto skyboxDescUpdated = _skyboxRenderStage->UpdateDescriptors(options);
 		_pbrRenderStage->UpdateDescriptors(imageIndex, options, skyboxDescUpdated, scene); // also update other passes?
 
+		// TODO Just update the descriptor for this imageIndex????
+		//_postEffectsRenderStage.CreateDescriptorResources(TextureData{_sceneFramebuffer.OutputDescriptor});
 
-		// Draw shadow pass
+		// Draw Shadow Pass to Shadowmap Framebuffer
 		auto lightSpaceMatrix = glm::identity<glm::mat4>();
 		if (FindShadowCasterMatrix(scene.Lights, lightSpaceMatrix))
 		{
@@ -154,7 +179,12 @@ public: // Methods
 			vkCmdEndRenderPass(commandBuffer);
 		}
 
-		// Draw scene (skybox and pbr) to gbuffer
+
+		const auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
+		const auto sceneViewport = vki::Viewport(sceneRenderArea);
+
+		
+		// Draw Scene (skybox and pbr) to Scene Framebuffer
 		{
 			// Calc Projection
 			const auto vfov = 45.f;
@@ -162,15 +192,37 @@ public: // Methods
 			auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
-			const auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
-			const auto sceneViewport = vki::Viewport(sceneRenderArea);
+			
 			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(*_sceneFramebuffer, sceneRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
 				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRenderArea);
+
 				_skyboxRenderStage->Draw(commandBuffer, imageIndex, options, scene.ViewMatrix, projection);
+
 				_pbrRenderStage->Draw(commandBuffer, imageIndex, options, scene.Objects, scene.Lights, scene.ViewMatrix, projection, scene.ViewPosition, lightSpaceMatrix);
+			}
+			vkCmdEndRenderPass(commandBuffer);
+		}
+
+		
+		// Wait for scene to be drawn so we can sample it in post
+		vkh::TransitionImageLayout(commandBuffer, _sceneFramebuffer->OutputImage,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			0, 1, 0, 1); //TODO optimise stages
+
+		
+		// Draw PostEffects to PostFramebuffer
+		{
+			const auto beginInfo = vki::RenderPassBeginInfo(*_postFramebuffer, sceneRenderArea);
+			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
+				vkCmdSetScissor(commandBuffer, 0, 1, &sceneRenderArea);
+				_postEffectsRenderStage->Draw(commandBuffer, imageIndex, options);
 			}
 			vkCmdEndRenderPass(commandBuffer);
 		}
@@ -178,8 +230,7 @@ public: // Methods
 
 
 public: // PBR RenderPass routing methods
-	VkDescriptorImageInfo GetOutputDescritpor() const { return _sceneFramebuffer->OutputDescriptor; }
-	VkImage GetOutputImage() const { return _sceneFramebuffer->OutputImage; }
+	const FramebufferResources& GetOutputFramebuffer() const { return *_postFramebuffer; }
 
 	RenderableResourceId CreateRenderable(const MeshResourceId& meshId) const
 	{
@@ -221,7 +272,7 @@ public: // Skybox RenderPass routing methods
 
 
 private:// Methods
-
+	
 	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
 	{
 		// Scene framebuffer is only the size of the scene render region on screen
@@ -241,6 +292,16 @@ private:// Methods
 			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
 	}
 
+	std::unique_ptr<FramebufferResources> CreatePostFramebuffer(u32 width, u32 height, VkRenderPass renderPass, VkFormat format) const
+	{
+		// Scene framebuffer is only the size of the scene render region on screen
+		return std::make_unique<FramebufferResources>(FramebufferResources::CreatePostFramebuffer(
+			{ width, height },
+			format,
+			renderPass,
+			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
+	}
+	
 	// Returns light transform matrix if found, otherwise identity
 	static bool FindShadowCasterMatrix(const std::vector<Light>& lights, glm::mat4& outMatrix)
 	{
