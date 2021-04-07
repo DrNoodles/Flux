@@ -4,8 +4,6 @@
 #include "RendererConverters.h"
 
 #include <Renderer/HighLevel/ForwardRenderer.h>
-#include <Renderer/HighLevel/RenderStages/PostEffectsRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
-#include <Renderer/HighLevel/RenderStages/ToneMappingRenderStage.h> // TODO remove all renderstages/renderpasses from this class!!
 #include <Framework/FileService.h>
 #include <Framework/IModelLoaderService.h>
 #include <State/LibraryManager.h>
@@ -33,12 +31,6 @@ UiPresenter::UiPresenter(IUiPresenterDelegate& dgate, LibraryManager& library, S
 
 	_forwardRenderer = std::make_unique<ForwardRenderer>(_vk, _shaderDir, assetDir, modelLoaderService, 
 		Extent2D{ ViewportRect().Extent.Width, ViewportRect().Extent.Height });
-
-	_toneMappingRenderStage = std::make_unique<ToneMappingRenderStage>(shaderDir, &vulkan);
-	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
-	
-	_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(shaderDir, &vulkan);
-	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
 
 	_viewportView = ViewportView{this, _forwardRenderer.get()};
 }
@@ -273,11 +265,7 @@ void UiPresenter::BuildImGui()
 
 void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 {
-	_toneMappingRenderStage->DestroyDescriptorResources();
-	_postEffectsRenderStage->DestroyDescriptorResources();
 	_forwardRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
-	_postEffectsRenderStage->CreateDescriptorResources(TextureData{_forwardRenderer->GetOutputDescritpor()});
-	_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_forwardRenderer->GetOutputDescritpor()});
 }
 
 void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
@@ -354,14 +342,17 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 		subresourceRange.layerCount = 1;
 		subresourceRange.levelCount = 1;
 
-		vkh::TransitionImageLayout(commandBuffer, _forwardRenderer->GetOutputImage(),
+		auto* sceneImage = _forwardRenderer->GetOutputFramebuffer().OutputImage;
+		auto* swapImage = swap.GetImages()[imageIndex];
+
+		vkh::TransitionImageLayout(commandBuffer, sceneImage,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // from
 			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // to
 			subresourceRange,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 			VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-		vkh::TransitionImageLayout(commandBuffer, swap.GetImages()[imageIndex],
+		vkh::TransitionImageLayout(commandBuffer, swapImage,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,      // from
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // to
 			subresourceRange,
@@ -385,14 +376,14 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 			blit.dstSubresource.mipLevel = subresourceRange.baseMipLevel;
 
 			vkCmdBlitImage(commandBuffer,
-				_forwardRenderer->GetOutputImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				swap.GetImages()[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				sceneImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				1, &blit,
 				VK_FILTER_NEAREST); // it is a 1 to 1 copy
 		}
 
 		// Prep swap image for presentation
-		vkh::TransitionImageLayout(commandBuffer, swap.GetImages()[imageIndex],
+		vkh::TransitionImageLayout(commandBuffer, swapImage,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // old
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, // new
 			VK_IMAGE_ASPECT_COLOR_BIT,
