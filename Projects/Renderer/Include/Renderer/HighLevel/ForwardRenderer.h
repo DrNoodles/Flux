@@ -69,7 +69,7 @@ private:// Data
 	std::string _assetsDir;
 	IModelLoaderService& _modelLoaderService;
 
-	std::unique_ptr<ResourceRegistry> _resourceRegistry = nullptr;;
+	std::unique_ptr<ResourceRegistry> _resourceRegistry = nullptr;
 	
 	// Framebuffers
 	std::unique_ptr<FramebufferResources> _shadowmapFramebuffer = nullptr;
@@ -168,7 +168,12 @@ public: // Methods
 		{
 			const auto shadowRenderArea = vki::Rect2D({}, _shadowmapFramebuffer->Desc.Extent);
 			
-			auto beginInfo = vki::RenderPassBeginInfo(*_shadowmapFramebuffer, shadowRenderArea);
+			auto beginInfo = vki::RenderPassBeginInfo(
+				_shadowMapRenderStage->GetRenderPass(), 
+				_shadowmapFramebuffer->Framebuffer, 
+				shadowRenderArea, 
+				_shadowmapFramebuffer->ClearValues);
+			
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				_shadowMapRenderStage->Draw(commandBuffer, shadowRenderArea, 
@@ -192,8 +197,12 @@ public: // Methods
 			auto projection = glm::perspective(glm::radians(vfov), aspect, 0.05f, 1000.f);
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
+			auto renderPassBeginInfo = vki::RenderPassBeginInfo(
+            _pbrRenderStage->GetRenderPass(), 
+            _sceneFramebuffer->Framebuffer, 
+            sceneRenderArea, 
+            _sceneFramebuffer->ClearValues);
 			
-			const auto renderPassBeginInfo = vki::RenderPassBeginInfo(*_sceneFramebuffer, sceneRenderArea);
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
@@ -217,7 +226,12 @@ public: // Methods
 		
 		// Draw PostEffects to PostFramebuffer
 		{
-			const auto beginInfo = vki::RenderPassBeginInfo(*_postFramebuffer, sceneRenderArea);
+			auto beginInfo = vki::RenderPassBeginInfo(
+            _postEffectsRenderStage->GetRenderPass(), 
+            _postFramebuffer->Framebuffer, 
+            sceneRenderArea, 
+            _postFramebuffer->ClearValues);
+			
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
@@ -275,31 +289,54 @@ private:// Methods
 	
 	std::unique_ptr<FramebufferResources> CreateSceneFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
 	{
-		// Scene framebuffer is only the size of the scene render region on screen
-		return std::make_unique<FramebufferResources>(FramebufferResources::CreateSceneFramebuffer(
-			{ width, height },
-			VK_FORMAT_R16G16B16A16_SFLOAT,
-			renderPass,
-			_vk.GetSwapchain().GetMsaaSamples(),  // TODO This should query the render target - which shouldn't be the swap!
-			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
+		const auto samples = _vk.GetMsaaSamples();
+		
+		FramebufferDesc desc = {
+			.Extent = { width, height },
+			.Attachments = {
+				FramebufferAttachmentDesc::CreateColor(VK_FORMAT_R16G16B16A16_SFLOAT, samples),
+				FramebufferAttachmentDesc::CreateDepth(vkh::FindDepthFormat(_vk.PhysicalDevice()), samples),
+			},
+			.OutputAttachmentIndex = 0, // Color
+		};
+
+		// Resolving MSAA in Scene pass 
+		const auto usingMultisampling = samples > VK_SAMPLE_COUNT_1_BIT;
+		if (usingMultisampling)
+		{
+			desc.Attachments.push_back(FramebufferAttachmentDesc::CreateResolve(VK_FORMAT_R16G16B16A16_SFLOAT));
+			desc.OutputAttachmentIndex = 2; // Resolve
+		}
+
+		return std::make_unique<FramebufferResources>(desc, renderPass, _vk);
 	}
 
 	std::unique_ptr<FramebufferResources> CreateShadowmapFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
 	{
-		return std::make_unique<FramebufferResources>(FramebufferResources::CreateShadowFramebuffer(
-			{ width, height }, 
-			renderPass, 
-			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
+		const auto depthFormat = vkh::FindDepthFormat(_vk.PhysicalDevice());
+
+		FramebufferDesc desc = {
+			.Extent = { width, height },
+         .Attachments = {
+            FramebufferAttachmentDesc::CreateDepth(depthFormat),
+         },
+			.OutputAttachmentIndex = 0,
+      };
+
+		return std::make_unique<FramebufferResources>(desc, renderPass, _vk);
 	}
 
 	std::unique_ptr<FramebufferResources> CreatePostFramebuffer(u32 width, u32 height, VkRenderPass renderPass, VkFormat format) const
 	{
-		// Scene framebuffer is only the size of the scene render region on screen
-		return std::make_unique<FramebufferResources>(FramebufferResources::CreatePostFramebuffer(
-			{ width, height },
-			format,
-			renderPass,
-			_vk.LogicalDevice(), _vk.PhysicalDevice(), _vk.Allocator()));
+		FramebufferDesc desc = {
+			.Extent = { width, height },
+         .Attachments = {
+				FramebufferAttachmentDesc::CreateColor(VK_FORMAT_R16G16B16A16_SFLOAT),
+         },
+			.OutputAttachmentIndex = 0,
+      };
+
+		return std::make_unique<FramebufferResources>(desc, renderPass, _vk);
 	}
 	
 	// Returns light transform matrix if found, otherwise identity

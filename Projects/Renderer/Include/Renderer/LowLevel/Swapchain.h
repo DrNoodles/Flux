@@ -41,8 +41,7 @@ public:
 	inline const std::vector<VkImage>& GetImages() const             { return _images; }
 	inline u32 GetImageCount() const                                 { return _imageCount; }
 	inline VkExtent2D GetExtent() const                              { return _extent; }
-	VkSampleCountFlagBits GetMsaaSamples() const                     { return _msaaSamples; }
-
+	
 
 	Swapchain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const VkExtent2D& framebufferSize, 
 	          VkSampleCountFlagBits msaaSamples, bool vsync)
