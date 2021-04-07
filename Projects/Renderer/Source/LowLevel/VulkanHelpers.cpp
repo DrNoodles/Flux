@@ -1154,7 +1154,7 @@ std::tuple<VkImage, VkDeviceMemory> VulkanHelpers::CreateImage2D(u32 width, u32 
 }
 
 VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkImageViewType viewType,
-	VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
+	VkImageAspectFlags aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	VkImageView imageView;
 
@@ -1182,7 +1182,7 @@ VkImageView VulkanHelpers::CreateImage2DView(VkImage image, VkFormat format, VkI
 }
 
 std::vector<VkImageView> VulkanHelpers::CreateImageViews(const std::vector<VkImage>& images, VkFormat format,
-	VkImageViewType viewType, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
+	VkImageViewType viewType, VkImageAspectFlags aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device)
 {
 	std::vector<VkImageView> imageViews{ images.size() };
 

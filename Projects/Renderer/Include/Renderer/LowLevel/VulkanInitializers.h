@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Framework/CommonTypes.h>
-#include "Framebuffer.h"
 #include <vulkan/vulkan.h>
 
 
@@ -157,19 +156,6 @@ namespace vki
 		x.renderArea = renderArea;
 		x.clearValueCount = (u32)clearValues.size();
 		x.pClearValues = clearValues.data();
-		return x;
-	}
-
-	inline VkRenderPassBeginInfo RenderPassBeginInfo(const FramebufferResources& framebuffer, VkRect2D renderArea)
-	{
-		VkRenderPassBeginInfo x = {};
-		x.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		x.pNext = nullptr;
-		x.renderPass = framebuffer.Desc.RenderPass;
-		x.framebuffer = framebuffer.Framebuffer;
-		x.renderArea = renderArea;
-		x.clearValueCount = (u32)framebuffer.Desc.ClearValues.size();
-		x.pClearValues = framebuffer.Desc.ClearValues.data();
 		return x;
 	}
 	

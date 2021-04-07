@@ -168,11 +168,11 @@ public:
 
 
 	[[nodiscard]] static VkImageView CreateImage2DView(VkImage image, VkFormat format, VkImageViewType viewType,
-		VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
+		VkImageAspectFlags aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
 
 
 	[[nodiscard]] static std::vector<VkImageView> CreateImageViews(const std::vector<VkImage>& images,
-		VkFormat format, VkImageViewType viewType, VkImageAspectFlagBits aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
+		VkFormat format, VkImageViewType viewType, VkImageAspectFlags aspectFlags, u32 mipLevels, u32 layerCount, VkDevice device);
 
 
 	/**

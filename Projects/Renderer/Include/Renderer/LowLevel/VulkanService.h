@@ -172,7 +172,9 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	VkAllocationCallbacks* Allocator() const { return nullptr; }
 	
 	void InvalidateSwapchain() { _swapchainInvalidated = true; }
-	
+
+	// Physical Device property
+	VkSampleCountFlagBits GetMsaaSamples() const { return _msaaSamples; }
 	
 	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
 	{
