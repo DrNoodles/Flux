@@ -109,6 +109,18 @@ public: // Methods
 		const u32 mipLevels = 1;
 		const u32 layerCount = 1;
 
+		auto layoutFromAspect = [](VkImageAspectFlagBits aspect) -> VkImageLayout
+		{
+			if (aspect & VK_IMAGE_ASPECT_COLOR_BIT)
+				return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			if (aspect & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
+				return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+			assert(false); // unhandled aspect to layout conversion
+		};			
+
+		
 		auto usageFromAspect = [](VkImageAspectFlagBits aspect) -> VkImageUsageFlags
 		{
 			VkImageUsageFlags usageFlags =
@@ -116,12 +128,13 @@ public: // Methods
             VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
             VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-			if (aspect & VK_IMAGE_ASPECT_COLOR_BIT)
+			if (aspect & VK_IMAGE_ASPECT_COLOR_BIT) 
 				usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
 			else if (aspect & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
 				usageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
+			else
+				assert(false); // unhandled aspect to usage conversion
+				
 			return usageFlags;
 		};			
 		
@@ -173,12 +186,14 @@ public: // Methods
 		auto* sampler = vkh::CreateSampler(_vk.LogicalDevice());
 
 		Framebuffer = framebuffer;
-		OutputImage = Attachments[desc.OutputAttachmentIndex].Image;
+
+		const auto& outputAttachment = Attachments[desc.OutputAttachmentIndex];
+		OutputImage = outputAttachment.Image;
 		OutputDescriptor = VkDescriptorImageInfo{
 			sampler,
-         Attachments[desc.OutputAttachmentIndex].ImageView,
-         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-      };
+			outputAttachment.ImageView,
+			layoutFromAspect(outputAttachment.Desc.Aspect)
+		};
 
 		const auto clearCount = (u32)Attachments.size();
 		ClearValues.resize(clearCount);
