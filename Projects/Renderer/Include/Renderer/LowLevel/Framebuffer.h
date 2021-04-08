@@ -118,6 +118,7 @@ public: // Methods
 				return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
 			assert(false); // unhandled aspect to layout conversion
+			return VK_IMAGE_LAYOUT_UNDEFINED;
 		};			
 
 		

@@ -93,20 +93,19 @@ public: // Lifetime
 	{
 		_resourceRegistry = std::make_unique<ResourceRegistry>(&_vk, &modelLoaderService, _shaderDir, _assetsDir);
 		
+		// Shadowmap
+		_shadowMapRenderStage = std::make_unique<ShadowMapRenderStage>( _shaderDir, _vk );
+		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _shadowMapRenderStage->GetRenderPass());
+
+		// Scene
 		_skyboxRenderStage = std::make_unique<SkyboxRenderStage>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderStage = std::make_unique<PbrRenderStage>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
 		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderStage->GetRenderPass());
 		
-		_shadowMapRenderStage = std::make_unique<ShadowMapRenderStage>( _shaderDir, _vk );
-		_shadowmapFramebuffer = CreateShadowmapFramebuffer(4096, 4096, _shadowMapRenderStage->GetRenderPass());
-
+		// Post
 		_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(_shaderDir, &_vk);
 		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
-		
-		_postFramebuffer = CreatePostFramebuffer(resolution.Width, resolution.Height, _postEffectsRenderStage->GetRenderPass(), VK_FORMAT_R16G16B16A16_SFLOAT); // todo new renderpass.
-
-		//_toneMappingRenderStage = std::make_unique<ToneMappingRenderStage>(_shaderDir, &_vk);
-		//_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_sceneFramebuffer->OutputDescriptor});
+		_postFramebuffer = CreatePostFramebuffer(resolution.Width, resolution.Height, _postEffectsRenderStage->GetRenderPass());
 	}
 	
 	ForwardRenderer(const ForwardRenderer&) = delete;
@@ -125,32 +124,35 @@ public: // Lifetime
 
 		_postFramebuffer->Destroy();
 		_postFramebuffer = nullptr;
-		
+
 		_shadowMapRenderStage->Destroy(_vk.LogicalDevice(), _vk.Allocator());
 		_shadowMapRenderStage = nullptr;
-		
+
 		_pbrRenderStage->Destroy();
-		_pbrRenderStage = nullptr;  // TODO Make this RAII
-		
+		_pbrRenderStage = nullptr;
+
 		_skyboxRenderStage->Destroy();
 		_skyboxRenderStage = nullptr;
+
+		_postEffectsRenderStage->Destroy();
+		_postEffectsRenderStage = nullptr;
 	}
 
 
 public: // Methods
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 	{
-		//_toneMappingRenderStage->DestroyDescriptorResources();
 		_postEffectsRenderStage->DestroyDescriptorResources();
-		
-		_skyboxRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
-		_pbrRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
-		
+		_postFramebuffer->Destroy();
 		_sceneFramebuffer->Destroy();
+
+		_skyboxRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
+
+		_pbrRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
+	
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderStage->GetRenderPass());
-		
 		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
-		//_toneMappingRenderStage->CreateDescriptorResources(ToneMappingRenderStage::TextureData{_sceneFramebuffer->OutputDescriptor});
+		_postFramebuffer = CreatePostFramebuffer(width, height, _postEffectsRenderStage->GetRenderPass());
 	}
 	
 	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer, const SceneRendererPrimitives& scene, const RenderOptions& options) const
@@ -167,17 +169,17 @@ public: // Methods
 		if (FindShadowCasterMatrix(scene.Lights, lightSpaceMatrix))
 		{
 			const auto shadowRenderArea = vki::Rect2D({}, _shadowmapFramebuffer->Desc.Extent);
-			
+
 			auto beginInfo = vki::RenderPassBeginInfo(
-				_shadowMapRenderStage->GetRenderPass(), 
-				_shadowmapFramebuffer->Framebuffer, 
-				shadowRenderArea, 
+				_shadowMapRenderStage->GetRenderPass(),
+				_shadowmapFramebuffer->Framebuffer,
+				shadowRenderArea,
 				_shadowmapFramebuffer->ClearValues);
-			
+
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				_shadowMapRenderStage->Draw(commandBuffer, shadowRenderArea, 
-					scene, lightSpaceMatrix, 
+				_shadowMapRenderStage->Draw(commandBuffer, shadowRenderArea,
+					scene, lightSpaceMatrix,
 					_pbrRenderStage->Hack_GetRenderables(),// TODO extract resources from PbrRenderStage into ForwardRenderer
 					_resourceRegistry->Hack_GetMeshes()); // TODO pass resRegistry into shadow pass so it can get meshes it needs
 			}
@@ -188,7 +190,7 @@ public: // Methods
 		const auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
 		const auto sceneViewport = vki::Viewport(sceneRenderArea);
 
-		
+
 		// Draw Scene (skybox and pbr) to Scene Framebuffer
 		{
 			// Calc Projection
@@ -198,11 +200,11 @@ public: // Methods
 			projection = glm::scale(projection, glm::vec3{ 1.f,-1.f,1.f });// flip Y to convert glm from OpenGL coord system to Vulkan
 
 			auto renderPassBeginInfo = vki::RenderPassBeginInfo(
-            _pbrRenderStage->GetRenderPass(), 
-            _sceneFramebuffer->Framebuffer, 
-            sceneRenderArea, 
-            _sceneFramebuffer->ClearValues);
-			
+				_pbrRenderStage->GetRenderPass(),
+				_sceneFramebuffer->Framebuffer,
+				sceneRenderArea,
+				_sceneFramebuffer->ClearValues);
+
 			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
@@ -215,7 +217,7 @@ public: // Methods
 			vkCmdEndRenderPass(commandBuffer);
 		}
 
-		
+
 		// Wait for scene to be drawn so we can sample it in post
 		vkh::TransitionImageLayout(commandBuffer, _sceneFramebuffer->OutputImage,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -223,15 +225,15 @@ public: // Methods
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			0, 1, 0, 1); //TODO optimise stages
 
-		
+
 		// Draw PostEffects to PostFramebuffer
 		{
 			auto beginInfo = vki::RenderPassBeginInfo(
-            _postEffectsRenderStage->GetRenderPass(), 
-            _postFramebuffer->Framebuffer, 
-            sceneRenderArea, 
-            _postFramebuffer->ClearValues);
-			
+				_postEffectsRenderStage->GetRenderPass(),
+				_postFramebuffer->Framebuffer,
+				sceneRenderArea,
+				_postFramebuffer->ClearValues);
+
 			vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				vkCmdSetViewport(commandBuffer, 0, 1, &sceneViewport);
@@ -317,28 +319,28 @@ private:// Methods
 
 		FramebufferDesc desc = {
 			.Extent = { width, height },
-         .Attachments = {
-            FramebufferAttachmentDesc::CreateDepth(depthFormat),
-         },
+		 .Attachments = {
+			FramebufferAttachmentDesc::CreateDepth(depthFormat),
+		 },
 			.OutputAttachmentIndex = 0,
-      };
+	  };
 
 		return std::make_unique<FramebufferResources>(desc, renderPass, _vk);
 	}
 
-	std::unique_ptr<FramebufferResources> CreatePostFramebuffer(u32 width, u32 height, VkRenderPass renderPass, VkFormat format) const
+	std::unique_ptr<FramebufferResources> CreatePostFramebuffer(u32 width, u32 height, VkRenderPass renderPass) const
 	{
 		FramebufferDesc desc = {
 			.Extent = { width, height },
-         .Attachments = {
+			.Attachments = {
 				FramebufferAttachmentDesc::CreateColor(VK_FORMAT_R16G16B16A16_SFLOAT),
-         },
+			},
 			.OutputAttachmentIndex = 0,
-      };
+		};
 
 		return std::make_unique<FramebufferResources>(desc, renderPass, _vk);
 	}
-	
+
 	// Returns light transform matrix if found, otherwise identity
 	static bool FindShadowCasterMatrix(const std::vector<Light>& lights, glm::mat4& outMatrix)
 	{

@@ -82,6 +82,17 @@ public: // Methods
 			shaderDir,
 			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice(), _vulkan->CommandPool(), _vulkan->GraphicsQueue());
 	}
+
+	void Destroy()
+	{
+		if (_vulkan)
+		{
+			DestroyDescriptorResources();
+			vkDestroyRenderPass(_vulkan->LogicalDevice(), _renderPass, _vulkan->Allocator());
+			_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
+			_vulkan = nullptr;
+		}
+	}
 	/*~PostEffectsRenderStage()
 	{
 		Destroy();
@@ -170,17 +181,6 @@ public: // Methods
 	}
 
 private: // Methods
-	void Destroy()
-	{
-		if (_vulkan)
-		{
-			DestroyDescriptorResources();
-			_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
-			_vulkan = nullptr;
-
-			vkDestroyRenderPass(_vulkan->LogicalDevice(), _renderPass, _vulkan->Allocator());
-		}
-	}
 
 	static VkRenderPass CreatePostEffectsRenderPass(VulkanService& vk, VkFormat format)
 	{
