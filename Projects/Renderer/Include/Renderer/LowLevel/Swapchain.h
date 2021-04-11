@@ -152,8 +152,8 @@ private:
 		QueueFamilyIndices indicies = vkh::FindQueueFamilies(physicalDevice, surface);
 		const uint32_t queueCount = 2;
 		// TODO Code smell: will break as more are added to indicies?
-		uint32_t queueFamiliesIndices[queueCount] = { indicies.GraphicsFamily.value(), indicies.PresentFamily.value() };
-		if (indicies.GraphicsFamily != indicies.PresentFamily)
+		uint32_t queueFamiliesIndices[queueCount] = { indicies.GraphicsAndComputeFamily.value(), indicies.PresentFamily.value() };
+		if (indicies.GraphicsAndComputeFamily != indicies.PresentFamily)
 		{
 			info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 			info.queueFamilyIndexCount = queueCount;

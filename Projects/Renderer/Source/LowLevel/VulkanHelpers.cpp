@@ -323,7 +323,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	// Create QueueCreateInfo for each queue family
 
 	QueueFamilyIndices indices = FindQueueFamilies(physicalDevice, surface);
-	std::set<uint32_t> uniqueQueueFamilies = { indices.GraphicsFamily.value(), indices.PresentFamily.value() };
+	std::set<uint32_t> uniqueQueueFamilies = { indices.GraphicsAndComputeFamily.value(), indices.PresentFamily.value() };
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	float queuePriority = 1.0f;
@@ -367,7 +367,7 @@ std::tuple<VkDevice, VkQueue, VkQueue> VulkanHelpers::CreateLogicalDevice(VkPhys
 	}
 
 	VkQueue graphicsQueue;
-	vkGetDeviceQueue(device, indices.GraphicsFamily.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(device, indices.GraphicsAndComputeFamily.value(), 0, &graphicsQueue);
 
 	VkQueue presentQueue;
 	vkGetDeviceQueue(device, indices.PresentFamily.value(), 0, &presentQueue);
@@ -391,9 +391,12 @@ QueueFamilyIndices VulkanHelpers::FindQueueFamilies(VkPhysicalDevice physicalDev
 		// Transfer queue will be async and not block other work. It has some latency though.
 		// If needing an immediate copy for work done right now, then graphics or compute queues are faster, but clog system
 
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		// HACKY! Only supporting GPUs which share Graphics and Compute queues.
+		// TODO Graphics and Compute should be separate. And then i need to think about how to handle resources that are used on both. VK_SHARING_MODE_CONCURRENT vs VK_SHARING_MODE_EXCLUSIVE?
+		// See for inspiration: https://github.com/SaschaWillems/Vulkan/blob/master/examples/computeshader/computeshader.cpp
+		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) 
 		{
-			indices.GraphicsFamily = i;
+			indices.GraphicsAndComputeFamily = i;
 		}
 
 		VkBool32 presentSupport = false;
@@ -403,9 +406,9 @@ QueueFamilyIndices VulkanHelpers::FindQueueFamilies(VkPhysicalDevice physicalDev
 			indices.PresentFamily = i;
 		}
 
-		if (indices.IsComplete())
+		if (!indices.IsComplete())
 		{
-			break;
+			throw std::runtime_error("Device doesn't support Compute and Graphics queue indicies. Currently unsupported in renderer.");
 		}
 	}
 
@@ -537,7 +540,7 @@ VkCommandPool VulkanHelpers::CreateCommandPool(QueueFamilyIndices queueFamilyInd
 	VkCommandPoolCreateInfo commandPoolCI = {};
 	{
 		commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		commandPoolCI.queueFamilyIndex = queueFamilyIndices.GraphicsFamily.value();
+		commandPoolCI.queueFamilyIndex = queueFamilyIndices.GraphicsAndComputeFamily.value();
 		commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	}
 	VkCommandPool commandPool;

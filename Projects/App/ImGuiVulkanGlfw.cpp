@@ -101,7 +101,7 @@ ImGuiVulkanGlfw::ImGuiVulkanGlfw(GLFWwindow* window, VulkanService* vk)
 		initInfo.Instance = vk->Instance();
 		initInfo.PhysicalDevice = vk->PhysicalDevice();
 		initInfo.Device = vk->LogicalDevice();
-		initInfo.QueueFamily = vkh::FindQueueFamilies(vk->PhysicalDevice(), vk->Surface()).GraphicsFamily.value();
+		initInfo.QueueFamily = vkh::FindQueueFamilies(vk->PhysicalDevice(), vk->Surface()).GraphicsAndComputeFamily.value();
 		// vomit
 		initInfo.Queue = vk->GraphicsQueue();
 		initInfo.PipelineCache = nullptr;
