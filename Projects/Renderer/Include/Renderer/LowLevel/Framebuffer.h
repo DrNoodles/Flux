@@ -16,6 +16,7 @@ struct FramebufferAttachmentDesc
 	VkImageAspectFlagBits Aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 	VkClearValue ClearColor = {};
 	VkSampleCountFlagBits MultisampleCount = VK_SAMPLE_COUNT_1_BIT;
+	VkImageUsageFlags AdditionalUsageFlags = 0;
 
 	static FramebufferAttachmentDesc CreateColor(VkFormat format, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT, VkClearColorValue clearColor = { {0,0,0,1} })
 	{
@@ -125,9 +126,9 @@ public: // Methods
 		auto usageFromAspect = [](VkImageAspectFlagBits aspect) -> VkImageUsageFlags
 		{
 			VkImageUsageFlags usageFlags =
-            VK_IMAGE_USAGE_SAMPLED_BIT |
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            VK_IMAGE_USAGE_SAMPLED_BIT |      // use in frag
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // copy from
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT;  // copy to
 
 			if (aspect & VK_IMAGE_ASPECT_COLOR_BIT) 
 				usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -151,7 +152,7 @@ public: // Methods
             attachmentDesc.MultisampleCount,
             attachmentDesc.Format,
             VK_IMAGE_TILING_OPTIMAL,
-            usageFromAspect(attachmentDesc.Aspect),
+            usageFromAspect(attachmentDesc.Aspect) | attachmentDesc.AdditionalUsageFlags,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             _vk.PhysicalDevice(), _vk.LogicalDevice());
 

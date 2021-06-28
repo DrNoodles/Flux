@@ -1,0 +1,17 @@
+#version 450
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0, rgba16) uniform readonly image2D inputImage;
+layout (binding = 1, rgba16) uniform writeonly image2D outputImage;
+
+void main()
+{
+	ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+
+	vec3 color = imageLoad(inputImage, pixelCoords).rgb;  
+	
+	// Only keep colours where at least once channel is "bright"
+	color = (color.x > 1 || color.y > 1 || color.z > 1) ? color : vec3(0);
+
+	imageStore(outputImage, pixelCoords, vec4(color, 1.0));
+}

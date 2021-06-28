@@ -7,35 +7,9 @@
 #include "Renderer/LowLevel/UniformBufferObjects.h"
 #include "Renderer/LowLevel/VulkanService.h"
 
-
-struct TextureData
+class BloomFullscreenRenderPass
 {
-	VkDescriptorImageInfo Texture; // todo make this a texture resource? decouple from hard resources is probs better
-};
-
-class PostEffectsRenderStage
-{
-private: // Types
-	struct DescriptorResources
-	{
-		u32 ImageCount = 0;
-		std::vector<VkDescriptorSet> DescriptorSets = {};
-		std::vector<VkBuffer> UboBuffers = {};
-		std::vector<VkDeviceMemory> UboBuffersMemory = {};
-		VkDescriptorPool DescriptorPool = nullptr;
-
-		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
-		{
-			for (u32 i = 0; i < ImageCount; i++)
-			{
-				vkDestroyBuffer(device, UboBuffers[i], allocator);
-				vkFreeMemory(device, UboBuffersMemory[i], allocator);
-			}
-			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
-			ImageCount = 0;
-		}
-	};
-
+private:// Types
 	struct DrawResources
 	{
 		// Client used
@@ -62,20 +36,37 @@ private: // Types
 		}
 	};
 
+	struct DescriptorResources
+	{
+		u32 ImageCount = 0;
+		std::vector<VkDescriptorSet> DescriptorSets = {};
+		std::vector<VkBuffer> UboBuffers = {};
+		std::vector<VkDeviceMemory> UboBuffersMemory = {};
+		VkDescriptorPool DescriptorPool = nullptr;
 
-public:  // Data
-private: // Data
-	DrawResources _screenQuadResources;
-	DescriptorResources _descriptorResources;
+		void Destroy(VkDevice device, VkAllocationCallbacks* allocator)
+		{
+			for (u32 i = 0; i < ImageCount; i++)
+			{
+				vkDestroyBuffer(device, UboBuffers[i], allocator);
+				vkFreeMemory(device, UboBuffersMemory[i], allocator);
+			}
+			vkDestroyDescriptorPool(device, DescriptorPool, allocator);
+			ImageCount = 0;
+		}
+	};
+
+private:// Data
 	VulkanService* _vulkan = nullptr;
+	DrawResources _screenQuadResources;
 	VkRenderPass _renderPass = nullptr;
+	DescriptorResources _descriptorResources;
 
 public: // Methods
-	PostEffectsRenderStage() = delete;
-	explicit PostEffectsRenderStage(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
+	BloomFullscreenRenderPass(const std::string& shaderDir, VulkanService* vk) : _vulkan(vk)
 	{
-		_renderPass = CreatePostEffectsRenderPass(*_vulkan, VK_FORMAT_R16G16B16A16_SFLOAT);		
-		
+		_renderPass = CreateRenderPass(*_vulkan, VK_FORMAT_R16G16B16A16_SFLOAT);
+
 		// Create quad resources
 		_screenQuadResources = CreateDrawResources(
 			_renderPass,
@@ -87,86 +78,21 @@ public: // Methods
 	{
 		if (_vulkan)
 		{
-			DestroyDescriptorResources();
 			vkDestroyRenderPass(_vulkan->LogicalDevice(), _renderPass, _vulkan->Allocator());
 			_screenQuadResources.Destroy(_vulkan->LogicalDevice(), _vulkan->Allocator());
 			_vulkan = nullptr;
 		}
 	}
-	/*~PostEffectsRenderStage()
-	{
-		Destroy();
-	}*/
-
-	// Copy
-	//PostEffectsRenderStage(const PostEffectsRenderStage&) = delete;
-	//PostEffectsRenderStage& operator=(const PostEffectsRenderStage&) = delete;
-	// Move
-	//PostEffectsRenderStage(PostEffectsRenderStage&& other) = default;
-	//PostEffectsRenderStage& operator=(PostEffectsRenderStage&& other) = default;
-	/*PostEffectsRenderStage(PostEffectsRenderStage&& other) noexcept { *this = std::move(other); }
-	PostEffectsRenderStage& operator=(PostEffectsRenderStage&& other) noexcept
-	{
-		if (this != &other)
-		{
-			Destroy();
-			_descriptorResources = other._descriptorResources;
-			_screenQuadResources = other._screenQuadResources;
-			_vulkan = other._vulkan;
-
-			other._vulkan = nullptr;
-		}
-		
-		return *this;
-	}*/
 
 	VkRenderPass GetRenderPass() const { return _renderPass; }
 
-	void CreateDescriptorResources(TextureData input)
+	void CreateDescriptorResources(VkDescriptorImageInfo input)
 	{
-		auto imageCount = _vulkan->GetSwapchain().GetImageCount();
-
-		// Create uniform buffers
-		const auto uboSize = sizeof(PostUbo);
-		auto [uboBuffers, uboBuffersMemory]
-			= vkh::CreateUniformBuffers(imageCount, uboSize, _vulkan->LogicalDevice(), _vulkan->PhysicalDevice());
-
-
-		// Create descriptor pool
-		VkDescriptorPool descPool;
-		{
-			const std::vector<VkDescriptorPoolSize> poolSizes = {
-				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
-				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
-			};
-			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, _vulkan->LogicalDevice());
-		}
-
-
-		// Create descriptor sets
-		std::vector<VkDescriptorSet> descSets;
-		{
-			descSets = vkh::AllocateDescriptorSets(imageCount, _screenQuadResources.DescriptorSetLayout, descPool, _vulkan->LogicalDevice());
-
-			for (size_t i = 0; i < imageCount; i++)
-			{
-				VkDescriptorBufferInfo bufferUboInfo = {};
-				bufferUboInfo.buffer = uboBuffers[i];
-				bufferUboInfo.offset = 0;
-				bufferUboInfo.range = uboSize;
-
-				vkh::UpdateDescriptorSet(_vulkan->LogicalDevice(), {
-					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &input.Texture),
-					vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
-					});
-			}
-		};
-
-		_descriptorResources.ImageCount = imageCount;
-		_descriptorResources.UboBuffers = uboBuffers;
-		_descriptorResources.UboBuffersMemory = uboBuffersMemory;
-		_descriptorResources.DescriptorPool = descPool;
-		_descriptorResources.DescriptorSets = descSets;
+		_descriptorResources = CreateDescriptorResources(
+			_screenQuadResources.DescriptorSetLayout,
+			input,
+			_vulkan->GetSwapchain().GetImageCount(),
+			_vulkan->LogicalDevice(), _vulkan->PhysicalDevice());
 	}
 
 	void DestroyDescriptorResources()
@@ -219,9 +145,8 @@ public: // Methods
 		vkCmdDrawIndexed(commandBuffer, (u32)mesh.IndexCount, 1, 0, 0, 0);
 	}
 
-private: // Methods
-
-	static VkRenderPass CreatePostEffectsRenderPass(VulkanService& vk, VkFormat format)
+private:// Methods
+	static VkRenderPass CreateRenderPass(VulkanService& vk, VkFormat format)
 	{
 		// Define attachments
 		VkAttachmentDescription colourAttachDesc = {};
@@ -248,7 +173,7 @@ private: // Methods
 		// Define dependencies for layout transitions
 		return vkh::CreateRenderPass(vk.LogicalDevice(), { colourAttachDesc }, { subpassDescription }, {});
 	}
-	
+
 	static DrawResources CreateDrawResources(VkRenderPass renderPass, const std::string& shaderDir, VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool cmdPool, VkQueue cmdQueue)
 	{
 		auto msaaSamples = VK_SAMPLE_COUNT_1_BIT;
@@ -433,5 +358,52 @@ private: // Methods
 
 		return res;
 	}
-		
+
+	static DescriptorResources CreateDescriptorResources(VkDescriptorSetLayout descSetlayout, const VkDescriptorImageInfo& screenMap,
+		u32 imageCount, VkDevice device, VkPhysicalDevice physicalDevice)
+	{
+		// Create uniform buffers
+		const auto uboSize = sizeof(PostUbo);
+		auto [uboBuffers, uboBuffersMemory]
+			= vkh::CreateUniformBuffers(imageCount, uboSize, device, physicalDevice);
+
+
+		// Create descriptor pool
+		VkDescriptorPool descPool;
+		{
+			const std::vector<VkDescriptorPoolSize> poolSizes = {
+				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount},
+				VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount}
+			};
+			descPool = vkh::CreateDescriptorPool(poolSizes, imageCount, device);
+		}
+
+
+		// Create descriptor sets
+		std::vector<VkDescriptorSet> descSets;
+		{
+			descSets = vkh::AllocateDescriptorSets(imageCount, descSetlayout, descPool, device);
+
+			for (size_t i = 0; i < imageCount; i++)
+			{
+				VkDescriptorBufferInfo bufferUboInfo = {};
+				bufferUboInfo.buffer = uboBuffers[i];
+				bufferUboInfo.offset = 0;
+				bufferUboInfo.range = uboSize;
+
+				vkh::UpdateDescriptorSet(device, {
+					vki::WriteDescriptorSet(descSets[i], 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 0, &screenMap),
+					vki::WriteDescriptorSet(descSets[i], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 0, nullptr, &bufferUboInfo),
+					});
+			}
+		}
+
+		DescriptorResources res;
+		res.ImageCount = imageCount;
+		res.UboBuffers = uboBuffers;
+		res.UboBuffersMemory = uboBuffersMemory;
+		res.DescriptorPool = descPool;
+		res.DescriptorSets = descSets;
+		return res;
+	}
 };

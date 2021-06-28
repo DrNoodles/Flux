@@ -5,6 +5,7 @@
 
 class VulkanService;
 class ResourceRegistry;
+class TextureResource;
 struct UniversalUbo;
 struct RenderableMeshCreateInfo;
 

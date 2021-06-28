@@ -106,6 +106,7 @@ project "Renderer"
 		"Projects/Renderer/Source/**.cpp",
 		"Projects/Renderer/Source/**.frag",
 		"Projects/Renderer/Source/**.vert",
+		"Projects/Renderer/Source/**.comp",
 
 		"External/stbi/src/stb_image.cpp",
 		"External/imgui/**",
