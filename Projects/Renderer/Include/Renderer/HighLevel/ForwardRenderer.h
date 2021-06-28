@@ -58,6 +58,7 @@ Renderer:
 		ResourceId GetResourceId(AssetDesc asset) // lazy load? could be tricky with composite resources. 1 input = n output (ibl for eg)
 
 */
+#define FEATURE_BLOOM 0
 
 class ForwardRenderer final : public IPbrRenderStageDelegate
 {
@@ -83,7 +84,9 @@ private:// Data
 	std::unique_ptr<ShadowMapRenderStage>   _shadowMapRenderStage = nullptr;
 	//std::unique_ptr<ToneMappingRenderStage> _toneMappingRenderStage = nullptr;
 	std::unique_ptr<PostEffectsRenderStage> _postEffectsRenderStage = nullptr;
+#if FEATURE_BLOOM
 	std::unique_ptr<BloomRenderStage>       _bloomRenderStage = nullptr;
+#endif
 
 public: // Lifetime
 	
@@ -103,15 +106,18 @@ public: // Lifetime
 		_skyboxRenderStage = std::make_unique<SkyboxRenderStage>(_vk, _resourceRegistry.get(), _shaderDir, _assetsDir, _modelLoaderService);
 		_pbrRenderStage = std::make_unique<PbrRenderStage>(_vk, _resourceRegistry.get(), *this, _shaderDir, _assetsDir);
 		_sceneFramebuffer = CreateSceneFramebuffer(resolution.Width, resolution.Height, _pbrRenderStage->GetRenderPass());
-		
+#if FEATURE_BLOOM
 		// Bloom
 		_bloomRenderStage = std::make_unique<BloomRenderStage>(_shaderDir, &_vk);
 		_bloomRenderStage->CreateDescriptorResources(InputFramebuffers{ _sceneFramebuffer->OutputDescriptor }, { resolution.Width, resolution.Height });
-
+#endif
 		// Post
 		_postEffectsRenderStage = std::make_unique<PostEffectsRenderStage>(_shaderDir, &_vk);
+#if FEATURE_BLOOM
 		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_bloomRenderStage->GetOutput().ColorInfo});
-		//_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+#else
+		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+#endif
 		_postFramebuffer = CreatePostFramebuffer(resolution.Width, resolution.Height, _postEffectsRenderStage->GetRenderPass());
 	}
 	
@@ -143,9 +149,10 @@ public: // Lifetime
 
 		_postEffectsRenderStage->Destroy();
 		_postEffectsRenderStage = nullptr;
-
+#if FEATURE_BLOOM
 		_bloomRenderStage->Destroy();
 		_bloomRenderStage = nullptr;
+#endif
 	}
 
 
@@ -153,7 +160,9 @@ public: // Methods
 	void HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapchainImages)
 	{
 		_postEffectsRenderStage->DestroyDescriptorResources();
+#if FEATURE_BLOOM
 		_bloomRenderStage->DestroyDescriptorResources();
+#endif
 		_postFramebuffer->Destroy();
 		_sceneFramebuffer->Destroy();
 
@@ -162,9 +171,13 @@ public: // Methods
 		_pbrRenderStage->HandleSwapchainRecreated(width, height, numSwapchainImages);
 	
 		_sceneFramebuffer = CreateSceneFramebuffer(width, height, _pbrRenderStage->GetRenderPass());
+
+#if FEATURE_BLOOM
 		_bloomRenderStage->CreateDescriptorResources(InputFramebuffers{ _sceneFramebuffer->OutputDescriptor }, { width, height });
 		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_bloomRenderStage->GetOutput().ColorInfo});
-		//_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+#else
+		_postEffectsRenderStage->CreateDescriptorResources(TextureData{_sceneFramebuffer->OutputDescriptor});
+#endif
 		_postFramebuffer = CreatePostFramebuffer(width, height, _postEffectsRenderStage->GetRenderPass());
 	}
 	
@@ -203,12 +216,13 @@ public: // Methods
 		const auto sceneRenderArea = vki::Rect2D({}, _sceneFramebuffer->Desc.Extent);
 		const auto sceneViewport = vki::Viewport(sceneRenderArea);
 
-
+#if FEATURE_BLOOM
 		vkh::TransitionImageLayout(commandBuffer, _sceneFramebuffer->OutputImage,
 			VK_IMAGE_LAYOUT_GENERAL,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			0, 1, 0, 1); // TODO Optimise stages
+#endif
 
 		// Draw Scene (skybox and pbr) to Scene Framebuffer
 		{
@@ -236,7 +250,7 @@ public: // Methods
 			vkCmdEndRenderPass(commandBuffer);
 		}
 
-
+#if FEATURE_BLOOM
 		// Wait for scene to be drawn so we can sample it
 		vkh::TransitionImageLayout(commandBuffer, _sceneFramebuffer->OutputImage,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -248,14 +262,20 @@ public: // Methods
 		// Draw Bloom
 		_bloomRenderStage->Draw(commandBuffer, imageIndex, options);
 
-
 		// Wait for bloom Compute to finish for use in Post
 		vkh::TransitionImageLayout(commandBuffer, _bloomRenderStage->GetOutput().ColorImage,
 			VK_IMAGE_LAYOUT_GENERAL,
 			VK_IMAGE_LAYOUT_GENERAL,
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			0, 1, 0, 1); // TODO Optimise stages
-
+#else
+		// Wait for scene to be drawn so we can sample it
+		vkh::TransitionImageLayout(commandBuffer, _sceneFramebuffer->OutputImage,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			0, 1, 0, 1); // TODO Optimise stages
+#endif
 
 		// Draw PostEffects to PostFramebuffer
 		{
@@ -338,7 +358,9 @@ private:// Methods
 		if (usingMultisampling)
 		{
 			desc.Attachments.emplace_back(FramebufferAttachmentDesc::CreateResolve(VK_FORMAT_R16G16B16A16_SFLOAT));
+#if FEATURE_BLOOM
 			desc.Attachments[2].AdditionalUsageFlags = VK_IMAGE_USAGE_STORAGE_BIT; // Resolve will be used in a compute for post processing
+#endif
 			desc.OutputAttachmentIndex = 2; // Resolve
 		}
 
