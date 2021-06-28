@@ -933,7 +933,7 @@ void VulkanHelpers::EndSingeTimeCommands(VkCommandBuffer commandBuffer, VkComman
 	vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
 }
 
-std::vector<VkCommandBuffer> VulkanHelpers::AllocateCommandBuffers(u32 numBuffersToCreate,
+std::vector<vk::CommandBuffer> VulkanHelpers::AllocateCommandBuffers(u32 numBuffersToCreate,
 	VkCommandPool commandPool, VkDevice device)
 {
 	VkCommandBufferAllocateInfo allocInfo = {};
@@ -944,8 +944,8 @@ std::vector<VkCommandBuffer> VulkanHelpers::AllocateCommandBuffers(u32 numBuffer
 		allocInfo.commandBufferCount = numBuffersToCreate;
 	}
 
-	std::vector<VkCommandBuffer> commandBuffers{ numBuffersToCreate };
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
+	std::vector<vk::CommandBuffer> commandBuffers{ numBuffersToCreate };
+	if (vkAllocateCommandBuffers(device, &allocInfo, reinterpret_cast<VkCommandBuffer*>(commandBuffers.data())) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate Command Buffers");
 	}

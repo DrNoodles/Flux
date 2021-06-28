@@ -1,8 +1,7 @@
 #pragma once
 
 #include <Framework/CommonTypes.h>
-
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 
 #include <vector>
 #include <cassert>
@@ -126,7 +125,7 @@ public:
 		VkQueue transferQueue, VkDevice device);
 
 
-	[[nodiscard]] static std::vector<VkCommandBuffer> AllocateCommandBuffers(u32 numBuffersToCreate,
+	[[nodiscard]] static std::vector<vk::CommandBuffer> AllocateCommandBuffers(u32 numBuffersToCreate,
 		VkCommandPool commandPool, VkDevice device);
 
 

@@ -7,7 +7,7 @@
 
 #include <Framework/CommonTypes.h>
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 
 #include <iostream>
 
@@ -73,7 +73,7 @@ private: // DATA ///////////////////////////////////////////////////////////////
 	
 	VkSurfaceKHR _surface = nullptr;
 
-	std::vector<VkCommandBuffer> _commandBuffers{};
+	std::vector<vk::CommandBuffer> _commandBuffers{};
 
 	// Synchronization
 	std::vector<VkSemaphore> _renderFinishedSemaphores{};
@@ -210,9 +210,12 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 		
 		// Start command buffer
-		auto* commandBuffer = _commandBuffers[imageIndex];
-		const auto beginInfo = vki::CommandBufferBeginInfo(0, nullptr);
-		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		auto commandBuffer = _commandBuffers[imageIndex];
+		vk::CommandBufferBeginInfo beginInfo{};
+		beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit; // NOTE This used to be 0. Not sure which to use...
+		beginInfo.pInheritanceInfo = nullptr;
+
+		if (commandBuffer.begin(&beginInfo) != vk::Result::eSuccess)
 		{
 			throw std::runtime_error("Failed to begin recording command buffer");
 		}
@@ -230,24 +233,23 @@ public: // METHODS /////////////////////////////////////////////////////////////
 
 		
 		// Execute command buffer with the image as an attachment in the framebuffer
-		const uint32_t waitCount = 1; // waitSemaphores and waitStages arrays sizes must match as they're matched by index
-		VkSemaphore waitSemaphores[waitCount] = { _imageAvailableSemaphores[_currentFrame] };
-		VkPipelineStageFlags waitStages[waitCount] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-		const uint32_t signalCount = 1;
-		VkSemaphore signalSemaphores[signalCount] = { _renderFinishedSemaphores[_currentFrame] };
+	
+		VkSemaphore waitSemaphore = _imageAvailableSemaphores[_currentFrame];
+		//vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		VkSemaphore signalSemaphore = _renderFinishedSemaphores[_currentFrame];
 
 		VkSubmitInfo submitInfo = {};
 		{
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &_commandBuffers[imageIndex];
+			submitInfo.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(&_commandBuffers[imageIndex]);
 			// cmdbuf that binds the swapchain image we acquired as color attachment
-			submitInfo.waitSemaphoreCount = waitCount;
-			submitInfo.pWaitSemaphores = waitSemaphores;
-			submitInfo.pWaitDstStageMask = waitStages;
-			submitInfo.signalSemaphoreCount = signalCount;
-			submitInfo.pSignalSemaphores = signalSemaphores;
+			submitInfo.waitSemaphoreCount = 1;
+			submitInfo.pWaitSemaphores = &waitSemaphore;
+			submitInfo.pWaitDstStageMask = &waitStage;
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &signalSemaphore;
 		}
 
 		vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
@@ -264,7 +266,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 		{
 			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = signalSemaphores;
+			presentInfo.pWaitSemaphores = &signalSemaphore;
 			presentInfo.swapchainCount = (u32)swapchains.size();
 			presentInfo.pSwapchains = swapchains.data();
 			presentInfo.pImageIndices = &imageIndex;
@@ -364,7 +366,7 @@ private: // METHODS ////////////////////////////////////////////////////////////
 		for (auto& x : _renderFinishedSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		for (auto& x : _imageAvailableSemaphores) { vkDestroySemaphore(_device, x, nullptr); }
 		
-		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), _commandBuffers.data());
+		vkFreeCommandBuffers(_device, _commandPool, (uint32_t)_commandBuffers.size(), reinterpret_cast<VkCommandBuffer*>(_commandBuffers.data()));
 
 		_swapchain = nullptr; // RAII cleanup
 		
