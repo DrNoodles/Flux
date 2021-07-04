@@ -176,7 +176,7 @@ public: // METHODS /////////////////////////////////////////////////////////////
 	// Physical Device property
 	VkSampleCountFlagBits GetMsaaSamples() const { return _msaaSamples; }
 	
-	std::optional<std::tuple<u32,VkCommandBuffer>> StartFrame()
+	std::optional<std::tuple<u32,vk::CommandBuffer>> StartFrame()
 	{
 		// Sync CPU-GPU
 		vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], true, UINT64_MAX);
@@ -220,16 +220,17 @@ public: // METHODS /////////////////////////////////////////////////////////////
 			throw std::runtime_error("Failed to begin recording command buffer");
 		}
 		
-		return std::tuple<u32, VkCommandBuffer>{ imageIndex, commandBuffer };
+		return std::tuple<u32, vk::CommandBuffer>{ imageIndex, commandBuffer };
 	}
 
-	void EndFrame(u32 imageIndex, VkCommandBuffer commandBuffer)
+	void EndFrame(u32 imageIndex, vk::CommandBuffer commandBuffer)
 	{
 		// End recording
-		if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+		commandBuffer.end();
+		/*if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to end recording command buffer");
-		}
+		}*/
 
 		
 		// Execute command buffer with the image as an attachment in the framebuffer

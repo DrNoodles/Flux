@@ -268,7 +268,7 @@ void UiPresenter::HandleSwapchainRecreated(u32 width, u32 height, u32 numSwapcha
 	_forwardRenderer->HandleSwapchainRecreated(ViewportRect().Extent.Width, ViewportRect().Extent.Height, numSwapchainImages);
 }
 
-void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
+void UiPresenter::Draw(u32 imageIndex, vk::CommandBuffer commandBuffer)
 {
 	// Draw Scene
 	{
@@ -312,19 +312,20 @@ void UiPresenter::Draw(u32 imageIndex, VkCommandBuffer commandBuffer)
 	
 	// Draw Ui into swapchain
 	{
-		std::vector<VkClearValue> clearColors = {
-			VkClearValue { .color = { 0, 1, 1, 1 } },
-			VkClearValue { .depthStencil = { 1, 0 } },
-		};
+		const std::array<f32, 4> c = { 0.f, 1.f, 1.f, 1.f };
+		std::vector<vk::ClearValue> clearColors(2);
+		clearColors[0].setColor(c);
+		clearColors[1].setDepthStencil({ 1,0 });
+	
 		
 		// Whole screen framebuffer dimensions
 		const auto beginInfo = vki::RenderPassBeginInfo(swap.GetRenderPass(), swap.GetFramebuffers()[imageIndex],
 			vki::Rect2D({ 0, 0 }, swap.GetExtent()), clearColors);
-		vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		commandBuffer.beginRenderPass(&beginInfo, vk::SubpassContents::eInline);
 		{
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 		}
-		vkCmdEndRenderPass(commandBuffer);
+		commandBuffer.endRenderPass();
 	}
 
 

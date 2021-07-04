@@ -146,6 +146,19 @@ namespace vki
 	 @param renderArea is the render area that is affected by the render pass instance, and is described in more detail below.
 	 @param clearValues is a vector of VkClearValue structures that contains clear values for each attachment, if the attachment uses a loadOp value of VK_ATTACHMENT_LOAD_OP_CLEAR or if the attachment has a depth/stencil format and uses a stencilLoadOp value of VK_ATTACHMENT_LOAD_OP_CLEAR. The array is indexed by attachment number. Only elements corresponding to cleared attachments are used. Other elements of pClearValues are ignored.
 	*/
+	inline vk::RenderPassBeginInfo RenderPassBeginInfo(VkRenderPass renderPass, VkFramebuffer framebuffer, VkRect2D renderArea, const std::vector<vk::ClearValue>& clearValues)
+	{
+		vk::RenderPassBeginInfo x = {};
+		//x.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		//x.pNext = nullptr;
+		x.renderPass = renderPass;
+		x.framebuffer = framebuffer;
+		x.renderArea = renderArea;
+		x.clearValueCount = (u32)clearValues.size();
+		x.pClearValues = clearValues.data();
+		return x;
+	}
+	
 	inline VkRenderPassBeginInfo RenderPassBeginInfo(VkRenderPass renderPass, VkFramebuffer framebuffer, VkRect2D renderArea, const std::vector<VkClearValue>& clearValues)
 	{
 		VkRenderPassBeginInfo x = {};

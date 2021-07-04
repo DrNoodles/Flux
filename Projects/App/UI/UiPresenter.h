@@ -106,7 +106,7 @@ public: // METHODS
 		_uiUpdateRate = std::chrono::duration<float, std::chrono::seconds::period>{ 1.f / float(updatesPerSecond) };
 	}
 
-	void Draw(u32 imageIndex, VkCommandBuffer commandBuffer);
+	void Draw(u32 imageIndex, vk::CommandBuffer commandBuffer);
 
 	ForwardRenderer& HACK_GetForwardRendererRef() const { return *_forwardRenderer; }
 
